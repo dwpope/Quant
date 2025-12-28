@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B0329AB12F01471F00DA5BDB /* PostureLogic in Frameworks */ = {isa = PBXBuildFile; productRef = B0329AB02F01471F00DA5BDB /* PostureLogic */; };
+		B0329AB42F01477700DA5BDB /* PostureLogic in Frameworks */ = {isa = PBXBuildFile; productRef = B0329AB32F01477700DA5BDB /* PostureLogic */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		B0329A8E2EFF739A00DA5BDB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B0329AB12F01471F00DA5BDB /* PostureLogic in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -59,6 +65,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B0329AB42F01477700DA5BDB /* PostureLogic in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +85,7 @@
 				B0329A822EFF739800DA5BDB /* Quant */,
 				B0329A902EFF739A00DA5BDB /* QuantTests */,
 				B0329A9A2EFF739A00DA5BDB /* QuantUITests */,
+				B0329AB22F01477700DA5BDB /* Frameworks */,
 				B0329A812EFF739800DA5BDB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +98,13 @@
 				B0329A972EFF739A00DA5BDB /* QuantUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B0329AB22F01477700DA5BDB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -112,6 +127,7 @@
 			);
 			name = Quant;
 			packageProductDependencies = (
+				B0329AB02F01471F00DA5BDB /* PostureLogic */,
 			);
 			productName = Quant;
 			productReference = B0329A802EFF739800DA5BDB /* Quant.app */;
@@ -135,6 +151,7 @@
 			);
 			name = QuantTests;
 			packageProductDependencies = (
+				B0329AB32F01477700DA5BDB /* PostureLogic */,
 			);
 			productName = QuantTests;
 			productReference = B0329A8D2EFF739A00DA5BDB /* QuantTests.xctest */;
@@ -195,6 +212,9 @@
 			);
 			mainGroup = B0329A772EFF739800DA5BDB;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B0329AAF2F01471F00DA5BDB /* XCLocalSwiftPackageReference "PostureLogic" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0329A812EFF739800DA5BDB /* Products */;
 			projectDirPath = "";
@@ -578,6 +598,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		B0329AAF2F01471F00DA5BDB /* XCLocalSwiftPackageReference "PostureLogic" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = PostureLogic;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B0329AB02F01471F00DA5BDB /* PostureLogic */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PostureLogic;
+		};
+		B0329AB32F01477700DA5BDB /* PostureLogic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B0329AAF2F01471F00DA5BDB /* XCLocalSwiftPackageReference "PostureLogic" */;
+			productName = PostureLogic;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B0329A782EFF739800DA5BDB /* Project object */;
 }
