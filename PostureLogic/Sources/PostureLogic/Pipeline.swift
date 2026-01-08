@@ -89,35 +89,59 @@ import Foundation
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
 
-                self.latestPoseObservation = poseObs
+                // Only update state if PoseService actually processed (not throttled)
+                // When processSync returns nil, it could be:
+                // 1. Throttled (too soon since last process)
+                // 2. No pixel buffer
+                // 3. Vision found no pose
+                // We only want to update for cases 2 & 3, not case 1 (throttle)
 
-                // Determine tracking quality based on pose detection
-                let quality: TrackingQuality = self.computeTrackingQuality(
-                    poseObservation: poseObs,
-                    hasPixelBuffer: hasPixelBuffer
-                )
-                self.trackingQuality = quality
-
-                // Log pose detection results for debugging
+                // If we got a result (pose found), definitely update
                 if let obs = poseObs {
-                    print("✓ Pose detected: \(obs.keypoints.count) keypoints, confidence: \(obs.confidence)")
-                } else {
-                    print("✗ No pose detected")
-                }
+                    self.latestPoseObservation = obs
 
-                // Create pose sample (will be enhanced in Ticket 2.2 with actual pose fusion)
-                self.latestSample = PoseSample(
-                    timestamp: timestamp,
-                    depthMode: mode,
-                    headPosition: .zero,
-                    shoulderMidpoint: .zero,
-                    leftShoulder: .zero,
-                    rightShoulder: .zero,
-                    torsoAngle: 0,
-                    headForwardOffset: 0,
-                    shoulderTwist: 0,
-                    trackingQuality: quality
-                )
+                    let quality: TrackingQuality = self.computeTrackingQuality(
+                        poseObservation: obs,
+                        hasPixelBuffer: hasPixelBuffer
+                    )
+                    self.trackingQuality = quality
+
+                    print("✓ Pose detected: \(obs.keypoints.count) keypoints, confidence: \(obs.confidence)")
+
+                    self.latestSample = PoseSample(
+                        timestamp: timestamp,
+                        depthMode: mode,
+                        headPosition: .zero,
+                        shoulderMidpoint: .zero,
+                        leftShoulder: .zero,
+                        rightShoulder: .zero,
+                        torsoAngle: 0,
+                        headForwardOffset: 0,
+                        shoulderTwist: 0,
+                        trackingQuality: quality
+                    )
+                }
+                // If no pixel buffer, update to lost
+                else if !hasPixelBuffer {
+                    self.latestPoseObservation = nil
+                    self.trackingQuality = .lost
+                    print("✗ No pose detected (no pixel buffer)")
+
+                    self.latestSample = PoseSample(
+                        timestamp: timestamp,
+                        depthMode: mode,
+                        headPosition: .zero,
+                        shoulderMidpoint: .zero,
+                        leftShoulder: .zero,
+                        rightShoulder: .zero,
+                        torsoAngle: 0,
+                        headForwardOffset: 0,
+                        shoulderTwist: 0,
+                        trackingQuality: .lost
+                    )
+                }
+                // Otherwise it was throttled or no pose found - keep previous state
+                // Don't spam logs or update state for throttled frames
 
                 // Mark as done processing
                 self.isPoseProcessing = false
