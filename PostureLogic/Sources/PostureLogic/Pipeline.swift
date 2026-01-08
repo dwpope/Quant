@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 
-public class Pipeline {
+@MainActor public class Pipeline {
     // MARK: - Published Properties
 
     @Published public var latestSample: PoseSample?
