@@ -13,8 +13,12 @@ public class Pipeline {
     // MARK: - Private Properties
 
     private var subscriptions = Set<AnyCancellable>()
+    private var poseService = PoseService()
     private var depthService = DepthService()
     private var modeSwitcher: ModeSwitcher
+
+    // Latest pose observation
+    private var latestPoseObservation: PoseObservation?
 
     // FPS calculation
     private var lastFrameTime: TimeInterval = 0
@@ -45,23 +49,68 @@ public class Pipeline {
         let mode = modeSwitcher.update(confidence: confidence, timestamp: frame.timestamp)
         self.currentMode = mode
 
-        // Determine tracking quality (simplified for Sprint 1)
-        let quality: TrackingQuality = frame.pixelBuffer != nil ? .good : .lost
-        self.trackingQuality = quality
+        // Process pose asynchronously
+        Task { [weak self] in
+            guard let self = self else { return }
 
-        // Create pose sample
-        self.latestSample = PoseSample(
-            timestamp: frame.timestamp,
-            depthMode: mode,
-            headPosition: .zero,
-            shoulderMidpoint: .zero,
-            leftShoulder: .zero,
-            rightShoulder: .zero,
-            torsoAngle: 0,
-            headForwardOffset: 0,
-            shoulderTwist: 0,
-            trackingQuality: quality
-        )
+            // Extract pose keypoints using Vision
+            let poseObservation = await self.poseService.process(frame: frame)
+
+            // Update latest pose observation
+            self.latestPoseObservation = poseObservation
+
+            // Determine tracking quality based on pose detection
+            let quality: TrackingQuality = self.computeTrackingQuality(
+                poseObservation: poseObservation,
+                frame: frame
+            )
+            self.trackingQuality = quality
+
+            // Create pose sample (will be enhanced in Ticket 2.2 with actual pose fusion)
+            self.latestSample = PoseSample(
+                timestamp: frame.timestamp,
+                depthMode: mode,
+                headPosition: .zero,
+                shoulderMidpoint: .zero,
+                leftShoulder: .zero,
+                rightShoulder: .zero,
+                torsoAngle: 0,
+                headForwardOffset: 0,
+                shoulderTwist: 0,
+                trackingQuality: quality
+            )
+        }
+    }
+
+    private func computeTrackingQuality(poseObservation: PoseObservation?, frame: InputFrame) -> TrackingQuality {
+        // No pixel buffer = lost
+        guard frame.pixelBuffer != nil else {
+            return .lost
+        }
+
+        // No pose detected = lost
+        guard let observation = poseObservation else {
+            return .lost
+        }
+
+        // Check if we have the critical keypoints (shoulders and head)
+        let hasLeftShoulder = observation.keypoints.contains { $0.joint == .leftShoulder && $0.confidence > 0.5 }
+        let hasRightShoulder = observation.keypoints.contains { $0.joint == .rightShoulder && $0.confidence > 0.5 }
+        let hasHead = observation.keypoints.contains {
+            ($0.joint == .nose || $0.joint == .leftEye || $0.joint == .rightEye) && $0.confidence > 0.5
+        }
+
+        // Need at least shoulders and head for good tracking
+        if hasLeftShoulder && hasRightShoulder && hasHead {
+            return observation.confidence > 0.7 ? .good : .degraded
+        }
+
+        // Some keypoints but not enough
+        if observation.keypoints.count >= 3 {
+            return .degraded
+        }
+
+        return .lost
     }
 
     private func updateFPS(timestamp: TimeInterval) {
