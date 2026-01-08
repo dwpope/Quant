@@ -24,18 +24,37 @@ final class ARSessionService: NSObject, PoseProvider {
     private let sessionStateSubject = CurrentValueSubject<SessionState, Never>(.idle)
     private let logger = Logger(subsystem: "com.quant.posture", category: "ARSession")
 
-    private var currentConfig: ARBodyTrackingConfiguration?
+    private var currentConfig: ARWorldTrackingConfiguration?
 
     func start() async throws {
-        let config = ARBodyTrackingConfiguration()
-        config.frameSemantics = .bodyDetection
+        // Use ARWorldTrackingConfiguration for depth support
+        // (We use Vision framework for pose detection, not ARBodyTracking)
+        let config = ARWorldTrackingConfiguration()
+
+        // Try to enable depth - check both smoothedSceneDepth and sceneDepth
+        var depthEnabled = false
+
+        if ARWorldTrackingConfiguration.supportsFrameSemantics(.smoothedSceneDepth) {
+            config.frameSemantics = .smoothedSceneDepth
+            logger.info("✓ Smoothed scene depth enabled (LiDAR detected)")
+            depthEnabled = true
+        } else if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+            config.frameSemantics = .sceneDepth
+            logger.info("✓ Scene depth enabled (LiDAR detected)")
+            depthEnabled = true
+        }
+
+        if !depthEnabled {
+            logger.warning("⚠️ Scene depth not available - will use 2D-only mode")
+            logger.info("→ Device may lack LiDAR sensor")
+        }
 
         currentConfig = config
         session.delegate = self
         session.run(config)
 
         sessionStateSubject.send(.running)
-        logger.info("ARSession started successfully")
+        logger.info("ARSession started with ARWorldTrackingConfiguration")
     }
 
     func stop() {
@@ -47,10 +66,13 @@ final class ARSessionService: NSObject, PoseProvider {
 
 extension ARSessionService: ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        // Try smoothed depth first (preferred), then fall back to regular depth
+        let depthMap = frame.smoothedSceneDepth?.depthMap ?? frame.sceneDepth?.depthMap
+
         let inputFrame = InputFrame(
             timestamp: frame.timestamp,
             pixelBuffer: frame.capturedImage,
-            depthMap: frame.sceneDepth?.depthMap,
+            depthMap: depthMap,
             cameraIntrinsics: frame.camera.intrinsics
         )
         frameSubject.send(inputFrame)
