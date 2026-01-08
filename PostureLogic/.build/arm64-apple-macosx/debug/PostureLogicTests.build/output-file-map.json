@@ -15,5 +15,12 @@
     "swiftmodule": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests~partial.swiftmodule",
     "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.swiftdeps",
     "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.dia"
+  },
+  "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift": {
+    "dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.d",
+    "object": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o",
+    "swiftmodule": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swiftdeps",
+    "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.dia"
   }
 }

@@ -6,6 +6,8 @@
 '/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthServiceProtocol.swift.o'
 '/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/InputFrame.swift.o'
 '/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider.swift.o'
+'/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher+Example.swift.o'
+'/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher.swift.o'
 '/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/NudgeDecision.swift.o'
 '/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Pipeline.swift.o'
 '/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseObservation.swift.o'
@@ -21,3 +23,4 @@
 '/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swift.o'
 '/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/DepthServiceTests.swift.o'
 '/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.swift.o'
+'/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o'
