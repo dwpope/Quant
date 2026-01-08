@@ -20,6 +20,10 @@ import Foundation
     // Latest pose observation
     private var latestPoseObservation: PoseObservation?
 
+    // Pose processing state
+    private var isPoseProcessing = false
+    private var poseProcessingDropped = 0
+
     // FPS calculation
     private var lastFrameTime: TimeInterval = 0
     private var frameTimestamps: [TimeInterval] = []
@@ -49,6 +53,19 @@ import Foundation
         let mode = modeSwitcher.update(confidence: confidence, timestamp: frame.timestamp)
         self.currentMode = mode
 
+        // Skip pose processing if already processing to avoid frame buildup
+        guard !isPoseProcessing else {
+            poseProcessingDropped += 1
+            return
+        }
+
+        // Mark as processing
+        isPoseProcessing = true
+
+        // Extract only what we need to avoid retaining the entire ARFrame
+        let timestamp = frame.timestamp
+        let hasPixelBuffer = frame.pixelBuffer != nil
+
         // Process pose asynchronously
         Task { [weak self] in
             guard let self = self else { return }
@@ -57,34 +74,46 @@ import Foundation
             let poseObservation = await self.poseService.process(frame: frame)
 
             // Update latest pose observation
-            self.latestPoseObservation = poseObservation
+            await MainActor.run {
+                self.latestPoseObservation = poseObservation
 
-            // Determine tracking quality based on pose detection
-            let quality: TrackingQuality = self.computeTrackingQuality(
-                poseObservation: poseObservation,
-                frame: frame
-            )
-            self.trackingQuality = quality
+                // Determine tracking quality based on pose detection
+                let quality: TrackingQuality = self.computeTrackingQuality(
+                    poseObservation: poseObservation,
+                    hasPixelBuffer: hasPixelBuffer
+                )
+                self.trackingQuality = quality
 
-            // Create pose sample (will be enhanced in Ticket 2.2 with actual pose fusion)
-            self.latestSample = PoseSample(
-                timestamp: frame.timestamp,
-                depthMode: mode,
-                headPosition: .zero,
-                shoulderMidpoint: .zero,
-                leftShoulder: .zero,
-                rightShoulder: .zero,
-                torsoAngle: 0,
-                headForwardOffset: 0,
-                shoulderTwist: 0,
-                trackingQuality: quality
-            )
+                // Log pose detection results for debugging
+                if let obs = poseObservation {
+                    print("✓ Pose detected: \(obs.keypoints.count) keypoints, confidence: \(obs.confidence)")
+                } else {
+                    print("✗ No pose detected")
+                }
+
+                // Create pose sample (will be enhanced in Ticket 2.2 with actual pose fusion)
+                self.latestSample = PoseSample(
+                    timestamp: timestamp,
+                    depthMode: mode,
+                    headPosition: .zero,
+                    shoulderMidpoint: .zero,
+                    leftShoulder: .zero,
+                    rightShoulder: .zero,
+                    torsoAngle: 0,
+                    headForwardOffset: 0,
+                    shoulderTwist: 0,
+                    trackingQuality: quality
+                )
+
+                // Mark as done processing
+                self.isPoseProcessing = false
+            }
         }
     }
 
-    private func computeTrackingQuality(poseObservation: PoseObservation?, frame: InputFrame) -> TrackingQuality {
+    private func computeTrackingQuality(poseObservation: PoseObservation?, hasPixelBuffer: Bool) -> TrackingQuality {
         // No pixel buffer = lost
-        guard frame.pixelBuffer != nil else {
+        guard hasPixelBuffer else {
             return .lost
         }
 

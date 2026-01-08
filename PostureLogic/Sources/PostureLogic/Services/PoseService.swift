@@ -43,6 +43,7 @@ public final class PoseService: PoseServiceProtocol {
         }
 
         guard let pixelBuffer = frame.pixelBuffer else {
+            print("⚠️ PoseService: No pixel buffer in frame")
             return nil  // No pixel buffer to process
         }
 
@@ -53,14 +54,18 @@ public final class PoseService: PoseServiceProtocol {
 
         do {
             try handler.perform([request])
+
             guard let observation = request.results?.first else {
                 lastKeypointCount = 0
+                print("⚠️ PoseService: Vision returned no results")
                 return nil  // No pose detected
             }
 
             let keypoints = try extractKeypoints(from: observation)
             lastKeypointCount = keypoints.count
             lastConfidence = observation.confidence
+
+            print("✓ PoseService: Detected \(keypoints.count) keypoints, confidence: \(observation.confidence)")
 
             return PoseObservation(
                 timestamp: frame.timestamp,
@@ -70,6 +75,7 @@ public final class PoseService: PoseServiceProtocol {
         } catch {
             // Vision request failed
             lastKeypointCount = 0
+            print("❌ PoseService: Vision error: \(error.localizedDescription)")
             return nil
         }
     }
