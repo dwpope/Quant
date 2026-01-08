@@ -13,12 +13,12 @@ public struct DepthAtPoint {
     }
 }
 
-public enum DepthConfidence: Comparable {
+public enum DepthConfidence: String, Comparable {
     case unavailable
     case low
     case medium
     case high
-    
+
     public var numericValue: Float {
         switch self {
         case .unavailable: return 0.0
@@ -26,5 +26,9 @@ public enum DepthConfidence: Comparable {
         case .medium: return 0.6
         case .high: return 0.9
         }
+    }
+
+    public static func < (lhs: DepthConfidence, rhs: DepthConfidence) -> Bool {
+        return lhs.numericValue < rhs.numericValue
     }
 }
