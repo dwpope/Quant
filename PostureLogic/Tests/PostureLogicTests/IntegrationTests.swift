@@ -1,6 +1,7 @@
 import XCTest
 @testable import PostureLogic
 
+@MainActor
 final class IntegrationTests: XCTestCase {
     func test_mockFrameFlowsThroughPipeline() async throws {
         // Given
@@ -23,7 +24,8 @@ final class IntegrationTests: XCTestCase {
         // Then
         let output = pipeline.latestSample
         XCTAssertNotNil(output)
-        XCTAssertEqual(output?.trackingQuality, .good)
+        // TestScenarios.goodPosture has nil pixel buffer, so tracking quality should be .lost
+        XCTAssertEqual(output?.trackingQuality, .lost, "Without pixel buffer, tracking should be lost")
     }
 
     func test_ticket02_arkitIntegrationPattern() async throws {

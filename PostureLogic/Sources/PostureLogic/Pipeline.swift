@@ -13,7 +13,7 @@ import Foundation
     // MARK: - Private Properties
 
     private var subscriptions = Set<AnyCancellable>()
-    private var poseService = PoseService()
+    nonisolated(unsafe) private var poseService = PoseService()
     private var depthService = DepthService()
     private var modeSwitcher: ModeSwitcher
 
@@ -27,6 +27,9 @@ import Foundation
     // FPS calculation
     private var lastFrameTime: TimeInterval = 0
     private var frameTimestamps: [TimeInterval] = []
+
+    // Serial queue for Vision processing to prevent ARFrame buildup
+    private let visionQueue = DispatchQueue(label: "com.quant.vision", qos: .userInitiated)
 
     // MARK: - Initialization
 
@@ -62,30 +65,41 @@ import Foundation
         // Mark as processing
         isPoseProcessing = true
 
-        // Extract only what we need to avoid retaining the entire ARFrame
+        // Extract only what we need BEFORE dispatching to avoid retaining the entire InputFrame/ARFrame
         let timestamp = frame.timestamp
-        let hasPixelBuffer = frame.pixelBuffer != nil
+        let pixelBuffer = frame.pixelBuffer
+        let hasPixelBuffer = pixelBuffer != nil
 
-        // Process pose asynchronously
-        Task { [weak self] in
+        // Debug: Log pixel buffer status
+        if !hasPixelBuffer {
+            print("⚠️ Pipeline: Received frame with nil pixel buffer at \(timestamp)")
+        }
+
+        // Process pose on serial queue to prevent ARFrame buildup
+        // Using serial queue with SYNCHRONOUS processing ensures only ONE Vision request at a time
+        // and pixel buffer is released immediately after processing
+        visionQueue.async { [weak self] in
             guard let self = self else { return }
 
-            // Extract pose keypoints using Vision
-            let poseObservation = await self.poseService.process(frame: frame)
+            // Extract pose keypoints using Vision (SYNCHRONOUS on background queue)
+            // This blocks the serial queue until Vision completes, preventing ARFrame buildup
+            let poseObs = self.poseService.processSync(pixelBuffer: pixelBuffer, timestamp: timestamp)
 
-            // Update latest pose observation
-            await MainActor.run {
-                self.latestPoseObservation = poseObservation
+            // Update on main actor
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+
+                self.latestPoseObservation = poseObs
 
                 // Determine tracking quality based on pose detection
                 let quality: TrackingQuality = self.computeTrackingQuality(
-                    poseObservation: poseObservation,
+                    poseObservation: poseObs,
                     hasPixelBuffer: hasPixelBuffer
                 )
                 self.trackingQuality = quality
 
                 // Log pose detection results for debugging
-                if let obs = poseObservation {
+                if let obs = poseObs {
                     print("✓ Pose detected: \(obs.keypoints.count) keypoints, confidence: \(obs.confidence)")
                 } else {
                     print("✗ No pose detected")
@@ -114,31 +128,58 @@ import Foundation
     private func computeTrackingQuality(poseObservation: PoseObservation?, hasPixelBuffer: Bool) -> TrackingQuality {
         // No pixel buffer = lost
         guard hasPixelBuffer else {
+            print("⚠️ TrackingQuality: lost (no pixel buffer)")
             return .lost
         }
 
         // No pose detected = lost
         guard let observation = poseObservation else {
+            print("⚠️ TrackingQuality: lost (no pose observation)")
             return .lost
         }
 
         // Check if we have the critical keypoints (shoulders and head)
-        let hasLeftShoulder = observation.keypoints.contains { $0.joint == .leftShoulder && $0.confidence > 0.5 }
-        let hasRightShoulder = observation.keypoints.contains { $0.joint == .rightShoulder && $0.confidence > 0.5 }
-        let hasHead = observation.keypoints.contains {
-            ($0.joint == .nose || $0.joint == .leftEye || $0.joint == .rightEye) && $0.confidence > 0.5
-        }
+        let leftShoulder = observation.keypoints.first { $0.joint == .leftShoulder }
+        let rightShoulder = observation.keypoints.first { $0.joint == .rightShoulder }
+        let nose = observation.keypoints.first { $0.joint == .nose }
+        let leftEye = observation.keypoints.first { $0.joint == .leftEye }
+        let rightEye = observation.keypoints.first { $0.joint == .rightEye }
 
-        // Need at least shoulders and head for good tracking
+        // Use lower confidence thresholds (0.3) to match real-world Vision detection
+        let hasLeftShoulder = (leftShoulder?.confidence ?? 0) > 0.3
+        let hasRightShoulder = (rightShoulder?.confidence ?? 0) > 0.3
+        let hasHead = (nose?.confidence ?? 0) > 0.3 || (leftEye?.confidence ?? 0) > 0.3 || (rightEye?.confidence ?? 0) > 0.3
+
+        // Detailed logging for debugging
+        print("🔍 Keypoint details:")
+        print("  Left shoulder: \(leftShoulder != nil ? String(format: "%.2f", leftShoulder!.confidence) : "missing")")
+        print("  Right shoulder: \(rightShoulder != nil ? String(format: "%.2f", rightShoulder!.confidence) : "missing")")
+        print("  Nose: \(nose != nil ? String(format: "%.2f", nose!.confidence) : "missing")")
+        print("  Left eye: \(leftEye != nil ? String(format: "%.2f", leftEye!.confidence) : "missing")")
+        print("  Right eye: \(rightEye != nil ? String(format: "%.2f", rightEye!.confidence) : "missing")")
+        print("  Has critical keypoints: L_shoulder=\(hasLeftShoulder), R_shoulder=\(hasRightShoulder), head=\(hasHead)")
+
+        // Best case: both shoulders and head
         if hasLeftShoulder && hasRightShoulder && hasHead {
-            return observation.confidence > 0.7 ? .good : .degraded
+            let quality: TrackingQuality = observation.confidence > 0.7 ? .good : .degraded
+            print("✅ TrackingQuality: \(quality) (both shoulders + head)")
+            return quality
         }
 
-        // Some keypoints but not enough
+        // Good enough: one shoulder and head (sufficient for posture tracking)
+        if (hasLeftShoulder || hasRightShoulder) && hasHead {
+            let quality: TrackingQuality = observation.confidence > 0.7 ? .good : .degraded
+            print("✅ TrackingQuality: \(quality) (one shoulder + head)")
+            return quality
+        }
+
+        // Some keypoints but not the critical ones
         if observation.keypoints.count >= 3 {
+            print("⚠️ TrackingQuality: degraded (\(observation.keypoints.count) keypoints but missing shoulders/head)")
             return .degraded
         }
 
+        print("⚠️ TrackingQuality: lost (insufficient keypoints)")
         return .lost
     }
 

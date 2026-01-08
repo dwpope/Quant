@@ -1,4 +1,4 @@
-public enum DepthMode: String, Codable {
+public enum DepthMode: String, Codable, Sendable {
     case depthFusion
     case twoDOnly
 }

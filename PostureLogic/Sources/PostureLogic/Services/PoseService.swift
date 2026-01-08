@@ -35,19 +35,26 @@ public final class PoseService: PoseServiceProtocol {
 
     // MARK: - PoseServiceProtocol
 
-    public func process(frame: InputFrame) async -> PoseObservation? {
+    public func process(pixelBuffer: CVPixelBuffer?, timestamp: TimeInterval) async -> PoseObservation? {
+        return processSync(pixelBuffer: pixelBuffer, timestamp: timestamp)
+    }
+
+    // MARK: - Synchronous Processing
+
+    /// Synchronous version of process to prevent ARFrame retention
+    /// Vision processing is inherently synchronous, so we expose it directly
+    public func processSync(pixelBuffer: CVPixelBuffer?, timestamp: TimeInterval) -> PoseObservation? {
         // Throttle to avoid processing every frame
-        guard frame.timestamp - lastProcessTime >= minFrameInterval else {
+        guard timestamp - lastProcessTime >= minFrameInterval else {
             framesThrottled += 1
             return nil  // Throttled
         }
 
-        guard let pixelBuffer = frame.pixelBuffer else {
-            print("⚠️ PoseService: No pixel buffer in frame")
+        guard let pixelBuffer = pixelBuffer else {
             return nil  // No pixel buffer to process
         }
 
-        lastProcessTime = frame.timestamp
+        lastProcessTime = timestamp
 
         let request = VNDetectHumanBodyPoseRequest()
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
@@ -68,7 +75,7 @@ public final class PoseService: PoseServiceProtocol {
             print("✓ PoseService: Detected \(keypoints.count) keypoints, confidence: \(observation.confidence)")
 
             return PoseObservation(
-                timestamp: frame.timestamp,
+                timestamp: timestamp,
                 keypoints: keypoints,
                 confidence: observation.confidence
             )
