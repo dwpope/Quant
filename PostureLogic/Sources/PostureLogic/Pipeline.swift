@@ -24,6 +24,10 @@ import Foundation
     private var isPoseProcessing = false
     private var poseProcessingDropped = 0
 
+    // Track last pose process time to detect throttling
+    private var lastPoseProcessTime: TimeInterval = 0
+    private let minPoseInterval: TimeInterval = 0.1  // Match PoseService throttle
+
     // FPS calculation
     private var lastFrameTime: TimeInterval = 0
     private var frameTimestamps: [TimeInterval] = []
@@ -89,6 +93,9 @@ import Foundation
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
 
+                // Check if frame was actually processed (not throttled)
+                let wasProcessed = timestamp - self.lastPoseProcessTime >= self.minPoseInterval
+
                 // Only update state if PoseService actually processed (not throttled)
                 // When processSync returns nil, it could be:
                 // 1. Throttled (too soon since last process)
@@ -99,6 +106,7 @@ import Foundation
                 // If we got a result (pose found), definitely update
                 if let obs = poseObs {
                     self.latestPoseObservation = obs
+                    self.lastPoseProcessTime = timestamp
 
                     let quality: TrackingQuality = self.computeTrackingQuality(
                         poseObservation: obs,
@@ -124,6 +132,7 @@ import Foundation
                 // If no pixel buffer, update to lost
                 else if !hasPixelBuffer {
                     self.latestPoseObservation = nil
+                    self.lastPoseProcessTime = timestamp
                     self.trackingQuality = .lost
                     print("✗ No pose detected (no pixel buffer)")
 
@@ -140,7 +149,27 @@ import Foundation
                         trackingQuality: .lost
                     )
                 }
-                // Otherwise it was throttled or no pose found - keep previous state
+                // If frame was processed but no pose found (person left frame)
+                else if wasProcessed && hasPixelBuffer {
+                    self.latestPoseObservation = nil
+                    self.lastPoseProcessTime = timestamp
+                    self.trackingQuality = .lost
+                    print("✗ No pose detected (person not in frame)")
+
+                    self.latestSample = PoseSample(
+                        timestamp: timestamp,
+                        depthMode: mode,
+                        headPosition: .zero,
+                        shoulderMidpoint: .zero,
+                        leftShoulder: .zero,
+                        rightShoulder: .zero,
+                        torsoAngle: 0,
+                        headForwardOffset: 0,
+                        shoulderTwist: 0,
+                        trackingQuality: .lost
+                    )
+                }
+                // Otherwise it was throttled - keep previous state
                 // Don't spam logs or update state for throttled frames
 
                 // Mark as done processing
