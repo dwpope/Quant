@@ -11,6 +11,14 @@ class AppModel: ObservableObject {
     @Published var trackingQuality: TrackingQuality = .lost
     @Published var fps: Float = 0.0
 
+    // Metrics
+    @Published var forwardCreep: Float = 0.0
+    @Published var headDrop: Float = 0.0
+    @Published var lateralLean: Float = 0.0
+    @Published var twist: Float = 0.0
+    @Published var shoulderRounding: Float = 0.0
+    @Published var movementLevel: Float = 0.0
+
     // Recording state
     @Published var isRecording = false
     @Published var recordingDuration: TimeInterval = 0
@@ -59,6 +67,19 @@ class AppModel: ObservableObject {
 
         pipeline.$fps
             .assign(to: &$fps)
+
+        // Bind metrics
+        pipeline.$latestMetrics
+            .sink { [weak self] metrics in
+                guard let self = self, let metrics = metrics else { return }
+                self.forwardCreep = metrics.forwardCreep
+                self.headDrop = metrics.headDrop
+                self.lateralLean = metrics.lateralLean
+                self.twist = metrics.twist
+                self.shoulderRounding = metrics.shoulderRounding
+                self.movementLevel = metrics.movementLevel
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Public Methods

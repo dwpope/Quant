@@ -5,6 +5,7 @@ import Foundation
     // MARK: - Published Properties
 
     @Published public var latestSample: PoseSample?
+    @Published public var latestMetrics: RawMetrics?
     @Published public var currentMode: DepthMode = .twoDOnly
     @Published public var depthConfidence: DepthConfidence = .unavailable
     @Published public var trackingQuality: TrackingQuality = .lost
@@ -16,6 +17,10 @@ import Foundation
     nonisolated(unsafe) private var poseService = PoseService()
     private var depthService = DepthService()
     private var modeSwitcher: ModeSwitcher
+    private var metricsEngine = MetricsEngine()
+
+    // Baseline for metrics comparison (nil for now, will be set via calibration later)
+    private var baseline: Baseline?
 
     // Latest pose observation
     private var latestPoseObservation: PoseObservation?
@@ -116,7 +121,7 @@ import Foundation
 
                     print("✓ Pose detected: \(obs.keypoints.count) keypoints, confidence: \(obs.confidence)")
 
-                    self.latestSample = PoseSample(
+                    let sample = PoseSample(
                         timestamp: timestamp,
                         depthMode: mode,
                         headPosition: .zero,
@@ -128,6 +133,11 @@ import Foundation
                         shoulderTwist: 0,
                         trackingQuality: quality
                     )
+                    self.latestSample = sample
+
+                    // Compute metrics from sample
+                    let metrics = self.metricsEngine.compute(from: sample, baseline: self.baseline)
+                    self.latestMetrics = metrics
                 }
                 // If no pixel buffer, update to lost
                 else if !hasPixelBuffer {
@@ -136,7 +146,7 @@ import Foundation
                     self.trackingQuality = .lost
                     print("✗ No pose detected (no pixel buffer)")
 
-                    self.latestSample = PoseSample(
+                    let sample = PoseSample(
                         timestamp: timestamp,
                         depthMode: mode,
                         headPosition: .zero,
@@ -148,6 +158,11 @@ import Foundation
                         shoulderTwist: 0,
                         trackingQuality: .lost
                     )
+                    self.latestSample = sample
+
+                    // Compute metrics (will be zeros without baseline)
+                    let metrics = self.metricsEngine.compute(from: sample, baseline: self.baseline)
+                    self.latestMetrics = metrics
                 }
                 // If frame was processed but no pose found (person left frame)
                 else if wasProcessed && hasPixelBuffer {
@@ -156,7 +171,7 @@ import Foundation
                     self.trackingQuality = .lost
                     print("✗ No pose detected (person not in frame)")
 
-                    self.latestSample = PoseSample(
+                    let sample = PoseSample(
                         timestamp: timestamp,
                         depthMode: mode,
                         headPosition: .zero,
@@ -168,6 +183,11 @@ import Foundation
                         shoulderTwist: 0,
                         trackingQuality: .lost
                     )
+                    self.latestSample = sample
+
+                    // Compute metrics (will be zeros without baseline)
+                    let metrics = self.metricsEngine.compute(from: sample, baseline: self.baseline)
+                    self.latestMetrics = metrics
                 }
                 // Otherwise it was throttled - keep previous state
                 // Don't spam logs or update state for throttled frames
