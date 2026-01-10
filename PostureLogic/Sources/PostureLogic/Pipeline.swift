@@ -16,6 +16,7 @@ import Foundation
     private var subscriptions = Set<AnyCancellable>()
     nonisolated(unsafe) private var poseService = PoseService()
     private var depthService = DepthService()
+    private var poseDepthFusion = PoseDepthFusion()
     private var modeSwitcher: ModeSwitcher
     private var metricsEngine = MetricsEngine()
 
@@ -77,6 +78,8 @@ import Foundation
         // Extract only what we need BEFORE dispatching to avoid retaining the entire InputFrame/ARFrame
         let timestamp = frame.timestamp
         let pixelBuffer = frame.pixelBuffer
+        let depthMap = frame.depthMap
+        let cameraIntrinsics = frame.cameraIntrinsics
         let hasPixelBuffer = pixelBuffer != nil
 
         // Debug: Log pixel buffer status
@@ -121,23 +124,41 @@ import Foundation
 
                     print("✓ Pose detected: \(obs.keypoints.count) keypoints, confidence: \(obs.confidence)")
 
-                    let sample = PoseSample(
-                        timestamp: timestamp,
-                        depthMode: mode,
-                        headPosition: .zero,
-                        shoulderMidpoint: .zero,
-                        leftShoulder: .zero,
-                        rightShoulder: .zero,
-                        torsoAngle: 0,
-                        headForwardOffset: 0,
-                        shoulderTwist: 0,
-                        trackingQuality: quality
+                    // Sample depth at keypoint positions if available
+                    var depthSamples: [DepthAtPoint]? = nil
+                    if let depthMap = depthMap, cameraIntrinsics != nil {
+                        // Extract keypoint positions to sample
+                        let positions = obs.keypoints.map { $0.position }
+                        let frameForDepth = InputFrame(
+                            timestamp: timestamp,
+                            pixelBuffer: nil,  // Don't need pixel buffer for depth sampling
+                            depthMap: depthMap,
+                            cameraIntrinsics: cameraIntrinsics
+                        )
+                        depthSamples = self.depthService.sampleDepth(at: positions, from: frameForDepth)
+                    }
+
+                    // Fuse pose with depth to create real PoseSample
+                    let sample = self.poseDepthFusion.fuse(
+                        pose: obs,
+                        depthSamples: depthSamples,
+                        confidence: confidence,
+                        cameraIntrinsics: cameraIntrinsics
                     )
                     self.latestSample = sample
+
+                    // Debug: Log sample positions to verify they're not zero
+                    print("📊 Sample positions - Head: \(sample.headPosition), Shoulders: \(sample.shoulderMidpoint)")
+                    print("📊 Sample mode: \(sample.depthMode.rawValue), quality: \(sample.trackingQuality.rawValue)")
 
                     // Compute metrics from sample
                     let metrics = self.metricsEngine.compute(from: sample, baseline: self.baseline)
                     self.latestMetrics = metrics
+
+                    print("📈 Metrics - Forward: \(metrics.forwardCreep), Head: \(metrics.headDrop), Lean: \(metrics.lateralLean), Twist: \(metrics.twist)")
+                    if self.baseline == nil {
+                        print("⚠️ No baseline set - metrics will be zero. Implement calibration (Ticket 5.1) to get real metrics.")
+                    }
                 }
                 // If no pixel buffer, update to lost
                 else if !hasPixelBuffer {
