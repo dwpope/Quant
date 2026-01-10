@@ -176,6 +176,94 @@ final class PoseDepthFusionTests: XCTestCase {
         XCTAssertTrue(hasDepth, "3D mode should produce positions with depth (non-zero Z)")
     }
 
+    /// Ticket 3.1 Acceptance Test: Verify unprojection with known values produces correct 3D position
+    /// This test validates the mathematical correctness of the pinhole camera model implementation
+    func test_unprojection_withKnownValues_producesCorrect3DPosition() {
+        var fusion = PoseDepthFusion()
+
+        // Setup known camera intrinsics
+        // fx = 1000, fy = 1000, cx = 960, cy = 540 (center of 1920x1080 image)
+        let intrinsics = simd_float3x3(
+            SIMD3<Float>(1000, 0, 0),      // Column 0: fx, 0, 0
+            SIMD3<Float>(0, 1000, 0),      // Column 1: 0, fy, 0
+            SIMD3<Float>(960, 540, 1)      // Column 2: cx, cy, 1
+        )
+
+        // Test Case 1: Point at image center should unproject to (0, 0, depth)
+        // Point: (960, 540) - exactly at principal point
+        // Depth: 1.5 meters
+        // Expected 3D: x = (960-960)*1.5/1000 = 0
+        //             y = (540-540)*1.5/1000 = 0
+        //             z = 1.5
+        let centerPose = PoseObservation(
+            timestamp: 1.0,
+            keypoints: [
+                Keypoint(joint: .nose, position: CGPoint(x: 960, y: 540), confidence: 0.9),
+                Keypoint(joint: .leftShoulder, position: CGPoint(x: 860, y: 640), confidence: 0.9),
+                Keypoint(joint: .rightShoulder, position: CGPoint(x: 1060, y: 640), confidence: 0.9)
+            ],
+            confidence: 0.9
+        )
+
+        let centerDepthSamples = [
+            DepthAtPoint(point: CGPoint(x: 960, y: 540), depth: 1.5, confidence: 1.0),
+            DepthAtPoint(point: CGPoint(x: 860, y: 640), depth: 1.6, confidence: 1.0),
+            DepthAtPoint(point: CGPoint(x: 1060, y: 640), depth: 1.6, confidence: 1.0)
+        ]
+
+        let centerSample = fusion.fuse(
+            pose: centerPose,
+            depthSamples: centerDepthSamples,
+            confidence: .high,
+            cameraIntrinsics: intrinsics
+        )
+
+        // Verify head position (nose at center)
+        XCTAssertEqual(centerSample.headPosition.x, 0.0, accuracy: 0.001,
+                      "Head X should be 0 when at principal point")
+        XCTAssertEqual(centerSample.headPosition.y, 0.0, accuracy: 0.001,
+                      "Head Y should be 0 when at principal point")
+        XCTAssertEqual(centerSample.headPosition.z, 1.5, accuracy: 0.001,
+                      "Head Z should equal depth value")
+
+        // Test Case 2: Point offset from center
+        // Point: (1160, 640) - 200px right, 100px down from center
+        // Depth: 2.0 meters
+        // Expected 3D: x = (1160-960)*2.0/1000 = 200*2.0/1000 = 0.4
+        //             y = (640-540)*2.0/1000 = 100*2.0/1000 = 0.2
+        //             z = 2.0
+        let offsetPose = PoseObservation(
+            timestamp: 2.0,
+            keypoints: [
+                Keypoint(joint: .nose, position: CGPoint(x: 1160, y: 640), confidence: 0.9),
+                Keypoint(joint: .leftShoulder, position: CGPoint(x: 1060, y: 740), confidence: 0.9),
+                Keypoint(joint: .rightShoulder, position: CGPoint(x: 1260, y: 740), confidence: 0.9)
+            ],
+            confidence: 0.9
+        )
+
+        let offsetDepthSamples = [
+            DepthAtPoint(point: CGPoint(x: 1160, y: 640), depth: 2.0, confidence: 1.0),
+            DepthAtPoint(point: CGPoint(x: 1060, y: 740), depth: 2.1, confidence: 1.0),
+            DepthAtPoint(point: CGPoint(x: 1260, y: 740), depth: 2.1, confidence: 1.0)
+        ]
+
+        let offsetSample = fusion.fuse(
+            pose: offsetPose,
+            depthSamples: offsetDepthSamples,
+            confidence: .high,
+            cameraIntrinsics: intrinsics
+        )
+
+        // Verify offset position calculations
+        XCTAssertEqual(offsetSample.headPosition.x, 0.4, accuracy: 0.001,
+                      "Head X should be 0.4m (200px offset * 2.0m depth / 1000 focal length)")
+        XCTAssertEqual(offsetSample.headPosition.y, 0.2, accuracy: 0.001,
+                      "Head Y should be 0.2m (100px offset * 2.0m depth / 1000 focal length)")
+        XCTAssertEqual(offsetSample.headPosition.z, 2.0, accuracy: 0.001,
+                      "Head Z should equal depth value")
+    }
+
     // MARK: - Timestamp Tests
 
     func test_preservesTimestamp() {
