@@ -19,6 +19,7 @@ import Foundation
     private var poseDepthFusion = PoseDepthFusion()
     private var modeSwitcher: ModeSwitcher
     private var metricsEngine = MetricsEngine()
+    private var metricsSmoother = MetricsSmoother()
 
     // Baseline for metrics comparison (nil for now, will be set via calibration later)
     private var baseline: Baseline?
@@ -152,10 +153,14 @@ import Foundation
                     print("📊 Sample mode: \(sample.depthMode.rawValue), quality: \(sample.trackingQuality.rawValue)")
 
                     // Compute metrics from sample
-                    let metrics = self.metricsEngine.compute(from: sample, baseline: self.baseline)
-                    self.latestMetrics = metrics
+                    let rawMetrics = self.metricsEngine.compute(from: sample, baseline: self.baseline)
 
-                    print("📈 Metrics - Forward: \(metrics.forwardCreep), Head: \(metrics.headDrop), Lean: \(metrics.lateralLean), Twist: \(metrics.twist)")
+                    // Apply smoothing to reduce jitter (Ticket 3.4)
+                    let smoothedMetrics = self.metricsSmoother.smooth(rawMetrics)
+                    self.latestMetrics = smoothedMetrics
+
+                    print("📈 Raw Metrics - Forward: \(rawMetrics.forwardCreep), Head: \(rawMetrics.headDrop), Lean: \(rawMetrics.lateralLean), Twist: \(rawMetrics.twist)")
+                    print("📊 Smoothed Metrics - Forward: \(smoothedMetrics.forwardCreep), Head: \(smoothedMetrics.headDrop), Lean: \(smoothedMetrics.lateralLean), Twist: \(smoothedMetrics.twist)")
                     if self.baseline == nil {
                         print("⚠️ No baseline set - metrics will be zero. Implement calibration (Ticket 5.1) to get real metrics.")
                     }
@@ -182,8 +187,9 @@ import Foundation
                     self.latestSample = sample
 
                     // Compute metrics (will be zeros without baseline)
-                    let metrics = self.metricsEngine.compute(from: sample, baseline: self.baseline)
-                    self.latestMetrics = metrics
+                    let rawMetrics = self.metricsEngine.compute(from: sample, baseline: self.baseline)
+                    let smoothedMetrics = self.metricsSmoother.smooth(rawMetrics)
+                    self.latestMetrics = smoothedMetrics
                 }
                 // If frame was processed but no pose found (person left frame)
                 else if wasProcessed && hasPixelBuffer {
@@ -207,8 +213,9 @@ import Foundation
                     self.latestSample = sample
 
                     // Compute metrics (will be zeros without baseline)
-                    let metrics = self.metricsEngine.compute(from: sample, baseline: self.baseline)
-                    self.latestMetrics = metrics
+                    let rawMetrics = self.metricsEngine.compute(from: sample, baseline: self.baseline)
+                    let smoothedMetrics = self.metricsSmoother.smooth(rawMetrics)
+                    self.latestMetrics = smoothedMetrics
                 }
                 // Otherwise it was throttled - keep previous state
                 // Don't spam logs or update state for throttled frames
