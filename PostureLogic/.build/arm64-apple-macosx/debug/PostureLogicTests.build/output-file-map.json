@@ -65,6 +65,13 @@
     "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.swiftdeps",
     "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.dia"
   },
+  "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/PostureEngineTests.swift": {
+    "dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PostureEngineTests.d",
+    "object": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PostureEngineTests.swift.o",
+    "swiftmodule": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PostureEngineTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PostureEngineTests.swiftdeps",
+    "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PostureEngineTests.dia"
+  },
   "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/RecorderServiceTests.swift": {
     "dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/RecorderServiceTests.d",
     "object": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/RecorderServiceTests.swift.o",
@@ -78,5 +85,12 @@
     "swiftmodule": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ReplayServiceTests~partial.swiftmodule",
     "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ReplayServiceTests.swiftdeps",
     "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ReplayServiceTests.dia"
+  },
+  "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/TaskModeEngineTests.swift": {
+    "dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests.d",
+    "object": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests.swift.o",
+    "swiftmodule": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests.swiftdeps",
+    "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests.dia"
   }
 }

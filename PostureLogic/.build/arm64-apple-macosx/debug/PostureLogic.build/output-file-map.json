@@ -16,6 +16,20 @@
     "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsSmoother.swiftdeps",
     "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsSmoother.dia"
   },
+  "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Engines/PostureEngine.swift": {
+    "dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngine.d",
+    "object": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngine.swift.o",
+    "swiftmodule": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngine~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngine.swiftdeps",
+    "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngine.dia"
+  },
+  "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Engines/TaskModeEngine.swift": {
+    "dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.d",
+    "object": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.swift.o",
+    "swiftmodule": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.swiftdeps",
+    "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.dia"
+  },
   "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift": {
     "dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.d",
     "object": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.swift.o",
@@ -163,6 +177,13 @@
     "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseServiceProtocol.swiftdeps",
     "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseServiceProtocol.dia"
   },
+  "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/PostureEngineProtocol.swift": {
+    "dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngineProtocol.d",
+    "object": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngineProtocol.swift.o",
+    "swiftmodule": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngineProtocol~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngineProtocol.swiftdeps",
+    "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngineProtocol.dia"
+  },
   "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/RecorderServiceProtocol.swift": {
     "dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/RecorderServiceProtocol.d",
     "object": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/RecorderServiceProtocol.swift.o",
@@ -176,6 +197,13 @@
     "swiftmodule": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayServiceProtocol~partial.swiftmodule",
     "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayServiceProtocol.swiftdeps",
     "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayServiceProtocol.dia"
+  },
+  "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/TaskModeEngineProtocol.swift": {
+    "dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngineProtocol.d",
+    "object": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngineProtocol.swift.o",
+    "swiftmodule": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngineProtocol~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngineProtocol.swiftdeps",
+    "diagnostics": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngineProtocol.dia"
   },
   "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/DepthService.swift": {
     "dependencies": "/Users/learning/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthService.d",
