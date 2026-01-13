@@ -24,6 +24,11 @@ public class Pipeline {
     private var lastFrameTime: TimeInterval = 0
     private var frameTimestamps: [TimeInterval] = []
 
+    // Frame processing control
+    private var activePoseProcessing = 0
+    private let maxConcurrentPoseProcessing = 2
+    private let processingQueue = DispatchQueue(label: "com.quant.pipeline.processing")
+
     // MARK: - Initialization
 
     public init(provider: PoseProvider, thresholds: PostureThresholds = PostureThresholds()) {
@@ -39,36 +44,64 @@ public class Pipeline {
     // MARK: - Private Methods
 
     private func process(_ frame: InputFrame) {
-        updateFPS(timestamp: frame.timestamp)
+        // Compute FPS
+        let currentFPS = computeFPS(timestamp: frame.timestamp)
 
         // Compute depth confidence
         let confidence = depthService.computeConfidence(from: frame)
-        self.depthConfidence = confidence
 
         // Update mode based on depth confidence
         let mode = modeSwitcher.update(confidence: confidence, timestamp: frame.timestamp)
-        self.currentMode = mode
+
+        // Update published properties on main thread
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            self.fps = currentFPS
+            self.depthConfidence = confidence
+            self.currentMode = mode
+        }
+
+        // Check if we can process another frame (limit concurrent processing to prevent frame retention)
+        var shouldProcess = false
+        processingQueue.sync {
+            if activePoseProcessing < maxConcurrentPoseProcessing {
+                activePoseProcessing += 1
+                shouldProcess = true
+            }
+        }
+
+        guard shouldProcess else {
+            // Skip this frame - too many frames already being processed
+            return
+        }
+
+        // Extract frame data to avoid retaining the entire InputFrame
+        let timestamp = frame.timestamp
+        let hasPixelBuffer = frame.pixelBuffer != nil
 
         // Process pose asynchronously
-        Task { [weak self] in
+        Task { [weak self, poseService, frame] in
+            defer {
+                // Always decrement counter when done
+                self?.processingQueue.sync {
+                    self?.activePoseProcessing -= 1
+                }
+            }
+
             guard let self = self else { return }
 
             // Extract pose keypoints using Vision
-            let poseObservation = await self.poseService.process(frame: frame)
-
-            // Update latest pose observation
-            self.latestPoseObservation = poseObservation
+            let poseObservation = await poseService.process(frame: frame)
 
             // Determine tracking quality based on pose detection
             let quality: TrackingQuality = self.computeTrackingQuality(
                 poseObservation: poseObservation,
-                frame: frame
+                hasPixelBuffer: hasPixelBuffer
             )
-            self.trackingQuality = quality
 
             // Create pose sample (will be enhanced in Ticket 2.2 with actual pose fusion)
-            self.latestSample = PoseSample(
-                timestamp: frame.timestamp,
+            let sample = PoseSample(
+                timestamp: timestamp,
                 depthMode: mode,
                 headPosition: .zero,
                 shoulderMidpoint: .zero,
@@ -79,12 +112,19 @@ public class Pipeline {
                 shoulderTwist: 0,
                 trackingQuality: quality
             )
+
+            // Update published properties on main thread
+            await MainActor.run {
+                self.latestPoseObservation = poseObservation
+                self.trackingQuality = quality
+                self.latestSample = sample
+            }
         }
     }
 
-    private func computeTrackingQuality(poseObservation: PoseObservation?, frame: InputFrame) -> TrackingQuality {
+    private func computeTrackingQuality(poseObservation: PoseObservation?, hasPixelBuffer: Bool) -> TrackingQuality {
         // No pixel buffer = lost
-        guard frame.pixelBuffer != nil else {
+        guard hasPixelBuffer else {
             return .lost
         }
 
@@ -113,7 +153,7 @@ public class Pipeline {
         return .lost
     }
 
-    private func updateFPS(timestamp: TimeInterval) {
+    private func computeFPS(timestamp: TimeInterval) -> Float {
         // Track timestamps for rolling average
         frameTimestamps.append(timestamp)
 
@@ -126,8 +166,10 @@ public class Pipeline {
         if frameTimestamps.count >= 2 {
             let duration = frameTimestamps.last! - frameTimestamps.first!
             if duration > 0 {
-                fps = Float(frameTimestamps.count - 1) / Float(duration)
+                return Float(frameTimestamps.count - 1) / Float(duration)
             }
         }
+
+        return 0.0
     }
 }

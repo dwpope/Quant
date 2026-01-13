@@ -25,6 +25,11 @@ final class ARSessionService: NSObject, PoseProvider {
     private let logger = Logger(subsystem: "com.quant.posture", category: "ARSession")
 
     private var currentConfig: ARWorldTrackingConfiguration?
+    private var lastFrameTime: Date?
+    private var frameTimeoutTimer: Timer?
+    private var isRecovering = false
+    private var recoveryAttempts = 0
+    private var depthEnabled = false
 
     func start() async throws {
         // Use ARWorldTrackingConfiguration for depth support
@@ -32,7 +37,7 @@ final class ARSessionService: NSObject, PoseProvider {
         let config = ARWorldTrackingConfiguration()
 
         // Try to enable depth - check both smoothedSceneDepth and sceneDepth
-        var depthEnabled = false
+        depthEnabled = false
 
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.smoothedSceneDepth) {
             config.frameSemantics = .smoothedSceneDepth
@@ -55,17 +60,81 @@ final class ARSessionService: NSObject, PoseProvider {
 
         sessionStateSubject.send(.running)
         logger.info("ARSession started with ARWorldTrackingConfiguration")
+
+        recoveryAttempts = 0
+        startFrameTimeoutMonitoring()
     }
 
     func stop() {
+        frameTimeoutTimer?.invalidate()
+        frameTimeoutTimer = nil
         session.pause()
         sessionStateSubject.send(.idle)
         logger.info("ARSession stopped")
+    }
+
+    private func startFrameTimeoutMonitoring() {
+        frameTimeoutTimer?.invalidate()
+        frameTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.checkFrameTimeout()
+        }
+    }
+
+    private func checkFrameTimeout() {
+        guard let lastFrame = lastFrameTime else {
+            logger.warning("⚠️ No frames received yet")
+            return
+        }
+
+        let timeSinceLastFrame = Date().timeIntervalSince(lastFrame)
+        if timeSinceLastFrame > 2.0 {
+            logger.error("⛔️ Frame timeout: No frames for \(String(format: "%.1f", timeSinceLastFrame))s - resource constraints detected")
+            attemptResourceRecovery()
+        } else if timeSinceLastFrame < 0.5 && recoveryAttempts > 0 {
+            logger.info("✓ Frames flowing normally - resetting recovery counter")
+            recoveryAttempts = 0
+        }
+    }
+
+    private func attemptResourceRecovery() {
+        guard !isRecovering else {
+            logger.info("Recovery already in progress, skipping")
+            return
+        }
+
+        guard var config = currentConfig else {
+            logger.error("Cannot attempt recovery - no configuration available")
+            return
+        }
+
+        isRecovering = true
+        recoveryAttempts += 1
+
+        if recoveryAttempts >= 3 && depthEnabled {
+            logger.warning("🔄 Multiple recovery attempts failed - disabling depth to reduce resource load")
+            config.frameSemantics = []
+            depthEnabled = false
+            currentConfig = config
+        } else {
+            logger.warning("🔄 Attempting resource recovery #\(self.recoveryAttempts) - restarting session")
+        }
+
+        session.pause()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self else { return }
+
+            self.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+            self.logger.info("✓ Session restarted after resource constraint")
+            self.isRecovering = false
+        }
     }
 }
 
 extension ARSessionService: ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        lastFrameTime = Date()
+
         // Try smoothed depth first (preferred), then fall back to regular depth
         let depthMap = frame.smoothedSceneDepth?.depthMap ?? frame.sceneDepth?.depthMap
 
@@ -76,6 +145,32 @@ extension ARSessionService: ARSessionDelegate {
             cameraIntrinsics: frame.camera.intrinsics
         )
         frameSubject.send(inputFrame)
+    }
+
+    func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {
+        switch camera.trackingState {
+        case .normal:
+            logger.info("📷 Camera tracking: Normal")
+        case .notAvailable:
+            logger.error("📷 Camera tracking: Not Available")
+        case .limited(let reason):
+            handleLimitedTracking(reason: reason)
+        }
+    }
+
+    private func handleLimitedTracking(reason: ARCamera.TrackingState.Reason) {
+        switch reason {
+        case .initializing:
+            logger.info("📷 Camera tracking limited: Initializing")
+        case .excessiveMotion:
+            logger.warning("📷 Camera tracking limited: Excessive motion")
+        case .insufficientFeatures:
+            logger.warning("📷 Camera tracking limited: Insufficient features")
+        case .relocalizing:
+            logger.info("📷 Camera tracking limited: Relocalizing")
+        @unknown default:
+            logger.warning("📷 Camera tracking limited: Unknown reason")
+        }
     }
 
     func session(_ session: ARSession, didFailWithError error: Error) {
