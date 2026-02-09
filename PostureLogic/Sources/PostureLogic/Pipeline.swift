@@ -24,6 +24,9 @@ public class Pipeline {
     private var lastFrameTime: TimeInterval = 0
     private var frameTimestamps: [TimeInterval] = []
 
+    // Tracking quality hysteresis
+    private var previousTrackingQuality: TrackingQuality = .lost
+
     // Frame processing control
     private var activePoseProcessing = 0
     private let maxConcurrentPoseProcessing = 2
@@ -118,6 +121,7 @@ public class Pipeline {
                 self.latestPoseObservation = poseObservation
                 self.trackingQuality = quality
                 self.latestSample = sample
+                self.previousTrackingQuality = quality
             }
         }
     }
@@ -140,13 +144,40 @@ public class Pipeline {
             ($0.joint == .nose || $0.joint == .leftEye || $0.joint == .rightEye) && $0.confidence > 0.5
         }
 
+        let keypointCount = observation.keypoints.count
+
+        // Apply hysteresis to prevent rapid state changes
+        // Use different thresholds depending on current state to create "buffer zones"
+
         // Need at least shoulders and head for good tracking
         if hasLeftShoulder && hasRightShoulder && hasHead {
-            return observation.confidence > 0.7 ? .good : .degraded
+            // Determine confidence threshold based on previous state (hysteresis)
+            let confidenceThreshold: Float
+            switch previousTrackingQuality {
+            case .good:
+                // Higher bar to drop from good to degraded
+                confidenceThreshold = 0.65
+            case .degraded, .lost:
+                // Lower bar to upgrade to good
+                confidenceThreshold = 0.75
+            }
+
+            return observation.confidence > confidenceThreshold ? .good : .degraded
         }
 
-        // Some keypoints but not enough
-        if observation.keypoints.count >= 3 {
+        // Some keypoints but not enough for good tracking
+        // Use hysteresis for degraded <-> lost transitions
+        let keypointThreshold: Int
+        switch previousTrackingQuality {
+        case .lost:
+            // Need more keypoints to upgrade from lost to degraded
+            keypointThreshold = 4
+        case .degraded, .good:
+            // Need fewer keypoints to downgrade to lost
+            keypointThreshold = 2
+        }
+
+        if keypointCount >= keypointThreshold {
             return .degraded
         }
 
