@@ -24,8 +24,10 @@ public class Pipeline {
     private var lastFrameTime: TimeInterval = 0
     private var frameTimestamps: [TimeInterval] = []
 
-    // Tracking quality hysteresis
-    private var previousTrackingQuality: TrackingQuality = .lost
+    // Tracking quality temporal smoothing
+    private var currentTrackingQuality: TrackingQuality = .lost
+    private var recentQualities: [TrackingQuality] = []
+    private let qualityWindowSize = 3  // Require 3 consecutive frames to change state (~50ms at 60fps)
 
     // Frame processing control
     private var activePoseProcessing = 0
@@ -82,6 +84,9 @@ public class Pipeline {
         let timestamp = frame.timestamp
         let hasPixelBuffer = frame.pixelBuffer != nil
 
+        // Capture current tracking quality for hysteresis (must read on current thread to avoid race conditions)
+        let currentQuality = currentTrackingQuality
+
         // Process pose asynchronously
         Task { [weak self, poseService, frame] in
             defer {
@@ -96,37 +101,64 @@ public class Pipeline {
             // Extract pose keypoints using Vision
             let poseObservation = await poseService.process(frame: frame)
 
-            // Determine tracking quality based on pose detection
-            let quality: TrackingQuality = self.computeTrackingQuality(
+            // Determine tracking quality based on pose detection (with hysteresis)
+            let rawQuality: TrackingQuality = self.computeTrackingQuality(
                 poseObservation: poseObservation,
-                hasPixelBuffer: hasPixelBuffer
+                hasPixelBuffer: hasPixelBuffer,
+                previousQuality: currentQuality
             )
 
-            // Create pose sample (will be enhanced in Ticket 2.2 with actual pose fusion)
-            let sample = PoseSample(
-                timestamp: timestamp,
-                depthMode: mode,
-                headPosition: .zero,
-                shoulderMidpoint: .zero,
-                leftShoulder: .zero,
-                rightShoulder: .zero,
-                torsoAngle: 0,
-                headForwardOffset: 0,
-                shoulderTwist: 0,
-                trackingQuality: quality
-            )
-
-            // Update published properties on main thread
+            // Apply temporal smoothing to prevent flickering
+            // Update on main thread to ensure thread-safe access to recentQualities
             await MainActor.run {
+                // Add to sliding window
+                self.recentQualities.append(rawQuality)
+                if self.recentQualities.count > self.qualityWindowSize {
+                    self.recentQualities.removeFirst()
+                }
+
+                // Determine final quality based on temporal smoothing
+                let finalQuality: TrackingQuality
+
+                // If window is full, check if all values agree
+                if self.recentQualities.count == self.qualityWindowSize {
+                    let allSame = self.recentQualities.allSatisfy { $0 == self.recentQualities.first }
+                    if allSame && self.recentQualities.first != self.currentTrackingQuality {
+                        // All frames agree on a different quality - change state
+                        finalQuality = self.recentQualities.first!
+                    } else {
+                        // Window doesn't agree or agrees with current state - keep current
+                        finalQuality = self.currentTrackingQuality
+                    }
+                } else {
+                    // Window not full yet - keep current quality
+                    finalQuality = self.currentTrackingQuality
+                }
+
+                // Create pose sample
+                let sample = PoseSample(
+                    timestamp: timestamp,
+                    depthMode: mode,
+                    headPosition: .zero,
+                    shoulderMidpoint: .zero,
+                    leftShoulder: .zero,
+                    rightShoulder: .zero,
+                    torsoAngle: 0,
+                    headForwardOffset: 0,
+                    shoulderTwist: 0,
+                    trackingQuality: finalQuality
+                )
+
+                // Update published properties
                 self.latestPoseObservation = poseObservation
-                self.trackingQuality = quality
+                self.trackingQuality = finalQuality
                 self.latestSample = sample
-                self.previousTrackingQuality = quality
+                self.currentTrackingQuality = finalQuality
             }
         }
     }
 
-    private func computeTrackingQuality(poseObservation: PoseObservation?, hasPixelBuffer: Bool) -> TrackingQuality {
+    private func computeTrackingQuality(poseObservation: PoseObservation?, hasPixelBuffer: Bool, previousQuality: TrackingQuality) -> TrackingQuality {
         // No pixel buffer = lost
         guard hasPixelBuffer else {
             return .lost
@@ -153,7 +185,7 @@ public class Pipeline {
         if hasLeftShoulder && hasRightShoulder && hasHead {
             // Determine confidence threshold based on previous state (hysteresis)
             let confidenceThreshold: Float
-            switch previousTrackingQuality {
+            switch previousQuality {
             case .good:
                 // Higher bar to drop from good to degraded
                 confidenceThreshold = 0.65
@@ -168,7 +200,7 @@ public class Pipeline {
         // Some keypoints but not enough for good tracking
         // Use hysteresis for degraded <-> lost transitions
         let keypointThreshold: Int
-        switch previousTrackingQuality {
+        switch previousQuality {
         case .lost:
             // Need more keypoints to upgrade from lost to degraded
             keypointThreshold = 4
