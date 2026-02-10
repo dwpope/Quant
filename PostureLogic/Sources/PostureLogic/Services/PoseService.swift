@@ -1,6 +1,7 @@
 import Vision
 import CoreGraphics
 import Foundation
+import os.log
 
 /// Service for extracting body pose keypoints from input frames using Vision framework
 ///
@@ -9,6 +10,7 @@ import Foundation
 /// - Handles nil pixel buffers gracefully
 /// - Corrects Vision's flipped Y coordinates
 /// - Maps Vision keypoints to our Joint enum
+/// - Instruments error paths with detailed logging for debugging
 public final class PoseService: PoseServiceProtocol {
     // MARK: - DebugDumpable
 
@@ -17,7 +19,9 @@ public final class PoseService: PoseServiceProtocol {
             "lastProcessTime": lastProcessTime,
             "keypointsFound": lastKeypointCount,
             "lastConfidence": lastConfidence,
-            "framesThrottled": framesThrottled
+            "framesThrottled": framesThrottled,
+            "noPoseDetected": noPoseDetectedCount,
+            "visionErrors": visionErrorCount
         ]
     }
 
@@ -27,7 +31,10 @@ public final class PoseService: PoseServiceProtocol {
     private var lastKeypointCount: Int = 0
     private var lastConfidence: Float = 0
     private var framesThrottled: Int = 0
+    private var noPoseDetectedCount: Int = 0
+    private var visionErrorCount: Int = 0
     private let minFrameInterval: TimeInterval = 0.1  // ~10 FPS
+    private let logger = Logger(subsystem: "com.quant.posture", category: "PoseService")
 
     // MARK: - Initialization
 
@@ -39,11 +46,12 @@ public final class PoseService: PoseServiceProtocol {
         // Throttle to avoid processing every frame
         guard frame.timestamp - lastProcessTime >= minFrameInterval else {
             framesThrottled += 1
-            return nil  // Throttled
+            return nil
         }
 
         guard let pixelBuffer = frame.pixelBuffer else {
-            return nil  // No pixel buffer to process
+            logger.debug("PoseService: No pixel buffer available in frame")
+            return nil
         }
 
         lastProcessTime = frame.timestamp
@@ -54,8 +62,10 @@ public final class PoseService: PoseServiceProtocol {
         do {
             try handler.perform([request])
             guard let observation = request.results?.first else {
+                noPoseDetectedCount += 1
                 lastKeypointCount = 0
-                return nil  // No pose detected
+                logger.debug("PoseService: Vision detected no pose in frame (count: \(self.noPoseDetectedCount))")
+                return nil
             }
 
             let keypoints = try extractKeypoints(from: observation)
@@ -68,8 +78,9 @@ public final class PoseService: PoseServiceProtocol {
                 confidence: observation.confidence
             )
         } catch {
-            // Vision request failed
+            visionErrorCount += 1
             lastKeypointCount = 0
+            logger.error("PoseService: Vision request failed: \(error.localizedDescription) (count: \(self.visionErrorCount))")
             return nil
         }
     }

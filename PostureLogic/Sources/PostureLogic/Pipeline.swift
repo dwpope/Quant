@@ -29,11 +29,6 @@ public class Pipeline {
     private var recentQualities: [TrackingQuality] = []
     private let qualityWindowSize = 3  // Require 3 consecutive frames to change state (~50ms at 60fps)
 
-    // Frame processing control
-    private var activePoseProcessing = 0
-    private let maxConcurrentPoseProcessing = 2
-    private let processingQueue = DispatchQueue(label: "com.quant.pipeline.processing")
-
     // MARK: - Initialization
 
     public init(provider: PoseProvider, thresholds: PostureThresholds = PostureThresholds()) {
@@ -66,20 +61,6 @@ public class Pipeline {
             self.currentMode = mode
         }
 
-        // Check if we can process another frame (limit concurrent processing to prevent frame retention)
-        var shouldProcess = false
-        processingQueue.sync {
-            if activePoseProcessing < maxConcurrentPoseProcessing {
-                activePoseProcessing += 1
-                shouldProcess = true
-            }
-        }
-
-        guard shouldProcess else {
-            // Skip this frame - too many frames already being processed
-            return
-        }
-
         // Extract frame data to avoid retaining the entire InputFrame
         let timestamp = frame.timestamp
         let hasPixelBuffer = frame.pixelBuffer != nil
@@ -88,14 +69,8 @@ public class Pipeline {
         let currentQuality = currentTrackingQuality
 
         // Process pose asynchronously
+        // Note: PoseService handles its own throttling to ~10 FPS to avoid Vision framework overload
         Task { [weak self, poseService, frame] in
-            defer {
-                // Always decrement counter when done
-                self?.processingQueue.sync {
-                    self?.activePoseProcessing -= 1
-                }
-            }
-
             guard let self = self else { return }
 
             // Extract pose keypoints using Vision

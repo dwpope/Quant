@@ -2,24 +2,22 @@ import CoreVideo
 import CoreGraphics
 import Foundation
 
-public struct DepthService: DepthServiceProtocol {
+/// Service for sampling and analyzing depth data from ARKit frames
+///
+/// This is a stateless service — all methods are pure functions with no mutable state.
+/// Immutable design ensures thread-safety and predictable behavior.
+public final class DepthService: DepthServiceProtocol {
     public var debugState: [String: Any] {
         [
-            "lastConfidence": lastConfidence.rawValue,
-            "lastValidSampleCount": lastValidSampleCount,
-            "lastTotalSampleCount": lastTotalSampleCount
+            "description": "Stateless depth service - no mutable state"
         ]
     }
-
-    private var lastConfidence: DepthConfidence = .unavailable
-    private var lastValidSampleCount: Int = 0
-    private var lastTotalSampleCount: Int = 0
 
     private let edgeMargin: Float = 0.05  // 5% margin from edges (per Known Gotchas)
 
     public init() {}
 
-    public mutating func sampleDepth(at points: [CGPoint], from frame: InputFrame) -> [DepthAtPoint] {
+    public func sampleDepth(at points: [CGPoint], from frame: InputFrame) -> [DepthAtPoint] {
         guard let depthMap = frame.depthMap else {
             // No depth map available, return zero-confidence samples
             return points.map { DepthAtPoint(point: $0, depth: 0, confidence: 0) }
@@ -70,11 +68,8 @@ public struct DepthService: DepthServiceProtocol {
         }
     }
 
-    public mutating func computeConfidence(from frame: InputFrame) -> DepthConfidence {
+    public func computeConfidence(from frame: InputFrame) -> DepthConfidence {
         guard let depthMap = frame.depthMap else {
-            lastConfidence = .unavailable
-            lastValidSampleCount = 0
-            lastTotalSampleCount = 0
             return .unavailable
         }
 
@@ -89,7 +84,6 @@ public struct DepthService: DepthServiceProtocol {
         let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
 
         guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else {
-            lastConfidence = .unavailable
             return .unavailable
         }
 
@@ -124,30 +118,22 @@ public struct DepthService: DepthServiceProtocol {
             }
         }
 
-        lastValidSampleCount = validCount
-        lastTotalSampleCount = totalCount
-
         guard totalCount > 0 else {
-            lastConfidence = .low
             return .low
         }
 
         let coverage = Float(validCount) / Float(totalCount)
 
         // Determine confidence based on coverage
-        let confidence: DepthConfidence
         if coverage >= 0.8 {
-            confidence = .high
+            return .high
         } else if coverage >= 0.5 {
-            confidence = .medium
+            return .medium
         } else if coverage >= 0.2 {
-            confidence = .low
+            return .low
         } else {
-            confidence = .unavailable
+            return .unavailable
         }
-
-        lastConfidence = confidence
-        return confidence
     }
 
     private func isNearEdge(x: Int, y: Int, width: Int, height: Int) -> Bool {

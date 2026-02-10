@@ -61,4 +61,15 @@ class AppModel: ObservableObject {
             print("Failed to start AR service: \(error)")
         }
     }
+
+    func stopMonitoring() {
+        arService.stop()
+        cancellables.removeAll()
+        print("AR session stopped and subscriptions cleaned up")
+    }
+
+    deinit {
+        // Ensure cleanup on deallocation
+        stopMonitoring()
+    }
 }
