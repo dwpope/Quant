@@ -244,20 +244,19 @@ final class MetricsSmootherTests: XCTestCase {
     func test_headPattern_smallOscillations_withMinorMovement() {
         var smoother = MetricsSmoother()
 
-        // Small regular oscillations around center
+        // Small regular oscillations around center (±0.004 in x only → ~0.008 displacement per frame)
         for i in 0..<15 {
-            let offset = Float(i % 2 == 0 ? 1 : -1) * 0.008
-            let pos = SIMD3<Float>(offset, 1.0 + offset, 0)
+            let offset = Float(i % 2 == 0 ? 1 : -1) * 0.004
+            let pos = SIMD3<Float>(offset, 1.0, 0)
             _ = smoother.smooth(
                 makeMetrics(timestamp: Double(i) * 0.1),
                 sample: makeSample(headPosition: pos, timestamp: Double(i) * 0.1)
             )
         }
 
-        let lastOffset: Float = 0.008
         let result = smoother.smooth(
             makeMetrics(timestamp: 1.5),
-            sample: makeSample(headPosition: SIMD3(lastOffset, 1.0 + lastOffset, 0), timestamp: 1.5)
+            sample: makeSample(headPosition: SIMD3(0.004, 1.0, 0), timestamp: 1.5)
         )
 
         XCTAssertEqual(result.headMovementPattern, .smallOscillations)
