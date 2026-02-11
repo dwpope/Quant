@@ -28,6 +28,14 @@
       "inputs" : [
         {
           "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsEngine.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsSmoother.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift"
         },
         {
@@ -92,6 +100,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/MetricsEngineProtocol.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseDepthFusionProtocol.swift"
         },
         {
@@ -143,6 +155,8 @@
       "moduleName" : "PostureLogic",
       "moduleOutputPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogic.swiftmodule",
       "objects" : [
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsEngine.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsSmoother.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthConfidence.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthMode.swift.o",
@@ -159,6 +173,7 @@
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Pipeline.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DebugDumpable.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthServiceProtocol.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsEngineProtocol.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseDepthFusionProtocol.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseProvider.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseServiceProtocol.swift.o",
@@ -216,6 +231,14 @@
       ],
       "outputFileMapPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/output-file-map.json",
       "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsEngine.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsSmoother.swift.o"
+        },
         {
           "kind" : "file",
           "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.swift.o"
@@ -282,6 +305,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsEngineProtocol.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseDepthFusionProtocol.swift.o"
         },
         {
@@ -327,6 +354,8 @@
       ],
       "prepareForIndexing" : false,
       "sources" : [
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsEngine.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsSmoother.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthMode.swift",
@@ -343,6 +372,7 @@
         "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/MetricsEngineProtocol.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseDepthFusionProtocol.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseProvider.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseServiceProtocol.swift",
@@ -460,6 +490,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/MetricsEngineTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/MetricsSmootherTests.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift"
         },
         {
@@ -489,6 +527,8 @@
       "objects" : [
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/DepthServiceTests.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsEngineTests.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsSmootherTests.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseDepthFusionTests.swift.o",
         "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.swift.o"
@@ -546,6 +586,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsEngineTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsSmootherTests.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o"
         },
         {
@@ -565,6 +613,8 @@
       "sources" : [
         "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/DepthServiceTests.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/IntegrationTests.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/MetricsEngineTests.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/MetricsSmootherTests.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseDepthFusionTests.swift",
         "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift"
@@ -585,6 +635,8 @@
       "posturelogic",
       "-incremental",
       "-c",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsEngine.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsSmoother.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthMode.swift",
@@ -601,6 +653,7 @@
       "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/MetricsEngineProtocol.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseDepthFusionProtocol.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseProvider.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseServiceProtocol.swift",
@@ -722,6 +775,8 @@
       "-c",
       "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/DepthServiceTests.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/IntegrationTests.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/MetricsEngineTests.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/MetricsSmootherTests.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseDepthFusionTests.swift",
       "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift",
@@ -808,6 +863,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsEngine.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsSmoother.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift"
         },
         {
@@ -869,6 +932,10 @@
         {
           "kind" : "file",
           "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/MetricsEngineProtocol.swift"
         },
         {
           "kind" : "file",
@@ -964,6 +1031,18 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsEngine.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsEngineProtocol.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsSmoother.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider.swift.o"
         },
         {
@@ -1052,6 +1131,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsEngineTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsSmootherTests.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o"
         },
         {
@@ -1079,6 +1166,14 @@
         {
           "kind" : "file",
           "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/IntegrationTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/MetricsEngineTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/MetricsSmootherTests.swift"
         },
         {
           "kind" : "file",

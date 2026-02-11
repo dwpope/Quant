@@ -5,6 +5,7 @@ public class Pipeline {
     // MARK: - Published Properties
 
     @Published public var latestSample: PoseSample?
+    @Published public var latestMetrics: RawMetrics?
     @Published public var currentMode: DepthMode = .twoDOnly
     @Published public var depthConfidence: DepthConfidence = .unavailable
     @Published public var trackingQuality: TrackingQuality = .lost
@@ -16,6 +17,8 @@ public class Pipeline {
     private var poseService = PoseService()
     private var depthService = DepthService()
     private var fusion = PoseDepthFusion()
+    private var metricsEngine = MetricsEngine()
+    private var metricsSmoother = MetricsSmoother()
     private var modeSwitcher: ModeSwitcher
 
     // Latest pose observation
@@ -74,7 +77,21 @@ public class Pipeline {
             guard let self = self else { return }
 
             // Extract pose keypoints using Vision
-            let poseObservation = await poseService.process(frame: frame)
+            let poseResult = await poseService.process(frame: frame)
+
+            if case .throttled = poseResult {
+                return
+            }
+
+            let poseObservation: PoseObservation?
+            switch poseResult {
+            case .observation(let observation):
+                poseObservation = observation
+            case .noPose, .failed:
+                poseObservation = nil
+            case .throttled:
+                poseObservation = nil
+            }
 
             // Determine tracking quality based on pose detection (with hysteresis)
             let rawQuality: TrackingQuality = self.computeTrackingQuality(
@@ -124,6 +141,18 @@ public class Pipeline {
                         trackingQuality: finalQuality
                     )
                     self.latestSample = sample
+
+                    // Compute metrics (baseline is nil until calibration in Sprint 3)
+                    if let sample = sample {
+                        let rawMetrics = self.metricsEngine.compute(
+                            from: sample,
+                            baseline: nil
+                        )
+                        self.latestMetrics = self.metricsSmoother.smooth(
+                            rawMetrics,
+                            sample: sample
+                        )
+                    }
                 }
             }
         }

@@ -37,6 +37,16 @@ struct DebugOverlayView: View {
 
             // FPS
             Text("FPS: \(appModel.fps, specifier: "%.1f")")
+
+            Divider()
+
+            // Pose sample readout
+            Text("Head: \(posePair(appModel.latestSample?.headPosition))")
+            Text("L Shldr: \(posePair(appModel.latestSample?.leftShoulder))")
+            Text("R Shldr: \(posePair(appModel.latestSample?.rightShoulder))")
+            Text("Torso: \(poseAngle(appModel.latestSample?.torsoAngle))")
+            Text("Twist: \(poseAngle(appModel.latestSample?.shoulderTwist))")
+            Text("Shldr W: \(poseScalar(appModel.latestSample?.shoulderWidthRaw, "%.3f"))")
         }
         .font(.system(.caption, design: .monospaced))
         .padding(8)
@@ -62,6 +72,21 @@ struct DebugOverlayView: View {
         case .lost:
             return .red
         }
+    }
+
+    private func posePair(_ v: SIMD3<Float>?) -> String {
+        guard let v = v else { return "(--, --)" }
+        return String(format: "(%.2f, %.2f)", v.x, v.y)
+    }
+
+    private func poseAngle(_ v: Float?) -> String {
+        guard let v = v else { return "--" }
+        return String(format: "%.1f°", v)
+    }
+
+    private func poseScalar(_ v: Float?, _ fmt: String) -> String {
+        guard let v = v else { return "--" }
+        return String(format: fmt, v)
     }
 
     private var depthIcon: some View {

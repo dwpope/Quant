@@ -10,6 +10,7 @@ class AppModel: ObservableObject {
     @Published var depthConfidence: DepthConfidence = .unavailable
     @Published var trackingQuality: TrackingQuality = .lost
     @Published var fps: Float = 0.0
+    @Published var latestSample: PoseSample?
 
     // MARK: - Private Properties
 
@@ -30,12 +31,7 @@ class AppModel: ObservableObject {
     private func setupPipeline() {
         // Subscribe to pipeline updates
         pipeline.$latestSample
-            .sink { sample in
-                if let sample = sample {
-                    print("Sample processed: \(sample.timestamp)")
-                }
-            }
-            .store(in: &cancellables)
+            .assign(to: &$latestSample)
 
         // Bind pipeline properties to published properties for UI
         pipeline.$currentMode

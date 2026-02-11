@@ -14,11 +14,29 @@
     "swiftmodule": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests~partial.swiftmodule",
     "swift-dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.swiftdeps"
   },
+  "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/MetricsEngineTests.swift": {
+    "dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsEngineTests.d",
+    "object": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsEngineTests.swift.o",
+    "swiftmodule": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsEngineTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsEngineTests.swiftdeps"
+  },
+  "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/MetricsSmootherTests.swift": {
+    "dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsSmootherTests.d",
+    "object": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsSmootherTests.swift.o",
+    "swiftmodule": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsSmootherTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsSmootherTests.swiftdeps"
+  },
   "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift": {
     "dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.d",
     "object": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o",
     "swiftmodule": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests~partial.swiftmodule",
     "swift-dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swiftdeps"
+  },
+  "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseDepthFusionTests.swift": {
+    "dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseDepthFusionTests.d",
+    "object": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseDepthFusionTests.swift.o",
+    "swiftmodule": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseDepthFusionTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseDepthFusionTests.swiftdeps"
   },
   "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift": {
     "dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.d",

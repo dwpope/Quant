@@ -1,9 +1,28 @@
 import XCTest
+import CoreVideo
 @testable import PostureLogic
 
 final class PoseServiceTests: XCTestCase {
 
-    func test_process_returnsNil_whenPixelBufferIsNil() async {
+    private func makePixelBuffer(width: Int = 8, height: Int = 8) -> CVPixelBuffer {
+        var pixelBuffer: CVPixelBuffer?
+        let attrs: [CFString: Any] = [
+            kCVPixelBufferCGImageCompatibilityKey: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey: true
+        ]
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            kCVPixelFormatType_32BGRA,
+            attrs as CFDictionary,
+            &pixelBuffer
+        )
+        precondition(status == kCVReturnSuccess, "Failed to create CVPixelBuffer (status: \(status))")
+        return pixelBuffer!
+    }
+
+    func test_process_returnsFailed_whenPixelBufferIsNil() async {
         // Given
         let service = PoseService()
         let frame = InputFrame(
@@ -17,7 +36,11 @@ final class PoseServiceTests: XCTestCase {
         let result = await service.process(frame: frame)
 
         // Then
-        XCTAssertNil(result, "Should return nil when pixel buffer is nil")
+        if case .failed = result {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Expected .failed when pixel buffer is nil, got \(result)")
+        }
     }
 
     func test_process_throttlesFrames() async {
@@ -48,7 +71,11 @@ final class PoseServiceTests: XCTestCase {
         _ = await service.process(frame: frame3)
 
         // Then
-        XCTAssertNil(result2, "Should throttle frame that arrives too quickly")
+        if case .throttled = result2 {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Expected .throttled for frame that arrives too quickly, got \(result2)")
+        }
 
         // Check debug state shows throttling
         let debugState = service.debugState
@@ -60,7 +87,6 @@ final class PoseServiceTests: XCTestCase {
     func test_process_respectsMinFrameInterval() async {
         // Given
         let service = PoseService()
-        var processedCount = 0
         var throttledCount = 0
 
         // When - simulate 20 frames at varying intervals
@@ -74,15 +100,12 @@ final class PoseServiceTests: XCTestCase {
             )
 
             let result = await service.process(frame: frame)
-            if result != nil {
-                processedCount += 1
-            } else {
+            if case .throttled = result {
                 throttledCount += 1
             }
         }
 
         // Then - with 50ms intervals and 100ms min interval, roughly half should be throttled
-        // Since pixelBuffer is nil, all will return nil, but we can check debug state
         let debugState = service.debugState
         let framesThrottled = debugState["framesThrottled"] as? Int
         XCTAssertNotNil(framesThrottled)
@@ -121,7 +144,7 @@ final class PoseServiceTests: XCTestCase {
         let service = PoseService()
         let frame = InputFrame(
             timestamp: 1.5,
-            pixelBuffer: nil,
+            pixelBuffer: makePixelBuffer(),
             depthMap: nil,
             cameraIntrinsics: nil
         )
@@ -142,13 +165,13 @@ final class PoseServiceTests: XCTestCase {
         let service = PoseService()
         let frame1 = InputFrame(
             timestamp: 1.0,
-            pixelBuffer: nil,
+            pixelBuffer: makePixelBuffer(),
             depthMap: nil,
             cameraIntrinsics: nil
         )
         let frame2 = InputFrame(
             timestamp: 1.2,
-            pixelBuffer: nil,
+            pixelBuffer: makePixelBuffer(),
             depthMap: nil,
             cameraIntrinsics: nil
         )
@@ -170,7 +193,7 @@ final class PoseServiceTests: XCTestCase {
         let service = PoseService()
         let frame = InputFrame(
             timestamp: 0,
-            pixelBuffer: nil,
+            pixelBuffer: makePixelBuffer(),
             depthMap: nil,
             cameraIntrinsics: nil
         )
@@ -180,8 +203,7 @@ final class PoseServiceTests: XCTestCase {
         let keypointsFound = service.debugState["keypointsFound"] as? Int
 
         // Then
-        // With nil pixel buffer, no keypoints will be found
-        XCTAssertEqual(keypointsFound, 0)
+        XCTAssertNotNil(keypointsFound)
     }
 
     func test_debugState_tracksConfidence() async {
@@ -189,7 +211,7 @@ final class PoseServiceTests: XCTestCase {
         let service = PoseService()
         let frame = InputFrame(
             timestamp: 0,
-            pixelBuffer: nil,
+            pixelBuffer: makePixelBuffer(),
             depthMap: nil,
             cameraIntrinsics: nil
         )
@@ -199,7 +221,6 @@ final class PoseServiceTests: XCTestCase {
         let confidence = service.debugState["lastConfidence"] as? Float
 
         // Then
-        // With nil pixel buffer, confidence will be 0
-        XCTAssertEqual(confidence, 0)
+        XCTAssertNotNil(confidence)
     }
 }

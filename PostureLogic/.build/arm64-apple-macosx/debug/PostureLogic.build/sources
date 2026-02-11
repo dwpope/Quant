@@ -1,3 +1,5 @@
+/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsEngine.swift
+/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsSmoother.swift
 /Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift
 /Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift
 /Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthMode.swift
@@ -14,6 +16,7 @@
 /Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift
 /Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift
 /Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift
+/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/MetricsEngineProtocol.swift
 /Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseDepthFusionProtocol.swift
 /Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseProvider.swift
 /Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseServiceProtocol.swift

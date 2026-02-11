@@ -42,16 +42,16 @@ public final class PoseService: PoseServiceProtocol {
 
     // MARK: - PoseServiceProtocol
 
-    public func process(frame: InputFrame) async -> PoseObservation? {
+    public func process(frame: InputFrame) async -> PoseDetectionResult {
         // Throttle to avoid processing every frame
         guard frame.timestamp - lastProcessTime >= minFrameInterval else {
             framesThrottled += 1
-            return nil
+            return .throttled
         }
 
         guard let pixelBuffer = frame.pixelBuffer else {
             logger.debug("PoseService: No pixel buffer available in frame")
-            return nil
+            return .failed
         }
 
         lastProcessTime = frame.timestamp
@@ -65,23 +65,23 @@ public final class PoseService: PoseServiceProtocol {
                 noPoseDetectedCount += 1
                 lastKeypointCount = 0
                 logger.debug("PoseService: Vision detected no pose in frame (count: \(self.noPoseDetectedCount))")
-                return nil
+                return .noPose
             }
 
             let keypoints = try extractKeypoints(from: observation)
             lastKeypointCount = keypoints.count
             lastConfidence = observation.confidence
 
-            return PoseObservation(
+            return .observation(PoseObservation(
                 timestamp: frame.timestamp,
                 keypoints: keypoints,
                 confidence: observation.confidence
-            )
+            ))
         } catch {
             visionErrorCount += 1
             lastKeypointCount = 0
             logger.error("PoseService: Vision request failed: \(error.localizedDescription) (count: \(self.visionErrorCount))")
-            return nil
+            return .failed
         }
     }
 
