@@ -12,6 +12,13 @@ class AppModel: ObservableObject {
     @Published var fps: Float = 0.0
     @Published var latestSample: PoseSample?
 
+    // MARK: - Calibration Properties
+
+    @Published var calibrationStatus: CalibrationStatus = .waiting
+    @Published var calibrationProgress: Float = 0
+    @Published var baseline: Baseline?
+    @Published var needsCalibration: Bool = true
+
     // MARK: - Private Properties
 
     private let arService = ARSessionService()
@@ -19,21 +26,23 @@ class AppModel: ObservableObject {
         Pipeline(provider: arService)
     }()
     private var cancellables = Set<AnyCancellable>()
+    private let calibrationEngine = CalibrationEngine()
+
+    private static let baselineKey = "com.quant.savedBaseline"
 
     // MARK: - Initialization
 
     init() {
+        loadBaseline()
         setupPipeline()
     }
 
-    // MARK: - Private Methods
+    // MARK: - Pipeline Setup
 
     private func setupPipeline() {
-        // Subscribe to pipeline updates
         pipeline.$latestSample
             .assign(to: &$latestSample)
 
-        // Bind pipeline properties to published properties for UI
         pipeline.$currentMode
             .assign(to: &$currentMode)
 
@@ -45,6 +54,14 @@ class AppModel: ObservableObject {
 
         pipeline.$fps
             .assign(to: &$fps)
+
+        // Feed samples into the calibration engine while calibrating
+        pipeline.$latestSample
+            .compactMap { $0 }
+            .sink { [weak self] sample in
+                self?.feedCalibration(sample)
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Public Methods
@@ -64,4 +81,56 @@ class AppModel: ObservableObject {
         print("AR session stopped and subscriptions cleaned up")
     }
 
+    func startCalibration() {
+        calibrationEngine.reset()
+        calibrationStatus = .waiting
+        calibrationProgress = 0
+    }
+
+    func recalibrate() {
+        baseline = nil
+        pipeline.baseline = nil
+        needsCalibration = true
+        startCalibration()
+    }
+
+    // MARK: - Private Methods
+
+    private func feedCalibration(_ sample: PoseSample) {
+        guard needsCalibration else { return }
+
+        let status = calibrationEngine.addSample(sample)
+        calibrationStatus = status
+        calibrationProgress = calibrationEngine.progress
+
+        if case .success = status, let newBaseline = calibrationEngine.resultBaseline {
+            baseline = newBaseline
+            pipeline.baseline = newBaseline
+            needsCalibration = false
+            saveBaseline(newBaseline)
+        }
+    }
+
+    // MARK: - Persistence
+
+    private func saveBaseline(_ baseline: Baseline) {
+        guard let data = try? JSONEncoder().encode(baseline) else { return }
+        UserDefaults.standard.set(data, forKey: Self.baselineKey)
+    }
+
+    private func loadBaseline() {
+        guard let data = UserDefaults.standard.data(forKey: Self.baselineKey),
+              let saved = try? JSONDecoder().decode(Baseline.self, from: data) else {
+            return
+        }
+
+        if saved.isStale() {
+            UserDefaults.standard.removeObject(forKey: Self.baselineKey)
+            return
+        }
+
+        baseline = saved
+        pipeline.baseline = saved
+        needsCalibration = false
+    }
 }

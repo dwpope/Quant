@@ -11,6 +11,9 @@ public class Pipeline {
     @Published public var trackingQuality: TrackingQuality = .lost
     @Published public var fps: Float = 0.0
 
+    /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
+    public var baseline: Baseline?
+
     // MARK: - Private Properties
 
     private var subscriptions = Set<AnyCancellable>()
@@ -142,11 +145,10 @@ public class Pipeline {
                     )
                     self.latestSample = sample
 
-                    // Compute metrics (baseline is nil until calibration in Sprint 3)
                     if let sample = sample {
                         let rawMetrics = self.metricsEngine.compute(
                             from: sample,
-                            baseline: nil
+                            baseline: self.baseline
                         )
                         self.latestMetrics = self.metricsSmoother.smooth(
                             rawMetrics,

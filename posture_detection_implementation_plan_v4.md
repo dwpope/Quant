@@ -377,7 +377,7 @@ Sprint 1 (DONE):
     1.1 ──→ 1.2 ──→ 1.3 ──→ 1.4
      │
      ▼
-Sprint 2 (2D keypoints + metrics):
+Sprint 2 (DONE):
     2.1 ──→ 2.2 ──→ 2.3 ──→ 2.4 ──→ 2.5
               │                │
               ▼                ▼
@@ -1173,7 +1173,7 @@ struct DebugOverlayView: View {
 
 ---
 
-### Sprint 2 — 2D Keypoints + Metrics (MVP Path)
+### Sprint 2 — 2D Keypoints + Metrics (MVP Path)  ✅ DONE
 
 > **Focus**: Extract pose keypoints, build 2D PoseSamples, and compute metrics — all without depth. This is the minimum signal path needed for posture judgement. 3D depth fusion is deferred to Sprint 5.
 
@@ -1485,13 +1485,13 @@ struct MetricsSmoother {
 
 #### Sprint 2 — Definition of Done
 
-- [ ] Keypoints visible in Debug UI (at least shoulders + head)
-- [ ] PoseSample produced from 2D keypoints with derived angles
-- [ ] MetricsEngine outputs match expected values for good/bad posture examples
-- [ ] 2D fallback metrics produce directionally correct values
-- [ ] Smoothing reduces jitter without hiding real posture changes
-- [ ] Debug UI shows live metrics values
-- [ ] All unit tests pass for `PoseService`, `PoseDepthFusion`, `MetricsEngine`, `MetricsSmoother`
+- [x] Keypoints visible in Debug UI (at least shoulders + head)
+- [x] PoseSample produced from 2D keypoints with derived angles
+- [x] MetricsEngine outputs match expected values for good/bad posture examples
+- [x] 2D fallback metrics produce directionally correct values
+- [x] Smoothing reduces jitter without hiding real posture changes
+- [x] Debug UI shows live metrics values
+- [x] All unit tests pass for `PoseService`, `PoseDepthFusion`, `MetricsEngine`, `MetricsSmoother`
 
 ---
 

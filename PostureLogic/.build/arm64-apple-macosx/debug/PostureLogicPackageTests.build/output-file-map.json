@@ -1,11 +1,12 @@
 {
   "": {
-    "swift-dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/master.swiftdeps"
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/master.swiftdeps"
   },
-  "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift": {
-    "dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.d",
-    "object": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swift.o",
-    "swiftmodule": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner~partial.swiftmodule",
-    "swift-dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swiftdeps"
+  "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift": {
+    "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.d",
+    "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swift.o",
+    "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swiftdeps",
+    "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.dia"
   }
 }
