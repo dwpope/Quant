@@ -68,8 +68,4 @@ class AppModel: ObservableObject {
         print("AR session stopped and subscriptions cleaned up")
     }
 
-    deinit {
-        // Ensure cleanup on deallocation
-        stopMonitoring()
-    }
 }

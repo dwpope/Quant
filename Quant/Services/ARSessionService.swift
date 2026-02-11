@@ -102,7 +102,7 @@ final class ARSessionService: NSObject, PoseProvider {
             return
         }
 
-        guard var config = currentConfig else {
+        guard let config = currentConfig else {
             logger.error("Cannot attempt recovery - no configuration available")
             return
         }
