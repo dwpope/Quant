@@ -1,8 +1,8 @@
 {
   "builtTestProducts" : [
     {
-      "binaryPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.xctest/Contents/MacOS/PostureLogicPackageTests",
-      "packagePath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic",
+      "binaryPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.xctest/Contents/MacOS/PostureLogicPackageTests",
+      "packagePath" : "/Users/d631381/Developer/Quant/PostureLogic",
       "productName" : "PostureLogicPackageTests"
     }
   ],
@@ -23,161 +23,171 @@
   "swiftCommands" : {
     "C.PostureLogic-arm64-apple-macosx15.0-debug.module" : {
       "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
-      "fileList" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/sources",
-      "importPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
+      "fileList" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/sources",
+      "importPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
       "inputs" : [
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/DepthMode.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthMode.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/InputFrame.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/InputFrame.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/NudgeDecision.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/NudgeDecision.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PoseObservation.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PoseObservation.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PoseSample.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PoseSample.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PostureState.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PostureState.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PostureThresholds.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PostureThresholds.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/RawMetrics.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/RawMetrics.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/Recording.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Recording.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/TaskMode.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/TaskMode.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/TrackingQuality.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/TrackingQuality.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseProvider.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseDepthFusionProtocol.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseServiceProtocol.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseProvider.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/DepthService.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseServiceProtocol.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher+Example.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/DepthService.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher+Example.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/PoseService.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/PoseDepthFusion.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/PoseService.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/sources"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/sources"
         }
       ],
       "isLibrary" : true,
       "moduleName" : "PostureLogic",
-      "moduleOutputPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogic.swiftmodule",
+      "moduleOutputPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogic.swiftmodule",
       "objects" : [
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthConfidence.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthMode.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/InputFrame.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/NudgeDecision.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseObservation.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseSample.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureState.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureThresholds.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/RawMetrics.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Recording.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskMode.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TrackingQuality.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Pipeline.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DebugDumpable.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthServiceProtocol.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseProvider.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseServiceProtocol.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthService.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher+Example.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseService.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TestScenarios.swift.o"
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthConfidence.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthMode.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/InputFrame.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/NudgeDecision.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseObservation.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseSample.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureState.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureThresholds.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/RawMetrics.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Recording.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskMode.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TrackingQuality.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Pipeline.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DebugDumpable.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthServiceProtocol.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseDepthFusionProtocol.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseProvider.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseServiceProtocol.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthService.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher+Example.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseDepthFusion.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseService.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TestScenarios.swift.o"
       ],
       "otherArguments" : [
         "-target",
         "arm64-apple-macosx14.0",
         "-enable-batch-mode",
         "-index-store-path",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
         "-Onone",
         "-enable-testing",
         "-j12",
         "-DSWIFT_PACKAGE",
         "-DDEBUG",
         "-module-cache-path",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
         "-parseable-output",
         "-parse-as-library",
         "-emit-objc-header",
         "-emit-objc-header-path",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureLogic-Swift.h",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureLogic-Swift.h",
         "-swift-version",
         "5",
         "-sdk",
@@ -204,185 +214,195 @@
         "-package-name",
         "posturelogic"
       ],
-      "outputFileMapPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/output-file-map.json",
+      "outputFileMapPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/output-file-map.json",
       "outputs" : [
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthConfidence.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthConfidence.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthMode.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthMode.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/InputFrame.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/InputFrame.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/NudgeDecision.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/NudgeDecision.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseObservation.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseObservation.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseSample.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseSample.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureState.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureState.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureThresholds.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureThresholds.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/RawMetrics.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/RawMetrics.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Recording.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Recording.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskMode.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskMode.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TrackingQuality.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TrackingQuality.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Pipeline.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Pipeline.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DebugDumpable.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DebugDumpable.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthServiceProtocol.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthServiceProtocol.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseProvider.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseDepthFusionProtocol.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseServiceProtocol.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseProvider.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthService.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseServiceProtocol.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher+Example.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthService.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher+Example.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseService.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseDepthFusion.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TestScenarios.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseService.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogic.swiftmodule"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TestScenarios.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogic.swiftmodule"
         }
       ],
       "prepareForIndexing" : false,
       "sources" : [
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/DepthMode.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/InputFrame.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/NudgeDecision.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PoseObservation.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PoseSample.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PostureState.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PostureThresholds.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/RawMetrics.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/Recording.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/TaskMode.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/TrackingQuality.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseProvider.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseServiceProtocol.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/DepthService.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher+Example.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/PoseService.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift"
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthMode.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/InputFrame.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/NudgeDecision.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PoseObservation.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PoseSample.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PostureState.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PostureThresholds.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/RawMetrics.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Recording.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/TaskMode.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/TrackingQuality.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseDepthFusionProtocol.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseProvider.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseServiceProtocol.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/DepthService.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher+Example.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/PoseDepthFusion.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/PoseService.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift"
       ],
-      "tempsPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build",
+      "tempsPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build",
       "wholeModuleOptimization" : false
     },
     "C.PostureLogicPackageTests-arm64-apple-macosx15.0-debug.module" : {
       "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
-      "fileList" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/sources",
-      "importPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
+      "fileList" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/sources",
+      "importPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
       "inputs" : [
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogicTests.swiftmodule"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogicTests.swiftmodule"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/sources"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/sources"
         }
       ],
       "isLibrary" : true,
       "moduleName" : "PostureLogicPackageTests",
-      "moduleOutputPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogicPackageTests.swiftmodule",
+      "moduleOutputPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogicPackageTests.swiftmodule",
       "objects" : [
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swift.o"
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swift.o"
       ],
       "otherArguments" : [
         "-target",
         "arm64-apple-macosx14.0",
         "-enable-batch-mode",
         "-index-store-path",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
         "-Onone",
         "-enable-testing",
         "-j12",
         "-DSWIFT_PACKAGE",
         "-DDEBUG",
         "-module-cache-path",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
         "-parseable-output",
         "-parse-as-library",
         "-emit-objc-header",
         "-emit-objc-header-path",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/PostureLogicPackageTests-Swift.h",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/PostureLogicPackageTests-Swift.h",
         "-sdk",
         "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk",
         "-F",
@@ -407,80 +427,85 @@
         "-package-name",
         "posturelogic"
       ],
-      "outputFileMapPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/output-file-map.json",
+      "outputFileMapPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/output-file-map.json",
       "outputs" : [
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogicPackageTests.swiftmodule"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogicPackageTests.swiftmodule"
         }
       ],
       "prepareForIndexing" : false,
       "sources" : [
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift"
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift"
       ],
-      "tempsPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build",
+      "tempsPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build",
       "wholeModuleOptimization" : false
     },
     "C.PostureLogicTests-arm64-apple-macosx15.0-debug.module" : {
       "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
-      "fileList" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/sources",
-      "importPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
+      "fileList" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/sources",
+      "importPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
       "inputs" : [
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/DepthServiceTests.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/DepthServiceTests.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/IntegrationTests.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/IntegrationTests.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseDepthFusionTests.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogic.swiftmodule"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/sources"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogic.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/sources"
         }
       ],
       "isLibrary" : true,
       "moduleName" : "PostureLogicTests",
-      "moduleOutputPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogicTests.swiftmodule",
+      "moduleOutputPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogicTests.swiftmodule",
       "objects" : [
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/DepthServiceTests.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.swift.o"
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/DepthServiceTests.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseDepthFusionTests.swift.o",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.swift.o"
       ],
       "otherArguments" : [
         "-target",
         "arm64-apple-macosx14.0",
         "-enable-batch-mode",
         "-index-store-path",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
         "-Onone",
         "-enable-testing",
         "-j12",
         "-DSWIFT_PACKAGE",
         "-DDEBUG",
         "-module-cache-path",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
+        "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
         "-parseable-output",
         "-parse-as-library",
         "-swift-version",
@@ -509,37 +534,42 @@
         "-package-name",
         "posturelogic"
       ],
-      "outputFileMapPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/output-file-map.json",
+      "outputFileMapPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/output-file-map.json",
       "outputs" : [
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/DepthServiceTests.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/DepthServiceTests.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseDepthFusionTests.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogicTests.swiftmodule"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules/PostureLogicTests.swiftmodule"
         }
       ],
       "prepareForIndexing" : false,
       "sources" : [
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/DepthServiceTests.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/IntegrationTests.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift",
-        "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift"
+        "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/DepthServiceTests.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/IntegrationTests.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseDepthFusionTests.swift",
+        "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift"
       ],
-      "tempsPath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build",
+      "tempsPath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build",
       "wholeModuleOptimization" : false
     }
   },
@@ -555,49 +585,51 @@
       "posturelogic",
       "-incremental",
       "-c",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/DepthMode.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/InputFrame.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/NudgeDecision.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PoseObservation.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PoseSample.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PostureState.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PostureThresholds.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/RawMetrics.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/Recording.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/TaskMode.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/TrackingQuality.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseProvider.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseServiceProtocol.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/DepthService.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher+Example.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/PoseService.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthMode.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/InputFrame.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/NudgeDecision.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PoseObservation.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PoseSample.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PostureState.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PostureThresholds.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/RawMetrics.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Recording.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/TaskMode.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/TrackingQuality.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseDepthFusionProtocol.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseProvider.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseServiceProtocol.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/DepthService.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher+Example.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/PoseDepthFusion.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/PoseService.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift",
       "-I",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
       "-target",
       "arm64-apple-macosx14.0",
       "-enable-batch-mode",
       "-index-store-path",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
       "-Onone",
       "-enable-testing",
       "-j12",
       "-DSWIFT_PACKAGE",
       "-DDEBUG",
       "-module-cache-path",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
       "-parseable-output",
       "-parse-as-library",
       "-emit-objc-header",
       "-emit-objc-header-path",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureLogic-Swift.h",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureLogic-Swift.h",
       "-swift-version",
       "5",
       "-sdk",
@@ -634,26 +666,26 @@
       "posturelogic",
       "-incremental",
       "-c",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift",
       "-I",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
       "-target",
       "arm64-apple-macosx14.0",
       "-enable-batch-mode",
       "-index-store-path",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
       "-Onone",
       "-enable-testing",
       "-j12",
       "-DSWIFT_PACKAGE",
       "-DDEBUG",
       "-module-cache-path",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
       "-parseable-output",
       "-parse-as-library",
       "-emit-objc-header",
       "-emit-objc-header-path",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/PostureLogicPackageTests-Swift.h",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/PostureLogicPackageTests-Swift.h",
       "-sdk",
       "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk",
       "-F",
@@ -688,24 +720,25 @@
       "posturelogic",
       "-incremental",
       "-c",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/DepthServiceTests.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/IntegrationTests.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/DepthServiceTests.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/IntegrationTests.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseDepthFusionTests.swift",
+      "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift",
       "-I",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
       "-target",
       "arm64-apple-macosx14.0",
       "-enable-batch-mode",
       "-index-store-path",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/index/store",
       "-Onone",
       "-enable-testing",
       "-j12",
       "-DSWIFT_PACKAGE",
       "-DDEBUG",
       "-module-cache-path",
-      "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
+      "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/ModuleCache",
       "-parseable-output",
       "-parse-as-library",
       "-swift-version",
@@ -753,20 +786,20 @@
 
   },
   "testEntryPointCommands" : {
-    "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift" : {
+    "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift" : {
       "inputs" : [
 
       ],
       "outputs" : [
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift"
         }
       ]
     }
   },
   "writeCommands" : {
-    "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/sources" : {
+    "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/sources" : {
       "alwaysOutOfDate" : false,
       "inputs" : [
         {
@@ -775,104 +808,112 @@
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/DepthMode.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthMode.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/InputFrame.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/InputFrame.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/NudgeDecision.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/NudgeDecision.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PoseObservation.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PoseObservation.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PoseSample.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PoseSample.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PostureState.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PostureState.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/PostureThresholds.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/PostureThresholds.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/RawMetrics.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/RawMetrics.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/Recording.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Recording.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/TaskMode.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/TaskMode.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Models/TrackingQuality.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/TrackingQuality.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DepthServiceProtocol.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseProvider.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseDepthFusionProtocol.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseServiceProtocol.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseProvider.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/DepthService.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PoseServiceProtocol.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher+Example.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/DepthService.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher+Example.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Services/PoseService.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/PoseDepthFusion.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/PoseService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift"
         }
       ],
-      "outputFilePath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/sources"
+      "outputFilePath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/sources"
     },
-    "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/sources" : {
+    "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/sources" : {
       "alwaysOutOfDate" : false,
       "inputs" : [
         {
@@ -881,12 +922,12 @@
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.derived/runner.swift"
         }
       ],
-      "outputFilePath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/sources"
+      "outputFilePath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/sources"
     },
-    "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.product/Objects.LinkFileList" : {
+    "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.product/Objects.LinkFileList" : {
       "alwaysOutOfDate" : false,
       "inputs" : [
         {
@@ -895,124 +936,136 @@
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DebugDumpable.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DebugDumpable.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthConfidence.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthConfidence.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthMode.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthMode.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthService.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthService.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthServiceProtocol.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthServiceProtocol.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/InputFrame.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/InputFrame.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher+Example.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher+Example.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ModeSwitcher.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/NudgeDecision.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/NudgeDecision.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Pipeline.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Pipeline.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseObservation.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseDepthFusion.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseProvider.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseDepthFusionProtocol.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseSample.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseObservation.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseService.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseProvider.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseServiceProtocol.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseSample.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureState.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseService.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureThresholds.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PoseServiceProtocol.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/RawMetrics.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureState.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Recording.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureThresholds.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskMode.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/RawMetrics.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TestScenarios.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Recording.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TrackingQuality.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskMode.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TestScenarios.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/DepthServiceTests.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TrackingQuality.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/DepthServiceTests.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.swift.o"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseDepthFusionTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.swift.o"
         }
       ],
-      "outputFilePath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.product/Objects.LinkFileList"
+      "outputFilePath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.product/Objects.LinkFileList"
     },
-    "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/sources" : {
+    "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/sources" : {
       "alwaysOutOfDate" : false,
       "inputs" : [
         {
@@ -1021,24 +1074,28 @@
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/DepthServiceTests.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/DepthServiceTests.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/IntegrationTests.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/IntegrationTests.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift"
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseDepthFusionTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/d631381/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift"
         }
       ],
-      "outputFilePath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/sources"
+      "outputFilePath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/sources"
     },
-    "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt" : {
+    "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt" : {
       "alwaysOutOfDate" : true,
       "inputs" : [
         {
@@ -1050,7 +1107,7 @@
           "name" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
         }
       ],
-      "outputFilePath" : "/Users/d631381/Library/Mobile Documents/com~apple~CloudDocs/Developer/SwiftUI Projects/Quant/PostureLogic/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+      "outputFilePath" : "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
     }
   }
 }

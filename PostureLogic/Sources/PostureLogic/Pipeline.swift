@@ -15,6 +15,7 @@ public class Pipeline {
     private var subscriptions = Set<AnyCancellable>()
     private var poseService = PoseService()
     private var depthService = DepthService()
+    private var fusion = PoseDepthFusion()
     private var modeSwitcher: ModeSwitcher
 
     // Latest pose observation
@@ -62,7 +63,6 @@ public class Pipeline {
         }
 
         // Extract frame data to avoid retaining the entire InputFrame
-        let timestamp = frame.timestamp
         let hasPixelBuffer = frame.pixelBuffer != nil
 
         // Capture current tracking quality for hysteresis (must read on current thread to avoid race conditions)
@@ -110,25 +110,21 @@ public class Pipeline {
                     finalQuality = self.currentTrackingQuality
                 }
 
-                // Create pose sample
-                let sample = PoseSample(
-                    timestamp: timestamp,
-                    depthMode: mode,
-                    headPosition: .zero,
-                    shoulderMidpoint: .zero,
-                    leftShoulder: .zero,
-                    rightShoulder: .zero,
-                    torsoAngle: 0,
-                    headForwardOffset: 0,
-                    shoulderTwist: 0,
-                    trackingQuality: finalQuality
-                )
-
                 // Update published properties
                 self.latestPoseObservation = poseObservation
                 self.trackingQuality = finalQuality
-                self.latestSample = sample
                 self.currentTrackingQuality = finalQuality
+
+                // Fuse pose into a normalized PoseSample
+                if let observation = poseObservation {
+                    let sample = self.fusion.fuse(
+                        pose: observation,
+                        depthSamples: nil,
+                        confidence: confidence,
+                        trackingQuality: finalQuality
+                    )
+                    self.latestSample = sample
+                }
             }
         }
     }

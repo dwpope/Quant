@@ -64,22 +64,22 @@ struct PostureThresholds: Codable {
     var slouchDurationBeforeNudge: TimeInterval = 300  // 5 minutes default
     var recoveryGracePeriod: TimeInterval = 5          // Seconds to confirm correction
     var driftingToBadThreshold: TimeInterval = 60      // Seconds in "drifting" before "bad"
-    
+
     // MARK: - Posture Metrics
     var forwardCreepThreshold: Float = 0.10            // Meters (depth) or ratio (2D)
     var twistThreshold: Float = 15.0                   // Degrees
     var sideLeanThreshold: Float = 0.08                // Normalized offset
-    
+
     // MARK: - Confidence Gates
     var minTrackingQuality: Float = 0.7                // Below this, don't judge posture
     var minKeypointVisibility: Float = 0.7             // Required keypoints ratio
     var depthConfidenceThreshold: Float = 0.6          // Below this, switch to 2D mode
-    
+
     // MARK: - Nudge Behavior
     var nudgeCooldown: TimeInterval = 600              // 10 minutes between nudges
     var maxNudgesPerHour: Int = 2
     var acknowledgementWindow: TimeInterval = 30       // Seconds to detect correction after nudge
-    
+
     // MARK: - Mode Switching
     var depthRecoveryDelay: TimeInterval = 2.0         // Seconds of good depth before switching back
     var absentThreshold: TimeInterval = 3.0            // Seconds without tracking before "absent"
@@ -106,7 +106,7 @@ Store in `UserDefaults` or a JSON file. Load at app launch, apply immediately wh
 | Depth confidence drops | `DepthConfidence < threshold` | Switch to TwoDOnly mode automatically | Continue timer (2D still works) |
 | User leaves frame | No body detected for `absentThreshold` seconds | Set `PostureState.absent` | Reset slouch timer |
 | User returns to frame | Body detected after absence | Require new baseline calibration if absence > 5 minutes | Timer starts fresh |
-| Thermal throttling | `ProcessInfo.thermalState` changes | Reduce FPS or disable depth (see Sprint 6) | Continue with degraded mode |
+| Thermal throttling | `ProcessInfo.thermalState` changes | Reduce FPS or disable depth (see Sprint 9) | Continue with degraded mode |
 
 **Key principle**: When tracking quality is uncertain, *never* judge posture. Only count time toward slouch detection when confidence is high.
 
@@ -221,7 +221,7 @@ struct Baseline: Codable {
     let torsoAngle: Float                    // Degrees from vertical
     let shoulderWidth: Float                 // For scale normalization
     let depthAvailable: Bool
-    
+
     func isStale(after interval: TimeInterval = 3600) -> Bool {
         Date().timeIntervalSince(timestamp) > interval
     }
@@ -309,15 +309,15 @@ Quant/
 graph TD
     Root[RootView] -->|Auth Check| Onboarding[OnboardingFlow]
     Root -->|Auth OK| Main[MainDashboard]
-    
+
     Onboarding --> Welcome[WelcomeView]
     Onboarding --> Permissions[PermissionsRequestView]
     Onboarding --> Calibration[CalibrationView]
-    
+
     Main --> Live[LivePostureView]
     Main --> Stats[DailyStatsView]
     Main --> Settings[SettingsSheet]
-    
+
     Live -->|Overlay| Debug[DebugOverlay]
     Live -->|Sheet| SessionReport[SessionReportView]
 ```
@@ -365,40 +365,67 @@ graph TD
 ### Ticket Dependency Graph
 
 ```
-Sprint 0:
+═══════════════════════════════════════
+  PHASE 1 — MVP: Camera → Watch Tap
+═══════════════════════════════════════
+
+Sprint 0 (DONE):
     0.1 ──→ 0.2 ──→ 0.3
      │
      ▼
-Sprint 1:
+Sprint 1 (DONE):
     1.1 ──→ 1.2 ──→ 1.3 ──→ 1.4
      │
      ▼
-Sprint 2:
-    2.1 ──→ 2.2 ──→ 2.3 ──→ 2.4 ──→ 2.5 ──→ 2.6
-                    │
-                    ▼
-Sprint 3:
-    3.1 ──→ 3.2 ──→ 3.3 ──→ 3.4
-                    │
-                    ▼
-Sprint 4:
-    4.1 ──→ 4.2 ──→ 4.3
-     │
-     ▼
-Sprint 5:
-    5.1 ──→ 5.2 ──→ 5.3
-     │
-     ▼
-Sprint 6:
-    6.1 ──→ 6.2 ──→ 6.3
-     │
-     ▼
-Sprint 7:
-    7.1 ──→ 7.2 ──→ 7.3
-     │
-     ▼
-Sprint 8:
-    8.1 ──→ 8.2
+Sprint 2 (2D keypoints + metrics):
+    2.1 ──→ 2.2 ──→ 2.3 ──→ 2.4 ──→ 2.5
+              │                │
+              ▼                ▼
+Sprint 3 (calibration + state machine):
+             3.1              3.2
+              │                │
+              ▼                ▼
+Sprint 4 (nudge + watch):
+             4.1 ──→ 4.2
+              │──→ 4.3
+              │──→ 4.4
+
+═══════════════════════════════════════
+  ✅ MVP COMPLETE — Bad posture → Watch tap
+═══════════════════════════════════════
+
+  PHASE 2 — Enhancement
+═══════════════════════════════════════
+
+Sprint 5 (3D depth fusion):
+    5.1 ──→ 5.2
+
+Sprint 6 (recording + replay):
+    6.1 ──→ 6.2
+     │──→ 6.3
+           │
+           ▼
+          6.4
+
+Sprint 7 (task mode + settings):
+    7.1 ──→ 7.2
+    7.3
+
+Sprint 8 (setup hardening):
+    8.1
+    8.2
+
+═══════════════════════════════════════
+  PHASE 3 — Hardening
+═══════════════════════════════════════
+
+Sprint 9 (stability + thermal):
+    9.1
+    9.2
+
+Sprint 10 (background + Mac):
+    10.1
+    10.2
 ```
 
 ---
@@ -543,7 +570,7 @@ enum DepthConfidence: Comparable {
     case low
     case medium
     case high
-    
+
     var numericValue: Float {
         switch self {
         case .unavailable: return 0.0
@@ -559,18 +586,18 @@ enum DepthConfidence: Comparable {
 struct PoseSample: Codable {
     let timestamp: TimeInterval
     let depthMode: DepthMode
-    
+
     // Key positions (3D if depth available, 2D otherwise)
     let headPosition: SIMD3<Float>
     let shoulderMidpoint: SIMD3<Float>
     let leftShoulder: SIMD3<Float>
     let rightShoulder: SIMD3<Float>
-    
+
     // Derived angles
     let torsoAngle: Float              // Degrees from vertical
     let headForwardOffset: Float       // How far head is forward of shoulders
     let shoulderTwist: Float           // Rotation in degrees
-    
+
     let trackingQuality: TrackingQuality
 }
 
@@ -585,7 +612,7 @@ enum TrackingQuality: Comparable, Codable {
     case lost
     case degraded
     case good
-    
+
     var allowsPostureJudgement: Bool {
         self == .good
     }
@@ -595,14 +622,14 @@ enum TrackingQuality: Comparable, Codable {
 
 struct RawMetrics: Codable {
     let timestamp: TimeInterval
-    
+
     // Deltas from baseline (positive = worse)
     let forwardCreep: Float            // How much closer to camera vs baseline
     let headDrop: Float                // How much head has dropped
     let shoulderRounding: Float        // Shoulder forward rotation
     let lateralLean: Float             // Side-to-side offset
     let twist: Float                   // Shoulder rotation from square
-    
+
     // Activity indicators
     let movementLevel: Float           // 0 = still, 1 = very active
     let headMovementPattern: MovementPattern
@@ -633,12 +660,12 @@ enum PostureState: Codable {
     case good                          // Within thresholds
     case drifting(since: TimeInterval) // Starting to slouch
     case bad(since: TimeInterval)      // Sustained bad posture
-    
+
     var isBad: Bool {
         if case .bad = self { return true }
         return false
     }
-    
+
     var durationInCurrentState: TimeInterval? {
         switch self {
         case .drifting(let since), .bad(let since):
@@ -717,7 +744,13 @@ struct SessionMetadata: Codable {
 
 ---
 
-### Sprint 0 — Research & Infrastructure
+# Phase 1 — MVP: Camera to Watch Tap
+
+> **Goal**: Deliver the core value loop — detect bad posture from camera, nudge via Apple Watch — as fast as possible. 2D-only; no depth fusion, recording, or task classification needed yet.
+
+---
+
+### Sprint 0 — Research & Infrastructure  ✅ DONE
 
 #### Ticket 0.1 — Logic Package & Test Harness
 
@@ -762,27 +795,27 @@ public final class MockPoseProvider: PoseProvider {
     public var framePublisher: AnyPublisher<InputFrame, Never> {
         frameSubject.eraseToAnyPublisher()
     }
-    
+
     private let frameSubject = PassthroughSubject<InputFrame, Never>()
     private var isRunning = false
-    
+
     public init() {}
-    
+
     public func start() async throws {
         isRunning = true
     }
-    
+
     public func stop() {
         isRunning = false
     }
-    
+
     // MARK: - Test Helpers
-    
+
     public func emit(frame: InputFrame) {
         guard isRunning else { return }
         frameSubject.send(frame)
     }
-    
+
     public func emit(scenario: TestScenario) {
         for frame in scenario.frames {
             emit(frame: frame)
@@ -802,12 +835,12 @@ final class IntegrationTests: XCTestCase {
         // Given
         let mock = MockPoseProvider()
         let pipeline = Pipeline(provider: mock)  // You'll create this
-        
+
         try await mock.start()
-        
+
         // When
         mock.emit(frame: TestScenarios.goodPosture.frames[0])
-        
+
         // Then
         let output = await pipeline.latestSample
         XCTAssertNotNil(output)
@@ -815,7 +848,6 @@ final class IntegrationTests: XCTestCase {
     }
 }
 ```
-
 
 **Manual test steps**
 
@@ -845,18 +877,18 @@ final class ARSessionService: NSObject, PoseProvider {
     var framePublisher: AnyPublisher<InputFrame, Never> {
         frameSubject.eraseToAnyPublisher()
     }
-    
+
     private let session = ARSession()
     private let frameSubject = PassthroughSubject<InputFrame, Never>()
-    
+
     func start() async throws {
         let config = ARBodyTrackingConfiguration()
         config.frameSemantics = .bodyDetection
-        
+
         session.delegate = self
         session.run(config)
     }
-    
+
     func stop() {
         session.pause()
     }
@@ -875,13 +907,12 @@ extension ARSessionService: ARSessionDelegate {
 }
 ```
 
-
 **Manual test steps**
 
 1. Build & run the iOS app on a **real device** (not Simulator).
 2. Grant camera permissions when prompted.
 3. Confirm the console logs a steady stream of frame timestamps (e.g., increasing `frame.timestamp` values) while the camera is open.
-4. Background the app and return; confirm frames resume (even if you haven’t added full lifecycle handling yet).
+4. Background the app and return; confirm frames resume (even if you haven't added full lifecycle handling yet).
 
 ---
 
@@ -918,25 +949,24 @@ extension ARSessionService: ARSessionDelegate {
 - Upper body visible from shoulders up
 ```
 
-#### ✅ Sprint 0 — Definition of Done
-
-- [ ] `PostureLogic` Swift Package created and builds
-- [ ] `MockPoseProvider` can emit test frames
-- [ ] `swift test` passes with at least one integration test
-- [ ] App runs on device and logs frame timestamps
-- [ ] `SUPPORTED_RANGE.md` document exists
-- [ ] No compiler warnings
-
----
-
-### Sprint 1 — Sensors + Depth Confidence + 2D Fallback
-
-
-
 **Manual test steps**
 
 1. Confirm `SUPPORTED_RANGE.md` exists in the repo and is committed/visible in Xcode or your file browser.
 2. Open the file and verify it includes sections for **Distance**, **Angle**, **Lighting**, and **Position** with specific numeric ranges.
+
+#### Sprint 0 — Definition of Done
+
+- [x] `PostureLogic` Swift Package created and builds
+- [x] `MockPoseProvider` can emit test frames
+- [x] `swift test` passes with at least one integration test
+- [x] App runs on device and logs frame timestamps
+- [x] `SUPPORTED_RANGE.md` document exists
+- [x] No compiler warnings
+
+---
+
+### Sprint 1 — Sensors + Depth Confidence + 2D Fallback  ✅ DONE
+
 #### Ticket 1.1 — ARSessionService + Lifecycle
 
 | Field | Value |
@@ -963,7 +993,6 @@ func sessionInterruptionEnded(_ session: ARSession) {
 }
 ```
 
-
 **Manual test steps**
 
 1. Run the app on device, start the AR session, then simulate an interruption: lock/unlock the phone or switch apps briefly.
@@ -989,23 +1018,23 @@ public struct DepthService: DepthServiceProtocol {
     public var debugState: [String: Any] {
         ["lastConfidence": lastConfidence.rawValue]
     }
-    
+
     private var lastConfidence: DepthConfidence = .unavailable
-    
+
     public init() {}
-    
+
     public func sampleDepth(at points: [CGPoint], from frame: InputFrame) -> [DepthAtPoint] {
         guard let depthMap = frame.depthMap else {
             return points.map { DepthAtPoint(point: $0, depth: 0, confidence: 0) }
         }
-        
+
         // TODO: Implement CVPixelBuffer sampling
         return []
     }
-    
+
     public func computeConfidence(from frame: InputFrame) -> DepthConfidence {
         guard frame.depthMap != nil else { return .unavailable }
-        
+
         // TODO: Analyze depth map quality
         // - Check for holes/invalid values
         // - Check temporal consistency
@@ -1020,13 +1049,12 @@ public struct DepthService: DepthServiceProtocol {
 func test_depthConfidence_returnsUnavailable_whenNoDepthMap() {
     let service = DepthService()
     let frame = InputFrame(timestamp: 0, pixelBuffer: nil, depthMap: nil, cameraIntrinsics: nil)
-    
+
     let confidence = service.computeConfidence(from: frame)
-    
+
     XCTAssertEqual(confidence, .unavailable)
 }
 ```
-
 
 **Manual test steps**
 
@@ -1051,14 +1079,14 @@ func test_depthConfidence_returnsUnavailable_whenNoDepthMap() {
 ```swift
 public final class ModeSwitcher {
     public private(set) var currentMode: DepthMode = .depthFusion
-    
+
     private let thresholds: PostureThresholds
     private var goodDepthStartTime: TimeInterval?
-    
+
     public init(thresholds: PostureThresholds) {
         self.thresholds = thresholds
     }
-    
+
     public func update(confidence: DepthConfidence, timestamp: TimeInterval) -> DepthMode {
         switch currentMode {
         case .depthFusion:
@@ -1066,7 +1094,7 @@ public final class ModeSwitcher {
                 currentMode = .twoDOnly
                 goodDepthStartTime = nil
             }
-            
+
         case .twoDOnly:
             if confidence >= .medium {
                 if let start = goodDepthStartTime {
@@ -1081,17 +1109,16 @@ public final class ModeSwitcher {
                 goodDepthStartTime = nil
             }
         }
-        
+
         return currentMode
     }
 }
 ```
 
-
 **Manual test steps**
 
 1. Run on device and watch the reported mode (`depthFusion` vs `twoDOnly`) in logs or debug UI.
-2. Force depth to be unavailable (e.g., by running on a non‑LiDAR device, or by making `sceneDepth` nil) and confirm it switches to `twoDOnly` quickly.
+2. Force depth to be unavailable (e.g., by running on a non-LiDAR device, or by making `sceneDepth` nil) and confirm it switches to `twoDOnly` quickly.
 3. Restore good depth and confirm it waits at least `depthRecoveryDelay` seconds of good confidence before switching back to `depthFusion`.
 
 ---
@@ -1113,7 +1140,7 @@ import SwiftUI
 
 struct DebugOverlayView: View {
     @ObservedObject var appModel: AppModel
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Mode: \(appModel.currentMode.rawValue)")
@@ -1129,26 +1156,27 @@ struct DebugOverlayView: View {
 }
 ```
 
-#### ✅ Sprint 1 — Definition of Done
-
-- [ ] App runs on device for 5+ minutes without crashing
-- [ ] Debug UI shows live depth confidence and mode
-- [ ] Mode switches from DepthFusion → TwoDOnly when depth unavailable
-- [ ] Mode switches back after `depthRecoveryDelay` seconds of good depth
-- [ ] App handles phone calls and backgrounding gracefully
-- [ ] All unit tests pass for `DepthService` and `ModeSwitcher`
-
----
-
-### Sprint 2 — Keypoints + Recorder + Tagged Replay
-
-
-
 **Manual test steps**
 
 1. Run on device and verify the debug overlay is visible and updates live (mode, depth, tracking, FPS).
 2. Move in/out of frame or change lighting and confirm the overlay values change accordingly (no frozen numbers).
 3. Rotate the device / background-foreground the app and confirm the overlay still appears and updates.
+
+#### Sprint 1 — Definition of Done
+
+- [x] App runs on device for 5+ minutes without crashing
+- [x] Debug UI shows live depth confidence and mode
+- [x] Mode switches from DepthFusion → TwoDOnly when depth unavailable
+- [x] Mode switches back after `depthRecoveryDelay` seconds of good depth
+- [x] App handles phone calls and backgrounding gracefully
+- [x] All unit tests pass for `DepthService` and `ModeSwitcher`
+
+---
+
+### Sprint 2 — 2D Keypoints + Metrics (MVP Path)
+
+> **Focus**: Extract pose keypoints, build 2D PoseSamples, and compute metrics — all without depth. This is the minimum signal path needed for posture judgement. 3D depth fusion is deferred to Sprint 5.
+
 #### Ticket 2.1 — PoseService (Vision Pose, Throttled)
 
 | Field | Value |
@@ -1171,34 +1199,34 @@ public final class PoseService: PoseServiceProtocol {
             "keypointsFound": lastKeypointCount
         ]
     }
-    
+
     private var lastProcessTime: TimeInterval = 0
     private var lastKeypointCount: Int = 0
     private let minFrameInterval: TimeInterval = 0.1  // ~10 FPS
-    
+
     public init() {}
-    
+
     public func process(frame: InputFrame) async -> PoseObservation? {
         guard frame.timestamp - lastProcessTime >= minFrameInterval else {
             return nil  // Throttled
         }
-        
+
         guard let pixelBuffer = frame.pixelBuffer else {
             return nil
         }
-        
+
         lastProcessTime = frame.timestamp
-        
+
         let request = VNDetectHumanBodyPoseRequest()
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer)
-        
+
         do {
             try handler.perform([request])
             guard let observation = request.results?.first else { return nil }
-            
+
             let keypoints = try extractKeypoints(from: observation)
             lastKeypointCount = keypoints.count
-            
+
             return PoseObservation(
                 timestamp: frame.timestamp,
                 keypoints: keypoints,
@@ -1208,14 +1236,13 @@ public final class PoseService: PoseServiceProtocol {
             return nil
         }
     }
-    
+
     private func extractKeypoints(from observation: VNHumanBodyPoseObservation) throws -> [Keypoint] {
         // TODO: Map VNRecognizedPoint to Keypoint for each Joint
         return []
     }
 }
 ```
-
 
 **Manual test steps**
 
@@ -1225,34 +1252,38 @@ public final class PoseService: PoseServiceProtocol {
 
 ---
 
-#### Ticket 2.2 — PoseSample Builder (Fusion Skeleton)
+#### Ticket 2.2 — PoseSample Builder (2D-First)
 
 | Field | Value |
 |-------|-------|
-| **Goal** | Combine pose + depth into unified `PoseSample` |
-| **Depends on** | 2.1, 1.2 |
-| **Inputs** | `PoseObservation`, `[DepthAtPoint]`, `DepthConfidence` |
-| **Outputs** | `PoseSample` with 3D positions (or 2D if no depth) |
-| **Acceptance** | Produces valid samples in both depth and 2D modes |
+| **Goal** | Build `PoseSample` from 2D keypoints using normalized coordinates. Depth fusion deferred to Sprint 5. |
+| **Depends on** | 2.1 |
+| **Inputs** | `PoseObservation` |
+| **Outputs** | `PoseSample` with 2D-derived positions (z=0) and derived angles |
+| **Acceptance** | Produces valid samples in `twoDOnly` mode; angles computed from 2D geometry |
 
 **File to create**: `PostureLogic/Sources/PostureLogic/Services/PoseDepthFusion.swift`
 
 ```swift
 public struct PoseDepthFusion: PoseDepthFusionProtocol {
     public var debugState: [String: Any] { [:] }
-    
+
     public init() {}
-    
+
     public func fuse(
         pose: PoseObservation,
         depthSamples: [DepthAtPoint]?,
         confidence: DepthConfidence
     ) -> PoseSample {
         let mode: DepthMode = confidence >= .medium ? .depthFusion : .twoDOnly
-        
-        // TODO: Compute 3D positions from 2D keypoints + depth
-        // TODO: Calculate derived angles (torsoAngle, headForwardOffset, etc.)
-        
+
+        // MVP: Build sample from 2D keypoints only
+        // Use normalized (0-1) coordinates with z=0
+        // Shoulder width serves as scale reference for all distances
+        // TODO: Compute 2D positions from keypoints
+        // TODO: Calculate derived angles (torsoAngle, headForwardOffset, shoulderTwist) from 2D geometry
+        // NOTE: 3D depth fusion added in Sprint 5 (Ticket 5.2)
+
         return PoseSample(
             timestamp: pose.timestamp,
             depthMode: mode,
@@ -1269,319 +1300,39 @@ public struct PoseDepthFusion: PoseDepthFusionProtocol {
 }
 ```
 
-
 **Manual test steps**
 
-1. Run the pipeline in two scenarios: (1) depth available and (2) depth unavailable.
-2. Confirm a `PoseSample` is produced in both cases and `depthMode` matches the expected mode.
-3. Inspect a few samples (logs or debug UI) and confirm key fields (head/shoulder positions) are non-zero once implemented.
+1. Run the pipeline and confirm a `PoseSample` is produced with `depthMode: .twoDOnly` on non-LiDAR devices.
+2. Inspect a few samples (logs or debug UI) and confirm key fields (head/shoulder positions) are non-zero once implemented.
+3. Verify derived angles change when you move (lean forward → torsoAngle changes).
 
 ---
 
-#### Ticket 2.3 — RecorderService (Timestamped Samples)
-
-| Field | Value |
-|-------|-------|
-| **Goal** | Record stream of `PoseSample` to memory, export to JSON |
-| **Depends on** | 2.2 |
-| **Inputs** | Stream of `PoseSample` |
-| **Outputs** | `RecordedSession` |
-| **Acceptance** | Can record 5 minutes, export to JSON, file size < 5MB |
-
-**File to create**: `PostureLogic/Sources/PostureLogic/Services/RecorderService.swift`
-
-```swift
-public final class RecorderService: RecorderServiceProtocol {
-    public var debugState: [String: Any] {
-        [
-            "isRecording": isRecording,
-            "sampleCount": samples.count,
-            "tagCount": tags.count
-        ]
-    }
-    
-    private var isRecording = false
-    private var startTime: Date?
-    private var samples: [PoseSample] = []
-    private var tags: [Tag] = []
-    
-    public init() {}
-    
-    public func startRecording() {
-        isRecording = true
-        startTime = Date()
-        samples = []
-        tags = []
-    }
-    
-    public func record(sample: PoseSample) {
-        guard isRecording else { return }
-        samples.append(sample)
-    }
-    
-    public func addTag(_ tag: Tag) {
-        guard isRecording else { return }
-        tags.append(tag)
-    }
-    
-    public func stopRecording() -> RecordedSession {
-        isRecording = false
-        
-        return RecordedSession(
-            id: UUID(),
-            startTime: startTime ?? Date(),
-            endTime: Date(),
-            samples: samples,
-            tags: tags,
-            metadata: SessionMetadata(
-                deviceModel: "iPhone",  // TODO: Get actual model
-                depthAvailable: true,
-                thresholds: PostureThresholds()
-            )
-        )
-    }
-}
-```
-
-
-**Manual test steps**
-
-1. Start recording in the app (or via a debug control) and keep the session running for ~1–2 minutes.
-2. Stop recording and confirm `sampleCount` > 0 and an export file is produced (or the JSON is printed/saved).
-3. Check the exported JSON file size stays reasonable (for 5 minutes, < ~5MB per acceptance).
-
----
-
-#### Ticket 2.4 — Tagging During Record
-
-| Field | Value |
-|-------|-------|
-| **Goal** | Add manual + voice tags during recording |
-| **Depends on** | 2.3 |
-| **Inputs** | Button taps, voice commands via Speech framework |
-| **Outputs** | `Tag` objects with timestamp and source |
-| **Acceptance** | Can say "Mark slouch" and see tag appear in recording |
-
-**Add voice recognition to Debug UI**:
-
-```swift
-import Speech
-
-final class VoiceTagService: ObservableObject {
-    private let recognizer = SFSpeechRecognizer()
-    private var recognitionTask: SFSpeechRecognitionTask?
-    
-    func startListening(onTag: @escaping (TagLabel) -> Void) {
-        // TODO: Implement continuous listening
-        // Recognize: "mark good", "mark slouch", "mark reading", etc.
-    }
-}
-```
-
-
-**Manual test steps**
-
-1. While recording, tap the manual tag button(s) and confirm a new `Tag` appears (tag count increases).
-2. Enable Speech permissions, say a supported command (e.g., “Mark slouch”), and confirm a tag with `source: voice` is added.
-3. Stop the recording and verify the exported JSON contains the tag entries with timestamps.
-
----
-
-#### Ticket 2.5 — ReplayService (Simulator-Friendly)
-
-| Field | Value |
-|-------|-------|
-| **Goal** | Play back recorded sessions as if live |
-| **Depends on** | 2.3 |
-| **Inputs** | `RecordedSession` |
-| **Outputs** | `AsyncStream<PoseSample>` |
-| **Acceptance** | Can replay in Simulator; playback speed adjustable (1x, 2x, 10x) |
-
-**File to create**: `PostureLogic/Sources/PostureLogic/Services/ReplayService.swift`
-
-```swift
-public final class ReplayService: ReplayServiceProtocol {
-    public var debugState: [String: Any] {
-        ["isPlaying": isPlaying, "progress": progress]
-    }
-    
-    private var session: RecordedSession?
-    private var isPlaying = false
-    private var progress: Float = 0
-    public var playbackSpeed: Float = 1.0
-    
-    public init() {}
-    
-    public func load(session: RecordedSession) {
-        self.session = session
-    }
-    
-    public func play() -> AsyncStream<PoseSample> {
-        AsyncStream { continuation in
-            guard let session = session else {
-                continuation.finish()
-                return
-            }
-            
-            isPlaying = true
-            
-            Task {
-                var lastTimestamp: TimeInterval = 0
-                
-                for (index, sample) in session.samples.enumerated() {
-                    guard isPlaying else { break }
-                    
-                    let delay = (sample.timestamp - lastTimestamp) / Double(playbackSpeed)
-                    if delay > 0 {
-                        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    }
-                    
-                    continuation.yield(sample)
-                    lastTimestamp = sample.timestamp
-                    progress = Float(index) / Float(session.samples.count)
-                }
-                
-                isPlaying = false
-                continuation.finish()
-            }
-        }
-    }
-    
-    public func stop() {
-        isPlaying = false
-    }
-}
-```
-
-
-**Manual test steps**
-
-1. Load a known `RecordedSession` (from disk or bundled fixture) in Simulator.
-2. Start replay at 1× and confirm samples are emitted over time (debug overlay/console updates).
-3. Switch to 10× and confirm playback speeds up noticeably while preserving ordering.
-4. Stop playback mid-way and confirm it stops emitting samples.
-
----
-
-#### Ticket 2.6 — Golden Recordings Requirement
-
-| Field | Value |
-|-------|-------|
-| **Goal** | Create reference recordings for regression testing |
-| **Depends on** | 2.4, 2.5 |
-| **Inputs** | Real recording sessions with accurate tags |
-| **Outputs** | JSON files in `GoldenRecordings/` |
-| **Acceptance** | At least 4 recordings covering: good posture, gradual slouch, reading vs typing, depth fallback |
-
-**Required recordings**:
-
-1. `good_posture_5min.json` — 5 minutes of sustained good posture
-2. `gradual_slouch.json` — Starts good, gradually deteriorates over 10 minutes
-3. `reading_vs_typing.json` — Alternates between reading and typing tasks
-4. `depth_fallback_scenario.json` — Includes moments where depth is lost
-
-**Usage in tests**:
-
-```swift
-func test_detectsSlouchInGoldenRecording() async {
-    let session = loadGoldenRecording("gradual_slouch")
-    let engine = PostureEngine(thresholds: .default)
-    
-    var badPostureDetected = false
-    
-    for sample in session.samples {
-        let metrics = metricsEngine.compute(from: sample, baseline: session.baseline)
-        let state = engine.update(metrics: metrics, taskMode: .unknown, trackingQuality: .good)
-        
-        if state.isBad {
-            badPostureDetected = true
-        }
-    }
-    
-    XCTAssertTrue(badPostureDetected, "Should detect slouch in this recording")
-}
-```
-
-#### ✅ Sprint 2 — Definition of Done
-
-- [ ] Keypoints visible in Debug UI (at least shoulders + head)
-- [ ] Can record a 5-minute session and export to JSON
-- [ ] Voice tagging works ("Mark slouch" recognized)
-- [ ] Can replay a recording in Simulator at 1x and 10x speed
-- [ ] At least 4 golden recordings created and committed
-- [ ] Replay test passes using golden recording
-- [ ] All unit tests pass for `PoseService`, `RecorderService`, `ReplayService`
-
----
-
-### Sprint 3 — Depth Fusion + Robust Metrics
-
-
-
-**Manual test steps**
-
-1. Record and export at least the 4 required sessions (good posture, gradual slouch, reading vs typing, depth fallback).
-2. Place the JSON files in the specified folder and confirm they load correctly in your replay tool.
-3. Run the replay-based regression test and confirm it passes using those recordings.
-#### Ticket 3.1 — 3D Position Calculation
-
-| Field | Value |
-|-------|-------|
-| **Goal** | Convert 2D keypoints + depth to 3D world coordinates |
-| **Depends on** | 2.2 |
-| **Inputs** | 2D keypoint, depth value, camera intrinsics |
-| **Outputs** | 3D position in meters |
-| **Acceptance** | Unit test with known values produces correct 3D position |
-
-```swift
-func unproject(point: CGPoint, depth: Float, intrinsics: simd_float3x3) -> SIMD3<Float> {
-    let fx = intrinsics[0, 0]
-    let fy = intrinsics[1, 1]
-    let cx = intrinsics[2, 0]
-    let cy = intrinsics[2, 1]
-    
-    let x = (Float(point.x) - cx) * depth / fx
-    let y = (Float(point.y) - cy) * depth / fy
-    let z = depth
-    
-    return SIMD3(x, y, z)
-}
-```
-
-
-**Manual test steps**
-
-1. Run the unit test that checks `unproject(...)` with known intrinsics + depth and confirm expected coordinates.
-2. Log a few unprojected points on device and sanity-check: moving closer increases/decreases Z as expected and left/right move X appropriately.
-
----
-
-#### Ticket 3.2 — 2D Fallback Metrics
+#### Ticket 2.3 — 2D Fallback Metrics
 
 | Field | Value |
 |-------|-------|
 | **Goal** | Compute meaningful metrics without depth |
-| **Depends on** | 3.1 |
+| **Depends on** | 2.2 |
 | **Inputs** | 2D keypoints only |
 | **Outputs** | `RawMetrics` using ratios instead of absolute distances |
-| **Acceptance** | Metrics are comparable between depth and 2D modes |
+| **Acceptance** | Metrics are directionally correct (worse posture → higher values) |
 
 **Approach**: Use shoulder width as scale reference. Express all distances as ratios of shoulder width.
 
-
 **Manual test steps**
 
-1. Run on a non‑LiDAR device (or force twoDOnly mode) and confirm the app still produces `RawMetrics` values.
-2. Compare a simple scenario (sit upright then lean forward) in both modes; confirm the metric direction is consistent (worse posture → higher ‘bad’ metrics).
+1. Run on a non-LiDAR device (or force twoDOnly mode) and confirm the app still produces `RawMetrics` values.
+2. Compare a simple scenario (sit upright then lean forward) in twoDOnly mode; confirm the metric direction is consistent (worse posture → higher 'bad' metrics).
 
 ---
 
-#### Ticket 3.3 — MetricsEngine Implementation
+#### Ticket 2.4 — MetricsEngine Implementation
 
 | Field | Value |
 |-------|-------|
 | **Goal** | Compute all `RawMetrics` from `PoseSample` and `Baseline` |
-| **Depends on** | 3.1, 3.2 |
+| **Depends on** | 2.2, 2.3 |
 | **Inputs** | `PoseSample`, `Baseline?` |
 | **Outputs** | `RawMetrics` |
 | **Acceptance** | All metric fields populated; values reasonable for good/bad posture |
@@ -1591,9 +1342,9 @@ func unproject(point: CGPoint, depth: Float, intrinsics: simd_float3x3) -> SIMD3
 ```swift
 public struct MetricsEngine: MetricsEngineProtocol {
     public var debugState: [String: Any] { [:] }
-    
+
     public init() {}
-    
+
     public func compute(from sample: PoseSample, baseline: Baseline?) -> RawMetrics {
         guard let baseline = baseline else {
             // No baseline = can't compute deltas, return zeros
@@ -1608,12 +1359,12 @@ public struct MetricsEngine: MetricsEngineProtocol {
                 headMovementPattern: .still
             )
         }
-        
+
         // TODO: Compute each metric as delta from baseline
         let forwardCreep = baseline.shoulderMidpoint.z - sample.shoulderMidpoint.z
         let headDrop = baseline.headPosition.y - sample.headPosition.y
         // ... etc
-        
+
         return RawMetrics(
             timestamp: sample.timestamp,
             forwardCreep: forwardCreep,
@@ -1684,21 +1435,20 @@ Output RawMetrics:
   lateralLean: 0.0
 ```
 
-
 **Manual test steps**
 
 1. Using a calibrated baseline, sit in good posture for ~30 seconds and confirm metrics hover near 0 (or near baseline).
 2. Lean forward/slouch and confirm at least `forwardCreep` and `headDrop` move in the expected direction and magnitude.
-3. Replay `gradual_slouch.json` and confirm metrics trend steadily worse over time.
+3. Replay a test scenario and confirm metrics trend steadily worse over time when posture degrades.
 
 ---
 
-#### Ticket 3.4 — Metrics Smoothing
+#### Ticket 2.5 — Metrics Smoothing
 
 | Field | Value |
 |-------|-------|
 | **Goal** | Apply temporal smoothing to reduce jitter |
-| **Depends on** | 3.3 |
+| **Depends on** | 2.4 |
 | **Inputs** | Raw metrics stream |
 | **Outputs** | Smoothed metrics |
 | **Acceptance** | Noisy input produces stable output; smoothing doesn't hide real changes |
@@ -1709,242 +1459,52 @@ Output RawMetrics:
 struct MetricsSmoother {
     var alpha: Float = 0.3
     private var previous: RawMetrics?
-    
+
     mutating func smooth(_ current: RawMetrics) -> RawMetrics {
         guard let prev = previous else {
             previous = current
             return current
         }
-        
+
         let smoothed = RawMetrics(
             timestamp: current.timestamp,
             forwardCreep: lerp(prev.forwardCreep, current.forwardCreep, alpha),
             // ... etc for all fields
         )
-        
+
         previous = smoothed
         return smoothed
     }
 }
 ```
 
-#### ✅ Sprint 3 — Definition of Done
-
-- [ ] 3D unprojection produces correct world coordinates (verified with test)
-- [ ] 2D fallback metrics produce comparable values to 3D mode
-- [ ] MetricsEngine outputs match expected values for all example cases
-- [ ] Smoothing reduces jitter without hiding real posture changes
-- [ ] Debug UI shows live metrics values
-- [ ] All unit tests pass for `MetricsEngine` and `MetricsSmoother`
-
----
-
-### Sprint 4 — Posture Judgement + Task Mode
-
-
-
 **Manual test steps**
 
 1. Enable debug logging of raw vs smoothed metrics and perform small jittery movements; confirm smoothed values change less than raw.
-2. Perform a clear posture change (sit upright → deep slouch) and confirm smoothing follows within a reasonable delay (doesn’t ‘stick’ to old values).
-#### Ticket 4.1 — PostureEngine State Machine
+2. Perform a clear posture change (sit upright → deep slouch) and confirm smoothing follows within a reasonable delay (doesn't 'stick' to old values).
 
-| Field | Value |
-|-------|-------|
-| **Goal** | Implement state transitions: Good ↔ Drifting ↔ Bad |
-| **Depends on** | 3.3 |
-| **Inputs** | `RawMetrics`, `TaskMode`, `TrackingQuality` |
-| **Outputs** | `PostureState` |
-| **Acceptance** | State machine follows rules; pauses timer when quality is low |
+#### Sprint 2 — Definition of Done
 
-**File to create**: `PostureLogic/Sources/PostureLogic/Engines/PostureEngine.swift`
-
-```swift
-public final class PostureEngine: PostureEngineProtocol {
-    public var debugState: [String: Any] {
-        ["state": String(describing: currentState)]
-    }
-    
-    private var currentState: PostureState = .absent
-    private let thresholds: PostureThresholds
-    
-    public init(thresholds: PostureThresholds) {
-        self.thresholds = thresholds
-    }
-    
-    public func update(
-        metrics: RawMetrics,
-        taskMode: TaskMode,
-        trackingQuality: TrackingQuality
-    ) -> PostureState {
-        // Don't judge if tracking is bad
-        guard trackingQuality.allowsPostureJudgement else {
-            // Don't change state, just pause timers
-            return currentState
-        }
-        
-        let isPostureBad = checkPostureBad(metrics: metrics, taskMode: taskMode)
-        
-        switch currentState {
-        case .absent, .calibrating:
-            currentState = .good
-            
-        case .good:
-            if isPostureBad {
-                currentState = .drifting(since: metrics.timestamp)
-            }
-            
-        case .drifting(let since):
-            if !isPostureBad {
-                currentState = .good
-            } else if metrics.timestamp - since >= thresholds.driftingToBadThreshold {
-                currentState = .bad(since: since)
-            }
-            
-        case .bad:
-            if !isPostureBad {
-                // Start grace period for recovery
-                currentState = .drifting(since: metrics.timestamp)
-            }
-        }
-        
-        return currentState
-    }
-    
-    private func checkPostureBad(metrics: RawMetrics, taskMode: TaskMode) -> Bool {
-        // Apply different thresholds based on task mode
-        let forwardThreshold = taskMode == .reading 
-            ? thresholds.forwardCreepThreshold * 1.2  // More lenient when reading
-            : thresholds.forwardCreepThreshold
-        
-        return metrics.forwardCreep > forwardThreshold
-            || metrics.twist > thresholds.twistThreshold
-            || metrics.lateralLean > thresholds.sideLeanThreshold
-    }
-    
-    public func reset() {
-        currentState = .absent
-    }
-}
-```
-
-**Tests to write**:
-
-```swift
-func test_transitionsToGood_afterCalibration() { ... }
-func test_transitionsToDrifting_whenPostureBad() { ... }
-func test_transitionsToBad_afterDriftingTimeout() { ... }
-func test_recoversToGood_whenPostureImproves() { ... }
-func test_pausesTimer_whenTrackingQualityLow() { ... }
-```
-
-
-**Manual test steps**
-
-1. With a baseline set, sit upright and confirm the state is `good`.
-2. Slouch long enough to exceed your drifting threshold and confirm it transitions `good → drifting → bad`.
-3. Intentionally degrade tracking (step out of frame / block camera) and confirm the state machine does not keep accumulating slouch time while quality is low.
+- [ ] Keypoints visible in Debug UI (at least shoulders + head)
+- [ ] PoseSample produced from 2D keypoints with derived angles
+- [ ] MetricsEngine outputs match expected values for good/bad posture examples
+- [ ] 2D fallback metrics produce directionally correct values
+- [ ] Smoothing reduces jitter without hiding real posture changes
+- [ ] Debug UI shows live metrics values
+- [ ] All unit tests pass for `PoseService`, `PoseDepthFusion`, `MetricsEngine`, `MetricsSmoother`
 
 ---
 
-#### Ticket 4.2 — TaskModeEngine Implementation
+### Sprint 3 — Calibration + Posture State Machine
 
-| Field | Value |
-|-------|-------|
-| **Goal** | Classify current activity from movement patterns |
-| **Depends on** | 3.3 |
-| **Inputs** | Recent `RawMetrics` (last 10 seconds) |
-| **Outputs** | `TaskMode` |
-| **Acceptance** | Correctly distinguishes reading from typing in golden recordings |
+> **Focus**: Establish the user's "good posture" baseline via guided calibration, then build the state machine that judges posture over time. These two pieces connect metrics to decisions.
 
-**File to create**: `PostureLogic/Sources/PostureLogic/Engines/TaskModeEngine.swift`
-
-```swift
-public struct TaskModeEngine: TaskModeEngineProtocol {
-    public var debugState: [String: Any] { [:] }
-    
-    public init() {}
-    
-    public func infer(from recentMetrics: [RawMetrics]) -> TaskMode {
-        guard recentMetrics.count >= 10 else { return .unknown }
-        
-        let avgMovement = recentMetrics.map(\.movementLevel).reduce(0, +) / Float(recentMetrics.count)
-        let patterns = recentMetrics.map(\.headMovementPattern)
-        
-        // Reading: low movement, small oscillations
-        if avgMovement < 0.2 && patterns.allSatisfy({ $0 == .still || $0 == .smallOscillations }) {
-            return .reading
-        }
-        
-        // Typing: moderate movement, stable torso
-        if avgMovement < 0.4 && patterns.contains(.largeMovements) {
-            return .typing
-        }
-        
-        // Stretching: high movement
-        if avgMovement > 0.7 {
-            return .stretching
-        }
-        
-        return .unknown
-    }
-}
-```
-
-
-**Manual test steps**
-
-1. Replay `reading_vs_typing.json` and confirm task mode flips to `reading` during reading segments and `typing` during typing segments (check logs/debug UI).
-2. Do a quick live test: keep torso still with small head motions (reading) vs typing with more arm movement; confirm classification changes.
-
----
-
-#### Ticket 4.3 — Task-Adjusted Thresholds
-
-| Field | Value |
-|-------|-------|
-| **Goal** | Apply different posture thresholds per task mode |
-| **Depends on** | 4.1, 4.2 |
-| **Inputs** | `TaskMode` |
-| **Outputs** | Adjusted thresholds |
-| **Acceptance** | Reading allows more forward lean; stretching disables judgement |
-
-**Threshold multipliers by mode**:
-
-| Mode | Forward Creep | Twist | Side Lean |
-|------|---------------|-------|-----------|
-| Unknown | 1.0x | 1.0x | 1.0x |
-| Reading | 1.3x | 1.0x | 1.0x |
-| Typing | 1.0x | 1.2x | 1.0x |
-| Meeting | 1.2x | 1.5x | 1.2x |
-| Stretching | ∞ (disabled) | ∞ | ∞ |
-
-#### ✅ Sprint 4 — Definition of Done
-
-- [ ] PostureEngine transitions through all states correctly
-- [ ] State machine pauses timing when tracking quality drops
-- [ ] TaskModeEngine correctly classifies reading vs typing in golden recordings
-- [ ] Task-adjusted thresholds applied (reading more lenient)
-- [ ] Stretching mode disables posture judgement
-- [ ] All state machine unit tests pass
-- [ ] Debug UI shows current posture state and task mode
-
----
-
-### Sprint 5 — Calibration + Setup Validation
-
-
-
-**Manual test steps**
-
-1. Replay a reading-heavy segment and confirm the posture engine is more lenient (fewer transitions to drifting/bad compared to Unknown).
-2. Do a live stretching test (large movements) and confirm posture judgement is disabled (state doesn’t go to bad / nudges suppressed later).
-#### Ticket 5.1 — Calibration Flow
+#### Ticket 3.1 — Calibration Flow
 
 | Field | Value |
 |-------|-------|
 | **Goal** | Implement guided calibration with validation |
-| **Depends on** | 4.1 |
+| **Depends on** | 2.2 |
 | **Inputs** | User sitting upright |
 | **Outputs** | Validated `Baseline` |
 | **Acceptance** | Rejects calibration if user moves too much or tracking is poor |
@@ -1956,21 +1516,21 @@ struct CalibrationView: View {
     @ObservedObject var appModel: AppModel
     @State private var progress: Float = 0
     @State private var status: CalibrationStatus = .waiting
-    
+
     var body: some View {
         VStack(spacing: 24) {
             Image(systemName: "figure.stand")
                 .font(.system(size: 80))
-            
+
             Text("Sit up straight")
                 .font(.title)
-            
+
             Text("Hold still for 5 seconds")
                 .foregroundStyle(.secondary)
-            
+
             ProgressView(value: progress)
                 .padding(.horizontal, 40)
-            
+
             switch status {
             case .waiting:
                 Text("Position yourself in frame...")
@@ -1990,7 +1550,6 @@ struct CalibrationView: View {
 }
 ```
 
-
 **Manual test steps**
 
 1. Launch the app and go through calibration: hold still for 5 seconds and confirm it reaches a success state and stores a baseline.
@@ -1999,12 +1558,720 @@ struct CalibrationView: View {
 
 ---
 
-#### Ticket 5.2 — Setup Validation
+#### Ticket 3.2 — PostureEngine State Machine
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Implement state transitions: Good ↔ Drifting ↔ Bad |
+| **Depends on** | 2.5, 3.1 |
+| **Inputs** | `RawMetrics`, `TaskMode`, `TrackingQuality` |
+| **Outputs** | `PostureState` |
+| **Acceptance** | State machine follows rules; pauses timer when quality is low |
+
+**File to create**: `PostureLogic/Sources/PostureLogic/Engines/PostureEngine.swift`
+
+```swift
+public final class PostureEngine: PostureEngineProtocol {
+    public var debugState: [String: Any] {
+        ["state": String(describing: currentState)]
+    }
+
+    private var currentState: PostureState = .absent
+    private let thresholds: PostureThresholds
+
+    public init(thresholds: PostureThresholds) {
+        self.thresholds = thresholds
+    }
+
+    public func update(
+        metrics: RawMetrics,
+        taskMode: TaskMode,
+        trackingQuality: TrackingQuality
+    ) -> PostureState {
+        // Don't judge if tracking is bad
+        guard trackingQuality.allowsPostureJudgement else {
+            // Don't change state, just pause timers
+            return currentState
+        }
+
+        let isPostureBad = checkPostureBad(metrics: metrics, taskMode: taskMode)
+
+        switch currentState {
+        case .absent, .calibrating:
+            currentState = .good
+
+        case .good:
+            if isPostureBad {
+                currentState = .drifting(since: metrics.timestamp)
+            }
+
+        case .drifting(let since):
+            if !isPostureBad {
+                currentState = .good
+            } else if metrics.timestamp - since >= thresholds.driftingToBadThreshold {
+                currentState = .bad(since: since)
+            }
+
+        case .bad:
+            if !isPostureBad {
+                // Start grace period for recovery
+                currentState = .drifting(since: metrics.timestamp)
+            }
+        }
+
+        return currentState
+    }
+
+    private func checkPostureBad(metrics: RawMetrics, taskMode: TaskMode) -> Bool {
+        // Apply different thresholds based on task mode
+        let forwardThreshold = taskMode == .reading
+            ? thresholds.forwardCreepThreshold * 1.2  // More lenient when reading
+            : thresholds.forwardCreepThreshold
+
+        return metrics.forwardCreep > forwardThreshold
+            || metrics.twist > thresholds.twistThreshold
+            || metrics.lateralLean > thresholds.sideLeanThreshold
+    }
+
+    public func reset() {
+        currentState = .absent
+    }
+}
+```
+
+**Tests to write**:
+
+```swift
+func test_transitionsToGood_afterCalibration() { ... }
+func test_transitionsToDrifting_whenPostureBad() { ... }
+func test_transitionsToBad_afterDriftingTimeout() { ... }
+func test_recoversToGood_whenPostureImproves() { ... }
+func test_pausesTimer_whenTrackingQualityLow() { ... }
+```
+
+**Manual test steps**
+
+1. With a baseline set, sit upright and confirm the state is `good`.
+2. Slouch long enough to exceed your drifting threshold and confirm it transitions `good → drifting → bad`.
+3. Intentionally degrade tracking (step out of frame / block camera) and confirm the state machine does not keep accumulating slouch time while quality is low.
+
+#### Sprint 3 — Definition of Done
+
+- [ ] Calibration flow guides user through setup
+- [ ] Calibration rejects if user moves too much
+- [ ] Calibration rejects if tracking quality is poor
+- [ ] Baseline persists across app launches
+- [ ] PostureEngine transitions through all states correctly
+- [ ] State machine pauses timing when tracking quality drops
+- [ ] Debug UI shows current posture state
+- [ ] All unit tests pass for calibration and `PostureEngine`
+
+---
+
+### Sprint 4 — Nudges + Watch Connectivity (MVP Complete)
+
+> **Focus**: The final MVP sprint. Wire up the nudge engine, audio feedback, acknowledgement detection, and Apple Watch haptics. At the end of this sprint, the core loop works: camera → keypoints → metrics → state machine → nudge → watch tap.
+
+#### Ticket 4.1 — NudgeEngine Implementation
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Decide when to fire nudges based on posture state and rules |
+| **Depends on** | 3.2 |
+| **Inputs** | `PostureState`, tracking quality, task mode |
+| **Outputs** | `NudgeDecision` |
+| **Acceptance** | Respects cooldown, max per hour, suppression rules |
+
+**File to create**: `PostureLogic/Sources/PostureLogic/Engines/NudgeEngine.swift`
+
+```swift
+public final class NudgeEngine: NudgeEngineProtocol {
+    public var debugState: [String: Any] {
+        [
+            "nudgesThisHour": nudgesThisHour,
+            "lastNudgeTime": lastNudgeTime ?? 0,
+            "cooldownRemaining": cooldownRemaining
+        ]
+    }
+
+    private let thresholds: PostureThresholds
+    private var nudgesThisHour: Int = 0
+    private var lastNudgeTime: TimeInterval?
+    private var hourStartTime: TimeInterval = 0
+
+    public init(thresholds: PostureThresholds) {
+        self.thresholds = thresholds
+    }
+
+    public func evaluate(
+        state: PostureState,
+        trackingQuality: TrackingQuality,
+        movementLevel: Float,
+        taskMode: TaskMode
+    ) -> NudgeDecision {
+        // Check suppression conditions
+        if !trackingQuality.allowsPostureJudgement {
+            return .suppressed(reason: .lowTrackingQuality)
+        }
+
+        if taskMode == .stretching {
+            return .suppressed(reason: .userStretching)
+        }
+
+        if let last = lastNudgeTime, Date().timeIntervalSince1970 - last < thresholds.nudgeCooldown {
+            return .suppressed(reason: .cooldownActive)
+        }
+
+        if nudgesThisHour >= thresholds.maxNudgesPerHour {
+            return .suppressed(reason: .maxNudgesReached)
+        }
+
+        // Check if should fire
+        guard case .bad(let since) = state else {
+            return .none
+        }
+
+        let duration = Date().timeIntervalSince1970 - since
+
+        if duration >= thresholds.slouchDurationBeforeNudge {
+            return .fire(reason: .sustainedSlouch)
+        }
+
+        let remaining = thresholds.slouchDurationBeforeNudge - duration
+        return .pending(reason: .sustainedSlouch, timeRemaining: remaining)
+    }
+
+    public func recordAcknowledgement() {
+        lastNudgeTime = Date().timeIntervalSince1970
+        nudgesThisHour += 1
+    }
+
+    private var cooldownRemaining: TimeInterval {
+        guard let last = lastNudgeTime else { return 0 }
+        return max(0, thresholds.nudgeCooldown - (Date().timeIntervalSince1970 - last))
+    }
+}
+```
+
+**Manual test steps**
+
+1. Using replay or a controlled live test, force `PostureState.bad` and wait past `slouchDurationBeforeNudge`; confirm `NudgeDecision.fire` occurs.
+2. Confirm nudges do not fire during cooldown and that `cooldownRemaining` counts down.
+3. Trigger more than `maxNudgesPerHour` and confirm further nudges are suppressed.
+
+---
+
+#### Ticket 4.2 — Audio Feedback
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Play subtle audio cue when nudge fires |
+| **Depends on** | 4.1 |
+| **Inputs** | `NudgeDecision.fire` |
+| **Outputs** | Audio playback |
+| **Acceptance** | Sound is pleasant, not jarring; respects system volume |
+
+**Manual test steps**
+
+1. Trigger a nudge (via replay or by temporarily lowering thresholds) and confirm the audio cue plays once when `fire` occurs.
+2. Put the device in silent mode / low volume and confirm behavior is acceptable (e.g., respects system volume or uses haptics as fallback if you add it).
+3. Trigger repeated nudges quickly and confirm audio does not spam due to cooldown rules.
+
+---
+
+#### Ticket 4.3 — Acknowledgement Detection
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Detect when user corrects posture after nudge |
+| **Depends on** | 4.1 |
+| **Inputs** | Posture state transitions |
+| **Outputs** | `recordAcknowledgement()` called |
+| **Acceptance** | Resets nudge state when user returns to good posture within window |
+
+**Manual test steps**
+
+1. Trigger a nudge, then correct posture within `acknowledgementWindow` and confirm `recordAcknowledgement()` is called (check debug output).
+2. Trigger a nudge and *don't* correct posture; confirm acknowledgement is not recorded and cooldown behavior matches your rules.
+
+---
+
+#### Ticket 4.4 — WatchConnectivity Setup
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Send nudge events to Apple Watch |
+| **Depends on** | 4.1 |
+| **Inputs** | `NudgeDecision.fire` |
+| **Outputs** | Haptic on Watch |
+| **Acceptance** | Watch receives haptic within 2 seconds of nudge |
+
+**Manual test steps**
+
+1. Pair an Apple Watch with the iPhone and install the watch companion app (or watch extension) as needed.
+2. Trigger a nudge on the phone and confirm the watch receives it and plays a haptic within ~2 seconds.
+3. Put the phone screen off and repeat; confirm connectivity still works (as expected by your implementation).
+
+#### Sprint 4 — Definition of Done
+
+- [ ] Nudge fires after sustained slouch (default 5 minutes)
+- [ ] Cooldown prevents rapid re-nudging
+- [ ] Max nudges per hour limit respected
+- [ ] Audio feedback plays on nudge
+- [ ] Acknowledgement detection works when user corrects posture
+- [ ] Watch receives haptic within 2 seconds of phone nudge
+- [ ] Watch app installs and pairs correctly
+- [ ] All NudgeEngine unit tests pass
+- [ ] End-to-end test: slouch → wait → nudge → correct → no re-nudge
+
+---
+
+### ═══════════════════════════════════════════════════════
+### MVP MILESTONE COMPLETE
+### Camera → Keypoints → Metrics → State Machine → Nudge → Watch Tap
+### ═══════════════════════════════════════════════════════
+
+---
+
+# Phase 2 — Enhancement
+
+> **Goal**: Add depth fusion for better accuracy, recording/replay infrastructure for regression testing, task mode classification, and a settings UI. These improve quality and developer workflow but are not required for the core value loop.
+
+---
+
+### Sprint 5 — 3D Depth Fusion
+
+> **Focus**: Now that the MVP works with 2D, add depth-based 3D position calculation and integrate it into the PoseSample builder for improved accuracy on LiDAR devices.
+
+#### Ticket 5.1 — 3D Position Calculation
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Convert 2D keypoints + depth to 3D world coordinates |
+| **Depends on** | 2.2 |
+| **Inputs** | 2D keypoint, depth value, camera intrinsics |
+| **Outputs** | 3D position in meters |
+| **Acceptance** | Unit test with known values produces correct 3D position |
+
+```swift
+func unproject(point: CGPoint, depth: Float, intrinsics: simd_float3x3) -> SIMD3<Float> {
+    let fx = intrinsics[0, 0]
+    let fy = intrinsics[1, 1]
+    let cx = intrinsics[2, 0]
+    let cy = intrinsics[2, 1]
+
+    let x = (Float(point.x) - cx) * depth / fx
+    let y = (Float(point.y) - cy) * depth / fy
+    let z = depth
+
+    return SIMD3(x, y, z)
+}
+```
+
+**Manual test steps**
+
+1. Run the unit test that checks `unproject(...)` with known intrinsics + depth and confirm expected coordinates.
+2. Log a few unprojected points on device and sanity-check: moving closer increases/decreases Z as expected and left/right move X appropriately.
+
+---
+
+#### Ticket 5.2 — Depth Fusion in PoseSample Builder
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Enhance `PoseDepthFusion` to use 3D positions when depth is available |
+| **Depends on** | 5.1, 1.2 |
+| **Inputs** | `PoseObservation`, `[DepthAtPoint]`, `DepthConfidence`, camera intrinsics |
+| **Outputs** | `PoseSample` with 3D positions in `depthFusion` mode |
+| **Acceptance** | Produces valid 3D samples when depth available; falls back to 2D path (Sprint 2) when not |
+
+**Update**: `PostureLogic/Sources/PostureLogic/Services/PoseDepthFusion.swift`
+
+Enhance the existing `fuse()` method to:
+1. When `confidence >= .medium`: use `unproject()` from Ticket 5.1 to convert keypoints + depth to 3D world coordinates
+2. When `confidence < .medium`: use the existing 2D path from Sprint 2
+3. Compute derived angles using 3D geometry when available
+
+**Manual test steps**
+
+1. Run on a LiDAR device and confirm `PoseSample.depthMode` is `.depthFusion` with non-zero Z values.
+2. Run on a non-LiDAR device and confirm the 2D fallback path still works (same behavior as Sprint 2).
+3. Compare metrics stability between 2D and 3D modes — 3D should be less jittery.
+
+#### Sprint 5 — Definition of Done
+
+- [ ] 3D unprojection produces correct world coordinates (verified with test)
+- [ ] PoseSample builder uses 3D positions when depth is available
+- [ ] Graceful fallback to 2D when depth is unavailable
+- [ ] 2D metrics still work correctly (no regressions from Sprint 2)
+- [ ] 3D mode produces more stable metrics than 2D mode
+- [ ] All unit tests pass
+
+---
+
+### Sprint 6 — Recording + Tagged Replay
+
+> **Focus**: Build the recording and replay infrastructure needed for regression testing and golden recordings. This enables systematic quality measurement against the success criteria.
+
+#### Ticket 6.1 — RecorderService (Timestamped Samples)
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Record stream of `PoseSample` to memory, export to JSON |
+| **Depends on** | 2.2 |
+| **Inputs** | Stream of `PoseSample` |
+| **Outputs** | `RecordedSession` |
+| **Acceptance** | Can record 5 minutes, export to JSON, file size < 5MB |
+
+**File to create**: `PostureLogic/Sources/PostureLogic/Services/RecorderService.swift`
+
+```swift
+public final class RecorderService: RecorderServiceProtocol {
+    public var debugState: [String: Any] {
+        [
+            "isRecording": isRecording,
+            "sampleCount": samples.count,
+            "tagCount": tags.count
+        ]
+    }
+
+    private var isRecording = false
+    private var startTime: Date?
+    private var samples: [PoseSample] = []
+    private var tags: [Tag] = []
+
+    public init() {}
+
+    public func startRecording() {
+        isRecording = true
+        startTime = Date()
+        samples = []
+        tags = []
+    }
+
+    public func record(sample: PoseSample) {
+        guard isRecording else { return }
+        samples.append(sample)
+    }
+
+    public func addTag(_ tag: Tag) {
+        guard isRecording else { return }
+        tags.append(tag)
+    }
+
+    public func stopRecording() -> RecordedSession {
+        isRecording = false
+
+        return RecordedSession(
+            id: UUID(),
+            startTime: startTime ?? Date(),
+            endTime: Date(),
+            samples: samples,
+            tags: tags,
+            metadata: SessionMetadata(
+                deviceModel: "iPhone",  // TODO: Get actual model
+                depthAvailable: true,
+                thresholds: PostureThresholds()
+            )
+        )
+    }
+}
+```
+
+**Manual test steps**
+
+1. Start recording in the app (or via a debug control) and keep the session running for ~1–2 minutes.
+2. Stop recording and confirm `sampleCount` > 0 and an export file is produced (or the JSON is printed/saved).
+3. Check the exported JSON file size stays reasonable (for 5 minutes, < ~5MB per acceptance).
+
+---
+
+#### Ticket 6.2 — Tagging During Record
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Add manual + voice tags during recording |
+| **Depends on** | 6.1 |
+| **Inputs** | Button taps, voice commands via Speech framework |
+| **Outputs** | `Tag` objects with timestamp and source |
+| **Acceptance** | Can say "Mark slouch" and see tag appear in recording |
+
+**Add voice recognition to Debug UI**:
+
+```swift
+import Speech
+
+final class VoiceTagService: ObservableObject {
+    private let recognizer = SFSpeechRecognizer()
+    private var recognitionTask: SFSpeechRecognitionTask?
+
+    func startListening(onTag: @escaping (TagLabel) -> Void) {
+        // TODO: Implement continuous listening
+        // Recognize: "mark good", "mark slouch", "mark reading", etc.
+    }
+}
+```
+
+**Manual test steps**
+
+1. While recording, tap the manual tag button(s) and confirm a new `Tag` appears (tag count increases).
+2. Enable Speech permissions, say a supported command (e.g., "Mark slouch"), and confirm a tag with `source: voice` is added.
+3. Stop the recording and verify the exported JSON contains the tag entries with timestamps.
+
+---
+
+#### Ticket 6.3 — ReplayService (Simulator-Friendly)
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Play back recorded sessions as if live |
+| **Depends on** | 6.1 |
+| **Inputs** | `RecordedSession` |
+| **Outputs** | `AsyncStream<PoseSample>` |
+| **Acceptance** | Can replay in Simulator; playback speed adjustable (1x, 2x, 10x) |
+
+**File to create**: `PostureLogic/Sources/PostureLogic/Services/ReplayService.swift`
+
+```swift
+public final class ReplayService: ReplayServiceProtocol {
+    public var debugState: [String: Any] {
+        ["isPlaying": isPlaying, "progress": progress]
+    }
+
+    private var session: RecordedSession?
+    private var isPlaying = false
+    private var progress: Float = 0
+    public var playbackSpeed: Float = 1.0
+
+    public init() {}
+
+    public func load(session: RecordedSession) {
+        self.session = session
+    }
+
+    public func play() -> AsyncStream<PoseSample> {
+        AsyncStream { continuation in
+            guard let session = session else {
+                continuation.finish()
+                return
+            }
+
+            isPlaying = true
+
+            Task {
+                var lastTimestamp: TimeInterval = 0
+
+                for (index, sample) in session.samples.enumerated() {
+                    guard isPlaying else { break }
+
+                    let delay = (sample.timestamp - lastTimestamp) / Double(playbackSpeed)
+                    if delay > 0 {
+                        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    }
+
+                    continuation.yield(sample)
+                    lastTimestamp = sample.timestamp
+                    progress = Float(index) / Float(session.samples.count)
+                }
+
+                isPlaying = false
+                continuation.finish()
+            }
+        }
+    }
+
+    public func stop() {
+        isPlaying = false
+    }
+}
+```
+
+**Manual test steps**
+
+1. Load a known `RecordedSession` (from disk or bundled fixture) in Simulator.
+2. Start replay at 1x and confirm samples are emitted over time (debug overlay/console updates).
+3. Switch to 10x and confirm playback speeds up noticeably while preserving ordering.
+4. Stop playback mid-way and confirm it stops emitting samples.
+
+---
+
+#### Ticket 6.4 — Golden Recordings Requirement
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Create reference recordings for regression testing |
+| **Depends on** | 6.2, 6.3 |
+| **Inputs** | Real recording sessions with accurate tags |
+| **Outputs** | JSON files in `GoldenRecordings/` |
+| **Acceptance** | At least 4 recordings covering: good posture, gradual slouch, reading vs typing, depth fallback |
+
+**Required recordings**:
+
+1. `good_posture_5min.json` — 5 minutes of sustained good posture
+2. `gradual_slouch.json` — Starts good, gradually deteriorates over 10 minutes
+3. `reading_vs_typing.json` — Alternates between reading and typing tasks
+4. `depth_fallback_scenario.json` — Includes moments where depth is lost
+
+**Usage in tests**:
+
+```swift
+func test_detectsSlouchInGoldenRecording() async {
+    let session = loadGoldenRecording("gradual_slouch")
+    let engine = PostureEngine(thresholds: .default)
+
+    var badPostureDetected = false
+
+    for sample in session.samples {
+        let metrics = metricsEngine.compute(from: sample, baseline: session.baseline)
+        let state = engine.update(metrics: metrics, taskMode: .unknown, trackingQuality: .good)
+
+        if state.isBad {
+            badPostureDetected = true
+        }
+    }
+
+    XCTAssertTrue(badPostureDetected, "Should detect slouch in this recording")
+}
+```
+
+**Manual test steps**
+
+1. Record and export at least the 4 required sessions (good posture, gradual slouch, reading vs typing, depth fallback).
+2. Place the JSON files in the specified folder and confirm they load correctly in your replay tool.
+3. Run the replay-based regression test and confirm it passes using those recordings.
+
+#### Sprint 6 — Definition of Done
+
+- [ ] Can record a 5-minute session and export to JSON
+- [ ] Voice tagging works ("Mark slouch" recognized)
+- [ ] Can replay a recording in Simulator at 1x and 10x speed
+- [ ] At least 4 golden recordings created and committed
+- [ ] Replay test passes using golden recording
+- [ ] All unit tests pass for `RecorderService`, `ReplayService`
+
+---
+
+### Sprint 7 — Task Mode + Settings
+
+> **Focus**: Add activity classification (reading vs typing) so the posture engine can apply context-appropriate thresholds, and build a settings screen for runtime tuning.
+
+#### Ticket 7.1 — TaskModeEngine Implementation
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Classify current activity from movement patterns |
+| **Depends on** | 2.4 |
+| **Inputs** | Recent `RawMetrics` (last 10 seconds) |
+| **Outputs** | `TaskMode` |
+| **Acceptance** | Correctly distinguishes reading from typing in golden recordings |
+
+**File to create**: `PostureLogic/Sources/PostureLogic/Engines/TaskModeEngine.swift`
+
+```swift
+public struct TaskModeEngine: TaskModeEngineProtocol {
+    public var debugState: [String: Any] { [:] }
+
+    public init() {}
+
+    public func infer(from recentMetrics: [RawMetrics]) -> TaskMode {
+        guard recentMetrics.count >= 10 else { return .unknown }
+
+        let avgMovement = recentMetrics.map(\.movementLevel).reduce(0, +) / Float(recentMetrics.count)
+        let patterns = recentMetrics.map(\.headMovementPattern)
+
+        // Reading: low movement, small oscillations
+        if avgMovement < 0.2 && patterns.allSatisfy({ $0 == .still || $0 == .smallOscillations }) {
+            return .reading
+        }
+
+        // Typing: moderate movement, stable torso
+        if avgMovement < 0.4 && patterns.contains(.largeMovements) {
+            return .typing
+        }
+
+        // Stretching: high movement
+        if avgMovement > 0.7 {
+            return .stretching
+        }
+
+        return .unknown
+    }
+}
+```
+
+**Manual test steps**
+
+1. Replay `reading_vs_typing.json` and confirm task mode flips to `reading` during reading segments and `typing` during typing segments (check logs/debug UI).
+2. Do a quick live test: keep torso still with small head motions (reading) vs typing with more arm movement; confirm classification changes.
+
+---
+
+#### Ticket 7.2 — Task-Adjusted Thresholds
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Apply different posture thresholds per task mode |
+| **Depends on** | 3.2, 7.1 |
+| **Inputs** | `TaskMode` |
+| **Outputs** | Adjusted thresholds |
+| **Acceptance** | Reading allows more forward lean; stretching disables judgement |
+
+**Threshold multipliers by mode**:
+
+| Mode | Forward Creep | Twist | Side Lean |
+|------|---------------|-------|-----------|
+| Unknown | 1.0x | 1.0x | 1.0x |
+| Reading | 1.3x | 1.0x | 1.0x |
+| Typing | 1.0x | 1.2x | 1.0x |
+| Meeting | 1.2x | 1.5x | 1.2x |
+| Stretching | ∞ (disabled) | ∞ | ∞ |
+
+**Manual test steps**
+
+1. Replay a reading-heavy segment and confirm the posture engine is more lenient (fewer transitions to drifting/bad compared to Unknown).
+2. Do a live stretching test (large movements) and confirm posture judgement is disabled (state doesn't go to bad / nudges suppressed).
+
+---
+
+#### Ticket 7.3 — Thresholds Settings Screen
+
+| Field | Value |
+|-------|-------|
+| **Goal** | UI to adjust all thresholds without rebuilding |
+| **Depends on** | 3.2 |
+| **Inputs** | Current `PostureThresholds` |
+| **Outputs** | Updated thresholds saved to disk |
+| **Acceptance** | Changes apply immediately; persist across launches |
+
+**Manual test steps**
+
+1. Open the settings screen, change a threshold (e.g., forward creep) and confirm the engine behavior changes immediately (debug metrics/state).
+2. Kill and relaunch the app and confirm your updated threshold persists.
+3. Set an extreme value temporarily (for testing) and confirm it affects state transitions predictably.
+
+#### Sprint 7 — Definition of Done
+
+- [ ] TaskModeEngine correctly classifies reading vs typing in golden recordings
+- [ ] Task-adjusted thresholds applied (reading more lenient)
+- [ ] Stretching mode disables posture judgement
+- [ ] Settings screen allows adjusting all thresholds
+- [ ] Threshold changes apply immediately without restart
+- [ ] Thresholds persist across app launches
+- [ ] Debug UI shows current task mode
+- [ ] All unit tests pass
+
+---
+
+### Sprint 8 — Setup Validation + Stale Baseline
+
+> **Focus**: Harden the calibration experience with position validation and automatic stale-baseline detection.
+
+#### Ticket 8.1 — Setup Validation
 
 | Field | Value |
 |-------|-------|
 | **Goal** | Verify phone position is within supported range |
-| **Depends on** | 5.1 |
+| **Depends on** | 3.1 |
 | **Inputs** | Calibration `PoseSample`s |
 | **Outputs** | `SetupValidation` result |
 | **Acceptance** | Warns if too close, too far, or wrong angle |
@@ -2013,86 +2280,67 @@ struct CalibrationView: View {
 struct SetupValidator {
     func validate(samples: [PoseSample]) -> SetupValidation {
         let avgDepth = samples.map { $0.shoulderMidpoint.z }.reduce(0, +) / Float(samples.count)
-        
+
         if avgDepth < 0.5 {
             return .failed("Phone is too close. Move it back.")
         }
         if avgDepth > 1.5 {
             return .failed("Phone is too far. Move it closer.")
         }
-        
+
         // Check vertical angle
         // Check if full upper body visible
-        
+
         return .success
     }
 }
 ```
 
-
 **Manual test steps**
 
-1. During calibration, position the phone too close (< ~0.5m) and confirm you get a ‘too close’ warning/fail.
-2. Move the phone too far (> ~1.5m) and confirm you get a ‘too far’ warning/fail.
+1. During calibration, position the phone too close (< ~0.5m) and confirm you get a 'too close' warning/fail.
+2. Move the phone too far (> ~1.5m) and confirm you get a 'too far' warning/fail.
 3. Place the phone at a reasonable distance and confirm validation passes.
 
 ---
 
-#### Ticket 5.3 — Stale Baseline Detection
+#### Ticket 8.2 — Stale Baseline Detection
 
 | Field | Value |
 |-------|-------|
 | **Goal** | Detect when baseline no longer matches user position |
-| **Depends on** | 5.1 |
+| **Depends on** | 3.1 |
 | **Inputs** | Current samples vs baseline |
 | **Outputs** | "Recalibrate" suggestion |
 | **Acceptance** | Suggests recalibration if position shifted significantly |
-
-#### ✅ Sprint 5 — Definition of Done
-
-- [ ] Calibration flow guides user through setup
-- [ ] Calibration rejects if user moves too much
-- [ ] Calibration rejects if tracking quality is poor
-- [ ] Setup validation warns if phone too close/far
-- [ ] Stale baseline detection triggers recalibration prompt
-- [ ] Baseline persists across app launches
-- [ ] All calibration unit tests pass
-
----
-
-### Sprint 6 — Reliability Hardening
-
-
 
 **Manual test steps**
 
 1. Calibrate, then move the phone or your chair noticeably and confirm the app suggests recalibration.
 2. Return to the original position and confirm the warning disappears (or recalibration no longer suggested).
-#### Ticket 6.1 — Thresholds Settings Screen
 
-| Field | Value |
-|-------|-------|
-| **Goal** | UI to adjust all thresholds without rebuilding |
-| **Depends on** | 4.1 |
-| **Inputs** | Current `PostureThresholds` |
-| **Outputs** | Updated thresholds saved to disk |
-| **Acceptance** | Changes apply immediately; persist across launches |
+#### Sprint 8 — Definition of Done
 
-
-**Manual test steps**
-
-1. Open the settings screen, change a threshold (e.g., forward creep) and confirm the engine behavior changes immediately (debug metrics/state).
-2. Kill and relaunch the app and confirm your updated threshold persists.
-3. Set an extreme value temporarily (for testing) and confirm it affects state transitions predictably.
+- [ ] Setup validation warns if phone too close/far
+- [ ] Stale baseline detection triggers recalibration prompt
+- [ ] All calibration validation unit tests pass
 
 ---
 
-#### Ticket 6.2 — Long-Run Stability Harness
+# Phase 3 — Hardening
+
+> **Goal**: Long-run stability, thermal management, background operation, and the Mac companion. These ensure the app is robust for daily use.
+
+---
+
+### Sprint 9 — Stability + Thermal Throttling
+
+#### Ticket 9.1 — Long-Run Stability Harness
 
 | Field | Value |
 |-------|-------|
 | **Goal** | Automated test for 90-minute session stability |
-| **Depends on** | 2.5 |
+| **Depends on** | 6.3 |
 | **Inputs** | MockPoseProvider emitting 90 minutes at 10x speed |
 | **Outputs** | Memory usage graph, any crashes logged |
 | **Acceptance** | No memory leaks, no crashes, CPU stays reasonable |
@@ -2101,30 +2349,29 @@ struct SetupValidator {
 func test_90MinuteSession_noMemoryLeak() async {
     let mock = MockPoseProvider()
     let pipeline = Pipeline(provider: mock)
-    
+
     try await mock.start()
-    
+
     // Emit 90 minutes of frames at 10 FPS = 54,000 frames
     for i in 0..<54_000 {
         mock.emit(frame: generateFrame(at: Double(i) * 0.1))
     }
-    
+
     // Check memory didn't grow unbounded
     let memoryUsage = getMemoryUsage()
     XCTAssertLessThan(memoryUsage, 100_000_000)  // 100MB max
 }
 ```
 
-
 **Manual test steps**
 
-1. Run the long-run harness (or a manual ‘stress mode’) and confirm it completes without crashing.
-2. While it runs, watch Xcode’s memory gauge; confirm it stabilizes instead of climbing unbounded.
+1. Run the long-run harness (or a manual 'stress mode') and confirm it completes without crashing.
+2. While it runs, watch Xcode's memory gauge; confirm it stabilizes instead of climbing unbounded.
 3. Confirm CPU usage remains reasonable and the app stays responsive.
 
 ---
 
-#### Ticket 6.3 — Thermal Throttling Strategy
+#### Ticket 9.2 — Thermal Throttling Strategy
 
 | Field | Value |
 |-------|-------|
@@ -2137,15 +2384,15 @@ func test_90MinuteSession_noMemoryLeak() async {
 ```swift
 final class ThermalMonitor: ThermalMonitorProtocol {
     var debugState: [String: Any] { ["state": currentState.rawValue] }
-    
+
     var state: AnyPublisher<ThermalState, Never> {
         NotificationCenter.default.publisher(for: ProcessInfo.thermalStateDidChangeNotification)
             .map { _ in self.mapThermalState(ProcessInfo.processInfo.thermalState) }
             .eraseToAnyPublisher()
     }
-    
+
     private var currentState: ThermalState = .nominal
-    
+
     private func mapThermalState(_ state: ProcessInfo.ThermalState) -> ThermalState {
         switch state {
         case .nominal: return .nominal
@@ -2167,11 +2414,14 @@ final class ThermalMonitor: ThermalMonitorProtocol {
 | Serious | Disable depth, 3 FPS |
 | Critical | Pause detection, show "Cooling down..." |
 
-#### ✅ Sprint 6 — Definition of Done
+**Manual test steps**
 
-- [ ] Settings screen allows adjusting all thresholds
-- [ ] Threshold changes apply immediately without restart
-- [ ] Thresholds persist across app launches
+1. Simulate or induce thermal state changes (where possible) and confirm the app responds per your table (FPS reductions, depth disabled, etc.).
+2. On device, run a longer session and confirm the app degrades gracefully (no crash) when thermal pressure increases.
+3. Confirm the UI communicates 'Cooling down' when entering the critical state (or your chosen UX).
+
+#### Sprint 9 — Definition of Done
+
 - [ ] 90-minute stability test passes with no memory leaks
 - [ ] Thermal throttling reduces FPS appropriately
 - [ ] "Cooling down" screen appears at critical thermal state
@@ -2179,202 +2429,26 @@ final class ThermalMonitor: ThermalMonitorProtocol {
 
 ---
 
-### Sprint 7 — Nudges + Compliance Logic
+### Sprint 10 — Background Mode + Mac Companion (Stretch Goals)
 
-
-
-**Manual test steps**
-
-1. Simulate or induce thermal state changes (where possible) and confirm the app responds per your table (FPS reductions, depth disabled, etc.).
-2. On device, run a longer session and confirm the app degrades gracefully (no crash) when thermal pressure increases.
-3. Confirm the UI communicates ‘Cooling down’ when entering the critical state (or your chosen UX).
-#### Ticket 7.1 — NudgeEngine Implementation
-
-| Field | Value |
-|-------|-------|
-| **Goal** | Decide when to fire nudges based on posture state and rules |
-| **Depends on** | 4.1 |
-| **Inputs** | `PostureState`, tracking quality, task mode |
-| **Outputs** | `NudgeDecision` |
-| **Acceptance** | Respects cooldown, max per hour, suppression rules |
-
-**File to create**: `PostureLogic/Sources/PostureLogic/Engines/NudgeEngine.swift`
-
-```swift
-public final class NudgeEngine: NudgeEngineProtocol {
-    public var debugState: [String: Any] {
-        [
-            "nudgesThisHour": nudgesThisHour,
-            "lastNudgeTime": lastNudgeTime ?? 0,
-            "cooldownRemaining": cooldownRemaining
-        ]
-    }
-    
-    private let thresholds: PostureThresholds
-    private var nudgesThisHour: Int = 0
-    private var lastNudgeTime: TimeInterval?
-    private var hourStartTime: TimeInterval = 0
-    
-    public init(thresholds: PostureThresholds) {
-        self.thresholds = thresholds
-    }
-    
-    public func evaluate(
-        state: PostureState,
-        trackingQuality: TrackingQuality,
-        movementLevel: Float,
-        taskMode: TaskMode
-    ) -> NudgeDecision {
-        // Check suppression conditions
-        if !trackingQuality.allowsPostureJudgement {
-            return .suppressed(reason: .lowTrackingQuality)
-        }
-        
-        if taskMode == .stretching {
-            return .suppressed(reason: .userStretching)
-        }
-        
-        if let last = lastNudgeTime, Date().timeIntervalSince1970 - last < thresholds.nudgeCooldown {
-            return .suppressed(reason: .cooldownActive)
-        }
-        
-        if nudgesThisHour >= thresholds.maxNudgesPerHour {
-            return .suppressed(reason: .maxNudgesReached)
-        }
-        
-        // Check if should fire
-        guard case .bad(let since) = state else {
-            return .none
-        }
-        
-        let duration = Date().timeIntervalSince1970 - since
-        
-        if duration >= thresholds.slouchDurationBeforeNudge {
-            return .fire(reason: .sustainedSlouch)
-        }
-        
-        let remaining = thresholds.slouchDurationBeforeNudge - duration
-        return .pending(reason: .sustainedSlouch, timeRemaining: remaining)
-    }
-    
-    public func recordAcknowledgement() {
-        lastNudgeTime = Date().timeIntervalSince1970
-        nudgesThisHour += 1
-    }
-    
-    private var cooldownRemaining: TimeInterval {
-        guard let last = lastNudgeTime else { return 0 }
-        return max(0, thresholds.nudgeCooldown - (Date().timeIntervalSince1970 - last))
-    }
-}
-```
-
-
-**Manual test steps**
-
-1. Using replay or a controlled live test, force `PostureState.bad` and wait past `slouchDurationBeforeNudge`; confirm `NudgeDecision.fire` occurs.
-2. Confirm nudges do not fire during cooldown and that `cooldownRemaining` counts down.
-3. Trigger more than `maxNudgesPerHour` and confirm further nudges are suppressed.
-
----
-
-#### Ticket 7.2 — Audio Feedback
-
-| Field | Value |
-|-------|-------|
-| **Goal** | Play subtle audio cue when nudge fires |
-| **Depends on** | 7.1 |
-| **Inputs** | `NudgeDecision.fire` |
-| **Outputs** | Audio playback |
-| **Acceptance** | Sound is pleasant, not jarring; respects system volume |
-
-
-**Manual test steps**
-
-1. Trigger a nudge (via replay or by temporarily lowering thresholds) and confirm the audio cue plays once when `fire` occurs.
-2. Put the device in silent mode / low volume and confirm behavior is acceptable (e.g., respects system volume or uses haptics as fallback if you add it).
-3. Trigger repeated nudges quickly and confirm audio does not spam due to cooldown rules.
-
----
-
-#### Ticket 7.3 — Acknowledgement Detection
-
-| Field | Value |
-|-------|-------|
-| **Goal** | Detect when user corrects posture after nudge |
-| **Depends on** | 7.1 |
-| **Inputs** | Posture state transitions |
-| **Outputs** | `recordAcknowledgement()` called |
-| **Acceptance** | Resets nudge state when user returns to good posture within window |
-
-#### ✅ Sprint 7 — Definition of Done
-
-- [ ] Nudge fires after sustained slouch (default 5 minutes)
-- [ ] Cooldown prevents rapid re-nudging
-- [ ] Max nudges per hour limit respected
-- [ ] Audio feedback plays on nudge
-- [ ] Acknowledgement detection works when user corrects posture
-- [ ] Stretching mode suppresses nudges
-- [ ] All NudgeEngine unit tests pass
-- [ ] End-to-end test: slouch → wait → nudge → correct → no re-nudge
-
----
-
-### Sprint 8 — Watch Nudges + Background Backlog
-
-
-
-**Manual test steps**
-
-1. Trigger a nudge, then correct posture within `acknowledgementWindow` and confirm `recordAcknowledgement()` is called (check debug output).
-2. Trigger a nudge and *don’t* correct posture; confirm acknowledgement is not recorded and cooldown behavior matches your rules.
-#### Ticket 8.1 — WatchConnectivity Setup
-
-| Field | Value |
-|-------|-------|
-| **Goal** | Send nudge events to Apple Watch |
-| **Depends on** | 7.1 |
-| **Inputs** | `NudgeDecision.fire` |
-| **Outputs** | Haptic on Watch |
-| **Acceptance** | Watch receives haptic within 2 seconds of nudge |
-
-
-**Manual test steps**
-
-1. Pair an Apple Watch with the iPhone and install the watch companion app (or watch extension) as needed.
-2. Trigger a nudge on the phone and confirm the watch receives it and plays a haptic within ~2 seconds.
-3. Put the phone screen off and repeat; confirm connectivity still works (as expected by your implementation).
-
----
-
-#### Ticket 8.2 — Background Mode Investigation
+#### Ticket 10.1 — Background Mode Investigation
 
 | Field | Value |
 |-------|-------|
 | **Goal** | Research options for background operation |
-| **Depends on** | 8.1 |
+| **Depends on** | 4.4 |
 | **Inputs** | iOS background mode documentation |
 | **Outputs** | Decision document on viable approaches |
 | **Acceptance** | Clear recommendation with trade-offs |
-
-#### ✅ Sprint 8 — Definition of Done
-
-- [ ] Watch receives haptic within 2 seconds of phone nudge
-- [ ] Watch app installs and pairs correctly
-- [ ] Background mode investigation document complete
-- [ ] Decision made on background approach with trade-offs documented
-
----
-
-### Sprint 9 — Mac Companion (Stretch Goal)
-
-
 
 **Manual test steps**
 
 1. Write the investigation document and include at least: chosen background modes, constraints, and trade-offs.
 2. Validate each claimed option by linking to Apple docs or by a quick spike (e.g., background audio, Live Activity) and record your findings in the doc.
-#### Ticket 9.1 — Mac Companion App
+
+---
+
+#### Ticket 10.2 — Mac Companion App
 
 | Field | Value |
 |-------|-------|
@@ -2383,6 +2457,20 @@ public final class NudgeEngine: NudgeEngineProtocol {
 | **Inputs** | Keyboard/Mouse activity |
 | **Outputs** | BLE Advertising packet |
 | **Logic** | **Enhances** context (confirms "Working") but **does not suppress** slouch detection. If user is typing but slouching, they should still be nudged. |
+
+**Manual test steps**
+
+1. On macOS, run the companion app and confirm it detects keyboard/mouse activity locally.
+2. Confirm the phone receives the 'User Active' signal via BLE (or your chosen transport) within a few seconds.
+3. Verify posture detection logic is **not** suppressed by 'User Active' (it should only add context, per the ticket note).
+
+#### Sprint 10 — Definition of Done
+
+- [ ] Background mode investigation document complete
+- [ ] Decision made on background approach with trade-offs documented
+- [ ] Mac companion detects keyboard/mouse activity
+- [ ] Phone receives "User Active" signal via BLE
+- [ ] Posture detection not suppressed by Mac companion signal
 
 ---
 
@@ -2411,19 +2499,19 @@ These scenarios should be implemented in `TestScenarios.swift` for use with `Moc
 public enum TestScenarios {
     /// 60 seconds of perfect posture
     public static var goodPosture: TestScenario { ... }
-    
+
     /// Starts good, gradually slouches over 10 minutes
     public static var gradualSlouch: TestScenario { ... }
-    
+
     /// Good posture but depth drops out intermittently
     public static var intermittentDepth: TestScenario { ... }
-    
+
     /// User leaves and returns to frame
     public static var userAbsent: TestScenario { ... }
-    
+
     /// Rapid movements (stretching)
     public static var stretching: TestScenario { ... }
-    
+
     /// Alternating reading and typing
     public static var mixedTasks: TestScenario { ... }
 }
@@ -2476,10 +2564,4 @@ Ensure the app is usable by everyone, including those with visual impairments wh
 | 1.0 | Initial | Original plan from user |
 | 2.0 | Updated | Added: file structure, stub code, complete data models, ticket dependency graph |
 | 2.1 | Updated | Added: Known Gotchas, Debugging Checklist, Input/Output Examples, Definition of Done per sprint, Revision History |
-
-
-**Manual test steps**
-
-1. On macOS, run the companion app and confirm it detects keyboard/mouse activity locally.
-2. Confirm the phone receives the ‘User Active’ signal via BLE (or your chosen transport) within a few seconds.
-3. Verify posture detection logic is **not** suppressed by ‘User Active’ (it should only add context, per the ticket note).
+| 3.0 | Updated | Reordered for MVP-first delivery: Phase 1 (Sprints 0–4) delivers camera→watch tap; Phase 2 (Sprints 5–8) adds depth fusion, recording, task mode, settings; Phase 3 (Sprints 9–10) adds stability hardening and stretch goals. All ticket content preserved; IDs renumbered. |
