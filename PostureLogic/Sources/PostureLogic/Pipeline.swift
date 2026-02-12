@@ -10,6 +10,7 @@ public class Pipeline {
     @Published public var depthConfidence: DepthConfidence = .unavailable
     @Published public var trackingQuality: TrackingQuality = .lost
     @Published public var fps: Float = 0.0
+    @Published public var postureState: PostureState = .absent
 
     /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
     public var baseline: Baseline?
@@ -23,6 +24,7 @@ public class Pipeline {
     private var metricsEngine = MetricsEngine()
     private var metricsSmoother = MetricsSmoother()
     private var modeSwitcher: ModeSwitcher
+    private var postureEngine: PostureEngine
 
     // Latest pose observation
     private var latestPoseObservation: PoseObservation?
@@ -40,6 +42,7 @@ public class Pipeline {
 
     public init(provider: PoseProvider, thresholds: PostureThresholds = PostureThresholds()) {
         self.modeSwitcher = ModeSwitcher(thresholds: thresholds)
+        self.postureEngine = PostureEngine(thresholds: thresholds)
 
         provider.framePublisher
             .sink { [weak self] frame in
@@ -150,9 +153,19 @@ public class Pipeline {
                             from: sample,
                             baseline: self.baseline
                         )
-                        self.latestMetrics = self.metricsSmoother.smooth(
+                        let smoothedMetrics = self.metricsSmoother.smooth(
                             rawMetrics,
                             sample: sample
+                        )
+                        self.latestMetrics = smoothedMetrics
+
+                        // Update the posture state machine with the latest metrics.
+                        // The engine decides good/drifting/bad based on thresholds
+                        // and pauses its timers when tracking quality is low.
+                        self.postureState = self.postureEngine.update(
+                            metrics: smoothedMetrics,
+                            taskMode: .unknown,  // TaskModeEngine added in Sprint 7
+                            trackingQuality: finalQuality
                         )
                     }
                 }

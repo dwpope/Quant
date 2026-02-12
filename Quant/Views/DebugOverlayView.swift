@@ -40,6 +40,16 @@ struct DebugOverlayView: View {
 
             Divider()
 
+            // Posture state with color indicator
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(postureColor)
+                    .frame(width: 6, height: 6)
+                Text("Posture: \(postureLabel)")
+            }
+
+            Divider()
+
             // Pose sample readout
             Text("Head: \(posePair(appModel.latestSample?.headPosition))")
             Text("L Shldr: \(posePair(appModel.latestSample?.leftShoulder))")
@@ -52,6 +62,45 @@ struct DebugOverlayView: View {
         .padding(8)
         .background(.ultraThinMaterial)
         .cornerRadius(8)
+    }
+
+    // MARK: - Posture State Display
+
+    /// Color indicator for the current posture state:
+    /// - Green = good posture
+    /// - Yellow = drifting (starting to slouch, but not long enough to nudge)
+    /// - Red = bad (sustained poor posture)
+    /// - Gray = absent or calibrating (not actively tracking)
+    private var postureColor: Color {
+        switch appModel.postureState {
+        case .good:
+            return .green
+        case .drifting:
+            return .yellow
+        case .bad:
+            return .red
+        case .absent, .calibrating:
+            return .gray
+        }
+    }
+
+    /// Human-readable label for the posture state, including timing info
+    /// for drifting and bad states so you can watch the state machine in action.
+    private var postureLabel: String {
+        switch appModel.postureState {
+        case .absent:
+            return "Absent"
+        case .calibrating:
+            return "Calibrating"
+        case .good:
+            return "Good"
+        case .drifting(let since):
+            let duration = Date().timeIntervalSince1970 - since
+            return String(format: "Drifting (%.0fs)", duration)
+        case .bad(let since):
+            let duration = Date().timeIntervalSince1970 - since
+            return String(format: "Bad (%.0fs)", duration)
+        }
     }
 
     private var modeColor: Color {

@@ -11,6 +11,7 @@ class AppModel: ObservableObject {
     @Published var trackingQuality: TrackingQuality = .lost
     @Published var fps: Float = 0.0
     @Published var latestSample: PoseSample?
+    @Published var postureState: PostureState = .absent
 
     // MARK: - Calibration Properties
 
@@ -54,6 +55,9 @@ class AppModel: ObservableObject {
 
         pipeline.$fps
             .assign(to: &$fps)
+
+        pipeline.$postureState
+            .assign(to: &$postureState)
 
         // Feed samples into the calibration engine while calibrating
         pipeline.$latestSample
