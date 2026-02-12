@@ -50,6 +50,16 @@ struct DebugOverlayView: View {
 
             Divider()
 
+            // Nudge decision with color indicator
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(nudgeColor)
+                    .frame(width: 6, height: 6)
+                Text("Nudge: \(nudgeLabel)")
+            }
+
+            Divider()
+
             // Pose sample readout
             Text("Head: \(posePair(appModel.latestSample?.headPosition))")
             Text("L Shldr: \(posePair(appModel.latestSample?.leftShoulder))")
@@ -100,6 +110,42 @@ struct DebugOverlayView: View {
         case .bad(let since):
             let duration = Date().timeIntervalSince1970 - since
             return String(format: "Bad (%.0fs)", duration)
+        }
+    }
+
+    // MARK: - Nudge Decision Display
+
+    /// Color indicator for the nudge decision:
+    /// - Red = fire! A nudge is being delivered right now.
+    /// - Orange = pending — bad posture detected, counting down.
+    /// - Yellow = suppressed — would nudge but blocked by a rule.
+    /// - Gray = none — nothing to report (posture is fine).
+    private var nudgeColor: Color {
+        switch appModel.nudgeDecision {
+        case .fire:
+            return .red
+        case .pending:
+            return .orange
+        case .suppressed:
+            return .yellow
+        case .none:
+            return .gray
+        }
+    }
+
+    /// Human-readable label for the nudge decision.
+    /// Shows the reason and countdown for pending/suppressed states
+    /// so you can watch the nudge logic working in real time.
+    private var nudgeLabel: String {
+        switch appModel.nudgeDecision {
+        case .none:
+            return "None"
+        case .fire(let reason):
+            return "FIRE (\(reason.rawValue))"
+        case .pending(_, let remaining):
+            return String(format: "Pending (%.0fs)", remaining)
+        case .suppressed(let reason):
+            return "Suppressed (\(reason.rawValue))"
         }
     }
 

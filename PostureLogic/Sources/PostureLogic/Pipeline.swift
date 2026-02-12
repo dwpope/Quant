@@ -12,6 +12,19 @@ public class Pipeline {
     @Published public var fps: Float = 0.0
     @Published public var postureState: PostureState = .absent
 
+    /// The latest nudge decision from the NudgeEngine.
+    ///
+    /// This tells the UI and feedback systems what to do:
+    /// - `.none`: Nothing happening — posture is fine or not bad enough yet.
+    /// - `.pending`: Bad posture detected, counting down to nudge.
+    /// - `.fire`: Time to nudge! The feedback layer should play audio/haptic.
+    /// - `.suppressed`: Would nudge, but blocked by cooldown/limit/etc.
+    ///
+    /// When this becomes `.fire`, the caller (AppModel) should:
+    /// 1. Deliver feedback (audio cue, watch haptic)
+    /// 2. Call `recordNudgeFired()` on the pipeline
+    @Published public var nudgeDecision: NudgeDecision = .none
+
     /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
     public var baseline: Baseline?
 
@@ -25,6 +38,7 @@ public class Pipeline {
     private var metricsSmoother = MetricsSmoother()
     private var modeSwitcher: ModeSwitcher
     private var postureEngine: PostureEngine
+    private var nudgeEngine: NudgeEngine
 
     // Latest pose observation
     private var latestPoseObservation: PoseObservation?
@@ -43,6 +57,7 @@ public class Pipeline {
     public init(provider: PoseProvider, thresholds: PostureThresholds = PostureThresholds()) {
         self.modeSwitcher = ModeSwitcher(thresholds: thresholds)
         self.postureEngine = PostureEngine(thresholds: thresholds)
+        self.nudgeEngine = NudgeEngine(thresholds: thresholds)
 
         provider.framePublisher
             .sink { [weak self] frame in
@@ -162,10 +177,23 @@ public class Pipeline {
                         // Update the posture state machine with the latest metrics.
                         // The engine decides good/drifting/bad based on thresholds
                         // and pauses its timers when tracking quality is low.
-                        self.postureState = self.postureEngine.update(
+                        let newPostureState = self.postureEngine.update(
                             metrics: smoothedMetrics,
                             taskMode: .unknown,  // TaskModeEngine added in Sprint 7
                             trackingQuality: finalQuality
+                        )
+                        self.postureState = newPostureState
+
+                        // Evaluate nudge decision based on the updated posture state.
+                        // The NudgeEngine checks: Is posture bad long enough?
+                        // Is cooldown active? Is the hourly limit reached?
+                        // The result tells the UI/feedback layer what to do.
+                        self.nudgeDecision = self.nudgeEngine.evaluate(
+                            state: newPostureState,
+                            trackingQuality: finalQuality,
+                            movementLevel: smoothedMetrics.movementLevel,
+                            taskMode: .unknown,  // TaskModeEngine added in Sprint 7
+                            currentTime: smoothedMetrics.timestamp
                         )
                     }
                 }
@@ -229,6 +257,34 @@ public class Pipeline {
         }
 
         return .lost
+    }
+
+    // MARK: - Nudge Control Methods
+
+    /// Record that a nudge was delivered to the user.
+    ///
+    /// Call this from the feedback layer (AppModel) after the audio cue
+    /// or watch haptic is successfully delivered. This starts the cooldown
+    /// timer and increments the hourly nudge counter in the NudgeEngine.
+    ///
+    /// - Parameter currentTime: The timestamp when the nudge was delivered.
+    ///   Pass `Date().timeIntervalSince1970` in production, or a test value.
+    public func recordNudgeFired(at currentTime: TimeInterval) {
+        nudgeEngine.recordNudgeFired(at: currentTime)
+    }
+
+    /// Record that the user corrected their posture after a nudge.
+    ///
+    /// Call this when the PostureEngine transitions from `.bad` back to `.good`
+    /// within the acknowledgement window. This suppresses re-nudging for the
+    /// same slouch episode.
+    public func recordNudgeAcknowledgement() {
+        nudgeEngine.recordAcknowledgement()
+    }
+
+    /// Reset the NudgeEngine state. Call this on app relaunch or recalibration.
+    public func resetNudgeEngine() {
+        nudgeEngine.reset()
     }
 
     private func computeFPS(timestamp: TimeInterval) -> Float {
