@@ -1,6 +1,6 @@
 import Foundation
 
-public enum PostureState: Codable {
+public enum PostureState: Codable, Equatable {
     case absent
     case calibrating
     case good
