@@ -12,6 +12,7 @@ class AppModel: ObservableObject {
     @Published var fps: Float = 0.0
     @Published var latestSample: PoseSample?
     @Published var postureState: PostureState = .absent
+    @Published var nudgeDecision: NudgeDecision = .none
 
     // MARK: - Calibration Properties
 
@@ -58,6 +59,52 @@ class AppModel: ObservableObject {
 
         pipeline.$postureState
             .assign(to: &$postureState)
+
+        pipeline.$nudgeDecision
+            .assign(to: &$nudgeDecision)
+
+        // React to nudge fire decisions — deliver feedback and record
+        pipeline.$nudgeDecision
+            .sink { [weak self] decision in
+                guard let self = self else { return }
+                if case .fire = decision {
+                    // Deliver feedback (audio cue, watch haptic — Tickets 4.2 & 4.4)
+                    // For now, just record that the nudge was fired so the
+                    // NudgeEngine can start its cooldown timer.
+                    let now = Date().timeIntervalSince1970
+                    self.pipeline.recordNudgeFired(at: now)
+                    print("🔔 Nudge fired at \(now)")
+                }
+            }
+            .store(in: &cancellables)
+
+        // Detect acknowledgement: when posture transitions from .bad to .good,
+        // tell the NudgeEngine the user responded to the nudge.
+        // This is a simple version — Ticket 4.3 will add the full
+        // acknowledgement window logic with timing.
+        //
+        // How this works:
+        // `scan` keeps track of the previous state so we can detect transitions.
+        // Each emission is a tuple of (previousState, currentState).
+        // We then filter for `.bad → .good` transitions specifically.
+        pipeline.$postureState
+            .scan((PostureState.absent, PostureState.absent)) { previousPair, newState in
+                // Shift: the "current" becomes the "previous", new value becomes "current"
+                return (previousPair.1, newState)
+            }
+            .filter { oldState, newState in
+                // Only react to .bad → .good transitions
+                if case .good = newState, case .bad = oldState {
+                    return true
+                }
+                return false
+            }
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.pipeline.recordNudgeAcknowledgement()
+                print("✅ Posture corrected — nudge acknowledged")
+            }
+            .store(in: &cancellables)
 
         // Feed samples into the calibration engine while calibrating
         pipeline.$latestSample
