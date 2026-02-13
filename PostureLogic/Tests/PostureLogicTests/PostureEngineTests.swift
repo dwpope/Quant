@@ -46,22 +46,22 @@ final class PostureEngineTests: XCTestCase {
 
     /// Creates "good posture" metrics — all values well within thresholds.
     private func goodMetrics(timestamp: TimeInterval) -> RawMetrics {
-        makeMetrics(timestamp: timestamp, forwardCreep: 0.02, twist: 3.0, lateralLean: 0.01)
+        makeMetrics(timestamp: timestamp, forwardCreep: 0.02, lateralLean: 0.01, twist: 3.0)
     }
 
     /// Creates "bad posture" metrics — forward creep exceeds the default 0.10 threshold.
     private func badMetrics(timestamp: TimeInterval) -> RawMetrics {
-        makeMetrics(timestamp: timestamp, forwardCreep: 0.15, twist: 5.0, lateralLean: 0.02)
+        makeMetrics(timestamp: timestamp, forwardCreep: 0.15, lateralLean: 0.02, twist: 5.0)
     }
 
     /// Creates metrics with excessive twist — exceeds the 15.0° threshold.
     private func twistedMetrics(timestamp: TimeInterval) -> RawMetrics {
-        makeMetrics(timestamp: timestamp, forwardCreep: 0.02, twist: 20.0, lateralLean: 0.01)
+        makeMetrics(timestamp: timestamp, forwardCreep: 0.02, lateralLean: 0.01, twist: 20.0)
     }
 
     /// Creates metrics with excessive side lean — exceeds the 0.08 threshold.
     private func leaningMetrics(timestamp: TimeInterval) -> RawMetrics {
-        makeMetrics(timestamp: timestamp, forwardCreep: 0.02, twist: 3.0, lateralLean: 0.12)
+        makeMetrics(timestamp: timestamp, forwardCreep: 0.02, lateralLean: 0.12, twist: 3.0)
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -539,8 +539,8 @@ final class PostureEngineTests: XCTestCase {
         let metrics = makeMetrics(
             timestamp: 1.0,
             forwardCreep: 0.11,  // Between 0.10 (default) and 0.12 (reading)
-            twist: 3.0,
-            lateralLean: 0.01
+            lateralLean: 0.01,
+            twist: 3.0
         )
 
         let state = engine.update(
@@ -566,8 +566,8 @@ final class PostureEngineTests: XCTestCase {
         let metrics = makeMetrics(
             timestamp: 1.0,
             forwardCreep: 0.5,
-            twist: 30.0,
-            lateralLean: 0.3
+            lateralLean: 0.3,
+            twist: 30.0
         )
 
         let state = engine.update(
