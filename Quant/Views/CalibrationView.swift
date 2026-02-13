@@ -6,26 +6,38 @@ struct CalibrationView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            Image(systemName: "figure.stand")
-                .font(.system(size: 80))
-                .foregroundStyle(iconColor)
+            if case .countdown(let seconds) = appModel.calibrationStatus {
+                Text("\(seconds)")
+                    .font(.system(size: 120, weight: .bold, design: .rounded))
+                    .foregroundStyle(.blue)
+                    .contentTransition(.numericText())
+                    .animation(.default, value: seconds)
 
-            Text("Sit up straight")
-                .font(.title)
+                Text("Get into position!")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+            } else {
+                Image(systemName: "figure.stand")
+                    .font(.system(size: 80))
+                    .foregroundStyle(iconColor)
 
-            Text("Hold still for 5 seconds")
-                .foregroundStyle(.secondary)
+                Text("Sit up straight")
+                    .font(.title)
 
-            ProgressView(value: appModel.calibrationProgress)
-                .padding(.horizontal, 40)
+                Text("Hold still for 5 seconds")
+                    .foregroundStyle(.secondary)
 
-            statusText
+                ProgressView(value: appModel.calibrationProgress)
+                    .padding(.horizontal, 40)
 
-            if case .failed = appModel.calibrationStatus {
-                Button("Try Again") {
-                    appModel.startCalibration()
+                statusText
+
+                if case .failed = appModel.calibrationStatus {
+                    Button("Try Again") {
+                        appModel.startCalibration()
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
             }
         }
         .padding()
@@ -37,6 +49,8 @@ struct CalibrationView: View {
         case .waiting:
             Text("Position yourself in frame...")
                 .foregroundStyle(.secondary)
+        case .countdown:
+            EmptyView()
         case .sampling:
             Text("Hold still...")
                 .foregroundStyle(.blue)
@@ -57,7 +71,7 @@ struct CalibrationView: View {
     private var iconColor: Color {
         switch appModel.calibrationStatus {
         case .waiting: .secondary
-        case .sampling, .validating: .blue
+        case .countdown, .sampling, .validating: .blue
         case .success: .green
         case .failed: .red
         }

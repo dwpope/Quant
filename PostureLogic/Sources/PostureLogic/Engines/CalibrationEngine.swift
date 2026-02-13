@@ -38,7 +38,7 @@ public final class CalibrationEngine {
     /// Returns the current status after processing.
     public func addSample(_ sample: PoseSample) -> CalibrationStatus {
         switch status {
-        case .success, .failed:
+        case .success, .failed, .countdown:
             return status
 
         case .waiting:

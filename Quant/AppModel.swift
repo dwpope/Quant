@@ -42,6 +42,10 @@ class AppModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let calibrationEngine = CalibrationEngine()
     private var lastNudgeFiredTime: TimeInterval?
+    private var countdownTimer: Timer?
+    private var countdownRemaining: Int = 0
+    private let countdownDuration: Int = 3
+    private var countdownCompleted: Bool = false
 
     private static let baselineKey = "com.quant.savedBaseline"
 
@@ -175,6 +179,9 @@ class AppModel: ObservableObject {
     }
 
     func startCalibration() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        countdownCompleted = false
         calibrationEngine.reset()
         calibrationStatus = .waiting
         calibrationProgress = 0
@@ -192,6 +199,25 @@ class AppModel: ObservableObject {
     private func feedCalibration(_ sample: PoseSample) {
         guard needsCalibration else { return }
 
+        // While waiting, detect good tracking and start countdown
+        if case .waiting = calibrationStatus, !countdownCompleted {
+            guard sample.trackingQuality >= .good else { return }
+            startCountdown()
+            return
+        }
+
+        // During countdown, don't feed samples to the engine
+        if case .countdown = calibrationStatus {
+            // If tracking drops during countdown, cancel and go back to waiting
+            if sample.trackingQuality < .good {
+                countdownTimer?.invalidate()
+                countdownTimer = nil
+                countdownCompleted = false
+                calibrationStatus = .waiting
+            }
+            return
+        }
+
         let status = calibrationEngine.addSample(sample)
         calibrationStatus = status
         calibrationProgress = calibrationEngine.progress
@@ -201,6 +227,31 @@ class AppModel: ObservableObject {
             pipeline.baseline = newBaseline
             needsCalibration = false
             saveBaseline(newBaseline)
+        }
+    }
+
+    private func startCountdown() {
+        countdownRemaining = countdownDuration
+        calibrationStatus = .countdown(countdownRemaining)
+
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            Task { @MainActor in
+                guard let self = self else {
+                    timer.invalidate()
+                    return
+                }
+                self.countdownRemaining -= 1
+                if self.countdownRemaining > 0 {
+                    self.calibrationStatus = .countdown(self.countdownRemaining)
+                } else {
+                    timer.invalidate()
+                    self.countdownTimer = nil
+                    self.countdownCompleted = true
+                    // Countdown finished — engine is in .waiting state,
+                    // so the next good sample will start sampling
+                    self.calibrationStatus = .waiting
+                }
+            }
         }
     }
 
