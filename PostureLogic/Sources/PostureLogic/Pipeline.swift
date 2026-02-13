@@ -31,6 +31,9 @@ public class Pipeline {
     /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
     public var baseline: Baseline?
 
+    /// The thresholds used by all engines in the pipeline.
+    public let thresholds: PostureThresholds
+
     // MARK: - Private Properties
 
     private var subscriptions = Set<AnyCancellable>()
@@ -63,6 +66,7 @@ public class Pipeline {
     // MARK: - Initialization
 
     public init(provider: PoseProvider, thresholds: PostureThresholds = PostureThresholds()) {
+        self.thresholds = thresholds
         self.modeSwitcher = ModeSwitcher(thresholds: thresholds)
         self.postureEngine = PostureEngine(thresholds: thresholds)
         self.nudgeEngine = NudgeEngine(thresholds: thresholds)

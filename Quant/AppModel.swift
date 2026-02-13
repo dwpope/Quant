@@ -41,6 +41,7 @@ class AppModel: ObservableObject {
     }()
     private var cancellables = Set<AnyCancellable>()
     private let calibrationEngine = CalibrationEngine()
+    private var lastNudgeFiredTime: TimeInterval?
 
     private static let baselineKey = "com.quant.savedBaseline"
 
@@ -104,27 +105,24 @@ class AppModel: ObservableObject {
                     // can start its cooldown timer and increment the hourly counter.
                     let now = Date().timeIntervalSince1970
                     self.pipeline.recordNudgeFired(at: now)
+                    self.lastNudgeFiredTime = now
                     print("🔔 Nudge fired at \(now)")
                 }
             }
             .store(in: &cancellables)
 
-        // Detect acknowledgement: when posture transitions from .bad to .good,
-        // tell the NudgeEngine the user responded to the nudge.
-        // This is a simple version — Ticket 4.3 will add the full
-        // acknowledgement window logic with timing.
+        // Detect acknowledgement: when posture transitions from .bad to .good
+        // within the acknowledgement window after a nudge fired, tell the
+        // NudgeEngine the user responded to the nudge.
         //
-        // How this works:
         // `scan` keeps track of the previous state so we can detect transitions.
         // Each emission is a tuple of (previousState, currentState).
-        // We then filter for `.bad → .good` transitions specifically.
+        // We filter for `.bad → .good` transitions, then check timing.
         pipeline.$postureState
             .scan((PostureState.absent, PostureState.absent)) { previousPair, newState in
-                // Shift: the "current" becomes the "previous", new value becomes "current"
                 return (previousPair.1, newState)
             }
             .filter { oldState, newState in
-                // Only react to .bad → .good transitions
                 if case .good = newState, case .bad = oldState {
                     return true
                 }
@@ -132,8 +130,21 @@ class AppModel: ObservableObject {
             }
             .sink { [weak self] _ in
                 guard let self = self else { return }
-                self.pipeline.recordNudgeAcknowledgement()
-                print("✅ Posture corrected — nudge acknowledged")
+                let now = Date().timeIntervalSince1970
+
+                guard let nudgeTime = self.lastNudgeFiredTime else {
+                    print("Posture corrected — no recent nudge to acknowledge")
+                    return
+                }
+
+                let elapsed = now - nudgeTime
+                if elapsed <= self.pipeline.thresholds.acknowledgementWindow {
+                    self.pipeline.recordNudgeAcknowledgement()
+                    self.lastNudgeFiredTime = nil
+                    print("✅ Posture corrected — nudge acknowledged (\(String(format: "%.0f", elapsed))s after nudge)")
+                } else {
+                    print("Posture corrected — outside acknowledgement window (\(String(format: "%.0f", elapsed))s after nudge)")
+                }
             }
             .store(in: &cancellables)
 
