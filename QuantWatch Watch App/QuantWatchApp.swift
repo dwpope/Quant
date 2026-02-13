@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct QuantWatch_Watch_AppApp: App {
+    @StateObject var sessionDelegate = WatchSessionDelegate()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(sessionDelegate: sessionDelegate)
         }
     }
 }

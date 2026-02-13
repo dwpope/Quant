@@ -73,6 +73,14 @@ struct DebugOverlayView: View {
                 Text("Audio: \(audioStatusLabel)")
             }
 
+            // Watch connectivity status (Ticket 4.4)
+            HStack(spacing: 4) {
+                Image(systemName: appModel.watchService.isPaired ? "applewatch.radiowaves.left.and.right" : "applewatch.slash")
+                    .foregroundStyle(appModel.watchService.isReachable ? .green : (appModel.watchService.isPaired ? .yellow : .red))
+                    .font(.system(size: 10))
+                Text("Watch: \(watchStatusLabel)")
+            }
+
             Divider()
 
             // Pose sample readout
@@ -181,6 +189,26 @@ struct DebugOverlayView: View {
             return "Ready"
         }
         return "Played (\(appModel.audioService.totalPlays))"
+    }
+
+    /// Human-readable label for the Watch connectivity status.
+    ///
+    /// Shows one of:
+    /// - "Unpaired" — no Watch paired with this iPhone
+    /// - "Paired" — Watch paired but not currently reachable
+    /// - "Reachable" — Watch paired and reachable, no nudges sent yet
+    /// - "Sent (N)" — Watch reachable and N nudges sent this session
+    private var watchStatusLabel: String {
+        if !appModel.watchService.isPaired {
+            return "Unpaired"
+        }
+        if !appModel.watchService.isReachable {
+            return "Paired"
+        }
+        if appModel.watchService.totalSent == 0 {
+            return "Reachable"
+        }
+        return "Sent (\(appModel.watchService.totalSent))"
     }
 
     private var modeColor: Color {

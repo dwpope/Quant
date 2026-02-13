@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		B0329AB12F01471F00DA5BDB /* PostureLogic in Frameworks */ = {isa = PBXBuildFile; productRef = B0329AB02F01471F00DA5BDB /* PostureLogic */; };
 		B0329AB42F01477700DA5BDB /* PostureLogic in Frameworks */ = {isa = PBXBuildFile; productRef = B0329AB32F01477700DA5BDB /* PostureLogic */; };
+		B425EA352F3FB05E007AA86A /* QuantWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = B425EA122F3FB05D007AA86A /* QuantWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C1A2B3012F4A000000000001 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C1A2B3002F4A000000000001 /* WatchConnectivity.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -26,12 +28,51 @@
 			remoteGlobalIDString = B0329A7F2EFF739800DA5BDB;
 			remoteInfo = Quant;
 		};
+		B425EA222F3FB05E007AA86A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B0329A782EFF739800DA5BDB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B425EA112F3FB05D007AA86A;
+			remoteInfo = "QuantWatch Watch App";
+		};
+		B425EA2C2F3FB05E007AA86A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B0329A782EFF739800DA5BDB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B425EA112F3FB05D007AA86A;
+			remoteInfo = "QuantWatch Watch App";
+		};
+		B425EA332F3FB05E007AA86A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B0329A782EFF739800DA5BDB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B425EA112F3FB05D007AA86A;
+			remoteInfo = "QuantWatch Watch App";
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B425EA392F3FB05E007AA86A /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				B425EA352F3FB05E007AA86A /* QuantWatch Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		B0329A802EFF739800DA5BDB /* Quant.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Quant.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0329A8D2EFF739A00DA5BDB /* QuantTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = QuantTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0329A972EFF739A00DA5BDB /* QuantUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = QuantUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B425EA122F3FB05D007AA86A /* QuantWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "QuantWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B425EA212F3FB05E007AA86A /* QuantWatch Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "QuantWatch Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B425EA2B2F3FB05E007AA86A /* QuantWatch Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "QuantWatch Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C1A2B3002F4A000000000001 /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -50,6 +91,21 @@
 			path = QuantUITests;
 			sourceTree = "<group>";
 		};
+		B425EA132F3FB05D007AA86A /* QuantWatch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "QuantWatch Watch App";
+			sourceTree = "<group>";
+		};
+		B425EA242F3FB05E007AA86A /* QuantWatch Watch AppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "QuantWatch Watch AppTests";
+			sourceTree = "<group>";
+		};
+		B425EA2E2F3FB05E007AA86A /* QuantWatch Watch AppUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "QuantWatch Watch AppUITests";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -58,6 +114,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B0329AB12F01471F00DA5BDB /* PostureLogic in Frameworks */,
+				C1A2B3012F4A000000000001 /* WatchConnectivity.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -76,6 +133,27 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B425EA0F2F3FB05D007AA86A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B425EA1E2F3FB05E007AA86A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B425EA282F3FB05E007AA86A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -85,6 +163,9 @@
 				B0329A822EFF739800DA5BDB /* Quant */,
 				B0329A902EFF739A00DA5BDB /* QuantTests */,
 				B0329A9A2EFF739A00DA5BDB /* QuantUITests */,
+				B425EA132F3FB05D007AA86A /* QuantWatch Watch App */,
+				B425EA242F3FB05E007AA86A /* QuantWatch Watch AppTests */,
+				B425EA2E2F3FB05E007AA86A /* QuantWatch Watch AppUITests */,
 				B0329AB22F01477700DA5BDB /* Frameworks */,
 				B0329A812EFF739800DA5BDB /* Products */,
 			);
@@ -96,6 +177,9 @@
 				B0329A802EFF739800DA5BDB /* Quant.app */,
 				B0329A8D2EFF739A00DA5BDB /* QuantTests.xctest */,
 				B0329A972EFF739A00DA5BDB /* QuantUITests.xctest */,
+				B425EA122F3FB05D007AA86A /* QuantWatch Watch App.app */,
+				B425EA212F3FB05E007AA86A /* QuantWatch Watch AppTests.xctest */,
+				B425EA2B2F3FB05E007AA86A /* QuantWatch Watch AppUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -103,6 +187,7 @@
 		B0329AB22F01477700DA5BDB /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				C1A2B3002F4A000000000001 /* WatchConnectivity.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -117,10 +202,12 @@
 				B0329A7C2EFF739800DA5BDB /* Sources */,
 				B0329A7D2EFF739800DA5BDB /* Frameworks */,
 				B0329A7E2EFF739800DA5BDB /* Resources */,
+				B425EA392F3FB05E007AA86A /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B425EA342F3FB05E007AA86A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				B0329A822EFF739800DA5BDB /* Quant */,
@@ -180,6 +267,74 @@
 			productReference = B0329A972EFF739A00DA5BDB /* QuantUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		B425EA112F3FB05D007AA86A /* QuantWatch Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B425EA362F3FB05E007AA86A /* Build configuration list for PBXNativeTarget "QuantWatch Watch App" */;
+			buildPhases = (
+				B425EA0E2F3FB05D007AA86A /* Sources */,
+				B425EA0F2F3FB05D007AA86A /* Frameworks */,
+				B425EA102F3FB05D007AA86A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B425EA132F3FB05D007AA86A /* QuantWatch Watch App */,
+			);
+			name = "QuantWatch Watch App";
+			packageProductDependencies = (
+			);
+			productName = "QuantWatch Watch App";
+			productReference = B425EA122F3FB05D007AA86A /* QuantWatch Watch App.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B425EA202F3FB05E007AA86A /* QuantWatch Watch AppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B425EA3A2F3FB05E007AA86A /* Build configuration list for PBXNativeTarget "QuantWatch Watch AppTests" */;
+			buildPhases = (
+				B425EA1D2F3FB05E007AA86A /* Sources */,
+				B425EA1E2F3FB05E007AA86A /* Frameworks */,
+				B425EA1F2F3FB05E007AA86A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B425EA232F3FB05E007AA86A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B425EA242F3FB05E007AA86A /* QuantWatch Watch AppTests */,
+			);
+			name = "QuantWatch Watch AppTests";
+			packageProductDependencies = (
+			);
+			productName = "QuantWatch Watch AppTests";
+			productReference = B425EA212F3FB05E007AA86A /* QuantWatch Watch AppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B425EA2A2F3FB05E007AA86A /* QuantWatch Watch AppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B425EA3D2F3FB05E007AA86A /* Build configuration list for PBXNativeTarget "QuantWatch Watch AppUITests" */;
+			buildPhases = (
+				B425EA272F3FB05E007AA86A /* Sources */,
+				B425EA282F3FB05E007AA86A /* Frameworks */,
+				B425EA292F3FB05E007AA86A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B425EA2D2F3FB05E007AA86A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B425EA2E2F3FB05E007AA86A /* QuantWatch Watch AppUITests */,
+			);
+			name = "QuantWatch Watch AppUITests";
+			packageProductDependencies = (
+			);
+			productName = "QuantWatch Watch AppUITests";
+			productReference = B425EA2B2F3FB05E007AA86A /* QuantWatch Watch AppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -187,7 +342,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2620;
+				LastSwiftUpdateCheck = 1620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					B0329A7F2EFF739800DA5BDB = {
@@ -200,6 +355,17 @@
 					B0329A962EFF739A00DA5BDB = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = B0329A7F2EFF739800DA5BDB;
+					};
+					B425EA112F3FB05D007AA86A = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					B425EA202F3FB05E007AA86A = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = B425EA112F3FB05D007AA86A;
+					};
+					B425EA2A2F3FB05E007AA86A = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = B425EA112F3FB05D007AA86A;
 					};
 				};
 			};
@@ -223,6 +389,9 @@
 				B0329A7F2EFF739800DA5BDB /* Quant */,
 				B0329A8C2EFF739A00DA5BDB /* QuantTests */,
 				B0329A962EFF739A00DA5BDB /* QuantUITests */,
+				B425EA112F3FB05D007AA86A /* QuantWatch Watch App */,
+				B425EA202F3FB05E007AA86A /* QuantWatch Watch AppTests */,
+				B425EA2A2F3FB05E007AA86A /* QuantWatch Watch AppUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -243,6 +412,27 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B0329A952EFF739A00DA5BDB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B425EA102F3FB05D007AA86A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B425EA1F2F3FB05E007AA86A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B425EA292F3FB05E007AA86A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -273,6 +463,27 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B425EA0E2F3FB05D007AA86A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B425EA1D2F3FB05E007AA86A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B425EA272F3FB05E007AA86A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -285,6 +496,21 @@
 			isa = PBXTargetDependency;
 			target = B0329A7F2EFF739800DA5BDB /* Quant */;
 			targetProxy = B0329A982EFF739A00DA5BDB /* PBXContainerItemProxy */;
+		};
+		B425EA232F3FB05E007AA86A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B425EA112F3FB05D007AA86A /* QuantWatch Watch App */;
+			targetProxy = B425EA222F3FB05E007AA86A /* PBXContainerItemProxy */;
+		};
+		B425EA2D2F3FB05E007AA86A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B425EA112F3FB05D007AA86A /* QuantWatch Watch App */;
+			targetProxy = B425EA2C2F3FB05E007AA86A /* PBXContainerItemProxy */;
+		};
+		B425EA342F3FB05E007AA86A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B425EA112F3FB05D007AA86A /* QuantWatch Watch App */;
+			targetProxy = B425EA332F3FB05E007AA86A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -562,6 +788,144 @@
 			};
 			name = Release;
 		};
+		B425EA372F3FB05E007AA86A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"QuantWatch Watch App/Preview Content\"";
+				DEVELOPMENT_TEAM = FHC8TY7TG6;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = QuantWatch;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = net.davepope.Quant;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.davepope.Quant.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.2;
+			};
+			name = Debug;
+		};
+		B425EA382F3FB05E007AA86A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"QuantWatch Watch App/Preview Content\"";
+				DEVELOPMENT_TEAM = FHC8TY7TG6;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = QuantWatch;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = net.davepope.Quant;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.davepope.Quant.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.2;
+			};
+			name = Release;
+		};
+		B425EA3B2F3FB05E007AA86A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = FHC8TY7TG6;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.creatormaker.QuantWatch-Watch-AppTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/QuantWatch Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/QuantWatch Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 11.2;
+			};
+			name = Debug;
+		};
+		B425EA3C2F3FB05E007AA86A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = FHC8TY7TG6;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.creatormaker.QuantWatch-Watch-AppTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/QuantWatch Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/QuantWatch Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 11.2;
+			};
+			name = Release;
+		};
+		B425EA3E2F3FB05E007AA86A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = FHC8TY7TG6;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.creatormaker.QuantWatch-Watch-AppUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = "QuantWatch Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 11.2;
+			};
+			name = Debug;
+		};
+		B425EA3F2F3FB05E007AA86A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = FHC8TY7TG6;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.creatormaker.QuantWatch-Watch-AppUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = "QuantWatch Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 11.2;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -597,6 +961,33 @@
 			buildConfigurations = (
 				B0329AA82EFF739A00DA5BDB /* Debug */,
 				B0329AA92EFF739A00DA5BDB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B425EA362F3FB05E007AA86A /* Build configuration list for PBXNativeTarget "QuantWatch Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B425EA372F3FB05E007AA86A /* Debug */,
+				B425EA382F3FB05E007AA86A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B425EA3A2F3FB05E007AA86A /* Build configuration list for PBXNativeTarget "QuantWatch Watch AppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B425EA3B2F3FB05E007AA86A /* Debug */,
+				B425EA3C2F3FB05E007AA86A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B425EA3D2F3FB05E007AA86A /* Build configuration list for PBXNativeTarget "QuantWatch Watch AppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B425EA3E2F3FB05E007AA86A /* Debug */,
+				B425EA3F2F3FB05E007AA86A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

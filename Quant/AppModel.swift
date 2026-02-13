@@ -33,6 +33,14 @@ class AppModel: ObservableObject {
     /// AppModel can trigger playback.
     private(set) var audioService = AudioFeedbackService()
 
+    // MARK: - Watch Connectivity
+
+    /// The Watch connectivity service that sends nudge events to the Apple Watch.
+    ///
+    /// Exposed as `private(set)` so the DebugOverlayView can read its state
+    /// (e.g., paired, reachable, send count) but only AppModel can trigger sends.
+    private(set) var watchService = WatchConnectivityService()
+
     // MARK: - Private Properties
 
     private let arService = ARSessionService()
@@ -93,17 +101,21 @@ class AppModel: ObservableObject {
         //
         // When the NudgeEngine decides to fire, we:
         // 1. Play an audio cue via AudioFeedbackService (Ticket 4.2)
-        // 2. Record the nudge so the NudgeEngine starts its cooldown timer
+        // 2. Send a haptic nudge to Apple Watch via WatchConnectivityService (Ticket 4.4)
+        // 3. Record the nudge so the NudgeEngine starts its cooldown timer
         //
         // The audio cue respects system volume and the mute switch (because
         // AudioFeedbackService uses the .ambient audio session category).
-        // Watch haptic delivery will be added in Ticket 4.4.
+        // The Watch haptic is delivered via WCSession sendMessage for <2s latency.
         pipeline.$nudgeDecision
             .sink { [weak self] decision in
                 guard let self = self else { return }
                 if case .fire = decision {
                     // Play the audio feedback cue (subtle tone)
                     self.audioService.playNudgeCue()
+
+                    // Send haptic nudge to Apple Watch
+                    self.watchService.sendNudge()
 
                     // Record that the nudge was delivered so the NudgeEngine
                     // can start its cooldown timer and increment the hourly counter.
