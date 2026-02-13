@@ -7,10 +7,14 @@ import Foundation
 /// This is a stateless service — all methods are pure functions with no mutable state.
 /// Immutable design ensures thread-safety and predictable behavior.
 public final class DepthService: DepthServiceProtocol {
+    private var lastConfidence: DepthConfidence?
+
     public var debugState: [String: Any] {
-        [
-            "description": "Stateless depth service - no mutable state"
-        ]
+        var state: [String: Any] = [:]
+        if let confidence = lastConfidence {
+            state["lastConfidence"] = String(describing: confidence)
+        }
+        return state
     }
 
     private let edgeMargin: Float = 0.05  // 5% margin from edges (per Known Gotchas)
@@ -70,6 +74,7 @@ public final class DepthService: DepthServiceProtocol {
 
     public func computeConfidence(from frame: InputFrame) -> DepthConfidence {
         guard let depthMap = frame.depthMap else {
+            lastConfidence = .unavailable
             return .unavailable
         }
 
@@ -119,21 +124,25 @@ public final class DepthService: DepthServiceProtocol {
         }
 
         guard totalCount > 0 else {
+            lastConfidence = .low
             return .low
         }
 
         let coverage = Float(validCount) / Float(totalCount)
 
         // Determine confidence based on coverage
+        let result: DepthConfidence
         if coverage >= 0.8 {
-            return .high
+            result = .high
         } else if coverage >= 0.5 {
-            return .medium
+            result = .medium
         } else if coverage >= 0.2 {
-            return .low
+            result = .low
         } else {
-            return .unavailable
+            result = .unavailable
         }
+        lastConfidence = result
+        return result
     }
 
     private func isNearEdge(x: Int, y: Int, width: Int, height: Int) -> Bool {

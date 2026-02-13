@@ -27,7 +27,7 @@ public final class PoseService: PoseServiceProtocol {
 
     // MARK: - Private Properties
 
-    private var lastProcessTime: TimeInterval = 0
+    private var lastProcessTime: TimeInterval = -.infinity
     private var lastKeypointCount: Int = 0
     private var lastConfidence: Float = 0
     private var framesThrottled: Int = 0
@@ -49,12 +49,12 @@ public final class PoseService: PoseServiceProtocol {
             return .throttled
         }
 
+        lastProcessTime = frame.timestamp
+
         guard let pixelBuffer = frame.pixelBuffer else {
             logger.debug("PoseService: No pixel buffer available in frame")
             return .failed
         }
-
-        lastProcessTime = frame.timestamp
 
         let request = VNDetectHumanBodyPoseRequest()
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])

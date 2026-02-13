@@ -83,6 +83,7 @@ public final class CalibrationEngine {
         collectedSamples = []
         startTime = nil
         status = .waiting
+        resultBaseline = nil
     }
 
     // MARK: - Validation

@@ -209,7 +209,7 @@ public final class NudgeEngine: NudgeEngineProtocol {
         //     We don't want to nag the user. Wait at least `nudgeCooldown`
         //     seconds (default: 10 minutes) between nudges.
         if let lastTime = lastNudgeTime,
-           currentTime - lastTime < thresholds.nudgeCooldown
+           currentTime - lastTime <= thresholds.nudgeCooldown
         {
             let decision = NudgeDecision.suppressed(reason: .cooldownActive)
             lastDecisionDescription = "suppressed: cooldownActive (\(String(format: "%.0f", lastCooldownRemaining))s remaining)"
