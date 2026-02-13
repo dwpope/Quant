@@ -21,6 +21,15 @@ class AppModel: ObservableObject {
     @Published var baseline: Baseline?
     @Published var needsCalibration: Bool = true
 
+    // MARK: - Audio Feedback
+
+    /// The audio feedback service that plays a subtle tone when a nudge fires.
+    ///
+    /// Exposed as `private(set)` so the DebugOverlayView can read its state
+    /// (e.g., last played time, total plays, enabled/disabled) but only
+    /// AppModel can trigger playback.
+    private(set) var audioService = AudioFeedbackService()
+
     // MARK: - Private Properties
 
     private let arService = ARSessionService()
@@ -63,14 +72,24 @@ class AppModel: ObservableObject {
         pipeline.$nudgeDecision
             .assign(to: &$nudgeDecision)
 
-        // React to nudge fire decisions — deliver feedback and record
+        // React to nudge fire decisions — deliver feedback and record.
+        //
+        // When the NudgeEngine decides to fire, we:
+        // 1. Play an audio cue via AudioFeedbackService (Ticket 4.2)
+        // 2. Record the nudge so the NudgeEngine starts its cooldown timer
+        //
+        // The audio cue respects system volume and the mute switch (because
+        // AudioFeedbackService uses the .ambient audio session category).
+        // Watch haptic delivery will be added in Ticket 4.4.
         pipeline.$nudgeDecision
             .sink { [weak self] decision in
                 guard let self = self else { return }
                 if case .fire = decision {
-                    // Deliver feedback (audio cue, watch haptic — Tickets 4.2 & 4.4)
-                    // For now, just record that the nudge was fired so the
-                    // NudgeEngine can start its cooldown timer.
+                    // Play the audio feedback cue (subtle tone)
+                    self.audioService.playNudgeCue()
+
+                    // Record that the nudge was delivered so the NudgeEngine
+                    // can start its cooldown timer and increment the hourly counter.
                     let now = Date().timeIntervalSince1970
                     self.pipeline.recordNudgeFired(at: now)
                     print("🔔 Nudge fired at \(now)")

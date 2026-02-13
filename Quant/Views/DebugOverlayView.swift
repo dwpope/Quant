@@ -58,6 +58,16 @@ struct DebugOverlayView: View {
                 Text("Nudge: \(nudgeLabel)")
             }
 
+            // Audio feedback status (Ticket 4.2)
+            // Shows whether the audio cue is enabled and how many times it has played.
+            // Useful for verifying that nudges actually trigger audio during testing.
+            HStack(spacing: 4) {
+                Image(systemName: appModel.audioService.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                    .foregroundStyle(appModel.audioService.isEnabled ? .green : .red)
+                    .font(.system(size: 10))
+                Text("Audio: \(audioStatusLabel)")
+            }
+
             Divider()
 
             // Pose sample readout
@@ -147,6 +157,25 @@ struct DebugOverlayView: View {
         case .suppressed(let reason):
             return "Suppressed (\(reason.rawValue))"
         }
+    }
+
+    /// Human-readable label for the audio feedback status.
+    ///
+    /// Shows one of:
+    /// - "Off" — audio feedback is disabled
+    /// - "Ready" — enabled but hasn't played yet this session
+    /// - "Played (N)" — enabled and has played N times this session
+    ///
+    /// This helps during testing: you can trigger a nudge and immediately
+    /// see the play count increment to confirm audio delivery worked.
+    private var audioStatusLabel: String {
+        if !appModel.audioService.isEnabled {
+            return "Off"
+        }
+        if appModel.audioService.totalPlays == 0 {
+            return "Ready"
+        }
+        return "Played (\(appModel.audioService.totalPlays))"
     }
 
     private var modeColor: Color {
