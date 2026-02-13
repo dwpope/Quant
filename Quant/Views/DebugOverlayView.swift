@@ -35,6 +35,11 @@ struct DebugOverlayView: View {
                 Text("Tracking: \(appModel.trackingQuality.rawValue)")
             }
 
+            // Pose detection diagnostics
+            Text("Pose conf: \(appModel.poseConfidence, specifier: "%.2f")")
+            Text("Keypoints: \(appModel.poseKeypointCount)")
+            Text("Missing: \(appModel.missingCriticalJoints)")
+
             // FPS
             Text("FPS: \(appModel.fps, specifier: "%.1f")")
 

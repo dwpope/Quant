@@ -10,6 +10,9 @@ class AppModel: ObservableObject {
     @Published var depthConfidence: DepthConfidence = .unavailable
     @Published var trackingQuality: TrackingQuality = .lost
     @Published var fps: Float = 0.0
+    @Published var poseConfidence: Float = 0.0
+    @Published var poseKeypointCount: Int = 0
+    @Published var missingCriticalJoints: String = ""
     @Published var latestSample: PoseSample?
     @Published var postureState: PostureState = .absent
     @Published var nudgeDecision: NudgeDecision = .none
@@ -65,6 +68,15 @@ class AppModel: ObservableObject {
 
         pipeline.$fps
             .assign(to: &$fps)
+
+        pipeline.$poseConfidence
+            .assign(to: &$poseConfidence)
+
+        pipeline.$poseKeypointCount
+            .assign(to: &$poseKeypointCount)
+
+        pipeline.$missingCriticalJoints
+            .assign(to: &$missingCriticalJoints)
 
         pipeline.$postureState
             .assign(to: &$postureState)

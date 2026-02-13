@@ -10,6 +10,9 @@ public class Pipeline {
     @Published public var depthConfidence: DepthConfidence = .unavailable
     @Published public var trackingQuality: TrackingQuality = .lost
     @Published public var fps: Float = 0.0
+    @Published public var poseConfidence: Float = 0.0
+    @Published public var poseKeypointCount: Int = 0
+    @Published public var missingCriticalJoints: String = ""
     @Published public var postureState: PostureState = .absent
 
     /// The latest nudge decision from the NudgeEngine.
@@ -46,6 +49,11 @@ public class Pipeline {
     // FPS calculation
     private var lastFrameTime: TimeInterval = 0
     private var frameTimestamps: [TimeInterval] = []
+
+    // Frame throttle to avoid spawning async Tasks at 60fps
+    // Matches PoseService's ~10 FPS throttle rate
+    private var lastPoseFrameTime: TimeInterval = 0
+    private let poseFrameInterval: TimeInterval = 0.1
 
     // Tracking quality temporal smoothing
     private var currentTrackingQuality: TrackingQuality = .lost
@@ -86,14 +94,21 @@ public class Pipeline {
             self.currentMode = mode
         }
 
+        // Throttle async Task creation to ~10 FPS to prevent ARFrame retention.
+        // CVPixelBuffers in InputFrame keep ARFrames alive until the Task completes;
+        // spawning at 60fps causes 10+ ARFrames to pile up in flight.
+        guard frame.timestamp - lastPoseFrameTime >= poseFrameInterval else {
+            return
+        }
+        lastPoseFrameTime = frame.timestamp
+
         // Extract frame data to avoid retaining the entire InputFrame
         let hasPixelBuffer = frame.pixelBuffer != nil
 
         // Capture current tracking quality for hysteresis (must read on current thread to avoid race conditions)
         let currentQuality = currentTrackingQuality
 
-        // Process pose asynchronously
-        // Note: PoseService handles its own throttling to ~10 FPS to avoid Vision framework overload
+        // Process pose asynchronously at ~10 FPS
         Task { [weak self, poseService, frame] in
             guard let self = self else { return }
 
@@ -115,11 +130,13 @@ public class Pipeline {
             }
 
             // Determine tracking quality based on pose detection (with hysteresis)
-            let rawQuality: TrackingQuality = self.computeTrackingQuality(
+            let qualityResult = Pipeline.computeTrackingQualityWithDiag(
                 poseObservation: poseObservation,
                 hasPixelBuffer: hasPixelBuffer,
                 previousQuality: currentQuality
             )
+            let rawQuality = qualityResult.quality
+            let missingJoints = qualityResult.missingJoints
 
             // Apply temporal smoothing to prevent flickering
             // Update on main thread to ensure thread-safe access to recentQualities
@@ -130,17 +147,17 @@ public class Pipeline {
                     self.recentQualities.removeFirst()
                 }
 
-                // Determine final quality based on temporal smoothing
+                // Determine final quality using majority vote (2-of-3)
+                // instead of unanimous agreement, so one flicker doesn't block upgrades
                 let finalQuality: TrackingQuality
 
-                // If window is full, check if all values agree
                 if self.recentQualities.count == self.qualityWindowSize {
-                    let allSame = self.recentQualities.allSatisfy { $0 == self.recentQualities.first }
-                    if allSame && self.recentQualities.first != self.currentTrackingQuality {
-                        // All frames agree on a different quality - change state
-                        finalQuality = self.recentQualities.first!
+                    // Count occurrences of each quality level
+                    let counts = Dictionary(grouping: self.recentQualities, by: { $0 })
+                    // Pick the quality that appears most often (majority wins)
+                    if let majority = counts.max(by: { $0.value.count < $1.value.count })?.key {
+                        finalQuality = majority
                     } else {
-                        // Window doesn't agree or agrees with current state - keep current
                         finalQuality = self.currentTrackingQuality
                     }
                 } else {
@@ -150,6 +167,9 @@ public class Pipeline {
 
                 // Update published properties
                 self.latestPoseObservation = poseObservation
+                self.poseConfidence = poseObservation?.confidence ?? 0.0
+                self.poseKeypointCount = poseObservation?.keypoints.count ?? 0
+                self.missingCriticalJoints = missingJoints
                 self.trackingQuality = finalQuality
                 self.currentTrackingQuality = finalQuality
 
@@ -201,62 +221,74 @@ public class Pipeline {
         }
     }
 
-    private func computeTrackingQuality(poseObservation: PoseObservation?, hasPixelBuffer: Bool, previousQuality: TrackingQuality) -> TrackingQuality {
+    static func computeTrackingQuality(poseObservation: PoseObservation?, hasPixelBuffer: Bool, previousQuality: TrackingQuality) -> TrackingQuality {
+        return computeTrackingQualityWithDiag(poseObservation: poseObservation, hasPixelBuffer: hasPixelBuffer, previousQuality: previousQuality).quality
+    }
+
+    struct TrackingQualityResult {
+        let quality: TrackingQuality
+        let missingJoints: String
+    }
+
+    static func computeTrackingQualityWithDiag(poseObservation: PoseObservation?, hasPixelBuffer: Bool, previousQuality: TrackingQuality) -> TrackingQualityResult {
         // No pixel buffer = lost
         guard hasPixelBuffer else {
-            return .lost
+            return TrackingQualityResult(quality: .lost, missingJoints: "no pixelBuffer")
         }
 
         // No pose detected = lost
         guard let observation = poseObservation else {
-            return .lost
+            return TrackingQualityResult(quality: .lost, missingJoints: "no pose")
         }
 
-        // Check if we have the critical keypoints (shoulders and head)
-        let hasLeftShoulder = observation.keypoints.contains { $0.joint == .leftShoulder && $0.confidence > 0.5 }
-        let hasRightShoulder = observation.keypoints.contains { $0.joint == .rightShoulder && $0.confidence > 0.5 }
+        let minConf: Float = 0.3
+
+        // Check critical keypoints — at least ONE shoulder + head region
+        let hasLeftShoulder = observation.keypoints.contains { $0.joint == .leftShoulder && $0.confidence > minConf }
+        let hasRightShoulder = observation.keypoints.contains { $0.joint == .rightShoulder && $0.confidence > minConf }
+        let hasAnyShoulder = hasLeftShoulder || hasRightShoulder
+
+        // Accept any head-region joint (nose, eyes, ears)
+        let headJoints: Set<Joint> = [.nose, .leftEye, .rightEye, .leftEar, .rightEar]
         let hasHead = observation.keypoints.contains {
-            ($0.joint == .nose || $0.joint == .leftEye || $0.joint == .rightEye) && $0.confidence > 0.5
+            headJoints.contains($0.joint) && $0.confidence > minConf
         }
 
         let keypointCount = observation.keypoints.count
 
-        // Apply hysteresis to prevent rapid state changes
-        // Use different thresholds depending on current state to create "buffer zones"
+        // Build diagnostic string for missing joints
+        var missing: [String] = []
+        if !hasLeftShoulder { missing.append("LShldr") }
+        if !hasRightShoulder { missing.append("RShldr") }
+        if !hasHead { missing.append("Head") }
+        let missingStr = missing.isEmpty ? "none" : missing.joined(separator: ",")
 
-        // Need at least shoulders and head for good tracking
-        if hasLeftShoulder && hasRightShoulder && hasHead {
+        // Need at least one shoulder and a head joint for good tracking
+        if hasAnyShoulder && hasHead {
             // Determine confidence threshold based on previous state (hysteresis)
             let confidenceThreshold: Float
             switch previousQuality {
             case .good:
-                // Higher bar to drop from good to degraded
-                confidenceThreshold = 0.65
-            case .degraded, .lost:
-                // Lower bar to upgrade to good
                 confidenceThreshold = 0.75
+            case .degraded, .lost:
+                confidenceThreshold = 0.65
             }
 
-            return observation.confidence > confidenceThreshold ? .good : .degraded
+            let quality: TrackingQuality = observation.confidence > confidenceThreshold ? .good : .degraded
+            return TrackingQualityResult(quality: quality, missingJoints: missingStr)
         }
 
         // Some keypoints but not enough for good tracking
-        // Use hysteresis for degraded <-> lost transitions
         let keypointThreshold: Int
         switch previousQuality {
         case .lost:
-            // Need more keypoints to upgrade from lost to degraded
             keypointThreshold = 4
         case .degraded, .good:
-            // Need fewer keypoints to downgrade to lost
             keypointThreshold = 2
         }
 
-        if keypointCount >= keypointThreshold {
-            return .degraded
-        }
-
-        return .lost
+        let quality: TrackingQuality = keypointCount >= keypointThreshold ? .degraded : .lost
+        return TrackingQualityResult(quality: quality, missingJoints: missingStr)
     }
 
     // MARK: - Nudge Control Methods
