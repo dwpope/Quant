@@ -381,11 +381,11 @@ Sprint 2 (DONE):
     2.1 ──→ 2.2 ──→ 2.3 ──→ 2.4 ──→ 2.5
               │                │
               ▼                ▼
-Sprint 3 (calibration + state machine):
+Sprint 3 (DONE):
              3.1              3.2
               │                │
               ▼                ▼
-Sprint 4 (nudge + watch):
+Sprint 4 (DONE):
              4.1 ──→ 4.2
               │──→ 4.3
               │──→ 4.4
@@ -462,8 +462,15 @@ protocol DebugDumpable {
 
 // MARK: - Pose
 
+enum PoseDetectionResult {
+    case observation(PoseObservation)
+    case throttled
+    case noPose
+    case failed
+}
+
 protocol PoseServiceProtocol: DebugDumpable {
-    func process(frame: InputFrame) async -> PoseObservation?
+    func process(frame: InputFrame) async -> PoseDetectionResult
 }
 
 // MARK: - Depth
@@ -476,7 +483,7 @@ protocol DepthServiceProtocol: DebugDumpable {
 // MARK: - Fusion
 
 protocol PoseDepthFusionProtocol: DebugDumpable {
-    func fuse(pose: PoseObservation, depthSamples: [DepthAtPoint]?, confidence: DepthConfidence) -> PoseSample
+    mutating func fuse(pose: PoseObservation, depthSamples: [DepthAtPoint]?, confidence: DepthConfidence, trackingQuality: TrackingQuality) -> PoseSample?
 }
 
 // MARK: - Metrics
@@ -514,8 +521,36 @@ protocol ReplayServiceProtocol: DebugDumpable {
 // MARK: - Nudge
 
 protocol NudgeEngineProtocol: DebugDumpable {
-    func evaluate(state: PostureState, trackingQuality: TrackingQuality, movementLevel: Float, taskMode: TaskMode) -> NudgeDecision
+    func evaluate(state: PostureState, trackingQuality: TrackingQuality, movementLevel: Float, taskMode: TaskMode, currentTime: TimeInterval) -> NudgeDecision
+    func recordNudgeFired(at currentTime: TimeInterval)
     func recordAcknowledgement()
+    func reset()
+}
+
+// MARK: - Pipeline (Central Orchestrator)
+
+class Pipeline {
+    // Published outputs
+    @Published var latestSample: PoseSample?
+    @Published var latestMetrics: RawMetrics?
+    @Published var currentMode: DepthMode
+    @Published var depthConfidence: DepthConfidence
+    @Published var trackingQuality: TrackingQuality
+    @Published var fps: Float
+    @Published var poseConfidence: Float
+    @Published var poseKeypointCount: Int
+    @Published var missingCriticalJoints: String
+    @Published var postureState: PostureState
+    @Published var nudgeDecision: NudgeDecision
+
+    var baseline: Baseline?
+
+    // Orchestrates: PoseService → PoseDepthFusion → MetricsEngine → MetricsSmoother → PostureEngine → NudgeEngine
+    // Includes: frame throttling, temporal tracking quality smoothing (3-frame majority vote), FPS computation
+
+    func recordNudgeFired()
+    func recordNudgeAcknowledgement()
+    func resetNudgeEngine()
 }
 ```
 
@@ -598,6 +633,7 @@ struct PoseSample: Codable {
     let headForwardOffset: Float       // How far head is forward of shoulders
     let shoulderTwist: Float           // Rotation in degrees
 
+    let shoulderWidthRaw: Float        // Raw shoulder width in image coords (0-1), preserves scale signal for forward creep
     let trackingQuality: TrackingQuality
 }
 
@@ -1156,6 +1192,13 @@ struct DebugOverlayView: View {
 }
 ```
 
+**Implementation notes** (actual): The debug overlay expanded beyond the minimal version to include:
+- Posture state with duration timing
+- Nudge decision with countdown timers
+- Audio feedback status (enable state, play count)
+- Watch connectivity status (paired/reachable, send count)
+- Full pose sample readout (head, shoulders, torso angle, twist, shoulder width)
+
 **Manual test steps**
 
 1. Run on device and verify the debug overlay is visible and updates live (mode, depth, tracking, FPS).
@@ -1299,6 +1342,12 @@ public struct PoseDepthFusion: PoseDepthFusionProtocol {
     }
 }
 ```
+
+**Implementation notes** (actual):
+- Returns `PoseSample?` (optional) — returns nil on missing critical keypoints
+- Head position fallback chain: nose → eye midpoint → single eye → ear midpoint
+- Validates shoulder width is not degenerate
+- Accepts `trackingQuality` parameter
 
 **Manual test steps**
 
@@ -1478,6 +1527,10 @@ struct MetricsSmoother {
 }
 ```
 
+**Implementation notes** (actual):
+- Also computes `movementLevel`: frame-to-frame velocity of shoulders+head, normalized to 0-1
+- Also computes `headMovementPattern` classification: uses sliding window of recent head positions, computes mean displacement and variance to classify as `.still`, `.smallOscillations`, `.largeMovements`, or `.erratic`
+
 **Manual test steps**
 
 1. Enable debug logging of raw vs smoothed metrics and perform small jittery movements; confirm smoothed values change less than raw.
@@ -1495,7 +1548,7 @@ struct MetricsSmoother {
 
 ---
 
-### Sprint 3 — Calibration + Posture State Machine
+### Sprint 3 — Calibration + Posture State Machine  ✅ DONE
 
 > **Focus**: Establish the user's "good posture" baseline via guided calibration, then build the state machine that judges posture over time. These two pieces connect metrics to decisions.
 
@@ -1534,6 +1587,8 @@ struct CalibrationView: View {
             switch status {
             case .waiting:
                 Text("Position yourself in frame...")
+            case .countdown(let seconds):
+                Text("\(seconds)")  // Animated countdown before sampling
             case .sampling:
                 Text("Hold still...")
             case .validating:
@@ -1549,6 +1604,13 @@ struct CalibrationView: View {
     }
 }
 ```
+
+**Implementation notes** (actual):
+- `CalibrationConfig` struct with configurable thresholds (sample count, positional/angular variance limits)
+- SIMD-based positional and angular variance validation
+- Median aggregation for baseline computation
+- 3-second countdown before sampling begins (`CalibrationStatus.countdown`)
+- Countdown UI in CalibrationView with animated numeric display
 
 **Manual test steps**
 
@@ -1657,18 +1719,18 @@ func test_pausesTimer_whenTrackingQualityLow() { ... }
 
 #### Sprint 3 — Definition of Done
 
-- [ ] Calibration flow guides user through setup
-- [ ] Calibration rejects if user moves too much
-- [ ] Calibration rejects if tracking quality is poor
-- [ ] Baseline persists across app launches
-- [ ] PostureEngine transitions through all states correctly
-- [ ] State machine pauses timing when tracking quality drops
-- [ ] Debug UI shows current posture state
-- [ ] All unit tests pass for calibration and `PostureEngine`
+- [x] Calibration flow guides user through setup
+- [x] Calibration rejects if user moves too much
+- [x] Calibration rejects if tracking quality is poor
+- [x] Baseline persists across app launches
+- [x] PostureEngine transitions through all states correctly
+- [x] State machine pauses timing when tracking quality drops
+- [x] Debug UI shows current posture state
+- [x] All unit tests pass for calibration and `PostureEngine`
 
 ---
 
-### Sprint 4 — Nudges + Watch Connectivity (MVP Complete)
+### Sprint 4 — Nudges + Watch Connectivity (MVP Complete)  ✅ DONE
 
 > **Focus**: The final MVP sprint. Wire up the nudge engine, audio feedback, acknowledgement detection, and Apple Watch haptics. At the end of this sprint, the core loop works: camera → keypoints → metrics → state machine → nudge → watch tap.
 
@@ -1771,6 +1833,13 @@ public final class NudgeEngine: NudgeEngineProtocol {
 | **Outputs** | Audio playback |
 | **Acceptance** | Sound is pleasant, not jarring; respects system volume |
 
+**Implementation notes** (actual):
+- Programmatic 880Hz sine wave generation (no external audio files)
+- In-memory WAV with fade-in (10%) / fade-out (30%) envelope
+- `.ambient` audio session category (respects system volume + mute switch)
+- 0.5s minimum play interval guard
+- Configurable volume (default 0.3) and enable/disable toggle
+
 **Manual test steps**
 
 1. Trigger a nudge (via replay or by temporarily lowering thresholds) and confirm the audio cue plays once when `fire` occurs.
@@ -1806,6 +1875,12 @@ public final class NudgeEngine: NudgeEngineProtocol {
 | **Outputs** | Haptic on Watch |
 | **Acceptance** | Watch receives haptic within 2 seconds of nudge |
 
+**Implementation notes** (actual):
+- iPhone: dual-channel delivery — `sendMessage` for real-time, `transferUserInfo` fallback
+- Watch: full `WatchSessionDelegate` with haptic playback and connection state tracking
+- Watch UI: `ContentView` showing connection status indicator and last nudge time
+- Debug state: isPaired, isReachable, totalSent, lastSentTime
+
 **Manual test steps**
 
 1. Pair an Apple Watch with the iPhone and install the watch companion app (or watch extension) as needed.
@@ -1814,15 +1889,15 @@ public final class NudgeEngine: NudgeEngineProtocol {
 
 #### Sprint 4 — Definition of Done
 
-- [ ] Nudge fires after sustained slouch (default 5 minutes)
-- [ ] Cooldown prevents rapid re-nudging
-- [ ] Max nudges per hour limit respected
-- [ ] Audio feedback plays on nudge
-- [ ] Acknowledgement detection works when user corrects posture
-- [ ] Watch receives haptic within 2 seconds of phone nudge
-- [ ] Watch app installs and pairs correctly
-- [ ] All NudgeEngine unit tests pass
-- [ ] End-to-end test: slouch → wait → nudge → correct → no re-nudge
+- [x] Nudge fires after sustained slouch (default 5 minutes)
+- [x] Cooldown prevents rapid re-nudging
+- [x] Max nudges per hour limit respected
+- [x] Audio feedback plays on nudge
+- [x] Acknowledgement detection works when user corrects posture
+- [x] Watch receives haptic within 2 seconds of phone nudge
+- [x] Watch app installs and pairs correctly
+- [x] All NudgeEngine unit tests pass
+- [x] End-to-end test: slouch → wait → nudge → correct → no re-nudge
 
 ---
 
