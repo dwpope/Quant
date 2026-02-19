@@ -6,31 +6,84 @@
 //
 
 import XCTest
+import PostureLogic
+import simd
 @testable import Quant
 
-final class QuantTests: XCTestCase {
+@MainActor
+final class AppModelTests: XCTestCase {
+    private let baselineKey = "com.quant.savedBaseline"
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+        UserDefaults.standard.removeObject(forKey: baselineKey)
     }
 
     override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+        UserDefaults.standard.removeObject(forKey: baselineKey)
     }
 
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // Any test you write for XCTest can be annotated as throws and async.
-        // Mark your test throws to produce an unexpected failure when your test encounters an uncaught error.
-        // Mark your test async to allow awaiting for asynchronous code to complete. Check the results with assertions afterwards.
+    func test_init_requiresCalibrationWhenNoSavedBaseline() {
+        let model = AppModel()
+
+        XCTAssertTrue(model.needsCalibration)
+        XCTAssertNil(model.baseline)
     }
 
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
+    func test_init_loadsFreshBaselineFromUserDefaults() throws {
+        let expected = makeBaseline(timestamp: Date())
+        let data = try JSONEncoder().encode(expected)
+        UserDefaults.standard.set(data, forKey: baselineKey)
+
+        let model = AppModel()
+        guard let loaded = model.baseline else {
+            XCTFail("Expected baseline to be loaded from UserDefaults")
+            return
         }
+
+        XCTAssertFalse(model.needsCalibration)
+        XCTAssertEqual(loaded.depthAvailable, expected.depthAvailable)
+        XCTAssertEqual(loaded.shoulderWidth, expected.shoulderWidth, accuracy: 0.0001)
+        XCTAssertEqual(loaded.torsoAngle, expected.torsoAngle, accuracy: 0.0001)
+    }
+
+    func test_init_discardsStaleBaselineFromUserDefaults() throws {
+        let stale = makeBaseline(timestamp: Date().addingTimeInterval(-7_200))
+        let data = try JSONEncoder().encode(stale)
+        UserDefaults.standard.set(data, forKey: baselineKey)
+
+        let model = AppModel()
+
+        XCTAssertTrue(model.needsCalibration)
+        XCTAssertNil(model.baseline)
+        XCTAssertNil(UserDefaults.standard.data(forKey: baselineKey))
+    }
+
+    func test_recalibrate_clearsLoadedBaselineAndResetsCalibrationState() throws {
+        let expected = makeBaseline(timestamp: Date())
+        let data = try JSONEncoder().encode(expected)
+        UserDefaults.standard.set(data, forKey: baselineKey)
+
+        let model = AppModel()
+        XCTAssertFalse(model.needsCalibration)
+        XCTAssertNotNil(model.baseline)
+
+        model.recalibrate()
+
+        XCTAssertTrue(model.needsCalibration)
+        XCTAssertNil(model.baseline)
+        XCTAssertEqual(model.calibrationStatus, .waiting)
+        XCTAssertEqual(model.calibrationProgress, 0, accuracy: 0.0001)
+    }
+
+    private func makeBaseline(timestamp: Date) -> Baseline {
+        Baseline(
+            timestamp: timestamp,
+            shoulderMidpoint: SIMD3<Float>(0, 0, 0),
+            headPosition: SIMD3<Float>(0, 1, 0),
+            torsoAngle: 4.0,
+            shoulderWidth: 0.42,
+            depthAvailable: true
+        )
     }
 
 }

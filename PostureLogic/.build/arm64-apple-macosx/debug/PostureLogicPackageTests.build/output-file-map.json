@@ -6,6 +6,7 @@
     "dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.d",
     "object": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swift.o",
     "swiftmodule": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner~partial.swiftmodule",
-    "swift-dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swiftdeps"
+    "swift-dependencies": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.swiftdeps",
+    "diagnostics": "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicPackageTests.build/runner.dia"
   }
 }
