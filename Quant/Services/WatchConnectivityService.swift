@@ -69,7 +69,7 @@ final class WatchConnectivityService: NSObject {
     ///
     /// Safe to call at any time — if no Watch is paired or WCSession
     /// is not supported, this is a no-op.
-    func sendNudge(hapticType: String = "notification") {
+    func sendNudge(hapticType: String = "failure") {
         guard WCSession.isSupported() else { return }
 
         let session = WCSession.default

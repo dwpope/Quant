@@ -19,7 +19,8 @@ final class ARSessionService: NSObject, PoseProvider {
         sessionStateSubject.eraseToAnyPublisher()
     }
 
-    private let session = ARSession()
+    /// The underlying ARSession, exposed so an ARView can share it for camera preview.
+    let session = ARSession()
     private let frameSubject = PassthroughSubject<InputFrame, Never>()
     private let sessionStateSubject = CurrentValueSubject<SessionState, Never>(.idle)
     private let logger = Logger(subsystem: "com.quant.posture", category: "ARSession")

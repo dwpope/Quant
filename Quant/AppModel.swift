@@ -24,6 +24,10 @@ class AppModel: ObservableObject {
     @Published var baseline: Baseline?
     @Published var needsCalibration: Bool = true
 
+    // MARK: - Camera Preview
+
+    @Published var showCameraPreview: Bool = true
+
     // MARK: - Audio Feedback
 
     /// The audio feedback service that plays a subtle tone when a nudge fires.
@@ -42,11 +46,11 @@ class AppModel: ObservableObject {
     private(set) var watchService = WatchConnectivityService()
 
     /// The haptic type to use when sending a test nudge to the Watch.
-    @Published var selectedHaptic: String = "notification"
+    @Published var selectedHaptic: String = "failure"
 
     // MARK: - Private Properties
 
-    private let arService = ARSessionService()
+    let arService = ARSessionService()
     private lazy var pipeline: Pipeline = {
         Pipeline(provider: arService)
     }()
@@ -118,7 +122,7 @@ class AppModel: ObservableObject {
                     self.audioService.playNudgeCue()
 
                     // Send haptic nudge to Apple Watch
-                    self.watchService.sendNudge()
+                    self.watchService.sendNudge(hapticType: self.selectedHaptic)
 
                     // Record that the nudge was delivered so the NudgeEngine
                     // can start its cooldown timer and increment the hourly counter.

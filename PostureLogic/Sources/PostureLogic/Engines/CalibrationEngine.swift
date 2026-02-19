@@ -76,7 +76,8 @@ public final class CalibrationEngine {
     public var progress: Float {
         guard let start = startTime, let last = collectedSamples.last else { return 0 }
         let elapsed = last.timestamp - start
-        return min(1.0, Float(elapsed / config.samplingDuration))
+        let raw = Float(elapsed / config.samplingDuration)
+        return raw.isNaN ? 0 : min(1.0, max(0.0, raw))
     }
 
     public func reset() {

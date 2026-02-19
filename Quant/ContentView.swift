@@ -12,6 +12,11 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
+            if appModel.showCameraPreview {
+                CameraPreviewView(session: appModel.arService.session)
+                    .ignoresSafeArea()
+            }
+
             if appModel.needsCalibration {
                 CalibrationView(appModel: appModel)
             } else {
@@ -58,6 +63,16 @@ struct ContentView: View {
                         .font(.caption)
                         .buttonStyle(.bordered)
                         .padding()
+                    }
+
+                    Button {
+                        appModel.showCameraPreview.toggle()
+                    } label: {
+                        Image(systemName: appModel.showCameraPreview ? "eye.fill" : "eye.slash")
+                            .font(.title2)
+                            .padding(10)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
                     }
                 }
             }
