@@ -14,6 +14,9 @@ struct QuantWatch_Watch_AppApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(sessionDelegate: sessionDelegate)
+                .onAppear {
+                    sessionDelegate.requestNotificationPermission()
+                }
         }
     }
 }

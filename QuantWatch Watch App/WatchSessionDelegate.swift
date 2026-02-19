@@ -9,6 +9,7 @@
 
 import WatchConnectivity
 import WatchKit
+import UserNotifications
 import os.log
 
 /// Receives nudge messages from the iPhone and delivers haptic feedback.
@@ -43,12 +44,45 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         logger.info("WCSession activation requested on Watch")
     }
 
+    // MARK: - Public Methods
+
+    /// Request notification permission so nudges can appear as visible alerts.
+    func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if let error {
+                self.logger.error("Notification permission error: \(error.localizedDescription)")
+            } else {
+                self.logger.info("Notification permission granted: \(granted)")
+            }
+        }
+    }
+
     // MARK: - Private Methods
 
     private func handleNudge(_ hapticType: WKHapticType = .notification) {
         WKInterfaceDevice.current().play(hapticType)
+        scheduleNudgeNotification()
         lastNudgeTime = Date()
         logger.info("⌚ Haptic nudge delivered")
+    }
+
+    private func scheduleNudgeNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Posture Check"
+        content.body = "Straighten up!"
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "nudge-\(UUID().uuidString)",
+            content: content,
+            trigger: nil  // Deliver immediately
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                self.logger.error("Failed to schedule notification: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func parseHapticType(from message: [String: Any]) -> WKHapticType {
