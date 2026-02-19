@@ -45,10 +45,26 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
 
     // MARK: - Private Methods
 
-    private func handleNudge() {
-        WKInterfaceDevice.current().play(.notification)
+    private func handleNudge(_ hapticType: WKHapticType = .notification) {
+        WKInterfaceDevice.current().play(hapticType)
         lastNudgeTime = Date()
         logger.info("⌚ Haptic nudge delivered")
+    }
+
+    private func parseHapticType(from message: [String: Any]) -> WKHapticType {
+        guard let name = message["haptic"] as? String else { return .notification }
+        switch name {
+        case "notification": return .notification
+        case "directionUp": return .directionUp
+        case "directionDown": return .directionDown
+        case "success": return .success
+        case "failure": return .failure
+        case "retry": return .retry
+        case "start": return .start
+        case "stop": return .stop
+        case "click": return .click
+        default: return .notification
+        }
     }
 }
 
@@ -73,15 +89,17 @@ extension WatchSessionDelegate: WCSessionDelegate {
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         guard message["type"] as? String == "nudge" else { return }
+        let haptic = parseHapticType(from: message)
         DispatchQueue.main.async {
-            self.handleNudge()
+            self.handleNudge(haptic)
         }
     }
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         guard userInfo["type"] as? String == "nudge" else { return }
+        let haptic = parseHapticType(from: userInfo)
         DispatchQueue.main.async {
-            self.handleNudge()
+            self.handleNudge(haptic)
         }
     }
 }

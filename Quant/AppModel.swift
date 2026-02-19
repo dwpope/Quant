@@ -41,6 +41,9 @@ class AppModel: ObservableObject {
     /// (e.g., paired, reachable, send count) but only AppModel can trigger sends.
     private(set) var watchService = WatchConnectivityService()
 
+    /// The haptic type to use when sending a test nudge to the Watch.
+    @Published var selectedHaptic: String = "notification"
+
     // MARK: - Private Properties
 
     private let arService = ARSessionService()
@@ -204,6 +207,10 @@ class AppModel: ObservableObject {
         pipeline.baseline = nil
         needsCalibration = true
         startCalibration()
+    }
+
+    func sendTestNudge() {
+        watchService.sendNudge(hapticType: selectedHaptic)
     }
 
     // MARK: - Private Methods
