@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var appModel: AppModel
+    @State private var showSettings = false
 
     var body: some View {
         ZStack {
@@ -66,6 +67,16 @@ struct ContentView: View {
                     }
 
                     Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.title2)
+                            .padding(10)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                    }
+
+                    Button {
                         appModel.showCameraPreview.toggle()
                     } label: {
                         Image(systemName: appModel.showCameraPreview ? "eye.fill" : "eye.slash")
@@ -78,6 +89,9 @@ struct ContentView: View {
             }
         }
         .padding()
+        .sheet(isPresented: $showSettings) {
+            CalibrationSettingsView()
+        }
     }
 
     private var monitoringView: some View {

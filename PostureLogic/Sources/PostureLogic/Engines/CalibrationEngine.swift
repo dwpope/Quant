@@ -11,8 +11,8 @@ public struct CalibrationConfig {
     public init(
         requiredSamples: Int = 30,
         samplingDuration: TimeInterval = 5.0,
-        maxPositionVariance: Float = 0.02,
-        maxAngleVariance: Float = 3.0,
+        maxPositionVariance: Float = 0.06,
+        maxAngleVariance: Float = 6.0,
         minTrackingQuality: TrackingQuality = .good
     ) {
         self.requiredSamples = requiredSamples

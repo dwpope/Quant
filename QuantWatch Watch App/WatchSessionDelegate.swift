@@ -26,6 +26,22 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     /// Whether the WCSession is currently activated and reachable.
     @Published var isConnected: Bool = false
 
+    // MARK: - Calibration Settings (synced from iPhone)
+
+    @Published var maxPositionVariance: Float = 0.06
+    @Published var maxAngleVariance: Float = 6.0
+    @Published var samplingDuration: Double = 5.0
+    @Published var countdownDuration: Int = 3
+
+    // MARK: - Settings Keys
+
+    private enum Keys {
+        static let maxPositionVariance = "com.quant.cal.maxPositionVariance"
+        static let maxAngleVariance = "com.quant.cal.maxAngleVariance"
+        static let samplingDuration = "com.quant.cal.samplingDuration"
+        static let countdownDuration = "com.quant.cal.countdownDuration"
+    }
+
     // MARK: - Private Properties
 
     private let logger = Logger(subsystem: "com.quant.posture", category: "WatchSession")
@@ -54,6 +70,53 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
             } else {
                 self.logger.info("Notification permission granted: \(granted)")
             }
+        }
+    }
+
+    /// Send a calibration request to the iPhone.
+    func sendCalibrateRequest() {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            logger.warning("WCSession not activated — cannot send calibrate request")
+            return
+        }
+
+        let message: [String: Any] = ["type": "calibrate"]
+        if session.isReachable {
+            session.sendMessage(message, replyHandler: nil) { [weak self] error in
+                self?.logger.error("Failed to send calibrate request: \(error.localizedDescription)")
+            }
+            logger.info("⌚ Calibrate request sent to iPhone")
+        } else {
+            logger.warning("iPhone not reachable — cannot send calibrate request")
+        }
+    }
+
+    /// Send updated calibration settings to the iPhone.
+    func sendSettings() {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            logger.warning("WCSession not activated — cannot send settings")
+            return
+        }
+
+        let message: [String: Any] = [
+            "type": "settings",
+            Keys.maxPositionVariance: maxPositionVariance,
+            Keys.maxAngleVariance: maxAngleVariance,
+            Keys.samplingDuration: samplingDuration,
+            Keys.countdownDuration: countdownDuration
+        ]
+
+        if session.isReachable {
+            session.sendMessage(message, replyHandler: nil) { [weak self] error in
+                self?.logger.error("Failed to send settings: \(error.localizedDescription)")
+            }
+            logger.info("⌚ Settings sent to iPhone")
+        } else {
+            logger.warning("iPhone not reachable — cannot send settings")
         }
     }
 
@@ -100,6 +163,22 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         default: return .notification
         }
     }
+
+    private func applySettings(from context: [String: Any]) {
+        if let val = context[Keys.maxPositionVariance] as? Float {
+            maxPositionVariance = val
+        }
+        if let val = context[Keys.maxAngleVariance] as? Float {
+            maxAngleVariance = val
+        }
+        if let val = context[Keys.samplingDuration] as? Double {
+            samplingDuration = val
+        }
+        if let val = context[Keys.countdownDuration] as? Int {
+            countdownDuration = val
+        }
+        logger.info("⌚ Calibration settings updated from iPhone")
+    }
 }
 
 // MARK: - WCSessionDelegate
@@ -118,14 +197,25 @@ extension WatchSessionDelegate: WCSessionDelegate {
             logger.error("WCSession activation failed: \(error.localizedDescription)")
         } else {
             logger.info("WCSession activated on Watch")
+            // Apply any settings that arrived before activation
+            if !session.receivedApplicationContext.isEmpty {
+                DispatchQueue.main.async {
+                    self.applySettings(from: session.receivedApplicationContext)
+                }
+            }
         }
     }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        guard message["type"] as? String == "nudge" else { return }
-        let haptic = parseHapticType(from: message)
-        DispatchQueue.main.async {
-            self.handleNudge(haptic)
+        guard let type = message["type"] as? String else { return }
+        switch type {
+        case "nudge":
+            let haptic = parseHapticType(from: message)
+            DispatchQueue.main.async {
+                self.handleNudge(haptic)
+            }
+        default:
+            break
         }
     }
 
@@ -134,6 +224,12 @@ extension WatchSessionDelegate: WCSessionDelegate {
         let haptic = parseHapticType(from: userInfo)
         DispatchQueue.main.async {
             self.handleNudge(haptic)
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        DispatchQueue.main.async {
+            self.applySettings(from: applicationContext)
         }
     }
 }

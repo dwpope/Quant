@@ -24,6 +24,39 @@ class AppModel: ObservableObject {
     @Published var baseline: Baseline?
     @Published var needsCalibration: Bool = true
 
+    // MARK: - Calibration Settings
+
+    @Published var maxPositionVariance: Float {
+        didSet {
+            UserDefaults.standard.set(maxPositionVariance, forKey: Keys.maxPositionVariance)
+            rebuildCalibrationEngine()
+            syncSettingsToWatch()
+        }
+    }
+
+    @Published var maxAngleVariance: Float {
+        didSet {
+            UserDefaults.standard.set(maxAngleVariance, forKey: Keys.maxAngleVariance)
+            rebuildCalibrationEngine()
+            syncSettingsToWatch()
+        }
+    }
+
+    @Published var samplingDuration: Double {
+        didSet {
+            UserDefaults.standard.set(samplingDuration, forKey: Keys.samplingDuration)
+            rebuildCalibrationEngine()
+            syncSettingsToWatch()
+        }
+    }
+
+    @Published var countdownDuration: Int {
+        didSet {
+            UserDefaults.standard.set(countdownDuration, forKey: Keys.countdownDuration)
+            syncSettingsToWatch()
+        }
+    }
+
     // MARK: - Camera Preview
 
     @Published var showCameraPreview: Bool = true
@@ -55,20 +88,51 @@ class AppModel: ObservableObject {
         Pipeline(provider: arService)
     }()
     private var cancellables = Set<AnyCancellable>()
-    private let calibrationEngine = CalibrationEngine()
+    private var calibrationEngine: CalibrationEngine
     private var lastNudgeFiredTime: TimeInterval?
     private var countdownTimer: Timer?
     private var countdownRemaining: Int = 0
-    private let countdownDuration: Int = 3
     private var countdownCompleted: Bool = false
 
     private static let baselineKey = "com.quant.savedBaseline"
 
+    private enum Keys {
+        static let maxPositionVariance = "com.quant.cal.maxPositionVariance"
+        static let maxAngleVariance = "com.quant.cal.maxAngleVariance"
+        static let samplingDuration = "com.quant.cal.samplingDuration"
+        static let countdownDuration = "com.quant.cal.countdownDuration"
+    }
+
+    static let defaultMaxPositionVariance: Float = 0.06
+    static let defaultMaxAngleVariance: Float = 6.0
+    static let defaultSamplingDuration: Double = 5.0
+    static let defaultCountdownDuration: Int = 3
+
     // MARK: - Initialization
 
     init() {
+        let defaults = UserDefaults.standard
+
+        let posVar = defaults.object(forKey: Keys.maxPositionVariance) as? Float ?? Self.defaultMaxPositionVariance
+        let angVar = defaults.object(forKey: Keys.maxAngleVariance) as? Float ?? Self.defaultMaxAngleVariance
+        let sampDur = defaults.object(forKey: Keys.samplingDuration) as? Double ?? Self.defaultSamplingDuration
+        let countDur = defaults.object(forKey: Keys.countdownDuration) as? Int ?? Self.defaultCountdownDuration
+
+        self.maxPositionVariance = posVar
+        self.maxAngleVariance = angVar
+        self.samplingDuration = sampDur
+        self.countdownDuration = countDur
+
+        let config = CalibrationConfig(
+            samplingDuration: sampDur,
+            maxPositionVariance: posVar,
+            maxAngleVariance: angVar
+        )
+        self.calibrationEngine = CalibrationEngine(config: config)
+
         loadBaseline()
         setupPipeline()
+        setupWatchSubscriptions()
     }
 
     // MARK: - Pipeline Setup
@@ -180,6 +244,22 @@ class AppModel: ObservableObject {
             .store(in: &cancellables)
     }
 
+    // MARK: - Watch Subscriptions
+
+    private func setupWatchSubscriptions() {
+        watchService.calibrationRequested
+            .sink { [weak self] in
+                self?.recalibrate()
+            }
+            .store(in: &cancellables)
+
+        watchService.settingsReceived
+            .sink { [weak self] settings in
+                self?.applySettingsFromWatch(settings)
+            }
+            .store(in: &cancellables)
+    }
+
     // MARK: - Public Methods
 
     func startMonitoring() async {
@@ -217,7 +297,48 @@ class AppModel: ObservableObject {
         watchService.sendNudge(hapticType: selectedHaptic)
     }
 
+    func resetCalibrationSettings() {
+        maxPositionVariance = Self.defaultMaxPositionVariance
+        maxAngleVariance = Self.defaultMaxAngleVariance
+        samplingDuration = Self.defaultSamplingDuration
+        countdownDuration = Self.defaultCountdownDuration
+    }
+
     // MARK: - Private Methods
+
+    private func rebuildCalibrationEngine() {
+        let config = CalibrationConfig(
+            samplingDuration: samplingDuration,
+            maxPositionVariance: maxPositionVariance,
+            maxAngleVariance: maxAngleVariance
+        )
+        calibrationEngine = CalibrationEngine(config: config)
+    }
+
+    private func syncSettingsToWatch() {
+        let settings: [String: Any] = [
+            Keys.maxPositionVariance: maxPositionVariance,
+            Keys.maxAngleVariance: maxAngleVariance,
+            Keys.samplingDuration: samplingDuration,
+            Keys.countdownDuration: countdownDuration
+        ]
+        watchService.sendSettings(settings)
+    }
+
+    private func applySettingsFromWatch(_ settings: [String: Any]) {
+        if let val = settings[Keys.maxPositionVariance] as? Float {
+            maxPositionVariance = val
+        }
+        if let val = settings[Keys.maxAngleVariance] as? Float {
+            maxAngleVariance = val
+        }
+        if let val = settings[Keys.samplingDuration] as? Double {
+            samplingDuration = val
+        }
+        if let val = settings[Keys.countdownDuration] as? Int {
+            countdownDuration = val
+        }
+    }
 
     private func feedCalibration(_ sample: PoseSample) {
         guard needsCalibration else { return }

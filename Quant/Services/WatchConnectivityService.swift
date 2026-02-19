@@ -12,6 +12,7 @@
 //
 
 import WatchConnectivity
+import Combine
 import os.log
 
 /// Sends nudge events to the paired Apple Watch for haptic delivery.
@@ -41,9 +42,26 @@ final class WatchConnectivityService: NSObject {
     /// Total number of nudges sent this session.
     private(set) var totalSent: Int = 0
 
+    // MARK: - Publishers
+
+    /// Fires when the Watch requests a recalibration.
+    let calibrationRequested = PassthroughSubject<Void, Never>()
+
+    /// Fires when the Watch sends updated calibration settings.
+    let settingsReceived = PassthroughSubject<[String: Any], Never>()
+
     // MARK: - Private Properties
 
     private let logger = Logger(subsystem: "com.quant.posture", category: "WatchConnectivity")
+
+    // MARK: - Settings Keys
+
+    static let settingsKeys: [String] = [
+        "com.quant.cal.maxPositionVariance",
+        "com.quant.cal.maxAngleVariance",
+        "com.quant.cal.samplingDuration",
+        "com.quant.cal.countdownDuration"
+    ]
 
     // MARK: - Initialization
 
@@ -96,6 +114,29 @@ final class WatchConnectivityService: NSObject {
             logger.info("⌚ Nudge queued via transferUserInfo (total: \(self.totalSent))")
         }
     }
+
+    /// Push calibration settings to the Watch via applicationContext.
+    func sendSettings(_ settings: [String: Any]) {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.isPaired else {
+            logger.debug("No Watch paired — skipping settings sync")
+            return
+        }
+
+        var context = (try? session.applicationContext) ?? [:]
+        context["type"] = "settings"
+        for (key, value) in settings {
+            context[key] = value
+        }
+
+        do {
+            try session.updateApplicationContext(context)
+            logger.info("⌚ Settings sent to Watch via applicationContext")
+        } catch {
+            logger.error("Failed to update applicationContext: \(error.localizedDescription)")
+        }
+    }
 }
 
 // MARK: - WCSessionDelegate
@@ -143,6 +184,36 @@ extension WatchConnectivityService: WCSessionDelegate {
             isPaired = session.isPaired
             isReachable = session.isReachable
             logger.info("WCSession watch state changed — paired: \(self.isPaired)")
+        }
+    }
+
+    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        Task { @MainActor in
+            handleReceivedMessage(message)
+        }
+    }
+
+    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
+        Task { @MainActor in
+            handleReceivedMessage(message)
+            replyHandler(["status": "ok"])
+        }
+    }
+
+    // MARK: - Message Handling
+
+    private func handleReceivedMessage(_ message: [String: Any]) {
+        guard let type = message["type"] as? String else { return }
+
+        switch type {
+        case "calibrate":
+            logger.info("⌚ Calibration request received from Watch")
+            calibrationRequested.send()
+        case "settings":
+            logger.info("⌚ Settings received from Watch")
+            settingsReceived.send(message)
+        default:
+            logger.debug("Unknown message type: \(type)")
         }
     }
 }
