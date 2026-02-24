@@ -69,6 +69,8 @@ struct PostureThresholds: Codable {
     var forwardCreepThreshold: Float = 0.10            // Meters (depth) or ratio (2D)
     var twistThreshold: Float = 15.0                   // Degrees
     var sideLeanThreshold: Float = 0.08                // Normalized offset
+    var headDropThreshold: Float = 0.06                // Normalized head drop from baseline
+    var shoulderRoundingThreshold: Float = 10.0        // Degrees of additional torso angle
 
     // MARK: - Confidence Gates
     var minTrackingQuality: Float = 0.7                // Below this, don't judge posture
@@ -394,6 +396,9 @@ Sprint 4 (DONE):
   ✅ MVP COMPLETE — Bad posture → Watch tap
 ═══════════════════════════════════════
 
+Sprint 4.5 (detection completeness):
+    4.5 ──→ 4.6
+
   PHASE 2 — Enhancement
 ═══════════════════════════════════════
 
@@ -403,12 +408,13 @@ Sprint 5 (3D depth fusion):
 Sprint 6 (recording + replay):
     6.1 ──→ 6.2
      │──→ 6.3
-           │
-           ▼
-          6.4
+     │      │
+     ▼      ▼
+    6.5    6.4
 
 Sprint 7 (task mode + settings):
     7.1 ──→ 7.2
+     │──→ 7.4
     7.3
 
 Sprint 8 (setup hardening):
@@ -1908,6 +1914,99 @@ public final class NudgeEngine: NudgeEngineProtocol {
 
 ---
 
+### Sprint 4.5 — Detection Completeness
+
+> **Focus**: The MVP pipeline computes `headDrop` and `shoulderRounding` metrics but doesn't use them in posture judgement, and `NudgeEngine` always returns a generic `.sustainedSlouch` reason. This sprint closes those gaps to improve detection rate and nudge specificity.
+
+#### Ticket 4.5 — headDrop & shoulderRounding in PostureEngine
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Add `headDrop` and `shoulderRounding` to `checkPostureBad()` so all five computed metrics contribute to posture judgement |
+| **Depends on** | 3.2 |
+| **Inputs** | `RawMetrics.headDrop`, `RawMetrics.shoulderRounding` |
+| **Outputs** | `PostureState` transitions triggered by head drop or torso angle change |
+| **Acceptance** | Slouching via head drop or torso rounding (without forward creep) triggers `drifting → bad` transition |
+
+**Files to update**:
+
+`PostureLogic/Sources/PostureLogic/Models/PostureThresholds.swift` — add:
+
+```swift
+var headDropThreshold: Float = 0.06                // Normalized head drop from baseline
+var shoulderRoundingThreshold: Float = 10.0        // Degrees of additional torso angle
+```
+
+`PostureLogic/Sources/PostureLogic/Engines/PostureEngine.swift` — update `checkPostureBad()`:
+
+```swift
+private func checkPostureBad(metrics: RawMetrics, taskMode: TaskMode) -> Bool {
+    if taskMode == .stretching { return false }
+
+    // ... existing multiplier logic ...
+
+    let headDropThreshold = thresholds.headDropThreshold  // No task-mode adjustment
+    let shoulderRoundingThreshold = thresholds.shoulderRoundingThreshold * forwardCreepMultiplier
+
+    return metrics.forwardCreep > forwardThreshold
+        || metrics.twist > twistThreshold
+        || metrics.lateralLean > sideLeanThreshold
+        || metrics.headDrop > headDropThreshold
+        || metrics.shoulderRounding > shoulderRoundingThreshold
+}
+```
+
+**Tests to write**:
+
+```swift
+func test_transitionsToDrifting_whenHeadDropExceedsThreshold() { ... }
+func test_transitionsToDrifting_whenShoulderRoundingExceedsThreshold() { ... }
+func test_headDrop_notAffectedByTaskMode() { ... }
+func test_shoulderRounding_relaxedInReadingMode() { ... }
+```
+
+**Manual test steps**
+
+1. Calibrate, then drop your head forward (chin toward chest) without leaning your torso; confirm the state transitions to `drifting` then `bad`.
+2. Lean forward (rounding shoulders/torso) without moving closer to the camera; confirm the state transitions to `drifting` then `bad`.
+3. Verify that sitting upright with only a slight head shift stays in `good` state (thresholds not too sensitive).
+
+---
+
+#### Ticket 4.6 — Specific NudgeReasons
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Make `NudgeEngine` return the specific reason for a nudge instead of always `.sustainedSlouch` |
+| **Depends on** | 4.1, 4.5 |
+| **Inputs** | `RawMetrics` passed to `evaluate()` |
+| **Outputs** | `NudgeReason.forwardCreep`, `.headDrop`, or `.sustainedSlouch` based on dominant metric |
+| **Acceptance** | Nudge reason matches the primary posture violation; existing tests still pass |
+
+**Update**: Extend `NudgeEngine.evaluate()` to accept `RawMetrics` and determine the dominant violation. When a nudge fires, compare current metrics against their thresholds. The metric with the largest ratio `(value / threshold)` determines the reason:
+
+- `forwardCreep / forwardCreepThreshold` → `.forwardCreep`
+- `headDrop / headDropThreshold` → `.headDrop`
+- Otherwise → `.sustainedSlouch`
+
+**Manual test steps**
+
+1. Trigger a nudge by leaning forward (forward creep dominant) and confirm the nudge reason is `.forwardCreep`.
+2. Trigger a nudge by dropping your head and confirm the nudge reason is `.headDrop`.
+3. Trigger a nudge with a combination of metrics and confirm the dominant one is selected.
+
+#### Sprint 4.5 — Definition of Done
+
+- [ ] `headDrop` metric triggers state transitions when exceeding threshold
+- [ ] `shoulderRounding` metric triggers state transitions when exceeding threshold
+- [ ] `PostureThresholds` includes `headDropThreshold` and `shoulderRoundingThreshold`
+- [ ] Settings screen (Ticket 7.3) exposes new thresholds when implemented
+- [ ] `NudgeReason` reflects the dominant metric violation
+- [ ] Existing PostureEngine and NudgeEngine tests still pass (no regressions)
+- [ ] All new unit tests pass
+
+---
+
 # Phase 2 — Enhancement
 
 > **Goal**: Add depth fusion for better accuracy, recording/replay infrastructure for regression testing, task mode classification, and a settings UI. These improve quality and developer workflow but are not required for the core value loop.
@@ -2215,6 +2314,31 @@ func test_detectsSlouchInGoldenRecording() async {
 2. Place the JSON files in the specified folder and confirm they load correctly in your replay tool.
 3. Run the replay-based regression test and confirm it passes using those recordings.
 
+---
+
+#### Ticket 6.5 — Recording & Replay Pipeline Integration
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Wire `RecorderService` and `ReplayService` into Pipeline and AppModel so they can be used from the app |
+| **Depends on** | 6.1, 6.3 |
+| **Inputs** | Pipeline's `latestSample` stream; `RecordedSession` from disk |
+| **Outputs** | Recording controls in AppModel; replay path that feeds Pipeline via `MockPoseProvider` |
+| **Acceptance** | Can start/stop recording from UI; can load and replay a session in Simulator |
+
+**Changes needed**:
+
+1. **Pipeline → RecorderService**: Subscribe to `Pipeline.latestSample` and forward to `RecorderService.record(sample:)` when recording is active.
+2. **AppModel recording controls**: Add `startRecording()` / `stopRecording()` methods that manage the `RecorderService` lifecycle and save exported JSON to disk.
+3. **Replay as PoseProvider**: Create a `ReplayPoseProvider` (or adapt `MockPoseProvider`) that wraps `ReplayService` output into `InputFrame`s so the Pipeline can process them identically to live camera data.
+4. **AppModel replay controls**: Add `loadSession(_ url: URL)` / `startReplay()` methods that swap the PoseProvider to replay mode.
+
+**Manual test steps**
+
+1. Start recording from the debug UI, run for 1 minute, stop, and confirm a JSON file is saved to the app's documents directory.
+2. Load the saved recording in Simulator and replay it; confirm Pipeline processes the samples and debug overlay shows posture state changes.
+3. Verify that live camera and replay share the same Pipeline code path (no duplicated logic).
+
 #### Sprint 6 — Definition of Done
 
 - [ ] Can record a 5-minute session and export to JSON
@@ -2222,6 +2346,8 @@ func test_detectsSlouchInGoldenRecording() async {
 - [ ] Can replay a recording in Simulator at 1x and 10x speed
 - [ ] At least 4 golden recordings created and committed
 - [ ] Replay test passes using golden recording
+- [ ] Recording and replay are integrated into AppModel with UI controls
+- [ ] Replay feeds the same Pipeline code path as live camera
 - [ ] All unit tests pass for `RecorderService`, `ReplayService`
 
 ---
@@ -2293,13 +2419,13 @@ public struct TaskModeEngine: TaskModeEngineProtocol {
 
 **Threshold multipliers by mode**:
 
-| Mode | Forward Creep | Twist | Side Lean |
-|------|---------------|-------|-----------|
-| Unknown | 1.0x | 1.0x | 1.0x |
-| Reading | 1.3x | 1.0x | 1.0x |
-| Typing | 1.0x | 1.2x | 1.0x |
-| Meeting | 1.2x | 1.5x | 1.2x |
-| Stretching | ∞ (disabled) | ∞ | ∞ |
+| Mode | Forward Creep | Twist | Side Lean | Head Drop | Shoulder Rounding |
+|------|---------------|-------|-----------|-----------|-------------------|
+| Unknown | 1.0x | 1.0x | 1.0x | 1.0x | 1.0x |
+| Reading | 1.3x | 1.0x | 1.0x | 1.0x | 1.2x |
+| Typing | 1.0x | 1.2x | 1.0x | 1.0x | 1.0x |
+| Meeting | 1.2x | 1.5x | 1.2x | 1.0x | 1.2x |
+| Stretching | ∞ (disabled) | ∞ | ∞ | ∞ | ∞ |
 
 **Manual test steps**
 
@@ -2324,12 +2450,40 @@ public struct TaskModeEngine: TaskModeEngineProtocol {
 2. Kill and relaunch the app and confirm your updated threshold persists.
 3. Set an extreme value temporarily (for testing) and confirm it affects state transitions predictably.
 
+---
+
+#### Ticket 7.4 — TaskModeEngine Pipeline Integration
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Wire `TaskModeEngine` into Pipeline so task mode is used for posture judgement instead of the hardcoded `.unknown` |
+| **Depends on** | 7.1 |
+| **Inputs** | Rolling buffer of recent `RawMetrics` |
+| **Outputs** | `@Published var taskMode: TaskMode` on Pipeline |
+| **Acceptance** | Pipeline publishes correct task mode; PostureEngine and NudgeEngine receive it instead of `.unknown` |
+
+**Changes needed**:
+
+1. **Add `TaskModeEngine` to Pipeline**: Instantiate alongside other engines in `Pipeline.init()`.
+2. **Rolling metrics buffer**: Maintain a `[RawMetrics]` array of the last ~100 entries (~10 seconds at 10 FPS). Append after smoothing; trim to max size.
+3. **Call `TaskModeEngine.infer()`**: After appending to the buffer, call `infer(from: recentMetrics)` and publish the result.
+4. **Replace hardcoded `.unknown`**: Pass the inferred `taskMode` to both `postureEngine.update()` and `nudgeEngine.evaluate()` (currently hardcoded on Pipeline.swift lines 206 and 219).
+5. **Publish task mode**: Add `@Published public var taskMode: TaskMode = .unknown` to Pipeline's published properties.
+
+**Manual test steps**
+
+1. Run the app and alternate between reading (still, small head motions) and typing (arm movement); confirm the debug overlay shows task mode changing.
+2. Verify that posture thresholds adjust based on the detected mode (e.g., more lenient forward creep when reading).
+3. Confirm that the `taskMode` value in the debug overlay is no longer always `.unknown`.
+
 #### Sprint 7 — Definition of Done
 
 - [ ] TaskModeEngine correctly classifies reading vs typing in golden recordings
 - [ ] Task-adjusted thresholds applied (reading more lenient)
 - [ ] Stretching mode disables posture judgement
-- [ ] Settings screen allows adjusting all thresholds
+- [ ] TaskModeEngine wired into Pipeline; `taskMode` published and no longer hardcoded
+- [ ] Pipeline passes inferred task mode to PostureEngine and NudgeEngine
+- [ ] Settings screen allows adjusting all thresholds (including `headDropThreshold`, `shoulderRoundingThreshold`)
 - [ ] Threshold changes apply immediately without restart
 - [ ] Thresholds persist across app launches
 - [ ] Debug UI shows current task mode
@@ -2349,18 +2503,33 @@ public struct TaskModeEngine: TaskModeEngineProtocol {
 | **Depends on** | 3.1 |
 | **Inputs** | Calibration `PoseSample`s |
 | **Outputs** | `SetupValidation` result |
-| **Acceptance** | Warns if too close, too far, or wrong angle |
+| **Acceptance** | Warns if too close, too far, or wrong angle; works in both depth and 2D modes |
 
 ```swift
 struct SetupValidator {
     func validate(samples: [PoseSample]) -> SetupValidation {
-        let avgDepth = samples.map { $0.shoulderMidpoint.z }.reduce(0, +) / Float(samples.count)
+        // Use depth-based distance if available (3D mode)
+        if samples.first?.depthMode == .depthFusion {
+            let avgDepth = samples.map { $0.shoulderMidpoint.z }.reduce(0, +) / Float(samples.count)
 
-        if avgDepth < 0.5 {
-            return .failed("Phone is too close. Move it back.")
-        }
-        if avgDepth > 1.5 {
-            return .failed("Phone is too far. Move it closer.")
+            if avgDepth < 0.5 {
+                return .failed("Phone is too close. Move it back.")
+            }
+            if avgDepth > 1.5 {
+                return .failed("Phone is too far. Move it closer.")
+            }
+        } else {
+            // 2D fallback: use shoulder width as distance proxy.
+            // Wider shoulders in frame = closer to camera.
+            // Thresholds calibrated against SUPPORTED_RANGE.md distances.
+            let avgShoulderWidth = samples.map { $0.shoulderWidthRaw }.reduce(0, +) / Float(samples.count)
+
+            if avgShoulderWidth > 0.5 {
+                return .failed("Phone is too close. Move it back.")
+            }
+            if avgShoulderWidth < 0.15 {
+                return .failed("Phone is too far. Move it closer.")
+            }
         }
 
         // Check vertical angle
@@ -2371,11 +2540,14 @@ struct SetupValidator {
 }
 ```
 
+**Note**: In `twoDOnly` mode, `shoulderMidpoint.z` is always 0 — depth-based distance validation would always fail. The 2D path uses `shoulderWidthRaw` (normalized 0–1) as a scale proxy: at 0.7m a typical person's shoulders span ~0.3–0.4 of the frame. Exact thresholds should be tuned empirically against the supported range.
+
 **Manual test steps**
 
 1. During calibration, position the phone too close (< ~0.5m) and confirm you get a 'too close' warning/fail.
 2. Move the phone too far (> ~1.5m) and confirm you get a 'too far' warning/fail.
 3. Place the phone at a reasonable distance and confirm validation passes.
+4. Repeat steps 1–3 on a non-LiDAR device and confirm the 2D shoulder-width fallback produces the same warnings.
 
 ---
 
@@ -2397,6 +2569,7 @@ struct SetupValidator {
 #### Sprint 8 — Definition of Done
 
 - [ ] Setup validation warns if phone too close/far
+- [ ] Setup validation works on both LiDAR and non-LiDAR devices (2D shoulder-width fallback)
 - [ ] Stale baseline detection triggers recalibration prompt
 - [ ] All calibration validation unit tests pass
 
