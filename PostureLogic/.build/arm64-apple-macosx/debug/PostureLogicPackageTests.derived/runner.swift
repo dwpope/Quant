@@ -15,17 +15,17 @@ public final class SwiftPMXCTestObserver: NSObject {
 
 extension SwiftPMXCTestObserver: XCTestObservation {
     var testOutputPath: String {
-        return "/Users/d631381/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/testOutput.txt"
+        return "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/testOutput.txt"
     }
 
-    private func write(record: Encodable) {
+    private func write(record: any Encodable) {
         let lock = FileLock(at: URL(fileURLWithPath: self.testOutputPath + ".lock"))
         _ = try? lock.withLock {
             self._write(record: record)
         }
     }
 
-    private func _write(record: Encodable) {
+    private func _write(record: any Encodable) {
         if let data = try? JSONEncoder().encode(record) {
             if let fileHandle = FileHandle(forWritingAtPath: self.testOutputPath) {
                 defer { fileHandle.closeFile() }
@@ -419,7 +419,7 @@ extension TestCase {
 }
 
 extension TestErrorInfo {
-    init(_ error: Swift.Error) {
+    init(_ error: any Swift.Error) {
         self.init(description: "\(error)", type: "\(Swift.type(of: error))")
     }
 }

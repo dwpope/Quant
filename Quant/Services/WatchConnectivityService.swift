@@ -60,7 +60,11 @@ final class WatchConnectivityService: NSObject {
         "com.quant.cal.maxPositionVariance",
         "com.quant.cal.maxAngleVariance",
         "com.quant.cal.samplingDuration",
-        "com.quant.cal.countdownDuration"
+        "com.quant.cal.countdownDuration",
+        "com.quant.posture.forwardCreep",
+        "com.quant.posture.twist",
+        "com.quant.posture.sideLean",
+        "com.quant.posture.driftingToBad"
     ]
 
     // MARK: - Initialization

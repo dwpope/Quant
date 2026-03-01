@@ -151,8 +151,91 @@ struct WatchCalibrationSettingsView: View {
                 }
             }
             .padding()
+
+            Divider()
+                .padding(.horizontal)
+
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Posture Detection")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                // Forward Lean
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Fwd Lean")
+                            .font(.caption)
+                        Spacer()
+                        Text(String(format: "%.2f", sessionDelegate.forwardCreepThreshold))
+                            .font(.caption2)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $sessionDelegate.forwardCreepThreshold, in: 0.03...0.30, step: 0.01) {
+                        Text("Forward")
+                    } onEditingChanged: { editing in
+                        if !editing { sessionDelegate.sendSettings() }
+                    }
+                }
+
+                // Twist
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Twist")
+                            .font(.caption)
+                        Spacer()
+                        Text(String(format: "%.0f\u{00B0}", sessionDelegate.twistThreshold))
+                            .font(.caption2)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $sessionDelegate.twistThreshold, in: 5.0...45.0, step: 1.0) {
+                        Text("Twist")
+                    } onEditingChanged: { editing in
+                        if !editing { sessionDelegate.sendSettings() }
+                    }
+                }
+
+                // Side Lean
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Side Lean")
+                            .font(.caption)
+                        Spacer()
+                        Text(String(format: "%.2f", sessionDelegate.sideLeanThreshold))
+                            .font(.caption2)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $sessionDelegate.sideLeanThreshold, in: 0.03...0.25, step: 0.01) {
+                        Text("Side Lean")
+                    } onEditingChanged: { editing in
+                        if !editing { sessionDelegate.sendSettings() }
+                    }
+                }
+
+                // Drift Grace Period
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Grace")
+                            .font(.caption)
+                        Spacer()
+                        Text(String(format: "%.0fs", sessionDelegate.driftingToBadThreshold))
+                            .font(.caption2)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $sessionDelegate.driftingToBadThreshold, in: 10...300, step: 5) {
+                        Text("Grace")
+                    } onEditingChanged: { editing in
+                        if !editing { sessionDelegate.sendSettings() }
+                    }
+                }
+
+                Button("Reset Posture Defaults") {
+                    sessionDelegate.resetPostureSettings()
+                }
+                .font(.caption)
+            }
+            .padding()
         }
-        .navigationTitle("Calibration")
+        .navigationTitle("Settings")
     }
 }
 

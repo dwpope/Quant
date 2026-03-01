@@ -33,6 +33,14 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     @Published var samplingDuration: Double = 5.0
     @Published var countdownDuration: Int = 3
 
+    // MARK: - Posture Threshold Settings (synced from iPhone)
+    // Defaults must match PostureThresholds() in PostureLogic
+
+    @Published var forwardCreepThreshold: Float = 0.10
+    @Published var twistThreshold: Float = 15.0
+    @Published var sideLeanThreshold: Float = 0.08
+    @Published var driftingToBadThreshold: Double = 60.0
+
     // MARK: - Settings Keys
 
     private enum Keys {
@@ -40,6 +48,10 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         static let maxAngleVariance = "com.quant.cal.maxAngleVariance"
         static let samplingDuration = "com.quant.cal.samplingDuration"
         static let countdownDuration = "com.quant.cal.countdownDuration"
+        static let forwardCreepThreshold = "com.quant.posture.forwardCreep"
+        static let twistThreshold = "com.quant.posture.twist"
+        static let sideLeanThreshold = "com.quant.posture.sideLean"
+        static let driftingToBadThreshold = "com.quant.posture.driftingToBad"
     }
 
     // MARK: - Private Properties
@@ -93,6 +105,15 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         }
     }
 
+    /// Reset posture thresholds to defaults and sync to iPhone.
+    func resetPostureSettings() {
+        forwardCreepThreshold = 0.10
+        twistThreshold = 15.0
+        sideLeanThreshold = 0.08
+        driftingToBadThreshold = 60.0
+        sendSettings()
+    }
+
     /// Send updated calibration settings to the iPhone.
     func sendSettings() {
         guard WCSession.isSupported() else { return }
@@ -107,7 +128,11 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
             Keys.maxPositionVariance: maxPositionVariance,
             Keys.maxAngleVariance: maxAngleVariance,
             Keys.samplingDuration: samplingDuration,
-            Keys.countdownDuration: countdownDuration
+            Keys.countdownDuration: countdownDuration,
+            Keys.forwardCreepThreshold: forwardCreepThreshold,
+            Keys.twistThreshold: twistThreshold,
+            Keys.sideLeanThreshold: sideLeanThreshold,
+            Keys.driftingToBadThreshold: driftingToBadThreshold
         ]
 
         if session.isReachable {
@@ -177,7 +202,19 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         if let val = context[Keys.countdownDuration] as? Int {
             countdownDuration = val
         }
-        logger.info("⌚ Calibration settings updated from iPhone")
+        if let val = context[Keys.forwardCreepThreshold] as? Float {
+            forwardCreepThreshold = val
+        }
+        if let val = context[Keys.twistThreshold] as? Float {
+            twistThreshold = val
+        }
+        if let val = context[Keys.sideLeanThreshold] as? Float {
+            sideLeanThreshold = val
+        }
+        if let val = context[Keys.driftingToBadThreshold] as? Double {
+            driftingToBadThreshold = val
+        }
+        logger.info("⌚ Settings updated from iPhone")
     }
 }
 

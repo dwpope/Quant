@@ -32,7 +32,11 @@ public class Pipeline {
     public var baseline: Baseline?
 
     /// The thresholds used by all engines in the pipeline.
-    public let thresholds: PostureThresholds
+    public var thresholds: PostureThresholds {
+        didSet {
+            postureEngine.thresholds = thresholds
+        }
+    }
 
     // MARK: - Private Properties
 

@@ -57,6 +57,36 @@ class AppModel: ObservableObject {
         }
     }
 
+    // MARK: - Posture Threshold Settings
+
+    @Published var forwardCreepThreshold: Float {
+        didSet {
+            UserDefaults.standard.set(forwardCreepThreshold, forKey: Keys.forwardCreepThreshold)
+            updatePipelineThresholds()
+        }
+    }
+
+    @Published var twistThreshold: Float {
+        didSet {
+            UserDefaults.standard.set(twistThreshold, forKey: Keys.twistThreshold)
+            updatePipelineThresholds()
+        }
+    }
+
+    @Published var sideLeanThreshold: Float {
+        didSet {
+            UserDefaults.standard.set(sideLeanThreshold, forKey: Keys.sideLeanThreshold)
+            updatePipelineThresholds()
+        }
+    }
+
+    @Published var driftingToBadThreshold: Double {
+        didSet {
+            UserDefaults.standard.set(driftingToBadThreshold, forKey: Keys.driftingToBadThreshold)
+            updatePipelineThresholds()
+        }
+    }
+
     // MARK: - Camera Preview
 
     @Published var showCameraPreview: Bool = true
@@ -101,12 +131,21 @@ class AppModel: ObservableObject {
         static let maxAngleVariance = "com.quant.cal.maxAngleVariance"
         static let samplingDuration = "com.quant.cal.samplingDuration"
         static let countdownDuration = "com.quant.cal.countdownDuration"
+        static let forwardCreepThreshold = "com.quant.posture.forwardCreep"
+        static let twistThreshold = "com.quant.posture.twist"
+        static let sideLeanThreshold = "com.quant.posture.sideLean"
+        static let driftingToBadThreshold = "com.quant.posture.driftingToBad"
     }
 
     static let defaultMaxPositionVariance: Float = 0.06
     static let defaultMaxAngleVariance: Float = 6.0
     static let defaultSamplingDuration: Double = 5.0
     static let defaultCountdownDuration: Int = 3
+    private static let defaultThresholds = PostureThresholds()
+    static let defaultForwardCreepThreshold: Float = defaultThresholds.forwardCreepThreshold
+    static let defaultTwistThreshold: Float = defaultThresholds.twistThreshold
+    static let defaultSideLeanThreshold: Float = defaultThresholds.sideLeanThreshold
+    static let defaultDriftingToBadThreshold: Double = defaultThresholds.driftingToBadThreshold
 
     // MARK: - Initialization
 
@@ -123,6 +162,11 @@ class AppModel: ObservableObject {
         self.samplingDuration = sampDur
         self.countdownDuration = countDur
 
+        self.forwardCreepThreshold = defaults.object(forKey: Keys.forwardCreepThreshold) as? Float ?? Self.defaultForwardCreepThreshold
+        self.twistThreshold = defaults.object(forKey: Keys.twistThreshold) as? Float ?? Self.defaultTwistThreshold
+        self.sideLeanThreshold = defaults.object(forKey: Keys.sideLeanThreshold) as? Float ?? Self.defaultSideLeanThreshold
+        self.driftingToBadThreshold = defaults.object(forKey: Keys.driftingToBadThreshold) as? Double ?? Self.defaultDriftingToBadThreshold
+
         let config = CalibrationConfig(
             samplingDuration: sampDur,
             maxPositionVariance: posVar,
@@ -133,6 +177,7 @@ class AppModel: ObservableObject {
         loadBaseline()
         setupPipeline()
         setupWatchSubscriptions()
+        updatePipelineThresholds()
     }
 
     // MARK: - Pipeline Setup
@@ -304,6 +349,14 @@ class AppModel: ObservableObject {
         countdownDuration = Self.defaultCountdownDuration
     }
 
+    func resetPostureSettings() {
+        forwardCreepThreshold = Self.defaultForwardCreepThreshold
+        twistThreshold = Self.defaultTwistThreshold
+        sideLeanThreshold = Self.defaultSideLeanThreshold
+        driftingToBadThreshold = Self.defaultDriftingToBadThreshold
+        syncSettingsToWatch()
+    }
+
     // MARK: - Private Methods
 
     private func rebuildCalibrationEngine() {
@@ -315,12 +368,25 @@ class AppModel: ObservableObject {
         calibrationEngine = CalibrationEngine(config: config)
     }
 
-    private func syncSettingsToWatch() {
+    private func updatePipelineThresholds() {
+        var t = pipeline.thresholds
+        t.forwardCreepThreshold = forwardCreepThreshold
+        t.twistThreshold = twistThreshold
+        t.sideLeanThreshold = sideLeanThreshold
+        t.driftingToBadThreshold = driftingToBadThreshold
+        pipeline.thresholds = t
+    }
+
+    func syncSettingsToWatch() {
         let settings: [String: Any] = [
             Keys.maxPositionVariance: maxPositionVariance,
             Keys.maxAngleVariance: maxAngleVariance,
             Keys.samplingDuration: samplingDuration,
-            Keys.countdownDuration: countdownDuration
+            Keys.countdownDuration: countdownDuration,
+            Keys.forwardCreepThreshold: forwardCreepThreshold,
+            Keys.twistThreshold: twistThreshold,
+            Keys.sideLeanThreshold: sideLeanThreshold,
+            Keys.driftingToBadThreshold: driftingToBadThreshold
         ]
         watchService.sendSettings(settings)
     }
@@ -337,6 +403,18 @@ class AppModel: ObservableObject {
         }
         if let val = settings[Keys.countdownDuration] as? Int {
             countdownDuration = val
+        }
+        if let val = settings[Keys.forwardCreepThreshold] as? Float {
+            forwardCreepThreshold = val
+        }
+        if let val = settings[Keys.twistThreshold] as? Float {
+            twistThreshold = val
+        }
+        if let val = settings[Keys.sideLeanThreshold] as? Float {
+            sideLeanThreshold = val
+        }
+        if let val = settings[Keys.driftingToBadThreshold] as? Double {
+            driftingToBadThreshold = val
         }
     }
 

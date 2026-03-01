@@ -55,7 +55,7 @@ public final class PostureEngine: PostureEngineProtocol {
     /// The thresholds that control when posture is considered "bad".
     /// These come from PostureThresholds and can be changed at runtime
     /// via the settings screen (Ticket 7.3).
-    private let thresholds: PostureThresholds
+    public var thresholds: PostureThresholds
 
     // MARK: - Internal State
 

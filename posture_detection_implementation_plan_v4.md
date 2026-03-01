@@ -22,6 +22,7 @@ Desk-mounted posture detection using rear camera + LiDAR when available, with gr
 | 5-minute slouch threshold | Brief posture shifts are normal; only sustained bad posture warrants nudging |
 | Protocol-based architecture | Enables mocking for tests and potential ML swap later |
 | Swift Package for logic | Keeps business logic testable and separate from UIKit/ARKit dependencies |
+| Front camera support | Enables posture tracking while user faces screen; uses existing 2D pipeline with switchable provider layer |
 
 ---
 
@@ -398,6 +399,9 @@ Sprint 4 (DONE):
 
 Sprint 4.5 (detection completeness):
     4.5 ──→ 4.6
+
+Sprint 4.7 (front camera support):
+    4.7.1 ──→ 4.7.2 ──→ 4.7.3 ──→ 4.7.4 ──→ 4.7.5 ──→ 4.7.6
 
   PHASE 2 — Enhancement
 ═══════════════════════════════════════
@@ -2004,6 +2008,292 @@ func test_shoulderRounding_relaxedInReadingMode() { ... }
 - [ ] `NudgeReason` reflects the dominant metric violation
 - [ ] Existing PostureEngine and NudgeEngine tests still pass (no regressions)
 - [ ] All new unit tests pass
+
+---
+
+### Sprint 4.7 — Front Camera Support
+
+> **Focus**: Add front-facing camera as an alternative input source so the user can track posture while viewing/interacting with the screen. Uses the existing 2D Vision pipeline (depth always nil). Preserves all existing rear-camera + depth behavior. Implemented in small, reviewable commits with a switchable provider layer in the app target — Pipeline stays attached once.
+
+#### Hard Constraints
+
+1. Do not break existing rear ARKit + depth path.
+2. Keep PostureLogic posture math/threshold logic unchanged unless strictly needed.
+3. Minimal diffs, no unrelated refactors.
+4. After EACH commit: summarize changes, list files, run tests/build, show result, STOP for review.
+
+#### Architecture Requirement
+
+- `Pipeline` is currently initialized once with a provider in `AppModel`.
+- Add a switchable provider layer in app target so Pipeline can stay attached once.
+- Do NOT rewrite the entire Pipeline.
+
+---
+
+#### Ticket 4.7.1 — Camera Mode + Switchable Provider Scaffolding
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Add `CameraMode` enum and `SwitchablePoseProvider` so Pipeline can be initialized once and input sources swapped at runtime |
+| **Depends on** | 4.4 (MVP complete) |
+| **Inputs** | Existing `PoseProvider` protocol, existing `ARSessionService` |
+| **Outputs** | `CameraMode.swift`, `SwitchablePoseProvider.swift`, updated `AppModel` initialization |
+| **Acceptance** | App builds and runs identically to before; rear mode remains default; Pipeline now uses `SwitchablePoseProvider` wrapping `ARSessionService` |
+
+**File to create**: `Quant/Models/CameraMode.swift`
+
+```swift
+enum CameraMode: String, Codable, CaseIterable {
+    case rearDepth
+    case front2D
+}
+```
+
+**File to create**: `Quant/Services/SwitchablePoseProvider.swift`
+
+```swift
+import Foundation
+import Combine
+import PostureLogic
+
+final class SwitchablePoseProvider: PoseProvider {
+    var framePublisher: AnyPublisher<InputFrame, Never> {
+        frameSubject.eraseToAnyPublisher()
+    }
+
+    private let frameSubject = PassthroughSubject<InputFrame, Never>()
+    private var cancellable: AnyCancellable?
+
+    func attach(source: any PoseProvider) {
+        cancellable?.cancel()
+        cancellable = source.framePublisher.sink { [weak self] frame in
+            self?.frameSubject.send(frame)
+        }
+    }
+
+    func detach() {
+        cancellable?.cancel()
+        cancellable = nil
+    }
+
+    func start() async throws {
+        // No-op — lifecycle managed by the attached source
+    }
+
+    func stop() {
+        // No-op — lifecycle managed by the attached source
+    }
+}
+```
+
+**Update**: `AppModel.swift` — Initialize `Pipeline(provider: switchableProvider)` instead of `Pipeline(provider: arService)`. Attach `arService` as the default source. No behavior change.
+
+**Run after commit**:
+
+- `swift test --package-path PostureLogic`
+- `xcodebuild test -project Quant.xcodeproj -scheme QuantNoWatchTests -destination 'platform=iOS Simulator,name=iPhone 16'`
+
+---
+
+#### Ticket 4.7.2 — Front Camera Provider
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Implement `FrontCameraSessionService` using AVFoundation to capture from the front-facing camera |
+| **Depends on** | 4.7.1 |
+| **Inputs** | Front camera video frames |
+| **Outputs** | `InputFrame(timestamp, pixelBuffer, depthMap: nil, cameraIntrinsics: available-or-nil)` via `PoseProvider` conformance |
+| **Acceptance** | Service captures frames from front camera; emits `InputFrame`s; handles camera permission states (`authorized`, `notDetermined`, `denied`, `restricted`) |
+
+**File to create**: `Quant/Services/FrontCameraSessionService.swift`
+
+```swift
+import AVFoundation
+import Combine
+import PostureLogic
+
+final class FrontCameraSessionService: NSObject, PoseProvider {
+    var framePublisher: AnyPublisher<InputFrame, Never> {
+        frameSubject.eraseToAnyPublisher()
+    }
+
+    @Published private(set) var permissionStatus: AVAuthorizationStatus = .notDetermined
+
+    private let frameSubject = PassthroughSubject<InputFrame, Never>()
+    private let captureSession = AVCaptureSession()
+    private let outputQueue = DispatchQueue(label: "frontCamera.output")
+
+    func start() async throws {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        permissionStatus = status
+
+        switch status {
+        case .notDetermined:
+            let granted = await AVCaptureDevice.requestAccess(for: .video)
+            permissionStatus = granted ? .authorized : .denied
+            guard granted else { return }
+        case .authorized:
+            break
+        case .denied, .restricted:
+            return
+        @unknown default:
+            return
+        }
+
+        // Configure AVCaptureSession with front builtInWideAngleCamera
+        // Add AVCaptureVideoDataOutput with sample buffer delegate
+        // Start session
+    }
+
+    func stop() {
+        captureSession.stopRunning()
+    }
+}
+
+extension FrontCameraSessionService: AVCaptureVideoDataOutputSampleBufferDelegate {
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+
+        let frame = InputFrame(
+            timestamp: timestamp,
+            pixelBuffer: pixelBuffer,
+            depthMap: nil,
+            cameraIntrinsics: nil
+        )
+        frameSubject.send(frame)
+    }
+}
+```
+
+**Run after commit**:
+
+- `swift test --package-path PostureLogic`
+- `xcodebuild test -project Quant.xcodeproj -scheme QuantNoWatchTests -destination 'platform=iOS Simulator,name=iPhone 16'`
+
+---
+
+#### Ticket 4.7.3 — AppModel Runtime Switching + Persistence
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Add runtime camera mode switching to `AppModel` with UserDefaults persistence |
+| **Depends on** | 4.7.2 |
+| **Inputs** | User-selected `CameraMode` |
+| **Outputs** | `@Published var cameraMode: CameraMode`, `switchCameraMode(to:)` method |
+| **Acceptance** | Switching modes stops current source, attaches new source, starts it; mode persists across launches; no duplicate subscriptions; `startMonitoring()` uses selected mode |
+
+**Update**: `AppModel.swift`
+
+```swift
+// Add to AppModel:
+@Published var cameraMode: CameraMode  // Persisted in UserDefaults
+
+private let frontService = FrontCameraSessionService()
+
+func switchCameraMode(to mode: CameraMode) async {
+    // 1. Stop current source
+    // 2. Detach from switchableProvider
+    // 3. Attach new source (arService for .rearDepth, frontService for .front2D)
+    // 4. Start new source
+    // 5. Persist to UserDefaults
+    // 6. Update published property
+}
+```
+
+**Run after commit**:
+
+- `swift test --package-path PostureLogic`
+- `xcodebuild test -project Quant.xcodeproj -scheme QuantNoWatchTests -destination 'platform=iOS Simulator,name=iPhone 16'`
+
+---
+
+#### Ticket 4.7.4 — UI Controls
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Add camera mode picker to settings and adapt content view for front camera mode |
+| **Depends on** | 4.7.3 |
+| **Inputs** | `appModel.cameraMode` |
+| **Outputs** | Camera mode picker in `CalibrationSettingsView`; adapted `ContentView` for front mode |
+| **Acceptance** | User can switch modes from settings; rear mode keeps existing `CameraPreviewView`; front mode has no full-screen camera preview so user can view/interact with the app; debug overlay optionally shows current camera mode |
+
+**Update**: `Quant/Views/CalibrationSettingsView.swift` — Add a section with camera mode picker bound to `appModel.cameraMode`.
+
+**Update**: `Quant/ContentView.swift`:
+- Rear mode: keep existing `CameraPreviewView(session: appModel.arService.session)`
+- Front mode: no full-screen camera preview (user faces screen while tracking)
+- Keep existing show/hide preview behavior for rear mode
+
+**Optionally update**: `Quant/Views/DebugOverlayView.swift` — Show current camera mode.
+
+**Run after commit**:
+
+- `swift test --package-path PostureLogic`
+- `xcodebuild test -project Quant.xcodeproj -scheme QuantNoWatchTests -destination 'platform=iOS Simulator,name=iPhone 16'`
+
+---
+
+#### Ticket 4.7.5 — Permission/Error UX
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Handle front camera permission denied/restricted with clear user-facing UI |
+| **Depends on** | 4.7.4 |
+| **Inputs** | `FrontCameraSessionService.permissionStatus` |
+| **Outputs** | Permission denied/restricted state shown in UI with recovery instructions |
+| **Acceptance** | No crash or freeze when permission is missing; rear mode remains functional regardless of front permission state; user sees actionable message when front camera permission is denied |
+
+**Run after commit**:
+
+- `swift test --package-path PostureLogic`
+- `xcodebuild test -project Quant.xcodeproj -scheme QuantNoWatchTests -destination 'platform=iOS Simulator,name=iPhone 16'`
+
+---
+
+#### Ticket 4.7.6 — Tests + Regression Checks
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Add tests for camera mode switching and verify no regressions |
+| **Depends on** | 4.7.5 |
+| **Inputs** | `AppModel`, `SwitchablePoseProvider`, `CameraMode` |
+| **Outputs** | New/updated tests in `QuantTests` |
+| **Acceptance** | Tests cover: default camera mode, UserDefaults persistence, switching mode updates active provider; `SwitchablePoseProvider` forwarding tests; all existing `PostureLogic` tests pass unchanged |
+
+**Tests to write** in `QuantTests`:
+
+```swift
+func test_defaultCameraMode_isRearDepth() { ... }
+func test_cameraModePersistedInUserDefaults() { ... }
+func test_switchingModeUpdatesActiveProvider() { ... }
+```
+
+**Tests to write** for `SwitchablePoseProvider`:
+
+```swift
+func test_forwardsFramesFromAttachedSource() { ... }
+func test_detachStopsForwarding() { ... }
+func test_reattachSwitchesSource() { ... }
+```
+
+**Run after commit**:
+
+- `swift test --package-path PostureLogic`
+- `xcodebuild test -project Quant.xcodeproj -scheme QuantNoWatchTests -destination 'platform=iOS Simulator,name=iPhone 16'`
+
+#### Sprint 4.7 — Definition of Done
+
+- [ ] App builds and runs
+- [ ] Rear mode behavior unchanged (ARKit + depth path intact)
+- [ ] Front mode tracks posture using Vision 2D (depth nil)
+- [ ] User can view/use screen while front tracking is active
+- [ ] No crashes on missing depth or denied camera permission
+- [ ] Camera mode persists across app launches
+- [ ] Switching modes at runtime works cleanly (no duplicate subscriptions, no stale state)
+- [ ] `SwitchablePoseProvider` correctly forwards frames from attached source
+- [ ] PostureLogic tests pass unchanged
+- [ ] All new QuantTests pass
 
 ---
 
