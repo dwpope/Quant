@@ -10,7 +10,9 @@ public struct PostureThresholds: Codable {
     public var forwardCreepThreshold: Float = 0.10
     public var twistThreshold: Float = 15.0
     public var sideLeanThreshold: Float = 0.08
-    
+    public var headDropThreshold: Float = 0.06
+    public var shoulderRoundingThreshold: Float = 10.0
+
     // MARK: - Confidence Gates
     public var minTrackingQuality: Float = 0.7
     public var minKeypointVisibility: Float = 0.7

@@ -64,6 +64,16 @@ final class PostureEngineTests: XCTestCase {
         makeMetrics(timestamp: timestamp, forwardCreep: 0.02, lateralLean: 0.12, twist: 3.0)
     }
 
+    /// Creates metrics with excessive head drop — exceeds the 0.06 threshold.
+    private func headDropMetrics(timestamp: TimeInterval) -> RawMetrics {
+        makeMetrics(timestamp: timestamp, headDrop: 0.10)
+    }
+
+    /// Creates metrics with excessive shoulder rounding — exceeds the 10.0° threshold.
+    private func shoulderRoundingMetrics(timestamp: TimeInterval) -> RawMetrics {
+        makeMetrics(timestamp: timestamp, shoulderRounding: 15.0)
+    }
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // MARK: - Test 1: Transitions to Good after calibration
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -189,6 +199,98 @@ final class PostureEngineTests: XCTestCase {
         } else {
             XCTFail("Excessive side lean should trigger drifting, got: \(state)")
         }
+    }
+
+    func test_transitionsToDrifting_whenHeadDropExceedsThreshold() {
+        let engine = PostureEngine()
+
+        _ = engine.update(
+            metrics: goodMetrics(timestamp: 1.0),
+            taskMode: .unknown,
+            trackingQuality: .good
+        )
+
+        let state = engine.update(
+            metrics: headDropMetrics(timestamp: 2.0),
+            taskMode: .unknown,
+            trackingQuality: .good
+        )
+
+        if case .drifting = state {
+            // Expected
+        } else {
+            XCTFail("Excessive head drop should trigger drifting, got: \(state)")
+        }
+    }
+
+    func test_transitionsToDrifting_whenShoulderRoundingExceedsThreshold() {
+        let engine = PostureEngine()
+
+        _ = engine.update(
+            metrics: goodMetrics(timestamp: 1.0),
+            taskMode: .unknown,
+            trackingQuality: .good
+        )
+
+        let state = engine.update(
+            metrics: shoulderRoundingMetrics(timestamp: 2.0),
+            taskMode: .unknown,
+            trackingQuality: .good
+        )
+
+        if case .drifting = state {
+            // Expected
+        } else {
+            XCTFail("Excessive shoulder rounding should trigger drifting, got: \(state)")
+        }
+    }
+
+    func test_headDrop_notAffectedByTaskMode() {
+        let engine = PostureEngine()
+
+        _ = engine.update(
+            metrics: goodMetrics(timestamp: 1.0),
+            taskMode: .unknown,
+            trackingQuality: .good
+        )
+
+        // Head drop of 0.10 exceeds the 0.06 threshold.
+        // Reading mode should NOT relax head drop (no multiplier applied).
+        let state = engine.update(
+            metrics: headDropMetrics(timestamp: 2.0),
+            taskMode: .reading,
+            trackingQuality: .good
+        )
+
+        if case .drifting = state {
+            // Expected — head drop is bad regardless of task mode
+        } else {
+            XCTFail("Head drop should trigger drifting even in reading mode, got: \(state)")
+        }
+    }
+
+    func test_shoulderRounding_relaxedInReadingMode() {
+        let engine = PostureEngine()
+
+        _ = engine.update(
+            metrics: goodMetrics(timestamp: 1.0),
+            taskMode: .unknown,
+            trackingQuality: .good
+        )
+
+        // Shoulder rounding of 11.0 exceeds the base 10.0° threshold,
+        // but reading mode applies forwardCreepMultiplier (1.2×),
+        // so the effective threshold is 12.0°. 11.0 < 12.0 → should stay good.
+        let metrics = makeMetrics(timestamp: 2.0, shoulderRounding: 11.0)
+
+        let state = engine.update(
+            metrics: metrics,
+            taskMode: .reading,
+            trackingQuality: .good
+        )
+
+        XCTAssertEqual(state, .good,
+            "Reading mode should tolerate slightly more shoulder rounding (11.0 < 12.0)")
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -314,10 +314,14 @@ public final class PostureEngine: PostureEngineProtocol {
         let forwardThreshold = thresholds.forwardCreepThreshold * forwardCreepMultiplier
         let twistThreshold = thresholds.twistThreshold * twistMultiplier
         let sideLeanThreshold = thresholds.sideLeanThreshold * sideLeanMultiplier
+        let headDropThreshold = thresholds.headDropThreshold
+        let shoulderRoundingThreshold = thresholds.shoulderRoundingThreshold * forwardCreepMultiplier
 
         return metrics.forwardCreep > forwardThreshold
             || metrics.twist > twistThreshold
             || metrics.lateralLean > sideLeanThreshold
+            || metrics.headDrop > headDropThreshold
+            || metrics.shoulderRounding > shoulderRoundingThreshold
     }
 
     // MARK: - Helpers
