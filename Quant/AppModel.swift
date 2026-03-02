@@ -114,8 +114,9 @@ class AppModel: ObservableObject {
     // MARK: - Private Properties
 
     let arService = ARSessionService()
+    private let switchableProvider = SwitchablePoseProvider()
     private lazy var pipeline: Pipeline = {
-        Pipeline(provider: arService)
+        Pipeline(provider: switchableProvider)
     }()
     private var cancellables = Set<AnyCancellable>()
     private var calibrationEngine: CalibrationEngine
@@ -173,6 +174,11 @@ class AppModel: ObservableObject {
             maxAngleVariance: angVar
         )
         self.calibrationEngine = CalibrationEngine(config: config)
+
+        // Attach the rear camera as the default source for the switchable provider.
+        // Pipeline is initialized once with switchableProvider and stays attached;
+        // the actual camera source can be swapped at runtime (Ticket 4.7.3).
+        switchableProvider.attach(source: arService)
 
         loadBaseline()
         setupPipeline()
