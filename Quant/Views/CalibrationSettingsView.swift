@@ -12,6 +12,23 @@ struct CalibrationSettingsView: View {
         NavigationStack {
             Form {
                 Section {
+                    Picker("Camera", selection: Binding(
+                        get: { appModel.cameraMode },
+                        set: { newMode in
+                            Task { await appModel.switchCameraMode(to: newMode) }
+                        }
+                    )) {
+                        Text("Rear (Depth)").tag(CameraMode.rearDepth)
+                        Text("Front (2D)").tag(CameraMode.front2D)
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Camera")
+                } footer: {
+                    Text("Rear uses LiDAR depth when available. Front uses 2D pose only. Switching requires recalibration.")
+                }
+
+                Section {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("Position Sensitivity")

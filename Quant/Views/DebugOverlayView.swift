@@ -13,6 +13,13 @@ struct DebugOverlayView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            // Camera mode
+            HStack(spacing: 4) {
+                Image(systemName: appModel.cameraMode == .rearDepth ? "camera.fill" : "camera.rotate")
+                    .font(.system(size: 10))
+                Text("Cam: \(appModel.cameraMode.rawValue)")
+            }
+
             // Mode indicator with color
             HStack(spacing: 4) {
                 Circle()

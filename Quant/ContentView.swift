@@ -14,8 +14,14 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             if appModel.showCameraPreview {
-                CameraPreviewView(session: appModel.arService.session)
-                    .ignoresSafeArea()
+                switch appModel.cameraMode {
+                case .rearDepth:
+                    CameraPreviewView(session: appModel.arService.session)
+                        .ignoresSafeArea()
+                case .front2D:
+                    FrontCameraPreviewView(session: appModel.frontService.captureSession)
+                        .ignoresSafeArea()
+                }
             }
 
             if appModel.needsCalibration {

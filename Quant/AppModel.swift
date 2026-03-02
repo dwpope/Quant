@@ -118,7 +118,7 @@ class AppModel: ObservableObject {
     // MARK: - Private Properties
 
     let arService = ARSessionService()
-    private let frontService = FrontCameraSessionService()
+    let frontService = FrontCameraSessionService()
     private let switchableProvider = SwitchablePoseProvider()
     private lazy var pipeline: Pipeline = {
         Pipeline(provider: switchableProvider)

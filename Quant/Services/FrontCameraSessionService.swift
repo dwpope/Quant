@@ -38,7 +38,9 @@ final class FrontCameraSessionService: NSObject, PoseProvider {
     // MARK: - Private Properties
 
     private let frameSubject = PassthroughSubject<InputFrame, Never>()
-    private let captureSession = AVCaptureSession()
+
+    /// The underlying AVCaptureSession, exposed so a preview layer can display the camera feed.
+    let captureSession = AVCaptureSession()
     private let outputQueue = DispatchQueue(label: "com.quant.frontCamera.output")
     private let logger = Logger(subsystem: "com.quant.posture", category: "FrontCamera")
     private var isConfigured = false
