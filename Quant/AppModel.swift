@@ -87,6 +87,10 @@ class AppModel: ObservableObject {
         }
     }
 
+    // MARK: - Camera Mode
+
+    @Published var cameraMode: CameraMode
+
     // MARK: - Camera Preview
 
     @Published var showCameraPreview: Bool = true
@@ -114,6 +118,7 @@ class AppModel: ObservableObject {
     // MARK: - Private Properties
 
     let arService = ARSessionService()
+    private let frontService = FrontCameraSessionService()
     private let switchableProvider = SwitchablePoseProvider()
     private lazy var pipeline: Pipeline = {
         Pipeline(provider: switchableProvider)
@@ -128,6 +133,7 @@ class AppModel: ObservableObject {
     private static let baselineKey = "com.quant.savedBaseline"
 
     private enum Keys {
+        static let cameraMode = "com.quant.cameraMode"
         static let maxPositionVariance = "com.quant.cal.maxPositionVariance"
         static let maxAngleVariance = "com.quant.cal.maxAngleVariance"
         static let samplingDuration = "com.quant.cal.samplingDuration"
@@ -153,6 +159,14 @@ class AppModel: ObservableObject {
     init() {
         let defaults = UserDefaults.standard
 
+        // Load persisted camera mode (default: .rearDepth)
+        if let raw = defaults.string(forKey: Keys.cameraMode),
+           let saved = CameraMode(rawValue: raw) {
+            self.cameraMode = saved
+        } else {
+            self.cameraMode = .rearDepth
+        }
+
         let posVar = defaults.object(forKey: Keys.maxPositionVariance) as? Float ?? Self.defaultMaxPositionVariance
         let angVar = defaults.object(forKey: Keys.maxAngleVariance) as? Float ?? Self.defaultMaxAngleVariance
         let sampDur = defaults.object(forKey: Keys.samplingDuration) as? Double ?? Self.defaultSamplingDuration
@@ -175,10 +189,10 @@ class AppModel: ObservableObject {
         )
         self.calibrationEngine = CalibrationEngine(config: config)
 
-        // Attach the rear camera as the default source for the switchable provider.
+        // Attach the persisted camera source to the switchable provider.
         // Pipeline is initialized once with switchableProvider and stays attached;
-        // the actual camera source can be swapped at runtime (Ticket 4.7.3).
-        switchableProvider.attach(source: arService)
+        // the actual camera source can be swapped at runtime via switchCameraMode().
+        switchableProvider.attach(source: providerForMode(cameraMode))
 
         loadBaseline()
         setupPipeline()
@@ -315,17 +329,51 @@ class AppModel: ObservableObject {
 
     func startMonitoring() async {
         do {
-            try await arService.start()
-            print("AR session started successfully")
+            try await activeService.start()
+            print("\(cameraMode) session started successfully")
         } catch {
-            print("Failed to start AR service: \(error)")
+            print("Failed to start \(cameraMode) service: \(error)")
         }
     }
 
     func stopMonitoring() {
-        arService.stop()
+        activeService.stop()
         cancellables.removeAll()
-        print("AR session stopped and subscriptions cleaned up")
+        print("\(cameraMode) session stopped and subscriptions cleaned up")
+    }
+
+    /// Switch to a different camera mode at runtime.
+    ///
+    /// This method:
+    /// 1. Stops the currently active camera source
+    /// 2. Detaches it from the switchable provider
+    /// 3. Attaches the new source
+    /// 4. Starts the new source
+    /// 5. Triggers recalibration (baseline is camera-specific)
+    /// 6. Persists the choice to UserDefaults
+    func switchCameraMode(to mode: CameraMode) async {
+        guard mode != cameraMode else { return }
+
+        // Stop and detach current source
+        activeService.stop()
+        switchableProvider.detach()
+
+        // Update mode
+        cameraMode = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: Keys.cameraMode)
+
+        // Attach and start new source
+        switchableProvider.attach(source: providerForMode(mode))
+        do {
+            try await activeService.start()
+            print("Switched to \(mode) — session started")
+        } catch {
+            print("Failed to start \(mode) service: \(error)")
+        }
+
+        // Baseline from the previous camera is not valid for the new one —
+        // shoulder positions and scale differ between rear and front views.
+        recalibrate()
     }
 
     func startCalibration() {
@@ -364,6 +412,19 @@ class AppModel: ObservableObject {
     }
 
     // MARK: - Private Methods
+
+    /// Returns the PoseProvider for the given camera mode.
+    private func providerForMode(_ mode: CameraMode) -> any PoseProvider {
+        switch mode {
+        case .rearDepth: return arService
+        case .front2D: return frontService
+        }
+    }
+
+    /// The currently active camera service, based on `cameraMode`.
+    private var activeService: any PoseProvider {
+        providerForMode(cameraMode)
+    }
 
     private func rebuildCalibrationEngine() {
         let config = CalibrationConfig(

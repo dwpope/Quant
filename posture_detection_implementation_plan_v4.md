@@ -2001,13 +2001,13 @@ func test_shoulderRounding_relaxedInReadingMode() { ... }
 
 #### Sprint 4.5 — Definition of Done
 
-- [ ] `headDrop` metric triggers state transitions when exceeding threshold
-- [ ] `shoulderRounding` metric triggers state transitions when exceeding threshold
-- [ ] `PostureThresholds` includes `headDropThreshold` and `shoulderRoundingThreshold`
+- [x] `headDrop` metric triggers state transitions when exceeding threshold
+- [x] `shoulderRounding` metric triggers state transitions when exceeding threshold
+- [x] `PostureThresholds` includes `headDropThreshold` and `shoulderRoundingThreshold`
 - [ ] Settings screen (Ticket 7.3) exposes new thresholds when implemented
-- [ ] `NudgeReason` reflects the dominant metric violation
-- [ ] Existing PostureEngine and NudgeEngine tests still pass (no regressions)
-- [ ] All new unit tests pass
+- [x] `NudgeReason` reflects the dominant metric violation
+- [x] Existing PostureEngine and NudgeEngine tests still pass (no regressions)
+- [x] All new unit tests pass
 
 ---
 
