@@ -2282,6 +2282,15 @@ func test_reattachSwitchesSource() { ... }
 - `swift test --package-path PostureLogic`
 - `xcodebuild test -project Quant.xcodeproj -scheme QuantNoWatchTests -destination 'platform=iOS Simulator,name=iPhone 16'`
 
+**Post-implementation hardening update (2026-03-02):**
+
+- [x] Fixed `AppModel.recalibrate()` to remove persisted baseline (`com.quant.savedBaseline`) so stale baseline data cannot reappear after relaunch.
+- [x] Fixed `AppModel.stopMonitoring()` to preserve lifetime subscriptions (pipeline/watch handlers remain active after stop/start lifecycle operations).
+- [x] Added regression test: `test_recalibrate_clearsPersistedBaseline_soRelaunchRequiresCalibration`.
+- [x] Added regression test: `test_stopMonitoring_preservesWatchSettingsSubscription`.
+- [x] Fixed `FrontCameraSessionService` to run `AVCaptureSession.startRunning()`/`stopRunning()` on a dedicated serial queue instead of the main actor.
+- [x] Removed invalid SwiftPM test resource declaration from `PostureLogic/Package.swift` (`resources: [.process("Resources")]`) because the directory does not exist.
+
 #### Sprint 4.7 — Definition of Done
 
 - [ ] App builds and runs
@@ -3103,3 +3112,4 @@ Ensure the app is usable by everyone, including those with visual impairments wh
 | 2.0 | Updated | Added: file structure, stub code, complete data models, ticket dependency graph |
 | 2.1 | Updated | Added: Known Gotchas, Debugging Checklist, Input/Output Examples, Definition of Done per sprint, Revision History |
 | 3.0 | Updated | Reordered for MVP-first delivery: Phase 1 (Sprints 0–4) delivers camera→watch tap; Phase 2 (Sprints 5–8) adds depth fusion, recording, task mode, settings; Phase 3 (Sprints 9–10) adds stability hardening and stretch goals. All ticket content preserved; IDs renumbered. |
+| 3.1 | 2026-03-02 | Hardening patch update: baseline persistence clear on recalibrate, subscription lifecycle fix for stop/start, front camera session queueing, new targeted regressions in `QuantTests`, and removal of invalid PostureLogic test resources manifest entry. |

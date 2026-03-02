@@ -200,8 +200,7 @@ class AppModel: ObservableObject {
 
         // Forward front camera permission status so the UI can show a
         // recovery screen when permission is denied or restricted.
-        // Uses assign(to:) so the subscription is tied to this object's lifetime
-        // and is not affected by cancellables.removeAll() in stopMonitoring().
+        // Uses assign(to:) so the subscription is tied to this object's lifetime.
         frontService.$permissionStatus
             .map { $0 == .denied || $0 == .restricted }
             .receive(on: RunLoop.main)
@@ -351,8 +350,7 @@ class AppModel: ObservableObject {
 
     func stopMonitoring() {
         activeService.stop()
-        cancellables.removeAll()
-        print("\(cameraMode) session stopped and subscriptions cleaned up")
+        print("\(cameraMode) session stopped")
     }
 
     /// Switch to a different camera mode at runtime.
@@ -401,6 +399,7 @@ class AppModel: ObservableObject {
     func recalibrate() {
         baseline = nil
         pipeline.baseline = nil
+        UserDefaults.standard.removeObject(forKey: Self.baselineKey)
         needsCalibration = true
         startCalibration()
     }

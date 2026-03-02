@@ -41,6 +41,7 @@ final class FrontCameraSessionService: NSObject, PoseProvider {
 
     /// The underlying AVCaptureSession, exposed so a preview layer can display the camera feed.
     let captureSession = AVCaptureSession()
+    private let sessionQueue = DispatchQueue(label: "com.quant.frontCamera.session")
     private let outputQueue = DispatchQueue(label: "com.quant.frontCamera.output")
     private let logger = Logger(subsystem: "com.quant.posture", category: "FrontCamera")
     private var isConfigured = false
@@ -72,15 +73,28 @@ final class FrontCameraSessionService: NSObject, PoseProvider {
             return
         }
 
-        try configureSession()
-        captureSession.startRunning()
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            sessionQueue.async { [self] in
+                do {
+                    try configureSession()
+                    if !captureSession.isRunning {
+                        captureSession.startRunning()
+                    }
+                    continuation.resume(returning: ())
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
         logger.info("Front camera session started")
     }
 
     func stop() {
-        guard captureSession.isRunning else { return }
-        captureSession.stopRunning()
-        logger.info("Front camera session stopped")
+        sessionQueue.async { [self] in
+            guard captureSession.isRunning else { return }
+            captureSession.stopRunning()
+            logger.info("Front camera session stopped")
+        }
     }
 
     // MARK: - Session Configuration

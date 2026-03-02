@@ -8,6 +8,7 @@
 import XCTest
 import PostureLogic
 import simd
+import Combine
 @testable import Quant
 
 @MainActor
@@ -74,8 +75,25 @@ final class AppModelTests: XCTestCase {
 
         XCTAssertTrue(model.needsCalibration)
         XCTAssertNil(model.baseline)
+        XCTAssertNil(UserDefaults.standard.data(forKey: baselineKey))
         XCTAssertEqual(model.calibrationStatus, .waiting)
         XCTAssertEqual(model.calibrationProgress, 0, accuracy: 0.0001)
+    }
+
+    func test_recalibrate_clearsPersistedBaseline_soRelaunchRequiresCalibration() throws {
+        let expected = makeBaseline(timestamp: Date())
+        let data = try JSONEncoder().encode(expected)
+        UserDefaults.standard.set(data, forKey: baselineKey)
+
+        let model = AppModel()
+        XCTAssertFalse(model.needsCalibration)
+        XCTAssertNotNil(model.baseline)
+
+        model.recalibrate()
+
+        let relaunched = AppModel()
+        XCTAssertTrue(relaunched.needsCalibration)
+        XCTAssertNil(relaunched.baseline)
     }
 
     // MARK: - Camera Mode Tests
@@ -107,6 +125,19 @@ final class AppModelTests: XCTestCase {
             "front2D"
         )
         XCTAssertTrue(model.needsCalibration)
+    }
+
+    func test_stopMonitoring_preservesWatchSettingsSubscription() {
+        let model = AppModel()
+        let newForwardCreepThreshold: Float = 0.19
+
+        model.stopMonitoring()
+        model.watchService.settingsReceived.send([
+            "type": "settings",
+            "com.quant.posture.forwardCreep": newForwardCreepThreshold
+        ])
+
+        XCTAssertEqual(model.forwardCreepThreshold, newForwardCreepThreshold, accuracy: 0.0001)
     }
 
     // MARK: - Helpers

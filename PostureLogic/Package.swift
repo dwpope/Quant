@@ -11,8 +11,7 @@ let package = Package(
         .target(name: "PostureLogic"),
         .testTarget(
             name: "PostureLogicTests",
-            dependencies: ["PostureLogic"],
-            resources: [.process("Resources")]
+            dependencies: ["PostureLogic"]
         ),
     ]
 )
