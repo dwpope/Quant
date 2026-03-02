@@ -2216,13 +2216,13 @@ func switchCameraMode(to mode: CameraMode) async {
 | **Depends on** | 4.7.3 |
 | **Inputs** | `appModel.cameraMode` |
 | **Outputs** | Camera mode picker in `CalibrationSettingsView`; adapted `ContentView` for front mode |
-| **Acceptance** | User can switch modes from settings; rear mode keeps existing `CameraPreviewView`; front mode has no full-screen camera preview so user can view/interact with the app; debug overlay optionally shows current camera mode |
+| **Acceptance** | User can switch modes from settings; rear mode keeps existing `CameraPreviewView`; front mode has a camera preview that shows in the background so user can adjust whilst still view/interact with the app; debug overlay optionally shows current camera mode |
 
 **Update**: `Quant/Views/CalibrationSettingsView.swift` — Add a section with camera mode picker bound to `appModel.cameraMode`.
 
 **Update**: `Quant/ContentView.swift`:
 - Rear mode: keep existing `CameraPreviewView(session: appModel.arService.session)`
-- Front mode: no full-screen camera preview (user faces screen while tracking)
+- Front mode: switch to the what the front-facing camera sees
 - Keep existing show/hide preview behavior for rear mode
 
 **Optionally update**: `Quant/Views/DebugOverlayView.swift` — Show current camera mode.
