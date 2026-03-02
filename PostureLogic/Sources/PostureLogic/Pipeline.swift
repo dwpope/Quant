@@ -215,13 +215,15 @@ public class Pipeline {
                         // Evaluate nudge decision based on the updated posture state.
                         // The NudgeEngine checks: Is posture bad long enough?
                         // Is cooldown active? Is the hourly limit reached?
-                        // The result tells the UI/feedback layer what to do.
+                        // The metrics are passed so the engine can determine the
+                        // specific nudge reason (forwardCreep, headDrop, etc.).
                         self.nudgeDecision = self.nudgeEngine.evaluate(
                             state: newPostureState,
                             trackingQuality: finalQuality,
                             movementLevel: smoothedMetrics.movementLevel,
                             taskMode: .unknown,  // TaskModeEngine added in Sprint 7
-                            currentTime: smoothedMetrics.timestamp
+                            currentTime: smoothedMetrics.timestamp,
+                            metrics: smoothedMetrics
                         )
                     }
                 }

@@ -37,6 +37,13 @@ public protocol NudgeEngineProtocol: DebugDumpable {
     /// (duration threshold, cooldown, hourly limit, suppression conditions)
     /// and returns a decision.
     ///
+    /// When a nudge fires or is pending, the engine determines the specific
+    /// reason by comparing current metrics against their thresholds. The metric
+    /// with the largest `value / threshold` ratio is the dominant violation:
+    /// - `forwardCreep / forwardCreepThreshold` → `.forwardCreep`
+    /// - `headDrop / headDropThreshold` → `.headDrop`
+    /// - Otherwise → `.sustainedSlouch` (general slouch)
+    ///
     /// - Parameters:
     ///   - state: The current posture state from PostureEngine.
     ///   - trackingQuality: How reliable the camera data is right now.
@@ -44,13 +51,16 @@ public protocol NudgeEngineProtocol: DebugDumpable {
     ///   - taskMode: The current activity classification (reading, typing, etc.).
     ///   - currentTime: The current timestamp (seconds). Using an explicit parameter
     ///     instead of `Date()` makes this testable — tests can control time.
+    ///   - metrics: The current posture metrics, used to determine the specific
+    ///     nudge reason. Pass `nil` to default to `.sustainedSlouch`.
     /// - Returns: A `NudgeDecision` telling the caller what to do.
     func evaluate(
         state: PostureState,
         trackingQuality: TrackingQuality,
         movementLevel: Float,
         taskMode: TaskMode,
-        currentTime: TimeInterval
+        currentTime: TimeInterval,
+        metrics: RawMetrics?
     ) -> NudgeDecision
 
     /// Record that a nudge was just fired and delivered to the user.

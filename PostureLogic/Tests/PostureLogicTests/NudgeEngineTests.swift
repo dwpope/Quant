@@ -71,14 +71,36 @@ final class NudgeEngineTests: XCTestCase {
         currentTime: TimeInterval,
         trackingQuality: TrackingQuality = .good,
         movementLevel: Float = 0.1,
-        taskMode: TaskMode = .unknown
+        taskMode: TaskMode = .unknown,
+        metrics: RawMetrics? = nil
     ) -> NudgeDecision {
         engine.evaluate(
             state: state,
             trackingQuality: trackingQuality,
             movementLevel: movementLevel,
             taskMode: taskMode,
-            currentTime: currentTime
+            currentTime: currentTime,
+            metrics: metrics
+        )
+    }
+
+    /// Helper to create RawMetrics with specific values for testing nudge reasons.
+    private func makeMetrics(
+        forwardCreep: Float = 0,
+        headDrop: Float = 0,
+        shoulderRounding: Float = 0,
+        lateralLean: Float = 0,
+        twist: Float = 0
+    ) -> RawMetrics {
+        RawMetrics(
+            timestamp: 0,
+            forwardCreep: forwardCreep,
+            headDrop: headDrop,
+            shoulderRounding: shoulderRounding,
+            lateralLean: lateralLean,
+            twist: twist,
+            movementLevel: 0.1,
+            headMovementPattern: .still
         )
     }
 
@@ -734,6 +756,151 @@ final class NudgeEngineTests: XCTestCase {
             // Expected — fresh start after reset
         } else {
             XCTFail("Phase 6: Should fire after reset, got: \(decision)")
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Test 12.5: Specific Nudge Reasons (Ticket 4.6)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    //
+    // When metrics are provided, the nudge reason should reflect
+    // the dominant posture violation rather than always being
+    // .sustainedSlouch. The dominant metric is the one with the
+    // highest value/threshold ratio.
+
+    func test_fireReason_isForwardCreep_whenForwardCreepDominates() {
+        let engine = makeEngine(slouchDuration: 10)
+
+        // forwardCreep = 0.15 / 0.10 threshold = 1.5 ratio
+        // headDrop = 0.03 / 0.06 threshold = 0.5 ratio
+        // → forwardCreep dominates
+        let metrics = makeMetrics(forwardCreep: 0.15, headDrop: 0.03)
+
+        let decision = evaluate(
+            engine, state: .bad(since: 0), currentTime: 15, metrics: metrics
+        )
+
+        if case .fire(let reason) = decision {
+            XCTAssertEqual(reason, .forwardCreep,
+                "Nudge reason should be .forwardCreep when forward creep ratio is highest")
+        } else {
+            XCTFail("Expected .fire, got: \(decision)")
+        }
+    }
+
+    func test_fireReason_isHeadDrop_whenHeadDropDominates() {
+        let engine = makeEngine(slouchDuration: 10)
+
+        // forwardCreep = 0.05 / 0.10 threshold = 0.5 ratio
+        // headDrop = 0.12 / 0.06 threshold = 2.0 ratio
+        // → headDrop dominates
+        let metrics = makeMetrics(forwardCreep: 0.05, headDrop: 0.12)
+
+        let decision = evaluate(
+            engine, state: .bad(since: 0), currentTime: 15, metrics: metrics
+        )
+
+        if case .fire(let reason) = decision {
+            XCTAssertEqual(reason, .headDrop,
+                "Nudge reason should be .headDrop when head drop ratio is highest")
+        } else {
+            XCTFail("Expected .fire, got: \(decision)")
+        }
+    }
+
+    func test_fireReason_isSustainedSlouch_whenNoMetricsProvided() {
+        let engine = makeEngine(slouchDuration: 10)
+
+        // No metrics → falls back to .sustainedSlouch
+        let decision = evaluate(
+            engine, state: .bad(since: 0), currentTime: 15, metrics: nil
+        )
+
+        if case .fire(let reason) = decision {
+            XCTAssertEqual(reason, .sustainedSlouch,
+                "Nudge reason should default to .sustainedSlouch when no metrics provided")
+        } else {
+            XCTFail("Expected .fire, got: \(decision)")
+        }
+    }
+
+    func test_fireReason_isSustainedSlouch_whenNeitherMetricExceedsThreshold() {
+        let engine = makeEngine(slouchDuration: 10)
+
+        // Both metrics below threshold
+        // forwardCreep = 0.05 / 0.10 = 0.5 ratio (below 1.0)
+        // headDrop = 0.03 / 0.06 = 0.5 ratio (below 1.0)
+        // → general sustained slouch (other metrics like twist/lean triggered the bad state)
+        let metrics = makeMetrics(forwardCreep: 0.05, headDrop: 0.03, twist: 20.0)
+
+        let decision = evaluate(
+            engine, state: .bad(since: 0), currentTime: 15, metrics: metrics
+        )
+
+        if case .fire(let reason) = decision {
+            XCTAssertEqual(reason, .sustainedSlouch,
+                "Nudge reason should be .sustainedSlouch when no single metric dominates")
+        } else {
+            XCTFail("Expected .fire, got: \(decision)")
+        }
+    }
+
+    func test_pendingReason_reflectsMetrics() {
+        let engine = makeEngine(slouchDuration: 10)
+
+        // Pending (only 5s of bad posture, need 10s) with forward creep dominant
+        let metrics = makeMetrics(forwardCreep: 0.20, headDrop: 0.02)
+
+        let decision = evaluate(
+            engine, state: .bad(since: 0), currentTime: 5, metrics: metrics
+        )
+
+        if case .pending(let reason, let remaining) = decision {
+            XCTAssertEqual(reason, .forwardCreep,
+                "Pending reason should reflect the dominant metric")
+            XCTAssertEqual(remaining, 5.0, accuracy: 0.01)
+        } else {
+            XCTFail("Expected .pending, got: \(decision)")
+        }
+    }
+
+    func test_fireReason_isSustainedSlouch_whenBothMetricsEqualAboveThreshold() {
+        let engine = makeEngine(slouchDuration: 10)
+
+        // Both at exactly the same ratio above threshold
+        // forwardCreep = 0.20 / 0.10 = 2.0
+        // headDrop = 0.12 / 0.06 = 2.0
+        // Equal → falls back to .sustainedSlouch
+        let metrics = makeMetrics(forwardCreep: 0.20, headDrop: 0.12)
+
+        let decision = evaluate(
+            engine, state: .bad(since: 0), currentTime: 15, metrics: metrics
+        )
+
+        if case .fire(let reason) = decision {
+            XCTAssertEqual(reason, .sustainedSlouch,
+                "When both metrics have equal ratios, should fall back to .sustainedSlouch")
+        } else {
+            XCTFail("Expected .fire, got: \(decision)")
+        }
+    }
+
+    func test_headDrop_notAffectedByTaskMode() {
+        let engine = makeEngine(slouchDuration: 10)
+
+        // headDrop dominant, reading mode — reason should still be headDrop
+        let metrics = makeMetrics(forwardCreep: 0.05, headDrop: 0.12)
+
+        let decision = evaluate(
+            engine, state: .bad(since: 0), currentTime: 15,
+            taskMode: .reading, metrics: metrics
+        )
+
+        if case .fire(let reason) = decision {
+            XCTAssertEqual(reason, .headDrop,
+                "headDrop reason should not be affected by task mode")
+        } else {
+            XCTFail("Expected .fire, got: \(decision)")
         }
     }
 

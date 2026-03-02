@@ -150,6 +150,10 @@ public final class NudgeEngine: NudgeEngineProtocol {
     /// task mode, cooldown, hourly limit, acknowledgement) and then checks
     /// whether the bad-posture duration exceeds the threshold.
     ///
+    /// When a nudge fires or is pending, the engine determines the specific
+    /// reason by comparing current metrics against their thresholds. The metric
+    /// with the largest `value / threshold` ratio is the dominant violation.
+    ///
     /// The method is **pure** with respect to its inputs — it doesn't call
     /// `Date()` internally. Instead, you pass `currentTime` explicitly, which
     /// makes unit tests deterministic (you control time).
@@ -160,13 +164,16 @@ public final class NudgeEngine: NudgeEngineProtocol {
     ///   - movementLevel: How much the user is moving (0 = still, 1 = very active).
     ///   - taskMode: The current activity classification.
     ///   - currentTime: The current timestamp in seconds.
+    ///   - metrics: The current posture metrics, used to determine the specific
+    ///     nudge reason. Pass `nil` to default to `.sustainedSlouch`.
     /// - Returns: A `NudgeDecision` indicating what the caller should do.
     public func evaluate(
         state: PostureState,
         trackingQuality: TrackingQuality,
         movementLevel: Float,
         taskMode: TaskMode,
-        currentTime: TimeInterval
+        currentTime: TimeInterval,
+        metrics: RawMetrics? = nil
     ) -> NudgeDecision {
 
         // ──────────────────────────────────────────────
@@ -258,6 +265,11 @@ public final class NudgeEngine: NudgeEngineProtocol {
         // original `.drifting(since:)` timestamp).
         let duration = currentTime - since
 
+        // Determine the dominant violation from the current metrics.
+        // Compare each metric against its threshold as a ratio — the
+        // metric with the highest ratio is the primary reason.
+        let reason = dominantReason(from: metrics)
+
         if duration >= thresholds.slouchDurationBeforeNudge {
             // ──────────────────────────────────────────
             // FIRE! All conditions met.
@@ -266,8 +278,8 @@ public final class NudgeEngine: NudgeEngineProtocol {
             // The caller (Pipeline or AppModel) should:
             // 1. Deliver feedback (audio cue, watch haptic)
             // 2. Call `recordNudgeFired(at:)` to start cooldown
-            let decision = NudgeDecision.fire(reason: .sustainedSlouch)
-            lastDecisionDescription = "FIRE: sustainedSlouch (bad for \(String(format: "%.0f", duration))s)"
+            let decision = NudgeDecision.fire(reason: reason)
+            lastDecisionDescription = "FIRE: \(reason.rawValue) (bad for \(String(format: "%.0f", duration))s)"
             return decision
         }
 
@@ -279,8 +291,8 @@ public final class NudgeEngine: NudgeEngineProtocol {
         // Return `.pending` with the time remaining so the UI can
         // show a countdown if desired.
         let remaining = thresholds.slouchDurationBeforeNudge - duration
-        let decision = NudgeDecision.pending(reason: .sustainedSlouch, timeRemaining: remaining)
-        lastDecisionDescription = "pending: \(String(format: "%.0f", remaining))s remaining"
+        let decision = NudgeDecision.pending(reason: reason, timeRemaining: remaining)
+        lastDecisionDescription = "pending (\(reason.rawValue)): \(String(format: "%.0f", remaining))s remaining"
         return decision
     }
 
@@ -326,6 +338,42 @@ public final class NudgeEngine: NudgeEngineProtocol {
     }
 
     // MARK: - Private Helpers
+
+    /// Determine the dominant posture violation from the current metrics.
+    ///
+    /// Compares each metric against its threshold as a ratio (`value / threshold`).
+    /// The metric with the highest ratio is the primary reason for the nudge.
+    /// Falls back to `.sustainedSlouch` when no metrics are provided or no
+    /// single metric clearly dominates.
+    ///
+    /// - Parameter metrics: The current posture metrics, or `nil`.
+    /// - Returns: The `NudgeReason` for the dominant violation.
+    private func dominantReason(from metrics: RawMetrics?) -> NudgeReason {
+        guard let metrics = metrics else { return .sustainedSlouch }
+
+        // Compute ratio of each metric to its threshold.
+        // Higher ratio = more severe violation relative to its threshold.
+        let forwardCreepRatio: Float = thresholds.forwardCreepThreshold > 0
+            ? metrics.forwardCreep / thresholds.forwardCreepThreshold
+            : 0
+
+        let headDropRatio: Float = thresholds.headDropThreshold > 0
+            ? metrics.headDrop / thresholds.headDropThreshold
+            : 0
+
+        // Pick the metric with the highest ratio
+        if forwardCreepRatio > headDropRatio && forwardCreepRatio > 1.0 {
+            return .forwardCreep
+        }
+
+        if headDropRatio > forwardCreepRatio && headDropRatio > 1.0 {
+            return .headDrop
+        }
+
+        // If both are equal and above threshold, or neither is above threshold,
+        // fall back to the general reason
+        return .sustainedSlouch
+    }
 
     /// Calculate how many seconds remain in the cooldown period.
     ///
