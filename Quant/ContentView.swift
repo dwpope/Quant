@@ -24,7 +24,11 @@ struct ContentView: View {
                 }
             }
 
-            if appModel.needsCalibration {
+            if appModel.cameraMode == .front2D && appModel.frontCameraBlocked {
+                CameraPermissionView {
+                    Task { await appModel.retryFrontCamera() }
+                }
+            } else if appModel.needsCalibration {
                 CalibrationView(appModel: appModel)
             } else {
                 monitoringView

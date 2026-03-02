@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import AVFoundation
 import PostureLogic
 
 @MainActor
@@ -90,6 +91,9 @@ class AppModel: ObservableObject {
     // MARK: - Camera Mode
 
     @Published var cameraMode: CameraMode
+    /// True when the front camera cannot start due to denied or restricted permission.
+    /// The UI shows a permission-recovery screen when this is true and cameraMode is .front2D.
+    @Published var frontCameraBlocked: Bool = false
 
     // MARK: - Camera Preview
 
@@ -193,6 +197,15 @@ class AppModel: ObservableObject {
         // Pipeline is initialized once with switchableProvider and stays attached;
         // the actual camera source can be swapped at runtime via switchCameraMode().
         switchableProvider.attach(source: providerForMode(cameraMode))
+
+        // Forward front camera permission status so the UI can show a
+        // recovery screen when permission is denied or restricted.
+        // Uses assign(to:) so the subscription is tied to this object's lifetime
+        // and is not affected by cancellables.removeAll() in stopMonitoring().
+        frontService.$permissionStatus
+            .map { $0 == .denied || $0 == .restricted }
+            .receive(on: RunLoop.main)
+            .assign(to: &$frontCameraBlocked)
 
         loadBaseline()
         setupPipeline()
@@ -394,6 +407,16 @@ class AppModel: ObservableObject {
 
     func sendTestNudge() {
         watchService.sendNudge(hapticType: selectedHaptic)
+    }
+
+    /// Re-attempt starting the front camera after the user grants permission in Settings.
+    func retryFrontCamera() async {
+        guard cameraMode == .front2D else { return }
+        do {
+            try await frontService.start()
+        } catch {
+            print("Failed to start front camera: \(error)")
+        }
     }
 
     func resetCalibrationSettings() {
