@@ -15,6 +15,7 @@ class AppModel: ObservableObject {
     @Published var poseKeypointCount: Int = 0
     @Published var missingCriticalJoints: String = ""
     @Published var latestSample: PoseSample?
+    @Published var latestMetrics: RawMetrics?
     @Published var postureState: PostureState = .absent
     @Published var nudgeDecision: NudgeDecision = .none
 
@@ -217,6 +218,9 @@ class AppModel: ObservableObject {
     private func setupPipeline() {
         pipeline.$latestSample
             .assign(to: &$latestSample)
+
+        pipeline.$latestMetrics
+            .assign(to: &$latestMetrics)
 
         pipeline.$currentMode
             .assign(to: &$currentMode)
