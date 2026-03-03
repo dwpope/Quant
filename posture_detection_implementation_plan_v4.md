@@ -406,6 +406,9 @@ Sprint 4.7 (front camera support):
 Sprint 4.8 (calibrated metrics debug display):
     4.8.1 ──→ 4.8.2
 
+Sprint 4.9 (twist measurement fix):
+    4.9
+
   PHASE 2 — Enhancement
 ═══════════════════════════════════════
 
@@ -2424,7 +2427,7 @@ HStack(spacing: 0) {
                                       threshold: appModel.postureThresholds.sideLeanThreshold))
 }
 
-// Twist — raw absolute vs calibrated (same value, both absolute degrees)
+// Twist — raw absolute vs calibrated (delta from baseline, like other metrics)
 HStack(spacing: 0) {
     Text("Twist")
         .frame(width: 70, alignment: .leading)
@@ -2491,6 +2494,43 @@ private func metricColor(_ value: Float?, threshold: Float) -> Color {
 - [ ] Raw column unchanged — still shows absolute PoseSample values
 - [ ] No regressions in existing posture detection or nudge behavior
 - [ ] All existing tests pass
+
+---
+
+### Sprint 4.9 — Twist Measurement Fix (Orientation + Baseline)
+
+> **Focus**: Fix two bugs that made the twist metric read ~87° when shoulders were level, immediately triggering "Drifting" state and making the posture system unusable with the front camera.
+
+#### Ticket 4.9 — Fix Twist Offset + Baseline Subtraction
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Make twist metric read ~0° when shoulders are level after calibration |
+| **Depends on** | 4.7, 4.8 |
+| **Root Causes** | 1) Front camera frames delivered without `videoOrientation = .portrait`, causing Vision to see landscape-oriented body (~87° twist). 2) Twist computed as `abs(shoulderTwist)` with no baseline subtraction, unlike all other metrics. |
+
+**Changes**:
+
+1. **Front camera orientation** (`FrontCameraSessionService.swift`): Set `connection.videoOrientation = .portrait` on the capture connection so AVFoundation delivers portrait-oriented pixel buffers. The rear camera (ARKit) is unaffected.
+
+2. **Baseline shoulder twist** (`Baseline.swift`): Add `shoulderTwist: Float` field (default `0` for backward compatibility with persisted baselines).
+
+3. **Calibration capture** (`CalibrationEngine.swift`): Average `shoulderTwist` from collected samples during `buildBaseline()`, same pattern as `torsoAngle`.
+
+4. **Baseline subtraction** (`MetricsEngine.swift`): Change from `abs(sample.shoulderTwist)` to `abs(sample.shoulderTwist - baseline.shoulderTwist)`, making twist a delta-from-baseline metric like all others.
+
+5. **Tests** (`MetricsEngineTests.swift`): Added `test_twist_baselineSubtracted` and `test_twist_atBaseline_isZero`; updated `makeBaseline()` helper to accept `shoulderTwist` parameter.
+
+#### Sprint 4.9 — Definition of Done
+
+- [x] `FrontCameraSessionService` sets `videoOrientation = .portrait` on capture connection
+- [x] `Baseline` struct includes `shoulderTwist: Float` field
+- [x] `CalibrationEngine.buildBaseline()` averages shoulder twist from samples
+- [x] `MetricsEngine` computes twist as delta from baseline
+- [x] All existing tests pass with updated Baseline signatures
+- [x] New twist baseline tests pass (`test_twist_baselineSubtracted`, `test_twist_atBaseline_isZero`)
+- [ ] On-device: twist Cal column shows ~0° after calibration (was ~87°)
+- [ ] On-device: posture state shows "Good" when sitting upright (was stuck on "Drifting")
 
 ---
 
@@ -3302,3 +3342,4 @@ Ensure the app is usable by everyone, including those with visual impairments wh
 | 3.0 | Updated | Reordered for MVP-first delivery: Phase 1 (Sprints 0–4) delivers camera→watch tap; Phase 2 (Sprints 5–8) adds depth fusion, recording, task mode, settings; Phase 3 (Sprints 9–10) adds stability hardening and stretch goals. All ticket content preserved; IDs renumbered. |
 | 3.1 | 2026-03-02 | Hardening patch update: baseline persistence clear on recalibrate, subscription lifecycle fix for stop/start, front camera session queueing, new targeted regressions in `QuantTests`, and removal of invalid PostureLogic test resources manifest entry. |
 | 3.2 | 2026-03-03 | Added Sprint 4.8: Calibrated Metrics Debug Display — dual-column debug overlay showing raw (absolute) values alongside calibrated (delta-from-baseline) values with color-coded threshold proximity. |
+| 3.3 | 2026-03-03 | Added Sprint 4.9: Twist Measurement Fix — set front camera `videoOrientation = .portrait` to fix ~87° offset, added `shoulderTwist` to Baseline for delta-from-baseline twist computation. |

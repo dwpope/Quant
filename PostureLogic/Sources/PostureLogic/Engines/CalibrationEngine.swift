@@ -141,6 +141,10 @@ public final class CalibrationEngine {
             .map { $0.torsoAngle }
             .reduce(Float(0), +) / count
 
+        let avgShoulderTwist = collectedSamples
+            .map { $0.shoulderTwist }
+            .reduce(Float(0), +) / count
+
         let avgShoulderWidth = collectedSamples
             .map { $0.shoulderWidthRaw }
             .reduce(Float(0), +) / count
@@ -152,6 +156,7 @@ public final class CalibrationEngine {
             shoulderMidpoint: avgShoulderMidpoint,
             headPosition: avgHeadPosition,
             torsoAngle: avgTorsoAngle,
+            shoulderTwist: avgShoulderTwist,
             shoulderWidth: avgShoulderWidth,
             depthAvailable: hasDepth
         )

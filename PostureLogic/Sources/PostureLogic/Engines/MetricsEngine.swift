@@ -44,8 +44,8 @@ public struct MetricsEngine: MetricsEngineProtocol {
         // Lateral lean: off-center from baseline shoulder midpoint
         let lateralLean = abs(sample.shoulderMidpoint.x - baseline.shoulderMidpoint.x)
 
-        // Twist: absolute shoulder twist (already in degrees from fusion)
-        let twist = abs(sample.shoulderTwist)
+        // Twist: deviation from baseline shoulder twist
+        let twist = abs(sample.shoulderTwist - baseline.shoulderTwist)
 
         // Movement level: deferred to Ticket 2.5 (requires temporal data)
         let movementLevel: Float = 0

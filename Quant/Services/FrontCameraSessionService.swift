@@ -145,6 +145,7 @@ final class FrontCameraSessionService: NSObject, PoseProvider {
         // existing pipeline expectations.
         if let connection = videoOutput.connection(with: .video) {
             connection.isVideoMirrored = false
+            connection.videoOrientation = .portrait
         }
 
         isConfigured = true

@@ -33,6 +33,7 @@ final class MetricsEngineTests: XCTestCase {
         headPosition: SIMD3<Float> = SIMD3(0, 1.0, 0),
         shoulderMidpoint: SIMD3<Float> = SIMD3(0, 0, 0),
         torsoAngle: Float = 5,
+        shoulderTwist: Float = 0,
         shoulderWidth: Float = 0.2
     ) -> Baseline {
         Baseline(
@@ -40,6 +41,7 @@ final class MetricsEngineTests: XCTestCase {
             shoulderMidpoint: shoulderMidpoint,
             headPosition: headPosition,
             torsoAngle: torsoAngle,
+            shoulderTwist: shoulderTwist,
             shoulderWidth: shoulderWidth,
             depthAvailable: false
         )
@@ -210,6 +212,24 @@ final class MetricsEngineTests: XCTestCase {
         let metrics = engine.compute(from: sample, baseline: baseline)
 
         XCTAssertEqual(metrics.twist, 10, accuracy: 0.001, "Twist should be absolute value")
+    }
+
+    func test_twist_baselineSubtracted() {
+        var engine = MetricsEngine()
+        let baseline = makeBaseline(shoulderTwist: 5)
+        let sample = makeSample(shoulderTwist: 15)
+        let metrics = engine.compute(from: sample, baseline: baseline)
+
+        XCTAssertEqual(metrics.twist, 10, accuracy: 0.001, "Twist should be relative to baseline")
+    }
+
+    func test_twist_atBaseline_isZero() {
+        var engine = MetricsEngine()
+        let baseline = makeBaseline(shoulderTwist: 7)
+        let sample = makeSample(shoulderTwist: 7)
+        let metrics = engine.compute(from: sample, baseline: baseline)
+
+        XCTAssertEqual(metrics.twist, 0, accuracy: 0.001, "Twist at baseline should be zero")
     }
 
     // MARK: - Deferred Metrics
