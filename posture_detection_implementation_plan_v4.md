@@ -403,6 +403,9 @@ Sprint 4.5 (detection completeness):
 Sprint 4.7 (front camera support):
     4.7.1 ──→ 4.7.2 ──→ 4.7.3 ──→ 4.7.4 ──→ 4.7.5 ──→ 4.7.6
 
+Sprint 4.8 (calibrated metrics debug display):
+    4.8.1 ──→ 4.8.2
+
   PHASE 2 — Enhancement
 ═══════════════════════════════════════
 
@@ -2306,6 +2309,191 @@ func test_reattachSwitchesSource() { ... }
 
 ---
 
+### Sprint 4.8 — Calibrated Metrics Debug Display
+
+> **Focus**: The debug overlay currently shows raw `PoseSample` values (absolute head/shoulder positions, angles) but does not show the calibrated delta metrics that the posture engine actually uses for judgement. This sprint adds a side-by-side display of raw (true) values and calibrated (baseline-relative) values so the developer can see both what the camera sees and how far the user has drifted from their calibrated baseline. Calibrated values read 0 after calibration and move up/down as posture shifts.
+
+#### Ticket 4.8.1 — Expose `latestMetrics` in AppModel
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Subscribe AppModel to `Pipeline.latestMetrics` so calibrated delta metrics are available to the UI |
+| **Depends on** | 2.4 |
+| **Inputs** | `Pipeline.$latestMetrics` (already published) |
+| **Outputs** | `@Published var latestMetrics: RawMetrics?` on AppModel |
+| **Acceptance** | AppModel publishes the latest smoothed `RawMetrics` from the pipeline; value is nil before calibration, populated after |
+
+**Update**: `Quant/AppModel.swift`
+
+Add a new published property and subscribe to the pipeline:
+
+```swift
+// Add to AppModel published properties:
+@Published var latestMetrics: RawMetrics?
+
+// Add to setupPipeline() alongside existing subscriptions:
+pipeline.$latestMetrics
+    .assign(to: &$latestMetrics)
+```
+
+**Manual test steps**
+
+1. Set a breakpoint or print in AppModel and confirm `latestMetrics` is nil before calibration.
+2. Complete calibration and confirm `latestMetrics` populates with values near 0 (fresh baseline = no deviation).
+3. Slouch forward and confirm `forwardCreep` increases in the published value.
+
+---
+
+#### Ticket 4.8.2 — Dual-Column Metrics in DebugOverlayView
+
+| Field | Value |
+|-------|-------|
+| **Goal** | Show raw (true) PoseSample values and calibrated (delta-from-baseline) RawMetrics side by side in the debug overlay |
+| **Depends on** | 4.8.1 |
+| **Inputs** | `AppModel.latestSample` (raw), `AppModel.latestMetrics` (calibrated) |
+| **Outputs** | Updated `DebugOverlayView` with two-column readout |
+| **Acceptance** | After calibration, calibrated column shows values at/near 0; values drift as posture changes; raw column continues to show absolute positions |
+
+**Update**: `Quant/Views/DebugOverlayView.swift`
+
+Replace the current single-column pose sample readout section with a dual-column layout:
+
+```swift
+Divider()
+
+// Column headers
+HStack(spacing: 0) {
+    Text("Metric")
+        .frame(width: 70, alignment: .leading)
+    Text("Raw")
+        .frame(width: 55, alignment: .trailing)
+    Text("Cal")
+        .frame(width: 55, alignment: .trailing)
+}
+.fontWeight(.semibold)
+
+// Head Y — raw absolute position vs calibrated delta (headDrop)
+// Calibrated headDrop is 0 at baseline, positive = head dropped
+HStack(spacing: 0) {
+    Text("Head Y")
+        .frame(width: 70, alignment: .leading)
+    Text(poseScalar(appModel.latestSample?.headPosition.y, "%.3f"))
+        .frame(width: 55, alignment: .trailing)
+    Text(metricValue(appModel.latestMetrics?.headDrop))
+        .frame(width: 55, alignment: .trailing)
+        .foregroundStyle(metricColor(appModel.latestMetrics?.headDrop,
+                                      threshold: appModel.postureThresholds.headDropThreshold))
+}
+
+// Shoulder Width — raw absolute vs calibrated delta (forwardCreep)
+// Calibrated forwardCreep is 0 at baseline, positive = closer to camera
+HStack(spacing: 0) {
+    Text("Fwd Crp")
+        .frame(width: 70, alignment: .leading)
+    Text(poseScalar(appModel.latestSample?.shoulderWidthRaw, "%.3f"))
+        .frame(width: 55, alignment: .trailing)
+    Text(metricValue(appModel.latestMetrics?.forwardCreep))
+        .frame(width: 55, alignment: .trailing)
+        .foregroundStyle(metricColor(appModel.latestMetrics?.forwardCreep,
+                                      threshold: appModel.postureThresholds.forwardCreepThreshold))
+}
+
+// Torso Angle — raw absolute vs calibrated delta (shoulderRounding)
+// Calibrated shoulderRounding is 0 at baseline, positive = more rounded
+HStack(spacing: 0) {
+    Text("Torso")
+        .frame(width: 70, alignment: .leading)
+    Text(poseAngle(appModel.latestSample?.torsoAngle))
+        .frame(width: 55, alignment: .trailing)
+    Text(metricValue(appModel.latestMetrics?.shoulderRounding, suffix: "°"))
+        .frame(width: 55, alignment: .trailing)
+        .foregroundStyle(metricColor(appModel.latestMetrics?.shoulderRounding,
+                                      threshold: appModel.postureThresholds.shoulderRoundingThreshold))
+}
+
+// Lateral Lean — raw shoulder midpoint X vs calibrated delta
+// Calibrated lateralLean is 0 at baseline, positive = leaning sideways
+HStack(spacing: 0) {
+    Text("Lean")
+        .frame(width: 70, alignment: .leading)
+    Text(poseScalar(appModel.latestSample?.shoulderMidpoint.x, "%.3f"))
+        .frame(width: 55, alignment: .trailing)
+    Text(metricValue(appModel.latestMetrics?.lateralLean))
+        .frame(width: 55, alignment: .trailing)
+        .foregroundStyle(metricColor(appModel.latestMetrics?.lateralLean,
+                                      threshold: appModel.postureThresholds.sideLeanThreshold))
+}
+
+// Twist — raw absolute vs calibrated (same value, both absolute degrees)
+HStack(spacing: 0) {
+    Text("Twist")
+        .frame(width: 70, alignment: .leading)
+    Text(poseAngle(appModel.latestSample?.shoulderTwist))
+        .frame(width: 55, alignment: .trailing)
+    Text(metricValue(appModel.latestMetrics?.twist, suffix: "°"))
+        .frame(width: 55, alignment: .trailing)
+        .foregroundStyle(metricColor(appModel.latestMetrics?.twist,
+                                      threshold: appModel.postureThresholds.twistThreshold))
+}
+```
+
+**Helper functions to add**:
+
+```swift
+/// Formats a calibrated metric value.
+/// Shows "--" before calibration, "0.000" at baseline, "+0.042" or "-0.015" as posture shifts.
+private func metricValue(_ value: Float?, suffix: String = "") -> String {
+    guard let v = value else { return "--" }
+    let sign = v >= 0 ? "+" : ""
+    return String(format: "\(sign)%.3f\(suffix)", v)
+}
+
+/// Colors calibrated metrics based on proximity to threshold.
+/// - Green: < 50% of threshold (comfortable margin)
+/// - Yellow: 50–99% of threshold (drifting toward bad)
+/// - Red: ≥ threshold (exceeds limit, contributing to bad posture judgement)
+private func metricColor(_ value: Float?, threshold: Float) -> Color {
+    guard let v = value else { return .gray }
+    let ratio = abs(v) / threshold
+    if ratio >= 1.0 { return .red }
+    if ratio >= 0.5 { return .yellow }
+    return .green
+}
+```
+
+**Key design decisions**:
+
+- **Raw column** shows the true/absolute value the camera sees (e.g., head Y = 0.412, torso angle = 8.3°).
+- **Cal column** shows the delta from calibrated baseline (e.g., headDrop = +0.000 right after calibration, then +0.042 when head drops).
+- **Color coding** on the calibrated column provides at-a-glance feedback: green = within safe margin, yellow = approaching threshold, red = exceeding threshold.
+- **Sign prefix** (+/-) on calibrated values makes direction of drift immediately visible.
+
+**Manual test steps**
+
+1. Before calibration: confirm the "Cal" column shows "--" for all metrics.
+2. Complete calibration: confirm all calibrated values show approximately "+0.000" (green).
+3. Lean forward: confirm `Fwd Crp` calibrated value increases (turns yellow, then red as it approaches/exceeds threshold).
+4. Drop head: confirm `Head Y` calibrated value increases.
+5. Lean sideways: confirm `Lean` calibrated value increases.
+6. Return to good posture: confirm all calibrated values return toward 0 (green).
+7. Verify raw column continues showing absolute values throughout (does not reset on calibration).
+
+---
+
+#### Sprint 4.8 — Definition of Done
+
+- [ ] `AppModel` publishes `latestMetrics: RawMetrics?` from Pipeline
+- [ ] Debug overlay shows dual-column layout: Raw (absolute) and Cal (delta-from-baseline)
+- [ ] Calibrated values display as ~0 immediately after calibration
+- [ ] Calibrated values increase/decrease as posture shifts from baseline
+- [ ] Color coding reflects proximity to threshold (green/yellow/red)
+- [ ] Sign prefix (+/-) indicates direction of drift
+- [ ] Raw column unchanged — still shows absolute PoseSample values
+- [ ] No regressions in existing posture detection or nudge behavior
+- [ ] All existing tests pass
+
+---
+
 # Phase 2 — Enhancement
 
 > **Goal**: Add depth fusion for better accuracy, recording/replay infrastructure for regression testing, task mode classification, and a settings UI. These improve quality and developer workflow but are not required for the core value loop.
@@ -3113,3 +3301,4 @@ Ensure the app is usable by everyone, including those with visual impairments wh
 | 2.1 | Updated | Added: Known Gotchas, Debugging Checklist, Input/Output Examples, Definition of Done per sprint, Revision History |
 | 3.0 | Updated | Reordered for MVP-first delivery: Phase 1 (Sprints 0–4) delivers camera→watch tap; Phase 2 (Sprints 5–8) adds depth fusion, recording, task mode, settings; Phase 3 (Sprints 9–10) adds stability hardening and stretch goals. All ticket content preserved; IDs renumbered. |
 | 3.1 | 2026-03-02 | Hardening patch update: baseline persistence clear on recalibrate, subscription lifecycle fix for stop/start, front camera session queueing, new targeted regressions in `QuantTests`, and removal of invalid PostureLogic test resources manifest entry. |
+| 3.2 | 2026-03-03 | Added Sprint 4.8: Calibrated Metrics Debug Display — dual-column debug overlay showing raw (absolute) values alongside calibrated (delta-from-baseline) values with color-coded threshold proximity. |
