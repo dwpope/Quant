@@ -120,6 +120,13 @@ class AppModel: ObservableObject {
     /// The haptic type to use when sending a test nudge to the Watch.
     @Published var selectedHaptic: String = "failure"
 
+    // MARK: - Computed Properties
+
+    /// Exposes the pipeline's current PostureThresholds for the debug overlay.
+    var postureThresholds: PostureThresholds {
+        pipeline.thresholds
+    }
+
     // MARK: - Private Properties
 
     let arService = ARSessionService()

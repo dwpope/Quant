@@ -90,13 +90,76 @@ struct DebugOverlayView: View {
 
             Divider()
 
-            // Pose sample readout
-            Text("Head: \(posePair(appModel.latestSample?.headPosition))")
-            Text("L Shldr: \(posePair(appModel.latestSample?.leftShoulder))")
-            Text("R Shldr: \(posePair(appModel.latestSample?.rightShoulder))")
-            Text("Torso: \(poseAngle(appModel.latestSample?.torsoAngle))")
-            Text("Twist: \(poseAngle(appModel.latestSample?.shoulderTwist))")
-            Text("Shldr W: \(poseScalar(appModel.latestSample?.shoulderWidthRaw, "%.3f"))")
+            // Column headers
+            HStack(spacing: 0) {
+                Text("Metric")
+                    .frame(width: 70, alignment: .leading)
+                Text("Raw")
+                    .frame(width: 55, alignment: .trailing)
+                Text("Cal")
+                    .frame(width: 55, alignment: .trailing)
+            }
+            .fontWeight(.semibold)
+
+            // Head Y — raw absolute position vs calibrated delta (headDrop)
+            HStack(spacing: 0) {
+                Text("Head Y")
+                    .frame(width: 70, alignment: .leading)
+                Text(poseScalar(appModel.latestSample?.headPosition.y, "%.3f"))
+                    .frame(width: 55, alignment: .trailing)
+                Text(metricValue(appModel.latestMetrics?.headDrop))
+                    .frame(width: 55, alignment: .trailing)
+                    .foregroundStyle(metricColor(appModel.latestMetrics?.headDrop,
+                                                  threshold: appModel.postureThresholds.headDropThreshold))
+            }
+
+            // Shoulder Width — raw absolute vs calibrated delta (forwardCreep)
+            HStack(spacing: 0) {
+                Text("Fwd Crp")
+                    .frame(width: 70, alignment: .leading)
+                Text(poseScalar(appModel.latestSample?.shoulderWidthRaw, "%.3f"))
+                    .frame(width: 55, alignment: .trailing)
+                Text(metricValue(appModel.latestMetrics?.forwardCreep))
+                    .frame(width: 55, alignment: .trailing)
+                    .foregroundStyle(metricColor(appModel.latestMetrics?.forwardCreep,
+                                                  threshold: appModel.postureThresholds.forwardCreepThreshold))
+            }
+
+            // Torso Angle — raw absolute vs calibrated delta (shoulderRounding)
+            HStack(spacing: 0) {
+                Text("Torso")
+                    .frame(width: 70, alignment: .leading)
+                Text(poseAngle(appModel.latestSample?.torsoAngle))
+                    .frame(width: 55, alignment: .trailing)
+                Text(metricValue(appModel.latestMetrics?.shoulderRounding, suffix: "°"))
+                    .frame(width: 55, alignment: .trailing)
+                    .foregroundStyle(metricColor(appModel.latestMetrics?.shoulderRounding,
+                                                  threshold: appModel.postureThresholds.shoulderRoundingThreshold))
+            }
+
+            // Lateral Lean — raw shoulder midpoint X vs calibrated delta
+            HStack(spacing: 0) {
+                Text("Lean")
+                    .frame(width: 70, alignment: .leading)
+                Text(poseScalar(appModel.latestSample?.shoulderMidpoint.x, "%.3f"))
+                    .frame(width: 55, alignment: .trailing)
+                Text(metricValue(appModel.latestMetrics?.lateralLean))
+                    .frame(width: 55, alignment: .trailing)
+                    .foregroundStyle(metricColor(appModel.latestMetrics?.lateralLean,
+                                                  threshold: appModel.postureThresholds.sideLeanThreshold))
+            }
+
+            // Twist — raw absolute vs calibrated
+            HStack(spacing: 0) {
+                Text("Twist")
+                    .frame(width: 70, alignment: .leading)
+                Text(poseAngle(appModel.latestSample?.shoulderTwist))
+                    .frame(width: 55, alignment: .trailing)
+                Text(metricValue(appModel.latestMetrics?.twist, suffix: "°"))
+                    .frame(width: 55, alignment: .trailing)
+                    .foregroundStyle(metricColor(appModel.latestMetrics?.twist,
+                                                  threshold: appModel.postureThresholds.twistThreshold))
+            }
         }
         .font(.system(.caption, design: .monospaced))
         .padding(8)
@@ -251,6 +314,20 @@ struct DebugOverlayView: View {
     private func poseScalar(_ v: Float?, _ fmt: String) -> String {
         guard let v = v else { return "--" }
         return String(format: fmt, v)
+    }
+
+    private func metricValue(_ value: Float?, suffix: String = "") -> String {
+        guard let v = value else { return "--" }
+        let sign = v >= 0 ? "+" : ""
+        return String(format: "\(sign)%.3f\(suffix)", v)
+    }
+
+    private func metricColor(_ value: Float?, threshold: Float) -> Color {
+        guard let v = value else { return .gray }
+        let ratio = abs(v) / threshold
+        if ratio >= 1.0 { return .red }
+        if ratio >= 0.5 { return .yellow }
+        return .green
     }
 
     private var depthIcon: some View {
