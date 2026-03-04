@@ -36,7 +36,7 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     // MARK: - Posture Threshold Settings (synced from iPhone)
     // Defaults must match PostureThresholds() in PostureLogic
 
-    @Published var forwardCreepThreshold: Float = 0.10
+    @Published var forwardCreepThreshold: Float = 0.03
     @Published var twistThreshold: Float = 15.0
     @Published var sideLeanThreshold: Float = 0.08
     @Published var driftingToBadThreshold: Double = 60.0
@@ -107,7 +107,7 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
 
     /// Reset posture thresholds to defaults and sync to iPhone.
     func resetPostureSettings() {
-        forwardCreepThreshold = 0.10
+        forwardCreepThreshold = 0.03
         twistThreshold = 15.0
         sideLeanThreshold = 0.08
         driftingToBadThreshold = 60.0

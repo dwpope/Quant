@@ -19,7 +19,7 @@ final class PostureEngineTests: XCTestCase {
     /// - Parameters:
     ///   - timestamp: The time of this metrics reading (seconds).
     ///   - forwardCreep: How far forward the user has leaned vs baseline.
-    ///     Positive = leaning forward. Default thresholds.forwardCreepThreshold is 0.10.
+    ///     Positive = leaning forward. Default thresholds.forwardCreepThreshold is 0.03.
     ///   - twist: Shoulder rotation in degrees. Default threshold is 15.0°.
     ///   - lateralLean: Side-to-side offset. Default threshold is 0.08.
     private func makeMetrics(

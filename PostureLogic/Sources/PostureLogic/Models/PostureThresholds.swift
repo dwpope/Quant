@@ -7,7 +7,7 @@ public struct PostureThresholds: Codable {
     public var driftingToBadThreshold: TimeInterval = 60
     
     // MARK: - Posture Metrics
-    public var forwardCreepThreshold: Float = 0.10
+    public var forwardCreepThreshold: Float = 0.03
     public var twistThreshold: Float = 15.0
     public var sideLeanThreshold: Float = 0.08
     public var headDropThreshold: Float = 0.06
