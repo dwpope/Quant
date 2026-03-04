@@ -635,12 +635,12 @@ final class PostureEngineTests: XCTestCase {
             trackingQuality: .good
         )
 
-        // Forward creep of 0.11 exceeds the default 0.10 threshold,
+        // Forward creep of 0.035 exceeds the default 0.03 threshold,
         // but reading mode has a 1.2x multiplier, so the effective
-        // threshold is 0.12.
+        // threshold is 0.036.
         let metrics = makeMetrics(
             timestamp: 1.0,
-            forwardCreep: 0.11,  // Between 0.10 (default) and 0.12 (reading)
+            forwardCreep: 0.035,  // Between 0.03 (default) and 0.036 (reading)
             lateralLean: 0.01,
             twist: 3.0
         )
@@ -652,7 +652,7 @@ final class PostureEngineTests: XCTestCase {
         )
 
         XCTAssertEqual(state, .good,
-            "Reading mode should tolerate slightly more forward lean (0.11 < 0.12)")
+            "Reading mode should tolerate slightly more forward lean (0.035 < 0.036)")
     }
 
     func test_stretchingMode_disablesPostureJudgement() {

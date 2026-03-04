@@ -828,10 +828,10 @@ final class NudgeEngineTests: XCTestCase {
         let engine = makeEngine(slouchDuration: 10)
 
         // Both metrics below threshold
-        // forwardCreep = 0.05 / 0.10 = 0.5 ratio (below 1.0)
+        // forwardCreep = 0.015 / 0.03 = 0.5 ratio (below 1.0)
         // headDrop = 0.03 / 0.06 = 0.5 ratio (below 1.0)
         // → general sustained slouch (other metrics like twist/lean triggered the bad state)
-        let metrics = makeMetrics(forwardCreep: 0.05, headDrop: 0.03, twist: 20.0)
+        let metrics = makeMetrics(forwardCreep: 0.015, headDrop: 0.03, twist: 20.0)
 
         let decision = evaluate(
             engine, state: .bad(since: 0), currentTime: 15, metrics: metrics
@@ -868,10 +868,10 @@ final class NudgeEngineTests: XCTestCase {
         let engine = makeEngine(slouchDuration: 10)
 
         // Both at exactly the same ratio above threshold
-        // forwardCreep = 0.20 / 0.10 = 2.0
+        // forwardCreep = 0.06 / 0.03 = 2.0
         // headDrop = 0.12 / 0.06 = 2.0
         // Equal → falls back to .sustainedSlouch
-        let metrics = makeMetrics(forwardCreep: 0.20, headDrop: 0.12)
+        let metrics = makeMetrics(forwardCreep: 0.06, headDrop: 0.12)
 
         let decision = evaluate(
             engine, state: .bad(since: 0), currentTime: 15, metrics: metrics

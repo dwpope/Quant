@@ -98,7 +98,7 @@ class AppModel: ObservableObject {
 
     // MARK: - Camera Preview
 
-    @Published var showCameraPreview: Bool = true
+    @Published var showCameraPreview: Bool = false
 
     // MARK: - Audio Feedback
 
