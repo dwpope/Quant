@@ -172,15 +172,16 @@ public struct PoseDepthFusion: PoseDepthFusionProtocol {
             let hipMidX = (lh.position.x + rh.position.x) / 2
             let hipMidY = (lh.position.y + rh.position.y) / 2
             let dx = abs(shoulderMidX - hipMidX)
-            let dy = shoulderMidY - hipMidY
+            let dy = hipMidY - shoulderMidY
             // atan2(|dx|, dy) gives 0 when upright, increases with lean
             return Float(atan2(dx, dy)) * (180.0 / .pi)
         }
 
         // Fallback: map head-shoulder vertical distance ratio to pseudo-angle
+        // In image coords (y-down), head.y < shoulder.y when upright
         // When upright, head is ~1.0-1.5 shoulder-widths above shoulders
         // As user leans forward, this ratio decreases
-        let headVerticalOffset = headPos.y - shoulderMidY
+        let headVerticalOffset = shoulderMidY - headPos.y
         let ratio = headVerticalOffset / shoulderWidth
         // Map ratio: 1.2 → 0°, 0.0 → 45°  (linear interpolation, clamped)
         let normalizedRatio = max(0, min(Float(ratio) / 1.2, 1.0))
