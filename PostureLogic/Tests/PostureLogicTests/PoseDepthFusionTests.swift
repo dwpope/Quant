@@ -71,11 +71,12 @@ final class PoseDepthFusionTests: XCTestCase {
 
     // MARK: - Normalization
 
-    func test_shoulderMidpointIsOrigin() {
+    func test_shoulderMidpointIsRawImageCoords() {
         var fusion = PoseDepthFusion()
+        // uprightPose: shoulders at x=0.4,0.6 y=0.5 → midpoint (0.5, 0.5)
         let sample = fuse(uprightPose(), fusion: &fusion)!
-        XCTAssertEqual(sample.shoulderMidpoint.x, 0, accuracy: 0.001)
-        XCTAssertEqual(sample.shoulderMidpoint.y, 0, accuracy: 0.001)
+        XCTAssertEqual(sample.shoulderMidpoint.x, 0.5, accuracy: 0.001)
+        XCTAssertEqual(sample.shoulderMidpoint.y, 0.5, accuracy: 0.001)
         XCTAssertEqual(sample.shoulderMidpoint.z, 0, accuracy: 0.001)
     }
 

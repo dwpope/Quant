@@ -104,7 +104,7 @@ public struct PoseDepthFusion: PoseDepthFusionProtocol {
             timestamp: pose.timestamp,
             depthMode: .twoDOnly,
             headPosition: normHead,
-            shoulderMidpoint: SIMD3<Float>(0, 0, 0),
+            shoulderMidpoint: SIMD3<Float>(Float(midX), Float(midY), 0),
             leftShoulder: normLeftShoulder,
             rightShoulder: normRightShoulder,
             torsoAngle: torsoAngle,
