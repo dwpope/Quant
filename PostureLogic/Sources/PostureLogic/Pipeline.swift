@@ -137,6 +137,15 @@ public class Pipeline {
                 poseObservation = nil
             }
 
+            // Sample depth at keypoint positions when depth is available
+            let depthSamples: [DepthAtPoint]?
+            if let observation = poseObservation, confidence >= .medium {
+                let keypointPositions = observation.keypoints.map { $0.position }
+                depthSamples = self.depthService.sampleDepth(at: keypointPositions, from: frame)
+            } else {
+                depthSamples = nil
+            }
+
             // Determine tracking quality based on pose detection (with hysteresis)
             let qualityResult = Pipeline.computeTrackingQualityWithDiag(
                 poseObservation: poseObservation,
@@ -185,8 +194,9 @@ public class Pipeline {
                 if let observation = poseObservation {
                     let sample = self.fusion.fuse(
                         pose: observation,
-                        depthSamples: nil,
+                        depthSamples: depthSamples,
                         confidence: confidence,
+                        intrinsics: frame.cameraIntrinsics,
                         trackingQuality: finalQuality
                     )
                     self.latestSample = sample
