@@ -1,0 +1,2 @@
+[2m2026-03-08T18:03:25.896293Z[0m [33m WARN[0m [2mralph::loop_runner[0m[2m:[0m Interactive mode requested but stdout is not a TTY, falling back to autonomous
+Error: Prompt file 'PROMPT.md' not found. Check the path or use -p "text" for inline prompt.

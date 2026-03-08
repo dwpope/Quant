@@ -1,0 +1,4 @@
+2026-03-08T18:05:15.374414Z  INFO ralph: Spawning subprocess for TUI mode child_args=["-c", "ralph.yml", "run", "--rpc"]
+2026-03-08T18:05:15.374745Z  INFO ralph: TUI subprocess stderr redirected to log file log_file=/Users/learning/Developer/Quant/.ralph/diagnostics/logs/ralph-2026-03-08T18-05-15-374-57788.log
+2026-03-08T18:05:15.375031Z  INFO ralph: TUI running in subprocess RPC mode
+2026-03-08T18:05:15.392976Z  WARN ralph_tui::rpc_source: Subprocess exited without sending any RPC events
