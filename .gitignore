@@ -92,6 +92,9 @@ fastlane/test_output
 
 iOSInjectionProject/
 
+# Ralph
+.ralph/
+
 # macOS
 .DS_Store
 .AppleDouble

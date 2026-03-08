@@ -26,16 +26,16 @@
 - [x] Step 19: Specific NudgeReasons
 
 ### Front Camera Support
-- [ ] Step 20: Camera Mode & Switchable Provider Scaffolding
-- [ ] Step 21: Front Camera Provider
-- [ ] Step 22: AppModel Runtime Switching & Persistence
-- [ ] Step 23: Front Camera UI Controls
-- [ ] Step 24: Front Camera Permission/Error UX
-- [ ] Step 25: Front Camera Tests & Regression
+- [x] Step 20: Camera Mode & Switchable Provider Scaffolding
+- [x] Step 21: Front Camera Provider
+- [x] Step 22: AppModel Runtime Switching & Persistence
+- [x] Step 23: Front Camera UI Controls
+- [x] Step 24: Front Camera Permission/Error UX
+- [x] Step 25: Front Camera Tests & Regression
 
 ### Debug Improvements
-- [ ] Step 26: Expose latestMetrics in AppModel
-- [ ] Step 27: Dual-Column Calibrated Metrics Debug Display
+- [x] Step 26: Expose latestMetrics in AppModel
+- [x] Step 27: Dual-Column Calibrated Metrics Debug Display
 
 ### Twist Fix
 - [x] Step 28: Twist Measurement Fix (Orientation + Baseline)
