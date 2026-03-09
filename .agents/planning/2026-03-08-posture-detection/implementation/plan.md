@@ -48,7 +48,7 @@
 - [x] Step 33: ReplayService (Simulator-Friendly)
 - [x] Step 34: Golden Recordings
 - [x] Step 35: Recording & Replay Pipeline Integration
-- [ ] Step 36: TaskModeEngine Implementation
+- [x] Step 36: TaskModeEngine Implementation
 - [ ] Step 37: Task-Adjusted Thresholds
 - [ ] Step 38: Thresholds Settings Screen
 - [ ] Step 39: TaskModeEngine Pipeline Integration
