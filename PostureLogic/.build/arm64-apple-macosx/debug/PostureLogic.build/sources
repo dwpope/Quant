@@ -3,6 +3,7 @@
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsSmoother.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/NudgeEngine.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/PostureEngine.swift
+/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/TaskModeEngine.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/CalibrationStatus.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift
@@ -36,6 +37,8 @@
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/RecorderService.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ReplayPoseProvider.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ReplayService.swift
+/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/SetupValidator.swift
+/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/StaleBaselineDetector.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/Unproject.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift

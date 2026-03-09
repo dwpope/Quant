@@ -48,6 +48,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/TaskModeEngine.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift"
         },
         {
@@ -180,6 +184,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/SetupValidator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/StaleBaselineDetector.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/Unproject.swift"
         },
         {
@@ -208,6 +220,7 @@
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MetricsSmoother.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/NudgeEngine.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngine.swift.o",
+        "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/CalibrationStatus.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthConfidence.swift.o",
@@ -241,6 +254,8 @@
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/RecorderService.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayPoseProvider.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayService.swift.o",
+        "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/SetupValidator.swift.o",
+        "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/StaleBaselineDetector.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Unproject.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TestScenarios.swift.o"
@@ -321,6 +336,10 @@
         {
           "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngine.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.swift.o"
         },
         {
           "kind" : "file",
@@ -456,6 +475,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/SetupValidator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/StaleBaselineDetector.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Unproject.swift.o"
         },
         {
@@ -478,6 +505,7 @@
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsSmoother.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/NudgeEngine.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/PostureEngine.swift",
+        "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/TaskModeEngine.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/CalibrationStatus.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift",
@@ -511,6 +539,8 @@
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/RecorderService.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ReplayPoseProvider.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ReplayService.swift",
+        "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/SetupValidator.swift",
+        "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/StaleBaselineDetector.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/Unproject.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift"
@@ -666,6 +696,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineTaskModeTests.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineTrackingQualityTests.swift"
         },
         {
@@ -691,6 +725,18 @@
         {
           "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ReplayServiceTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/SetupValidatorTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/StaleBaselineDetectorTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/TaskModeEngineTests.swift"
         },
         {
           "kind" : "file",
@@ -723,6 +769,7 @@
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/NudgeEngineTests.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineReplayTests.swift.o",
+        "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTaskModeTests.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTrackingQualityTests.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseDepthFusionTests.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.swift.o",
@@ -730,6 +777,9 @@
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/RecorderServiceTests.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ReplayPoseProviderTests.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ReplayServiceTests.swift.o",
+        "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/SetupValidatorTests.swift.o",
+        "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/StaleBaselineDetectorTests.swift.o",
+        "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests.swift.o",
         "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/UnprojectTests.swift.o"
       ],
       "otherArguments" : [
@@ -830,6 +880,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTaskModeTests.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTrackingQualityTests.swift.o"
         },
         {
@@ -858,6 +912,18 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/SetupValidatorTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/StaleBaselineDetectorTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/UnprojectTests.swift.o"
         },
         {
@@ -877,6 +943,7 @@
         "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/NudgeEngineTests.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineReplayTests.swift",
+        "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineTaskModeTests.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineTrackingQualityTests.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseDepthFusionTests.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift",
@@ -884,6 +951,9 @@
         "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/RecorderServiceTests.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ReplayPoseProviderTests.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ReplayServiceTests.swift",
+        "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/SetupValidatorTests.swift",
+        "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/StaleBaselineDetectorTests.swift",
+        "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/TaskModeEngineTests.swift",
         "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/UnprojectTests.swift"
       ],
       "tempsPath" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build",
@@ -906,6 +976,7 @@
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/MetricsSmoother.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/NudgeEngine.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/PostureEngine.swift",
+      "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/TaskModeEngine.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/CalibrationStatus.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/DepthConfidence.swift",
@@ -939,6 +1010,8 @@
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/RecorderService.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ReplayPoseProvider.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ReplayService.swift",
+      "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/SetupValidator.swift",
+      "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/StaleBaselineDetector.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/Unproject.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift",
@@ -1083,6 +1156,7 @@
       "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/NudgeEngineTests.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineReplayTests.swift",
+      "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineTaskModeTests.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineTrackingQualityTests.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseDepthFusionTests.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift",
@@ -1090,6 +1164,9 @@
       "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/RecorderServiceTests.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ReplayPoseProviderTests.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ReplayServiceTests.swift",
+      "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/SetupValidatorTests.swift",
+      "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/StaleBaselineDetectorTests.swift",
+      "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/TaskModeEngineTests.swift",
       "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/UnprojectTests.swift",
       "-I",
       "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/Modules",
@@ -1209,6 +1286,10 @@
         {
           "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/PostureEngine.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/TaskModeEngine.swift"
         },
         {
           "kind" : "file",
@@ -1341,6 +1422,14 @@
         {
           "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ReplayService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/SetupValidator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/StaleBaselineDetector.swift"
         },
         {
           "kind" : "file",
@@ -1528,7 +1617,19 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/SetupValidator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/StaleBaselineDetector.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskMode.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.swift.o"
         },
         {
           "kind" : "file",
@@ -1588,6 +1689,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTaskModeTests.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTrackingQualityTests.swift.o"
         },
         {
@@ -1613,6 +1718,18 @@
         {
           "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ReplayServiceTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/SetupValidatorTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/StaleBaselineDetectorTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests.swift.o"
         },
         {
           "kind" : "file",
@@ -1670,6 +1787,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineTaskModeTests.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineTrackingQualityTests.swift"
         },
         {
@@ -1695,6 +1816,18 @@
         {
           "kind" : "file",
           "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ReplayServiceTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/SetupValidatorTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/StaleBaselineDetectorTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/TaskModeEngineTests.swift"
         },
         {
           "kind" : "file",

@@ -37,6 +37,13 @@
     "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngine.swiftdeps",
     "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/PostureEngine.dia"
   },
+  "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Engines/TaskModeEngine.swift": {
+    "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.d",
+    "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.swift.o",
+    "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.swiftdeps",
+    "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.dia"
+  },
   "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Baseline.swift": {
     "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.d",
     "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Baseline.swift.o",
@@ -267,6 +274,20 @@
     "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayService~partial.swiftmodule",
     "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayService.swiftdeps",
     "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayService.dia"
+  },
+  "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/SetupValidator.swift": {
+    "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/SetupValidator.d",
+    "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/SetupValidator.swift.o",
+    "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/SetupValidator~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/SetupValidator.swiftdeps",
+    "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/SetupValidator.dia"
+  },
+  "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/StaleBaselineDetector.swift": {
+    "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/StaleBaselineDetector.d",
+    "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/StaleBaselineDetector.swift.o",
+    "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/StaleBaselineDetector~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/StaleBaselineDetector.swiftdeps",
+    "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/StaleBaselineDetector.dia"
   },
   "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/Unproject.swift": {
     "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Unproject.d",

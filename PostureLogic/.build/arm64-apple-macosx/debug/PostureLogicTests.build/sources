@@ -8,6 +8,7 @@
 /Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ModeSwitcherTests.swift
 /Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/NudgeEngineTests.swift
 /Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineReplayTests.swift
+/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineTaskModeTests.swift
 /Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineTrackingQualityTests.swift
 /Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseDepthFusionTests.swift
 /Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PoseServiceTests.swift
@@ -15,4 +16,7 @@
 /Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/RecorderServiceTests.swift
 /Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ReplayPoseProviderTests.swift
 /Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ReplayServiceTests.swift
+/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/SetupValidatorTests.swift
+/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/StaleBaselineDetectorTests.swift
+/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/TaskModeEngineTests.swift
 /Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/UnprojectTests.swift

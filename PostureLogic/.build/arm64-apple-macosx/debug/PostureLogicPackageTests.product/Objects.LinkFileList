@@ -35,7 +35,10 @@
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayPoseProvider.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayService.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayServiceProtocol.swift.o
+/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/SetupValidator.swift.o
+/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/StaleBaselineDetector.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskMode.swift.o
+/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskModeEngine.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TestScenarios.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TrackingQuality.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Unproject.swift.o
@@ -50,6 +53,7 @@
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ModeSwitcherTests.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/NudgeEngineTests.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineReplayTests.swift.o
+/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTaskModeTests.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTrackingQualityTests.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseDepthFusionTests.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PoseServiceTests.swift.o
@@ -57,4 +61,7 @@
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/RecorderServiceTests.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ReplayPoseProviderTests.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ReplayServiceTests.swift.o
+/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/SetupValidatorTests.swift.o
+/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/StaleBaselineDetectorTests.swift.o
+/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests.swift.o
 /Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/UnprojectTests.swift.o
