@@ -50,6 +50,16 @@ struct DebugOverlayView: View {
             // FPS
             Text("FPS: \(appModel.fps, specifier: "%.1f")")
 
+            // Thermal level
+            if appModel.thermalLevel != .nominal {
+                HStack(spacing: 4) {
+                    Image(systemName: "thermometer.sun.fill")
+                        .foregroundStyle(appModel.thermalLevel == .critical ? .red : .orange)
+                        .font(.system(size: 10))
+                    Text("Thermal: \(thermalLabel)")
+                }
+            }
+
             Divider()
 
             // Posture state with color indicator
@@ -184,6 +194,15 @@ struct DebugOverlayView: View {
             return .red
         case .absent, .calibrating:
             return .gray
+        }
+    }
+
+    private var thermalLabel: String {
+        switch appModel.thermalLevel {
+        case .nominal: return "Nominal"
+        case .fair: return "Fair (5 FPS)"
+        case .serious: return "Serious (3 FPS)"
+        case .critical: return "Critical (paused)"
         }
     }
 

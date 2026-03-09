@@ -36,6 +36,9 @@ public class Pipeline {
     /// Checked periodically (every 60s) rather than every frame.
     @Published public var baselineStaleness: StaleBaselineResult = .fresh
 
+    /// Current device thermal level. Updated by ThermalMonitor when provided.
+    @Published public var thermalLevel: ThermalLevel = .nominal
+
     /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
     public var baseline: Baseline?
 
@@ -77,7 +80,11 @@ public class Pipeline {
     // Frame throttle to avoid spawning async Tasks at 60fps
     // Matches PoseService's ~10 FPS throttle rate
     private var lastPoseFrameTime: TimeInterval = 0
-    private let poseFrameInterval: TimeInterval = 0.1
+    private var poseFrameInterval: TimeInterval = 0.1
+
+    // Thermal monitoring
+    private var thermalMonitor: (any ThermalMonitorProtocol)?
+    private var thermalPolicy: ThermalPolicy = .nominal
 
     // Tracking quality temporal smoothing
     private var currentTrackingQuality: TrackingQuality = .lost
@@ -86,11 +93,36 @@ public class Pipeline {
 
     // MARK: - Initialization
 
-    public init(provider: PoseProvider, thresholds: PostureThresholds = PostureThresholds()) {
+    public init(
+        provider: PoseProvider,
+        thresholds: PostureThresholds = PostureThresholds(),
+        thermalMonitor: (any ThermalMonitorProtocol)? = nil
+    ) {
         self.thresholds = thresholds
+        self.thermalMonitor = thermalMonitor
         self.modeSwitcher = ModeSwitcher(thresholds: thresholds)
         self.postureEngine = PostureEngine(thresholds: thresholds)
         self.nudgeEngine = NudgeEngine(thresholds: thresholds)
+
+        // Subscribe to thermal level changes
+        if let monitor = thermalMonitor {
+            self.thermalLevel = monitor.currentLevel
+            self.thermalPolicy = monitor.currentPolicy
+            self.poseFrameInterval = ThermalPolicy.policy(for: monitor.currentLevel).maxFPS > 0
+                ? TimeInterval(1.0 / monitor.currentPolicy.maxFPS)
+                : 0.1
+            monitor.levelPublisher
+                .sink { [weak self] level in
+                    guard let self = self else { return }
+                    let policy = ThermalPolicy.policy(for: level)
+                    self.thermalLevel = level
+                    self.thermalPolicy = policy
+                    if policy.maxFPS > 0 {
+                        self.poseFrameInterval = TimeInterval(1.0 / policy.maxFPS)
+                    }
+                }
+                .store(in: &subscriptions)
+        }
 
         provider.framePublisher
             .sink { [weak self] frame in
@@ -106,6 +138,11 @@ public class Pipeline {
         // Skips pose detection and fusion; runs metrics, posture, and nudge engines.
         if let sample = frame.precomputedSample {
             processPrecomputed(sample, timestamp: frame.timestamp)
+            return
+        }
+
+        // Thermal throttle: skip all processing when critical
+        if thermalPolicy.detectionPaused {
             return
         }
 
@@ -161,9 +198,9 @@ public class Pipeline {
                 poseObservation = nil
             }
 
-            // Sample depth at keypoint positions when depth is available
+            // Sample depth at keypoint positions when depth is available and not thermally disabled
             let depthSamples: [DepthAtPoint]?
-            if let observation = poseObservation, confidence >= .medium {
+            if let observation = poseObservation, confidence >= .medium, self.thermalPolicy.depthEnabled {
                 let keypointPositions = observation.keypoints.map { $0.position }
                 depthSamples = self.depthService.sampleDepth(at: keypointPositions, from: frame)
             } else {

@@ -18,6 +18,7 @@ class AppModel: ObservableObject {
     @Published var latestMetrics: RawMetrics?
     @Published var postureState: PostureState = .absent
     @Published var nudgeDecision: NudgeDecision = .none
+    @Published var thermalLevel: ThermalLevel = .nominal
 
     // MARK: - Recording & Replay
 
@@ -172,8 +173,9 @@ class AppModel: ObservableObject {
     let arService = ARSessionService()
     let frontService = FrontCameraSessionService()
     private let switchableProvider = SwitchablePoseProvider()
+    private let thermalMonitor = ThermalMonitor()
     private lazy var pipeline: Pipeline = {
-        Pipeline(provider: switchableProvider)
+        Pipeline(provider: switchableProvider, thermalMonitor: thermalMonitor)
     }()
     private var cancellables = Set<AnyCancellable>()
     private let recorderService = RecorderService()
@@ -312,6 +314,9 @@ class AppModel: ObservableObject {
 
         pipeline.$nudgeDecision
             .assign(to: &$nudgeDecision)
+
+        pipeline.$thermalLevel
+            .assign(to: &$thermalLevel)
 
         // React to nudge fire decisions — deliver feedback and record.
         //
