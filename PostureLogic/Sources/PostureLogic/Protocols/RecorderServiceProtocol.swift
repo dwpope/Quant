@@ -15,6 +15,10 @@ public protocol RecorderServiceProtocol: DebugDumpable {
     /// No-op if not currently recording.
     mutating func record(sample: PoseSample)
 
+    /// Add a tag to the current recording.
+    /// No-op if not currently recording.
+    mutating func addTag(_ tag: Tag)
+
     /// End the current recording and return the completed session.
     /// - Returns: The recorded session, or `nil` if not recording.
     mutating func stopRecording() -> RecordedSession?

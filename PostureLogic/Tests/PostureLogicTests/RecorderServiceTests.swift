@@ -145,6 +145,48 @@ final class RecorderServiceTests: XCTestCase {
         XCTAssertTrue(session.tags.isEmpty)
     }
 
+    // MARK: - Tagging
+
+    func test_addTag_whileRecording_appendsTag() {
+        let service = RecorderService()
+        service.startRecording(metadata: makeMetadata())
+        service.addTag(Tag(timestamp: 1.0, label: .goodPosture, source: .manual))
+
+        let session = service.stopRecording()!
+        XCTAssertEqual(session.tags.count, 1)
+        XCTAssertEqual(session.tags[0].label, .goodPosture)
+        XCTAssertEqual(session.tags[0].source, .manual)
+        XCTAssertEqual(session.tags[0].timestamp, 1.0)
+    }
+
+    func test_addTag_whenNotRecording_isNoop() {
+        let service = RecorderService()
+        service.addTag(Tag(timestamp: 0.0, label: .slouching, source: .automatic))
+
+        // Start a fresh session and verify no stale tags leak in
+        service.startRecording(metadata: makeMetadata())
+        let session = service.stopRecording()!
+        XCTAssertTrue(session.tags.isEmpty)
+    }
+
+    func test_addTag_multipleTags_allIncludedInSession() {
+        let service = RecorderService()
+        service.startRecording(metadata: makeMetadata())
+
+        service.addTag(Tag(timestamp: 1.0, label: .goodPosture, source: .manual))
+        service.addTag(Tag(timestamp: 2.5, label: .slouching, source: .automatic))
+        service.addTag(Tag(timestamp: 4.0, label: .typing, source: .voice))
+
+        let session = service.stopRecording()!
+        XCTAssertEqual(session.tags.count, 3)
+        XCTAssertEqual(session.tags[0].label, .goodPosture)
+        XCTAssertEqual(session.tags[1].label, .slouching)
+        XCTAssertEqual(session.tags[2].label, .typing)
+        XCTAssertEqual(session.tags[0].source, .manual)
+        XCTAssertEqual(session.tags[1].source, .automatic)
+        XCTAssertEqual(session.tags[2].source, .voice)
+    }
+
     // MARK: - Re-record after stop
 
     func test_canStartNewRecordingAfterStop() {

@@ -57,6 +57,11 @@ public final class RecorderService: RecorderServiceProtocol {
         samples.append(sample)
     }
 
+    public func addTag(_ tag: Tag) {
+        guard isRecording else { return }
+        tags.append(tag)
+    }
+
     public func stopRecording() -> RecordedSession? {
         guard isRecording,
               let id = sessionID,
