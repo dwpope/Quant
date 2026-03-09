@@ -438,13 +438,19 @@ class AppModel: ObservableObject {
     func switchCameraMode(to mode: CameraMode) async {
         guard mode != cameraMode else { return }
 
-        // Stop and detach current source
-        activeService.stop()
-        switchableProvider.detach()
+        // Capture the previous service before changing the mode
+        let previousService = activeService
 
-        // Update mode
+        // Update mode and persist immediately so the UI reflects the change right away
         cameraMode = mode
         UserDefaults.standard.set(mode.rawValue, forKey: Keys.cameraMode)
+
+        // Yield so SwiftUI can update the picker before heavy camera work begins
+        await Task.yield()
+
+        // Stop and detach previous source
+        previousService.stop()
+        switchableProvider.detach()
 
         // Attach and start new source
         switchableProvider.attach(source: providerForMode(mode))
