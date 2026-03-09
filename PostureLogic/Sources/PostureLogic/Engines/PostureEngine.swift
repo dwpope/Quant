@@ -280,9 +280,7 @@ public final class PostureEngine: PostureEngineProtocol {
         switch taskMode {
         case .reading:
             // Reading naturally involves leaning forward slightly
-            forwardCreepMultiplier = 1.2
-        case .typing:
-            forwardCreepMultiplier = 1.0
+            forwardCreepMultiplier = 1.3
         case .meeting:
             forwardCreepMultiplier = 1.2
         default:
@@ -308,6 +306,14 @@ public final class PostureEngine: PostureEngineProtocol {
             sideLeanMultiplier = 1.0
         }
 
+        let shoulderRoundingMultiplier: Float
+        switch taskMode {
+        case .reading, .meeting:
+            shoulderRoundingMultiplier = 1.2
+        default:
+            shoulderRoundingMultiplier = 1.0
+        }
+
         // Check each metric against its (possibly adjusted) threshold.
         // We use abs() for forwardCreep because the metric can be positive
         // (leaning forward) — the absolute value catches both directions.
@@ -315,7 +321,7 @@ public final class PostureEngine: PostureEngineProtocol {
         let twistThreshold = thresholds.twistThreshold * twistMultiplier
         let sideLeanThreshold = thresholds.sideLeanThreshold * sideLeanMultiplier
         let headDropThreshold = thresholds.headDropThreshold
-        let shoulderRoundingThreshold = thresholds.shoulderRoundingThreshold * forwardCreepMultiplier
+        let shoulderRoundingThreshold = thresholds.shoulderRoundingThreshold * shoulderRoundingMultiplier
 
         return metrics.forwardCreep > forwardThreshold
             || metrics.twist > twistThreshold

@@ -49,7 +49,7 @@
 - [x] Step 34: Golden Recordings
 - [x] Step 35: Recording & Replay Pipeline Integration
 - [x] Step 36: TaskModeEngine Implementation
-- [ ] Step 37: Task-Adjusted Thresholds
+- [x] Step 37: Task-Adjusted Thresholds
 - [ ] Step 38: Thresholds Settings Screen
 - [ ] Step 39: TaskModeEngine Pipeline Integration
 - [ ] Step 40: Setup Validation
