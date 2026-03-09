@@ -28,6 +28,10 @@ public class Pipeline {
     /// 2. Call `recordNudgeFired()` on the pipeline
     @Published public var nudgeDecision: NudgeDecision = .none
 
+    /// The inferred activity classification based on recent movement patterns.
+    /// Updated each frame after smoothing using a rolling window of metrics.
+    @Published public var taskMode: TaskMode = .unknown
+
     /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
     public var baseline: Baseline?
 
@@ -53,6 +57,9 @@ public class Pipeline {
     private var modeSwitcher: ModeSwitcher
     private var postureEngine: PostureEngine
     private var nudgeEngine: NudgeEngine
+    private var taskModeEngine = TaskModeEngine()
+    private var recentMetricsBuffer: [RawMetrics] = []
+    private let metricsBufferMaxSize = 100
 
     // Latest pose observation
     private var latestPoseObservation: PoseObservation?
@@ -225,12 +232,20 @@ public class Pipeline {
                         )
                         self.latestMetrics = smoothedMetrics
 
+                        // Infer task mode from rolling window of recent metrics
+                        self.recentMetricsBuffer.append(smoothedMetrics)
+                        if self.recentMetricsBuffer.count > self.metricsBufferMaxSize {
+                            self.recentMetricsBuffer.removeFirst()
+                        }
+                        let inferredTaskMode = self.taskModeEngine.infer(from: self.recentMetricsBuffer)
+                        self.taskMode = inferredTaskMode
+
                         // Update the posture state machine with the latest metrics.
                         // The engine decides good/drifting/bad based on thresholds
                         // and pauses its timers when tracking quality is low.
                         let newPostureState = self.postureEngine.update(
                             metrics: smoothedMetrics,
-                            taskMode: .unknown,  // TaskModeEngine added in Sprint 7
+                            taskMode: inferredTaskMode,
                             trackingQuality: finalQuality
                         )
                         self.postureState = newPostureState
@@ -244,7 +259,7 @@ public class Pipeline {
                             state: newPostureState,
                             trackingQuality: finalQuality,
                             movementLevel: smoothedMetrics.movementLevel,
-                            taskMode: .unknown,  // TaskModeEngine added in Sprint 7
+                            taskMode: inferredTaskMode,
                             currentTime: smoothedMetrics.timestamp,
                             metrics: smoothedMetrics
                         )
@@ -278,9 +293,17 @@ public class Pipeline {
             )
             self.latestMetrics = smoothedMetrics
 
+            // Infer task mode from rolling window of recent metrics
+            self.recentMetricsBuffer.append(smoothedMetrics)
+            if self.recentMetricsBuffer.count > self.metricsBufferMaxSize {
+                self.recentMetricsBuffer.removeFirst()
+            }
+            let inferredTaskMode = self.taskModeEngine.infer(from: self.recentMetricsBuffer)
+            self.taskMode = inferredTaskMode
+
             let newPostureState = self.postureEngine.update(
                 metrics: smoothedMetrics,
-                taskMode: .unknown,
+                taskMode: inferredTaskMode,
                 trackingQuality: sample.trackingQuality
             )
             self.postureState = newPostureState
@@ -289,7 +312,7 @@ public class Pipeline {
                 state: newPostureState,
                 trackingQuality: sample.trackingQuality,
                 movementLevel: smoothedMetrics.movementLevel,
-                taskMode: .unknown,
+                taskMode: inferredTaskMode,
                 currentTime: smoothedMetrics.timestamp,
                 metrics: smoothedMetrics
             )
