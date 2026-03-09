@@ -52,7 +52,7 @@
 - [x] Step 37: Task-Adjusted Thresholds
 - [x] Step 38: Thresholds Settings Screen
 - [x] Step 39: TaskModeEngine Pipeline Integration
-- [ ] Step 40: Setup Validation
+- [x] Step 40: Setup Validation
 - [ ] Step 41: Stale Baseline Detection
 
 ### Phase 3 — Hardening
