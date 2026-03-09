@@ -17,6 +17,7 @@
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/RawMetrics.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/Recording.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/TaskMode.swift
+/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/ThermalState.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/TrackingQuality.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Pipeline.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/DebugDumpable.swift
@@ -29,6 +30,7 @@
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/PostureEngineProtocol.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/RecorderServiceProtocol.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/ReplayServiceProtocol.swift
+/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/ThermalMonitorProtocol.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/DepthService.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher+Example.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ModeSwitcher.swift
@@ -39,6 +41,8 @@
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ReplayService.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/SetupValidator.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/StaleBaselineDetector.swift
+/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ThermalMonitor.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/Unproject.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/MockPoseProvider.swift
+/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/MockThermalMonitor.swift
 /Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift

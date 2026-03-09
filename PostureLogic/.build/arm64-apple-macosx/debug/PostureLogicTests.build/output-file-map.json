@@ -37,6 +37,13 @@
     "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.swiftdeps",
     "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/IntegrationTests.dia"
   },
+  "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/LongRunStabilityTests.swift": {
+    "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/LongRunStabilityTests.d",
+    "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/LongRunStabilityTests.swift.o",
+    "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/LongRunStabilityTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/LongRunStabilityTests.swiftdeps",
+    "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/LongRunStabilityTests.dia"
+  },
   "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/MetricsEngineTests.swift": {
     "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsEngineTests.d",
     "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/MetricsEngineTests.swift.o",
@@ -78,6 +85,13 @@
     "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTaskModeTests~partial.swiftmodule",
     "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTaskModeTests.swiftdeps",
     "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTaskModeTests.dia"
+  },
+  "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineThermalTests.swift": {
+    "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineThermalTests.d",
+    "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineThermalTests.swift.o",
+    "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineThermalTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineThermalTests.swiftdeps",
+    "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineThermalTests.dia"
   },
   "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/PipelineTrackingQualityTests.swift": {
     "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/PipelineTrackingQualityTests.d",
@@ -148,6 +162,13 @@
     "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests~partial.swiftmodule",
     "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests.swiftdeps",
     "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/TaskModeEngineTests.dia"
+  },
+  "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/ThermalMonitorTests.swift": {
+    "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ThermalMonitorTests.d",
+    "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ThermalMonitorTests.swift.o",
+    "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ThermalMonitorTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ThermalMonitorTests.swiftdeps",
+    "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/ThermalMonitorTests.dia"
   },
   "/Users/learning/Developer/Quant/PostureLogic/Tests/PostureLogicTests/UnprojectTests.swift": {
     "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogicTests.build/UnprojectTests.d",

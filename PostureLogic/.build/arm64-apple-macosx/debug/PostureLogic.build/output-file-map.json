@@ -135,6 +135,13 @@
     "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskMode.swiftdeps",
     "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TaskMode.dia"
   },
+  "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/ThermalState.swift": {
+    "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalState.d",
+    "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalState.swift.o",
+    "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalState~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalState.swiftdeps",
+    "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalState.dia"
+  },
   "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Models/TrackingQuality.swift": {
     "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TrackingQuality.d",
     "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TrackingQuality.swift.o",
@@ -219,6 +226,13 @@
     "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayServiceProtocol.swiftdeps",
     "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ReplayServiceProtocol.dia"
   },
+  "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Protocols/ThermalMonitorProtocol.swift": {
+    "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalMonitorProtocol.d",
+    "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalMonitorProtocol.swift.o",
+    "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalMonitorProtocol~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalMonitorProtocol.swiftdeps",
+    "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalMonitorProtocol.dia"
+  },
   "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/DepthService.swift": {
     "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthService.d",
     "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/DepthService.swift.o",
@@ -289,6 +303,13 @@
     "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/StaleBaselineDetector.swiftdeps",
     "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/StaleBaselineDetector.dia"
   },
+  "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/ThermalMonitor.swift": {
+    "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalMonitor.d",
+    "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalMonitor.swift.o",
+    "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalMonitor~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalMonitor.swiftdeps",
+    "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/ThermalMonitor.dia"
+  },
   "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Services/Unproject.swift": {
     "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Unproject.d",
     "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/Unproject.swift.o",
@@ -302,6 +323,13 @@
     "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider~partial.swiftmodule",
     "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider.swiftdeps",
     "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockPoseProvider.dia"
+  },
+  "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/MockThermalMonitor.swift": {
+    "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockThermalMonitor.d",
+    "object": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockThermalMonitor.swift.o",
+    "swiftmodule": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockThermalMonitor~partial.swiftmodule",
+    "swift-dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockThermalMonitor.swiftdeps",
+    "diagnostics": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/MockThermalMonitor.dia"
   },
   "/Users/learning/Developer/Quant/PostureLogic/Sources/PostureLogic/Testing/TestScenarios.swift": {
     "dependencies": "/Users/learning/Developer/Quant/PostureLogic/.build/arm64-apple-macosx/debug/PostureLogic.build/TestScenarios.d",
