@@ -19,6 +19,11 @@ class AppModel: ObservableObject {
     @Published var postureState: PostureState = .absent
     @Published var nudgeDecision: NudgeDecision = .none
 
+    // MARK: - Recording & Replay
+
+    @Published private(set) var isRecording = false
+    @Published private(set) var isReplaying = false
+
     // MARK: - Calibration Properties
 
     @Published var calibrationStatus: CalibrationStatus = .waiting
@@ -136,6 +141,8 @@ class AppModel: ObservableObject {
         Pipeline(provider: switchableProvider)
     }()
     private var cancellables = Set<AnyCancellable>()
+    private let recorderService = RecorderService()
+    private let replayService = ReplayService()
     private var calibrationEngine: CalibrationEngine
     private var lastNudgeFiredTime: TimeInterval?
     private var countdownTimer: Timer?
@@ -429,6 +436,53 @@ class AppModel: ObservableObject {
         }
     }
 
+    // MARK: - Recording Controls
+
+    func startRecording() {
+        let metadata = SessionMetadata(
+            deviceModel: Self.deviceModelName(),
+            depthAvailable: currentMode != .twoDOnly,
+            thresholds: pipeline.thresholds
+        )
+        recorderService.startRecording(metadata: metadata)
+        pipeline.recorder = recorderService
+        isRecording = true
+    }
+
+    @discardableResult
+    func stopRecording() -> URL? {
+        pipeline.recorder = nil
+        isRecording = false
+        guard let session = recorderService.stopRecording() else { return nil }
+        return exportSession(session)
+    }
+
+    // MARK: - Replay Controls
+
+    func loadSession(_ url: URL) throws {
+        let data = try Data(contentsOf: url)
+        let session = try JSONDecoder().decode(RecordedSession.self, from: data)
+        replayService.load(session: session)
+    }
+
+    func startReplay() {
+        let provider = ReplayPoseProvider(replayService: replayService)
+        switchableProvider.attach(source: provider)
+        isReplaying = true
+        Task {
+            try? await provider.start()
+            // Playback finished naturally
+            isReplaying = false
+        }
+    }
+
+    func stopReplay() {
+        replayService.stop()
+        switchableProvider.detach()
+        switchableProvider.attach(source: providerForMode(cameraMode))
+        isReplaying = false
+    }
+
     func resetCalibrationSettings() {
         maxPositionVariance = Self.defaultMaxPositionVariance
         maxAngleVariance = Self.defaultMaxAngleVariance
@@ -457,6 +511,32 @@ class AppModel: ObservableObject {
     /// The currently active camera service, based on `cameraMode`.
     private var activeService: any PoseProvider {
         providerForMode(cameraMode)
+    }
+
+    private func exportSession(_ session: RecordedSession) -> URL? {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(session) else { return nil }
+        let fileName = "posture-session-\(session.id.uuidString.prefix(8)).json"
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(fileName)
+        do {
+            try data.write(to: url)
+            return url
+        } catch {
+            print("Failed to export session: \(error)")
+            return nil
+        }
+    }
+
+    private static func deviceModelName() -> String {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        return withUnsafePointer(to: &systemInfo.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: 1) {
+                String(validatingCString: $0) ?? "Unknown"
+            }
+        }
     }
 
     private func rebuildCalibrationEngine() {

@@ -31,6 +31,10 @@ public class Pipeline {
     /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
     public var baseline: Baseline?
 
+    /// Optional recorder that captures every PoseSample produced by the pipeline.
+    /// Set this to a ``RecorderService`` instance to start recording.
+    public var recorder: (any RecorderServiceProtocol)?
+
     /// The thresholds used by all engines in the pipeline.
     public var thresholds: PostureThresholds {
         didSet {
@@ -85,6 +89,13 @@ public class Pipeline {
     // MARK: - Private Methods
 
     private func process(_ frame: InputFrame) {
+        // Precomputed sample path — replay/test bypass.
+        // Skips pose detection and fusion; runs metrics, posture, and nudge engines.
+        if let sample = frame.precomputedSample {
+            processPrecomputed(sample, timestamp: frame.timestamp)
+            return
+        }
+
         // Compute FPS
         let currentFPS = computeFPS(timestamp: frame.timestamp)
 
@@ -202,6 +213,8 @@ public class Pipeline {
                     self.latestSample = sample
 
                     if let sample = sample {
+                        self.recorder?.record(sample: sample)
+
                         let rawMetrics = self.metricsEngine.compute(
                             from: sample,
                             baseline: self.baseline
@@ -238,6 +251,48 @@ public class Pipeline {
                     }
                 }
             }
+        }
+    }
+
+    /// Fast path for precomputed samples (replay / test).
+    /// Skips pose detection, depth, mode switching, and throttle.
+    private func processPrecomputed(_ sample: PoseSample, timestamp: TimeInterval) {
+        let currentFPS = computeFPS(timestamp: timestamp)
+
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            self.fps = currentFPS
+            self.trackingQuality = sample.trackingQuality
+            self.currentTrackingQuality = sample.trackingQuality
+            self.latestSample = sample
+
+            self.recorder?.record(sample: sample)
+
+            let rawMetrics = self.metricsEngine.compute(
+                from: sample,
+                baseline: self.baseline
+            )
+            let smoothedMetrics = self.metricsSmoother.smooth(
+                rawMetrics,
+                sample: sample
+            )
+            self.latestMetrics = smoothedMetrics
+
+            let newPostureState = self.postureEngine.update(
+                metrics: smoothedMetrics,
+                taskMode: .unknown,
+                trackingQuality: sample.trackingQuality
+            )
+            self.postureState = newPostureState
+
+            self.nudgeDecision = self.nudgeEngine.evaluate(
+                state: newPostureState,
+                trackingQuality: sample.trackingQuality,
+                movementLevel: smoothedMetrics.movementLevel,
+                taskMode: .unknown,
+                currentTime: smoothedMetrics.timestamp,
+                metrics: smoothedMetrics
+            )
         }
     }
 
