@@ -53,7 +53,7 @@
 - [x] Step 38: Thresholds Settings Screen
 - [x] Step 39: TaskModeEngine Pipeline Integration
 - [x] Step 40: Setup Validation
-- [ ] Step 41: Stale Baseline Detection
+- [x] Step 41: Stale Baseline Detection
 
 ### Phase 3 — Hardening
 - [ ] Step 42: Long-Run Stability Harness (90 min)

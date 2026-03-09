@@ -32,6 +32,10 @@ public class Pipeline {
     /// Updated each frame after smoothing using a rolling window of metrics.
     @Published public var taskMode: TaskMode = .unknown
 
+    /// Whether the calibration baseline is stale (position shifted or expired).
+    /// Checked periodically (every 60s) rather than every frame.
+    @Published public var baselineStaleness: StaleBaselineResult = .fresh
+
     /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
     public var baseline: Baseline?
 
@@ -58,8 +62,10 @@ public class Pipeline {
     private var postureEngine: PostureEngine
     private var nudgeEngine: NudgeEngine
     private var taskModeEngine = TaskModeEngine()
+    private var staleBaselineDetector = StaleBaselineDetector()
     private var recentMetricsBuffer: [RawMetrics] = []
     private let metricsBufferMaxSize = 100
+    private var lastStalenessCheckTime: TimeInterval = 0
 
     // Latest pose observation
     private var latestPoseObservation: PoseObservation?
@@ -263,6 +269,17 @@ public class Pipeline {
                             currentTime: smoothedMetrics.timestamp,
                             metrics: smoothedMetrics
                         )
+
+                        // Periodic staleness check (every 60s, not every frame)
+                        if let baseline = self.baseline,
+                           smoothedMetrics.timestamp - self.lastStalenessCheckTime >= 60 {
+                            self.lastStalenessCheckTime = smoothedMetrics.timestamp
+                            self.baselineStaleness = self.staleBaselineDetector.check(
+                                current: sample,
+                                baseline: baseline,
+                                baselineAge: Date().timeIntervalSince(baseline.timestamp)
+                            )
+                        }
                     }
                 }
             }
@@ -316,6 +333,17 @@ public class Pipeline {
                 currentTime: smoothedMetrics.timestamp,
                 metrics: smoothedMetrics
             )
+
+            // Periodic staleness check (every 60s, not every frame)
+            if let baseline = self.baseline,
+               smoothedMetrics.timestamp - self.lastStalenessCheckTime >= 60 {
+                self.lastStalenessCheckTime = smoothedMetrics.timestamp
+                self.baselineStaleness = self.staleBaselineDetector.check(
+                    current: sample,
+                    baseline: baseline,
+                    baselineAge: Date().timeIntervalSince(baseline.timestamp)
+                )
+            }
         }
     }
 
