@@ -41,13 +41,13 @@
 - [x] Step 28: Twist Measurement Fix (Orientation + Baseline)
 
 ### Phase 2 — Enhancement
-- [ ] Step 29: 3D Position Calculation
-- [ ] Step 30: Depth Fusion in PoseSample Builder
-- [ ] Step 31: RecorderService (Timestamped Samples)
-- [ ] Step 32: Tagging During Record
-- [ ] Step 33: ReplayService (Simulator-Friendly)
-- [ ] Step 34: Golden Recordings
-- [ ] Step 35: Recording & Replay Pipeline Integration
+- [x] Step 29: 3D Position Calculation
+- [x] Step 30: Depth Fusion in PoseSample Builder
+- [x] Step 31: RecorderService (Timestamped Samples)
+- [x] Step 32: Tagging During Record
+- [x] Step 33: ReplayService (Simulator-Friendly)
+- [x] Step 34: Golden Recordings
+- [x] Step 35: Recording & Replay Pipeline Integration
 - [ ] Step 36: TaskModeEngine Implementation
 - [ ] Step 37: Task-Adjusted Thresholds
 - [ ] Step 38: Thresholds Settings Screen
