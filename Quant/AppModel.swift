@@ -94,6 +94,41 @@ class AppModel: ObservableObject {
         }
     }
 
+    @Published var headDropThreshold: Float {
+        didSet {
+            UserDefaults.standard.set(headDropThreshold, forKey: Keys.headDropThreshold)
+            updatePipelineThresholds()
+        }
+    }
+
+    @Published var shoulderRoundingThreshold: Float {
+        didSet {
+            UserDefaults.standard.set(shoulderRoundingThreshold, forKey: Keys.shoulderRoundingThreshold)
+            updatePipelineThresholds()
+        }
+    }
+
+    @Published var slouchDurationBeforeNudge: Double {
+        didSet {
+            UserDefaults.standard.set(slouchDurationBeforeNudge, forKey: Keys.slouchDurationBeforeNudge)
+            updatePipelineThresholds()
+        }
+    }
+
+    @Published var nudgeCooldown: Double {
+        didSet {
+            UserDefaults.standard.set(nudgeCooldown, forKey: Keys.nudgeCooldown)
+            updatePipelineThresholds()
+        }
+    }
+
+    @Published var maxNudgesPerHour: Int {
+        didSet {
+            UserDefaults.standard.set(maxNudgesPerHour, forKey: Keys.maxNudgesPerHour)
+            updatePipelineThresholds()
+        }
+    }
+
     // MARK: - Camera Mode
 
     @Published var cameraMode: CameraMode
@@ -161,6 +196,11 @@ class AppModel: ObservableObject {
         static let twistThreshold = "com.quant.posture.twist"
         static let sideLeanThreshold = "com.quant.posture.sideLean"
         static let driftingToBadThreshold = "com.quant.posture.driftingToBad"
+        static let headDropThreshold = "com.quant.posture.headDrop"
+        static let shoulderRoundingThreshold = "com.quant.posture.shoulderRounding"
+        static let slouchDurationBeforeNudge = "com.quant.posture.slouchDuration"
+        static let nudgeCooldown = "com.quant.posture.nudgeCooldown"
+        static let maxNudgesPerHour = "com.quant.posture.maxNudgesPerHour"
     }
 
     static let defaultMaxPositionVariance: Float = 0.06
@@ -172,6 +212,11 @@ class AppModel: ObservableObject {
     static let defaultTwistThreshold: Float = defaultThresholds.twistThreshold
     static let defaultSideLeanThreshold: Float = defaultThresholds.sideLeanThreshold
     static let defaultDriftingToBadThreshold: Double = defaultThresholds.driftingToBadThreshold
+    static let defaultHeadDropThreshold: Float = defaultThresholds.headDropThreshold
+    static let defaultShoulderRoundingThreshold: Float = defaultThresholds.shoulderRoundingThreshold
+    static let defaultSlouchDurationBeforeNudge: Double = defaultThresholds.slouchDurationBeforeNudge
+    static let defaultNudgeCooldown: Double = defaultThresholds.nudgeCooldown
+    static let defaultMaxNudgesPerHour: Int = defaultThresholds.maxNudgesPerHour
 
     // MARK: - Initialization
 
@@ -200,6 +245,11 @@ class AppModel: ObservableObject {
         self.twistThreshold = defaults.object(forKey: Keys.twistThreshold) as? Float ?? Self.defaultTwistThreshold
         self.sideLeanThreshold = defaults.object(forKey: Keys.sideLeanThreshold) as? Float ?? Self.defaultSideLeanThreshold
         self.driftingToBadThreshold = defaults.object(forKey: Keys.driftingToBadThreshold) as? Double ?? Self.defaultDriftingToBadThreshold
+        self.headDropThreshold = defaults.object(forKey: Keys.headDropThreshold) as? Float ?? Self.defaultHeadDropThreshold
+        self.shoulderRoundingThreshold = defaults.object(forKey: Keys.shoulderRoundingThreshold) as? Float ?? Self.defaultShoulderRoundingThreshold
+        self.slouchDurationBeforeNudge = defaults.object(forKey: Keys.slouchDurationBeforeNudge) as? Double ?? Self.defaultSlouchDurationBeforeNudge
+        self.nudgeCooldown = defaults.object(forKey: Keys.nudgeCooldown) as? Double ?? Self.defaultNudgeCooldown
+        self.maxNudgesPerHour = defaults.object(forKey: Keys.maxNudgesPerHour) as? Int ?? Self.defaultMaxNudgesPerHour
 
         let config = CalibrationConfig(
             samplingDuration: sampDur,
@@ -495,6 +545,11 @@ class AppModel: ObservableObject {
         twistThreshold = Self.defaultTwistThreshold
         sideLeanThreshold = Self.defaultSideLeanThreshold
         driftingToBadThreshold = Self.defaultDriftingToBadThreshold
+        headDropThreshold = Self.defaultHeadDropThreshold
+        shoulderRoundingThreshold = Self.defaultShoulderRoundingThreshold
+        slouchDurationBeforeNudge = Self.defaultSlouchDurationBeforeNudge
+        nudgeCooldown = Self.defaultNudgeCooldown
+        maxNudgesPerHour = Self.defaultMaxNudgesPerHour
         syncSettingsToWatch()
     }
 
@@ -554,6 +609,11 @@ class AppModel: ObservableObject {
         t.twistThreshold = twistThreshold
         t.sideLeanThreshold = sideLeanThreshold
         t.driftingToBadThreshold = driftingToBadThreshold
+        t.headDropThreshold = headDropThreshold
+        t.shoulderRoundingThreshold = shoulderRoundingThreshold
+        t.slouchDurationBeforeNudge = slouchDurationBeforeNudge
+        t.nudgeCooldown = nudgeCooldown
+        t.maxNudgesPerHour = maxNudgesPerHour
         pipeline.thresholds = t
     }
 

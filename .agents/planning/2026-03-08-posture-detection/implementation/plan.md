@@ -50,7 +50,7 @@
 - [x] Step 35: Recording & Replay Pipeline Integration
 - [x] Step 36: TaskModeEngine Implementation
 - [x] Step 37: Task-Adjusted Thresholds
-- [ ] Step 38: Thresholds Settings Screen
+- [x] Step 38: Thresholds Settings Screen
 - [x] Step 39: TaskModeEngine Pipeline Integration
 - [ ] Step 40: Setup Validation
 - [ ] Step 41: Stale Baseline Detection

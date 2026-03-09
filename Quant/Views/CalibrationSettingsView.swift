@@ -190,6 +190,16 @@ struct CalibrationSettingsView: View {
                         appModel.resetPostureSettings()
                     }
                 }
+
+                Section {
+                    NavigationLink("Posture Thresholds") {
+                        ThresholdsSettingsView()
+                    }
+                } header: {
+                    Text("Advanced")
+                } footer: {
+                    Text("Fine-tune individual posture metrics and nudge timing.")
+                }
             }
             .navigationTitle("Calibration Settings")
             .navigationBarTitleDisplayMode(.inline)
