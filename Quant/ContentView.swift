@@ -116,8 +116,8 @@ struct ContentView: View {
                     }
                 }
             }
+            .padding()
         }
-        .padding()
         .sheet(isPresented: $showSettings) {
             CalibrationSettingsView()
         }
