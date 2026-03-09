@@ -56,8 +56,8 @@
 - [x] Step 41: Stale Baseline Detection
 
 ### Phase 3 — Hardening
-- [ ] Step 42: Long-Run Stability Harness (90 min)
-- [ ] Step 43: Thermal Throttling Strategy
+- [x] Step 42: Long-Run Stability Harness (90 min)
+- [x] Step 43: Thermal Throttling Strategy
 - [ ] Step 44: Background Mode Investigation
 - [ ] Step 45: Mac Companion App
 
