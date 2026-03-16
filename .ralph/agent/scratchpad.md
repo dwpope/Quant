@@ -87,3 +87,20 @@ Files created:
 - `QuantTests/MetricInfoTests.swift` — 5 tests
 
 All 24 tests pass (5 new + 19 existing), zero regressions.
+
+## 2026-03-16 — Critic: task-1773699552-eeaf (MetricInfo)
+
+Fresh-eyes review of MetricInfo struct and MetricInfoTests.
+
+**Requirement fidelity:** All requirements from task description satisfied:
+- MetricInfo struct: 5 stored properties (key, value, ratio, threshold, isWorstOffender) ✓
+- Computed: isExceeded (ratio >= 1.0) ✓, clampedRatio (min(ratio, 1.0)) ✓
+- Tests: 5 tests covering boundary, above, below for isExceeded; cap and pass-through for clampedRatio ✓
+
+**Code review:** 10-line struct, zero complexity, no YAGNI violations. No public modifiers (correct for app target, consistent with MetricKey). No unnecessary imports.
+
+**Verification:** Independently ran full suite — 24/24 pass, 0 failures. MetricInfoTests 5/5 pass confirmed.
+
+**Adversarial:** Exact boundary at ratio=1.0 tested. Negative ratios not MetricInfo's concern (factory uses abs()). Struct is a pure value type with trivial computed properties — minimal attack surface.
+
+**Verdict: PASS** — clean, minimal, correct implementation matching design doc section 4.2.

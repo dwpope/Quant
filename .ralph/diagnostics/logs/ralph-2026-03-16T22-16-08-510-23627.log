@@ -39,3 +39,9 @@
 [2m2026-03-16T22:48:22.609998Z[0m [32m INFO[0m [2mralph_core::event_loop[0m[2m:[0m Injecting 2 memories (615 chars) into prompt
 [2m2026-03-16T22:48:22.610081Z[0m [32m INFO[0m [2mralph_core::event_loop[0m[2m:[0m Injecting scratchpad (4784 chars) into prompt
 [2m2026-03-16T22:48:22.610340Z[0m [32m INFO[0m [2mralph_core::event_loop[0m[2m:[0m Injecting ready tasks (0 ready, 3 open, 1 closed) into prompt
+[2m2026-03-16T23:04:05.800437Z[0m [32m INFO[0m [2mralph_core::event_loop[0m[2m:[0m Memory injection check: enabled=true, inject=Auto, workspace_root="/Users/d631381/Developer/Quant"
+[2m2026-03-16T23:04:05.800500Z[0m [32m INFO[0m [2mralph_core::event_loop[0m[2m:[0m Looking for memories at: "/Users/d631381/Developer/Quant/.ralph/agent/memories.md" (exists: true)
+[2m2026-03-16T23:04:05.800669Z[0m [32m INFO[0m [2mralph_core::event_loop[0m[2m:[0m Successfully loaded 2 memories from store
+[2m2026-03-16T23:04:05.800690Z[0m [32m INFO[0m [2mralph_core::event_loop[0m[2m:[0m Injecting 2 memories (615 chars) into prompt
+[2m2026-03-16T23:04:05.800747Z[0m [32m INFO[0m [2mralph_core::event_loop[0m[2m:[0m Injecting scratchpad (5843 chars) into prompt
+[2m2026-03-16T23:04:05.801849Z[0m [32m INFO[0m [2mralph_core::event_loop[0m[2m:[0m Injecting ready tasks (0 ready, 3 open, 1 closed) into prompt
