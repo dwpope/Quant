@@ -72,3 +72,18 @@ Next ready task: task-1773699552-eeaf (MetricInfo struct + computed properties +
 - No blockers — MetricKey already exists from prior task
 - After this completes, task-1773699568-13ad (PostureDisplayData + factory) becomes unblocked
 - Emitting tasks.ready to hand off to Builder.
+
+## 2026-03-16 — Builder: task-1773699552-eeaf (MetricInfo)
+
+Completed TDD cycle for MetricInfo struct.
+
+TDD steps:
+1. RED: Wrote MetricInfoTests.swift with 5 tests (isExceeded true at 1.0, true above 1.0, false below 1.0; clampedRatio caps at 1.0, passes through below 1.0). Confirmed compilation failure.
+2. GREEN: Created `Quant/PostureUI/MetricInfo.swift` — minimal struct matching design doc section 4.2.
+3. REFACTOR: No changes needed — implementation is already minimal and idiomatic.
+
+Files created:
+- `Quant/PostureUI/MetricInfo.swift` — struct with 5 let properties + 2 computed properties
+- `QuantTests/MetricInfoTests.swift` — 5 tests
+
+All 24 tests pass (5 new + 19 existing), zero regressions.
