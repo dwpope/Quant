@@ -16,6 +16,7 @@ struct QuantApp: App {
             ContentView()
                 .environmentObject(appModel)
                 .task {
+                    guard NSClassFromString("XCTestCase") == nil else { return }
                     await appModel.startMonitoring()
                 }
         }
