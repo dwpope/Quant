@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PostureLogic
 
 struct ContentView: View {
     @EnvironmentObject var appModel: AppModel
@@ -13,6 +14,13 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
+            // Thermal warning overlays
+            if appModel.thermalLevel == .critical {
+                thermalCriticalOverlay
+            } else if appModel.thermalLevel >= .serious {
+                thermalWarningBanner
+            }
+
             if appModel.showCameraPreview {
                 switch appModel.cameraMode {
                 case .rearDepth:
@@ -117,6 +125,46 @@ struct ContentView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
+        }
+    }
+
+    private var thermalWarningBanner: some View {
+        VStack {
+            HStack {
+                Image(systemName: "thermometer.sun.fill")
+                    .foregroundStyle(.orange)
+                Text("Reduced accuracy \u{2014} device is warm")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(8)
+            .background(.ultraThinMaterial)
+            .clipShape(Capsule())
+            .padding(.top, 60)
+
+            Spacer()
+        }
+    }
+
+    private var thermalCriticalOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.7)
+                .ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                Image(systemName: "thermometer.sun.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.red)
+                Text("Cooling down...")
+                    .font(.title2)
+                    .foregroundStyle(.white)
+                Text("Detection paused to prevent overheating")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.7))
+                ProgressView()
+                    .tint(.white)
+                    .padding(.top, 8)
+            }
         }
     }
 }

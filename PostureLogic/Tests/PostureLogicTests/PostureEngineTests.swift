@@ -636,11 +636,11 @@ final class PostureEngineTests: XCTestCase {
         )
 
         // Forward creep of 0.035 exceeds the default 0.03 threshold,
-        // but reading mode has a 1.2x multiplier, so the effective
-        // threshold is 0.036.
+        // but reading mode has a 1.3x multiplier, so the effective
+        // threshold is 0.039.
         let metrics = makeMetrics(
             timestamp: 1.0,
-            forwardCreep: 0.035,  // Between 0.03 (default) and 0.036 (reading)
+            forwardCreep: 0.035,  // Between 0.03 (default) and 0.039 (reading)
             lateralLean: 0.01,
             twist: 3.0
         )
@@ -652,7 +652,119 @@ final class PostureEngineTests: XCTestCase {
         )
 
         XCTAssertEqual(state, .good,
-            "Reading mode should tolerate slightly more forward lean (0.035 < 0.036)")
+            "Reading mode should tolerate slightly more forward lean (0.035 < 0.039)")
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Step 37: Spec-Aligned Threshold Multiplier Tests
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    func test_readingMode_relaxesForwardCreepAndShoulderRounding() {
+        let engine = PostureEngine()
+        _ = engine.update(metrics: goodMetrics(timestamp: 0), taskMode: .unknown, trackingQuality: .good)
+
+        // forwardCreep 0.038 exceeds default 0.03 but is below reading's 0.039 (1.3×)
+        // shoulderRounding 11.5 exceeds default 10.0 but is below reading's 12.0 (1.2×)
+        let metrics = makeMetrics(
+            timestamp: 1.0,
+            forwardCreep: 0.038,
+            shoulderRounding: 11.5
+        )
+
+        let state = engine.update(metrics: metrics, taskMode: .reading, trackingQuality: .good)
+        XCTAssertEqual(state, .good,
+            "Reading mode: forwardCreep 1.3× (0.038 < 0.039) and shoulderRounding 1.2× (11.5 < 12.0)")
+
+        // Verify the same metrics trigger drifting in unknown mode
+        let engine2 = PostureEngine()
+        _ = engine2.update(metrics: goodMetrics(timestamp: 0), taskMode: .unknown, trackingQuality: .good)
+        let state2 = engine2.update(metrics: metrics, taskMode: .unknown, trackingQuality: .good)
+        if case .drifting = state2 {
+            // Expected — without reading multipliers, these metrics exceed thresholds
+        } else {
+            XCTFail("Same metrics should trigger drifting in unknown mode, got: \(state2)")
+        }
+    }
+
+    func test_typingMode_relaxesTwist() {
+        let engine = PostureEngine()
+        _ = engine.update(metrics: goodMetrics(timestamp: 0), taskMode: .unknown, trackingQuality: .good)
+
+        // twist 17.0 exceeds default 15.0 but is below typing's 18.0 (1.2×)
+        let metrics = makeMetrics(timestamp: 1.0, twist: 17.0)
+
+        let state = engine.update(metrics: metrics, taskMode: .typing, trackingQuality: .good)
+        XCTAssertEqual(state, .good,
+            "Typing mode: twist 1.2× (17.0 < 18.0)")
+
+        // Verify drifts in unknown mode
+        let engine2 = PostureEngine()
+        _ = engine2.update(metrics: goodMetrics(timestamp: 0), taskMode: .unknown, trackingQuality: .good)
+        let state2 = engine2.update(metrics: metrics, taskMode: .unknown, trackingQuality: .good)
+        if case .drifting = state2 {
+            // Expected
+        } else {
+            XCTFail("Twist 17.0 should trigger drifting in unknown mode, got: \(state2)")
+        }
+    }
+
+    func test_meetingMode_relaxesMultipleMetrics() {
+        let engine = PostureEngine()
+        _ = engine.update(metrics: goodMetrics(timestamp: 0), taskMode: .unknown, trackingQuality: .good)
+
+        // All metrics exceed defaults but within meeting multipliers:
+        // forwardCreep 0.035 < 0.036 (1.2×), twist 20.0 < 22.5 (1.5×),
+        // sideLean 0.09 < 0.096 (1.2×), shoulderRounding 11.0 < 12.0 (1.2×)
+        let metrics = makeMetrics(
+            timestamp: 1.0,
+            forwardCreep: 0.035,
+            shoulderRounding: 11.0,
+            lateralLean: 0.09,
+            twist: 20.0
+        )
+
+        let state = engine.update(metrics: metrics, taskMode: .meeting, trackingQuality: .good)
+        XCTAssertEqual(state, .good,
+            "Meeting mode relaxes forwardCreep(1.2×), twist(1.5×), sideLean(1.2×), shoulderRounding(1.2×)")
+    }
+
+    func test_stretchingMode_disablesAllJudgement() {
+        let engine = PostureEngine()
+        _ = engine.update(metrics: goodMetrics(timestamp: 0), taskMode: .unknown, trackingQuality: .good)
+
+        // Extreme values across all metrics — stretching should ignore all of them
+        let metrics = makeMetrics(
+            timestamp: 1.0,
+            forwardCreep: 1.0,
+            headDrop: 0.5,
+            shoulderRounding: 50.0,
+            lateralLean: 0.5,
+            twist: 45.0
+        )
+
+        let state = engine.update(metrics: metrics, taskMode: .stretching, trackingQuality: .good)
+        XCTAssertEqual(state, .good,
+            "Stretching mode disables all posture judgement — even extreme metrics stay .good")
+    }
+
+    func test_headDrop_notAffectedByAnyTaskMode() {
+        // headDrop has no multiplier in ANY task mode (always 1.0×)
+        let modes: [TaskMode] = [.reading, .typing, .meeting, .unknown]
+
+        for mode in modes {
+            let engine = PostureEngine()
+            _ = engine.update(metrics: goodMetrics(timestamp: 0), taskMode: .unknown, trackingQuality: .good)
+
+            // headDrop 0.10 exceeds the 0.06 threshold regardless of mode
+            let metrics = makeMetrics(timestamp: 1.0, headDrop: 0.10)
+            let state = engine.update(metrics: metrics, taskMode: mode, trackingQuality: .good)
+
+            if case .drifting = state {
+                // Expected — headDrop is strict in all modes
+            } else {
+                XCTFail("headDrop should trigger drifting in \(mode) mode, got: \(state)")
+            }
+        }
     }
 
     func test_stretchingMode_disablesPostureJudgement() {

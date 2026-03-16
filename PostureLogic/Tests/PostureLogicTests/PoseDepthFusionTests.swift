@@ -1,4 +1,5 @@
 import XCTest
+import simd
 @testable import PostureLogic
 
 final class PoseDepthFusionTests: XCTestCase {
@@ -23,7 +24,7 @@ final class PoseDepthFusionTests: XCTestCase {
     }
 
     private func fuse(_ pose: PoseObservation, fusion: inout PoseDepthFusion) -> PoseSample? {
-        fusion.fuse(pose: pose, depthSamples: nil, confidence: .unavailable, trackingQuality: .good)
+        fusion.fuse(pose: pose, depthSamples: nil, confidence: .unavailable, intrinsics: nil, trackingQuality: .good)
     }
 
     // MARK: - Basic Functionality: nil when critical keypoints missing
@@ -338,8 +339,208 @@ final class PoseDepthFusionTests: XCTestCase {
             pose: uprightPose(),
             depthSamples: nil,
             confidence: .unavailable,
+            intrinsics: nil,
             trackingQuality: .degraded
         )
         XCTAssertEqual(sample?.trackingQuality, .degraded)
+    }
+
+    // MARK: - 3D Depth Fusion
+
+    /// Creates intrinsics in normalized coordinate space (matching 0-1 keypoint coords).
+    /// Default: unit focal length, principal point at center.
+    private func makeIntrinsics(fx: Float = 1.0, fy: Float = 1.0, cx: Float = 0.5, cy: Float = 0.5) -> simd_float3x3 {
+        // Column-major: columns.0 = (fx, 0, 0), columns.1 = (0, fy, 0), columns.2 = (cx, cy, 1)
+        simd_float3x3(columns: (
+            SIMD3<Float>(fx, 0, 0),
+            SIMD3<Float>(0, fy, 0),
+            SIMD3<Float>(cx, cy, 1)
+        ))
+    }
+
+    private func makeDepthSamples(for keypoints: [Keypoint], depth: Float = 0.6, confidence: Float = 1.0) -> [DepthAtPoint] {
+        keypoints.map { kp in
+            DepthAtPoint(point: kp.position, depth: depth, confidence: confidence)
+        }
+    }
+
+    func test_depthFusion_producesDepthFusionMode() {
+        var fusion = PoseDepthFusion()
+        let pose = uprightPose()
+        let samples = makeDepthSamples(for: pose.keypoints, depth: 0.6)
+        let result = fusion.fuse(
+            pose: pose,
+            depthSamples: samples,
+            confidence: .medium,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.depthMode, .depthFusion)
+    }
+
+    func test_depthFusion_hasNonZeroZValues() {
+        var fusion = PoseDepthFusion()
+        let keypoints = [
+            makeKeypoint(.leftShoulder, x: 0.4, y: 0.5),
+            makeKeypoint(.rightShoulder, x: 0.6, y: 0.5),
+            makeKeypoint(.nose, x: 0.5, y: 0.7),
+        ]
+        let pose = makePose(keypoints: keypoints)
+        // Use different depths so 3D positions have z variance
+        let samples = [
+            DepthAtPoint(point: keypoints[0].position, depth: 0.6, confidence: 1.0),
+            DepthAtPoint(point: keypoints[1].position, depth: 0.6, confidence: 1.0),
+            DepthAtPoint(point: keypoints[2].position, depth: 0.5, confidence: 1.0),
+        ]
+        let result = fusion.fuse(
+            pose: pose,
+            depthSamples: samples,
+            confidence: .high,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )!
+        // Shoulder midpoint z should be the average shoulder depth (0.6)
+        XCTAssertNotEqual(result.shoulderMidpoint.z, 0)
+    }
+
+    func test_depthFusion_headForwardOffset_nonZeroWhenDifferentDepths() {
+        var fusion = PoseDepthFusion()
+        let keypoints = [
+            makeKeypoint(.leftShoulder, x: 0.4, y: 0.5),
+            makeKeypoint(.rightShoulder, x: 0.6, y: 0.5),
+            makeKeypoint(.nose, x: 0.5, y: 0.7),
+        ]
+        let pose = makePose(keypoints: keypoints)
+        // Head closer to camera (smaller depth) than shoulders
+        let samples = [
+            DepthAtPoint(point: keypoints[0].position, depth: 0.7, confidence: 1.0),
+            DepthAtPoint(point: keypoints[1].position, depth: 0.7, confidence: 1.0),
+            DepthAtPoint(point: keypoints[2].position, depth: 0.5, confidence: 1.0),
+        ]
+        let result = fusion.fuse(
+            pose: pose,
+            depthSamples: samples,
+            confidence: .high,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )!
+        // Head is closer (depth 0.5) vs shoulders (depth 0.7)
+        // headForwardOffset = head.z - mid.z = 0.5 - 0.7 = negative (forward lean)
+        XCTAssertLessThan(result.headForwardOffset, 0)
+    }
+
+    func test_depthFusion_fallsBackTo2DWhenConfidenceLow() {
+        var fusion = PoseDepthFusion()
+        let pose = uprightPose()
+        let samples = makeDepthSamples(for: pose.keypoints, depth: 0.6)
+        let result = fusion.fuse(
+            pose: pose,
+            depthSamples: samples,
+            confidence: .low,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.depthMode, .twoDOnly)
+    }
+
+    func test_depthFusion_fallsBackTo2DWhenNoIntrinsics() {
+        var fusion = PoseDepthFusion()
+        let pose = uprightPose()
+        let samples = makeDepthSamples(for: pose.keypoints, depth: 0.6)
+        let result = fusion.fuse(
+            pose: pose,
+            depthSamples: samples,
+            confidence: .high,
+            intrinsics: nil,
+            trackingQuality: .good
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.depthMode, .twoDOnly)
+    }
+
+    func test_depthFusion_fallsBackTo2DWhenNoDepthSamples() {
+        var fusion = PoseDepthFusion()
+        let result = fusion.fuse(
+            pose: uprightPose(),
+            depthSamples: nil,
+            confidence: .high,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.depthMode, .twoDOnly)
+    }
+
+    func test_depthFusion_fallsBackTo2DWhenDepthSamplesLowConfidence() {
+        var fusion = PoseDepthFusion()
+        let pose = uprightPose()
+        let samples = makeDepthSamples(for: pose.keypoints, depth: 0.6, confidence: 0.1)
+        let result = fusion.fuse(
+            pose: pose,
+            depthSamples: samples,
+            confidence: .high,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.depthMode, .twoDOnly)
+    }
+
+    func test_depthFusion_ignoresEdgePoints() {
+        var fusion = PoseDepthFusion()
+        // Place shoulders near edges (within 5% of frame boundary)
+        let keypoints = [
+            makeKeypoint(.leftShoulder, x: 0.02, y: 0.5),  // Near left edge
+            makeKeypoint(.rightShoulder, x: 0.6, y: 0.5),
+            makeKeypoint(.nose, x: 0.5, y: 0.7),
+        ]
+        let pose = makePose(keypoints: keypoints)
+        let samples = makeDepthSamples(for: keypoints, depth: 0.6)
+        let result = fusion.fuse(
+            pose: pose,
+            depthSamples: samples,
+            confidence: .high,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )
+        // Should fall back to 2D because left shoulder is near edge
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.depthMode, .twoDOnly)
+    }
+
+    func test_depthFusion_preservesTimestamp() {
+        var fusion = PoseDepthFusion()
+        let keypoints = [
+            makeKeypoint(.leftShoulder, x: 0.4, y: 0.5),
+            makeKeypoint(.rightShoulder, x: 0.6, y: 0.5),
+            makeKeypoint(.nose, x: 0.5, y: 0.7),
+        ]
+        let pose = makePose(keypoints: keypoints, timestamp: 99.0)
+        let samples = makeDepthSamples(for: keypoints, depth: 0.6)
+        let result = fusion.fuse(
+            pose: pose,
+            depthSamples: samples,
+            confidence: .high,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )!
+        XCTAssertEqual(result.timestamp, 99.0)
+    }
+
+    func test_depthFusion_shoulderWidthRawPreserved() {
+        var fusion = PoseDepthFusion()
+        let pose = uprightPose()
+        let samples = makeDepthSamples(for: pose.keypoints, depth: 0.6)
+        let result = fusion.fuse(
+            pose: pose,
+            depthSamples: samples,
+            confidence: .high,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )!
+        // shoulderWidthRaw should still be the 2D image-space width (0.2)
+        XCTAssertEqual(result.shoulderWidthRaw, 0.2, accuracy: 0.001)
     }
 }

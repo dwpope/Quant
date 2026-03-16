@@ -28,8 +28,23 @@ public class Pipeline {
     /// 2. Call `recordNudgeFired()` on the pipeline
     @Published public var nudgeDecision: NudgeDecision = .none
 
+    /// The inferred activity classification based on recent movement patterns.
+    /// Updated each frame after smoothing using a rolling window of metrics.
+    @Published public var taskMode: TaskMode = .unknown
+
+    /// Whether the calibration baseline is stale (position shifted or expired).
+    /// Checked periodically (every 60s) rather than every frame.
+    @Published public var baselineStaleness: StaleBaselineResult = .fresh
+
+    /// Current device thermal level. Updated by ThermalMonitor when provided.
+    @Published public var thermalLevel: ThermalLevel = .nominal
+
     /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
     public var baseline: Baseline?
+
+    /// Optional recorder that captures every PoseSample produced by the pipeline.
+    /// Set this to a ``RecorderService`` instance to start recording.
+    public var recorder: (any RecorderServiceProtocol)?
 
     /// The thresholds used by all engines in the pipeline.
     public var thresholds: PostureThresholds {
@@ -49,6 +64,11 @@ public class Pipeline {
     private var modeSwitcher: ModeSwitcher
     private var postureEngine: PostureEngine
     private var nudgeEngine: NudgeEngine
+    private var taskModeEngine = TaskModeEngine()
+    private var staleBaselineDetector = StaleBaselineDetector()
+    private var recentMetricsBuffer: [RawMetrics] = []
+    private let metricsBufferMaxSize = 100
+    private var lastStalenessCheckTime: TimeInterval = 0
 
     // Latest pose observation
     private var latestPoseObservation: PoseObservation?
@@ -60,7 +80,11 @@ public class Pipeline {
     // Frame throttle to avoid spawning async Tasks at 60fps
     // Matches PoseService's ~10 FPS throttle rate
     private var lastPoseFrameTime: TimeInterval = 0
-    private let poseFrameInterval: TimeInterval = 0.1
+    private var poseFrameInterval: TimeInterval = 0.1
+
+    // Thermal monitoring
+    private var thermalMonitor: (any ThermalMonitorProtocol)?
+    private var thermalPolicy: ThermalPolicy = .nominal
 
     // Tracking quality temporal smoothing
     private var currentTrackingQuality: TrackingQuality = .lost
@@ -69,11 +93,36 @@ public class Pipeline {
 
     // MARK: - Initialization
 
-    public init(provider: PoseProvider, thresholds: PostureThresholds = PostureThresholds()) {
+    public init(
+        provider: PoseProvider,
+        thresholds: PostureThresholds = PostureThresholds(),
+        thermalMonitor: (any ThermalMonitorProtocol)? = nil
+    ) {
         self.thresholds = thresholds
+        self.thermalMonitor = thermalMonitor
         self.modeSwitcher = ModeSwitcher(thresholds: thresholds)
         self.postureEngine = PostureEngine(thresholds: thresholds)
         self.nudgeEngine = NudgeEngine(thresholds: thresholds)
+
+        // Subscribe to thermal level changes
+        if let monitor = thermalMonitor {
+            self.thermalLevel = monitor.currentLevel
+            self.thermalPolicy = monitor.currentPolicy
+            self.poseFrameInterval = ThermalPolicy.policy(for: monitor.currentLevel).maxFPS > 0
+                ? TimeInterval(1.0 / monitor.currentPolicy.maxFPS)
+                : 0.1
+            monitor.levelPublisher
+                .sink { [weak self] level in
+                    guard let self = self else { return }
+                    let policy = ThermalPolicy.policy(for: level)
+                    self.thermalLevel = level
+                    self.thermalPolicy = policy
+                    if policy.maxFPS > 0 {
+                        self.poseFrameInterval = TimeInterval(1.0 / policy.maxFPS)
+                    }
+                }
+                .store(in: &subscriptions)
+        }
 
         provider.framePublisher
             .sink { [weak self] frame in
@@ -85,6 +134,18 @@ public class Pipeline {
     // MARK: - Private Methods
 
     private func process(_ frame: InputFrame) {
+        // Precomputed sample path — replay/test bypass.
+        // Skips pose detection and fusion; runs metrics, posture, and nudge engines.
+        if let sample = frame.precomputedSample {
+            processPrecomputed(sample, timestamp: frame.timestamp)
+            return
+        }
+
+        // Thermal throttle: skip all processing when critical
+        if thermalPolicy.detectionPaused {
+            return
+        }
+
         // Compute FPS
         let currentFPS = computeFPS(timestamp: frame.timestamp)
 
@@ -137,6 +198,15 @@ public class Pipeline {
                 poseObservation = nil
             }
 
+            // Sample depth at keypoint positions when depth is available and not thermally disabled
+            let depthSamples: [DepthAtPoint]?
+            if let observation = poseObservation, confidence >= .medium, self.thermalPolicy.depthEnabled {
+                let keypointPositions = observation.keypoints.map { $0.position }
+                depthSamples = self.depthService.sampleDepth(at: keypointPositions, from: frame)
+            } else {
+                depthSamples = nil
+            }
+
             // Determine tracking quality based on pose detection (with hysteresis)
             let qualityResult = Pipeline.computeTrackingQualityWithDiag(
                 poseObservation: poseObservation,
@@ -185,13 +255,16 @@ public class Pipeline {
                 if let observation = poseObservation {
                     let sample = self.fusion.fuse(
                         pose: observation,
-                        depthSamples: nil,
+                        depthSamples: depthSamples,
                         confidence: confidence,
+                        intrinsics: frame.cameraIntrinsics,
                         trackingQuality: finalQuality
                     )
                     self.latestSample = sample
 
                     if let sample = sample {
+                        self.recorder?.record(sample: sample)
+
                         let rawMetrics = self.metricsEngine.compute(
                             from: sample,
                             baseline: self.baseline
@@ -202,12 +275,20 @@ public class Pipeline {
                         )
                         self.latestMetrics = smoothedMetrics
 
+                        // Infer task mode from rolling window of recent metrics
+                        self.recentMetricsBuffer.append(smoothedMetrics)
+                        if self.recentMetricsBuffer.count > self.metricsBufferMaxSize {
+                            self.recentMetricsBuffer.removeFirst()
+                        }
+                        let inferredTaskMode = self.taskModeEngine.infer(from: self.recentMetricsBuffer)
+                        self.taskMode = inferredTaskMode
+
                         // Update the posture state machine with the latest metrics.
                         // The engine decides good/drifting/bad based on thresholds
                         // and pauses its timers when tracking quality is low.
                         let newPostureState = self.postureEngine.update(
                             metrics: smoothedMetrics,
-                            taskMode: .unknown,  // TaskModeEngine added in Sprint 7
+                            taskMode: inferredTaskMode,
                             trackingQuality: finalQuality
                         )
                         self.postureState = newPostureState
@@ -221,12 +302,84 @@ public class Pipeline {
                             state: newPostureState,
                             trackingQuality: finalQuality,
                             movementLevel: smoothedMetrics.movementLevel,
-                            taskMode: .unknown,  // TaskModeEngine added in Sprint 7
+                            taskMode: inferredTaskMode,
                             currentTime: smoothedMetrics.timestamp,
                             metrics: smoothedMetrics
                         )
+
+                        // Periodic staleness check (every 60s, not every frame)
+                        if let baseline = self.baseline,
+                           smoothedMetrics.timestamp - self.lastStalenessCheckTime >= 60 {
+                            self.lastStalenessCheckTime = smoothedMetrics.timestamp
+                            self.baselineStaleness = self.staleBaselineDetector.check(
+                                current: sample,
+                                baseline: baseline,
+                                baselineAge: Date().timeIntervalSince(baseline.timestamp)
+                            )
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    /// Fast path for precomputed samples (replay / test).
+    /// Skips pose detection, depth, mode switching, and throttle.
+    private func processPrecomputed(_ sample: PoseSample, timestamp: TimeInterval) {
+        let currentFPS = computeFPS(timestamp: timestamp)
+
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            self.fps = currentFPS
+            self.trackingQuality = sample.trackingQuality
+            self.currentTrackingQuality = sample.trackingQuality
+            self.latestSample = sample
+
+            self.recorder?.record(sample: sample)
+
+            let rawMetrics = self.metricsEngine.compute(
+                from: sample,
+                baseline: self.baseline
+            )
+            let smoothedMetrics = self.metricsSmoother.smooth(
+                rawMetrics,
+                sample: sample
+            )
+            self.latestMetrics = smoothedMetrics
+
+            // Infer task mode from rolling window of recent metrics
+            self.recentMetricsBuffer.append(smoothedMetrics)
+            if self.recentMetricsBuffer.count > self.metricsBufferMaxSize {
+                self.recentMetricsBuffer.removeFirst()
+            }
+            let inferredTaskMode = self.taskModeEngine.infer(from: self.recentMetricsBuffer)
+            self.taskMode = inferredTaskMode
+
+            let newPostureState = self.postureEngine.update(
+                metrics: smoothedMetrics,
+                taskMode: inferredTaskMode,
+                trackingQuality: sample.trackingQuality
+            )
+            self.postureState = newPostureState
+
+            self.nudgeDecision = self.nudgeEngine.evaluate(
+                state: newPostureState,
+                trackingQuality: sample.trackingQuality,
+                movementLevel: smoothedMetrics.movementLevel,
+                taskMode: inferredTaskMode,
+                currentTime: smoothedMetrics.timestamp,
+                metrics: smoothedMetrics
+            )
+
+            // Periodic staleness check (every 60s, not every frame)
+            if let baseline = self.baseline,
+               smoothedMetrics.timestamp - self.lastStalenessCheckTime >= 60 {
+                self.lastStalenessCheckTime = smoothedMetrics.timestamp
+                self.baselineStaleness = self.staleBaselineDetector.check(
+                    current: sample,
+                    baseline: baseline,
+                    baselineAge: Date().timeIntervalSince(baseline.timestamp)
+                )
             }
         }
     }

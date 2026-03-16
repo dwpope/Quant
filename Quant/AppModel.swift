@@ -18,6 +18,12 @@ class AppModel: ObservableObject {
     @Published var latestMetrics: RawMetrics?
     @Published var postureState: PostureState = .absent
     @Published var nudgeDecision: NudgeDecision = .none
+    @Published var thermalLevel: ThermalLevel = .nominal
+
+    // MARK: - Recording & Replay
+
+    @Published private(set) var isRecording = false
+    @Published private(set) var isReplaying = false
 
     // MARK: - Calibration Properties
 
@@ -89,6 +95,41 @@ class AppModel: ObservableObject {
         }
     }
 
+    @Published var headDropThreshold: Float {
+        didSet {
+            UserDefaults.standard.set(headDropThreshold, forKey: Keys.headDropThreshold)
+            updatePipelineThresholds()
+        }
+    }
+
+    @Published var shoulderRoundingThreshold: Float {
+        didSet {
+            UserDefaults.standard.set(shoulderRoundingThreshold, forKey: Keys.shoulderRoundingThreshold)
+            updatePipelineThresholds()
+        }
+    }
+
+    @Published var slouchDurationBeforeNudge: Double {
+        didSet {
+            UserDefaults.standard.set(slouchDurationBeforeNudge, forKey: Keys.slouchDurationBeforeNudge)
+            updatePipelineThresholds()
+        }
+    }
+
+    @Published var nudgeCooldown: Double {
+        didSet {
+            UserDefaults.standard.set(nudgeCooldown, forKey: Keys.nudgeCooldown)
+            updatePipelineThresholds()
+        }
+    }
+
+    @Published var maxNudgesPerHour: Int {
+        didSet {
+            UserDefaults.standard.set(maxNudgesPerHour, forKey: Keys.maxNudgesPerHour)
+            updatePipelineThresholds()
+        }
+    }
+
     // MARK: - Camera Mode
 
     @Published var cameraMode: CameraMode
@@ -132,10 +173,13 @@ class AppModel: ObservableObject {
     let arService = ARSessionService()
     let frontService = FrontCameraSessionService()
     private let switchableProvider = SwitchablePoseProvider()
+    private let thermalMonitor = ThermalMonitor()
     private lazy var pipeline: Pipeline = {
-        Pipeline(provider: switchableProvider)
+        Pipeline(provider: switchableProvider, thermalMonitor: thermalMonitor)
     }()
     private var cancellables = Set<AnyCancellable>()
+    private let recorderService = RecorderService()
+    private let replayService = ReplayService()
     private var calibrationEngine: CalibrationEngine
     private var lastNudgeFiredTime: TimeInterval?
     private var countdownTimer: Timer?
@@ -154,6 +198,11 @@ class AppModel: ObservableObject {
         static let twistThreshold = "com.quant.posture.twist"
         static let sideLeanThreshold = "com.quant.posture.sideLean"
         static let driftingToBadThreshold = "com.quant.posture.driftingToBad"
+        static let headDropThreshold = "com.quant.posture.headDrop"
+        static let shoulderRoundingThreshold = "com.quant.posture.shoulderRounding"
+        static let slouchDurationBeforeNudge = "com.quant.posture.slouchDuration"
+        static let nudgeCooldown = "com.quant.posture.nudgeCooldown"
+        static let maxNudgesPerHour = "com.quant.posture.maxNudgesPerHour"
     }
 
     static let defaultMaxPositionVariance: Float = 0.06
@@ -165,6 +214,11 @@ class AppModel: ObservableObject {
     static let defaultTwistThreshold: Float = defaultThresholds.twistThreshold
     static let defaultSideLeanThreshold: Float = defaultThresholds.sideLeanThreshold
     static let defaultDriftingToBadThreshold: Double = defaultThresholds.driftingToBadThreshold
+    static let defaultHeadDropThreshold: Float = defaultThresholds.headDropThreshold
+    static let defaultShoulderRoundingThreshold: Float = defaultThresholds.shoulderRoundingThreshold
+    static let defaultSlouchDurationBeforeNudge: Double = defaultThresholds.slouchDurationBeforeNudge
+    static let defaultNudgeCooldown: Double = defaultThresholds.nudgeCooldown
+    static let defaultMaxNudgesPerHour: Int = defaultThresholds.maxNudgesPerHour
 
     // MARK: - Initialization
 
@@ -193,6 +247,11 @@ class AppModel: ObservableObject {
         self.twistThreshold = defaults.object(forKey: Keys.twistThreshold) as? Float ?? Self.defaultTwistThreshold
         self.sideLeanThreshold = defaults.object(forKey: Keys.sideLeanThreshold) as? Float ?? Self.defaultSideLeanThreshold
         self.driftingToBadThreshold = defaults.object(forKey: Keys.driftingToBadThreshold) as? Double ?? Self.defaultDriftingToBadThreshold
+        self.headDropThreshold = defaults.object(forKey: Keys.headDropThreshold) as? Float ?? Self.defaultHeadDropThreshold
+        self.shoulderRoundingThreshold = defaults.object(forKey: Keys.shoulderRoundingThreshold) as? Float ?? Self.defaultShoulderRoundingThreshold
+        self.slouchDurationBeforeNudge = defaults.object(forKey: Keys.slouchDurationBeforeNudge) as? Double ?? Self.defaultSlouchDurationBeforeNudge
+        self.nudgeCooldown = defaults.object(forKey: Keys.nudgeCooldown) as? Double ?? Self.defaultNudgeCooldown
+        self.maxNudgesPerHour = defaults.object(forKey: Keys.maxNudgesPerHour) as? Int ?? Self.defaultMaxNudgesPerHour
 
         let config = CalibrationConfig(
             samplingDuration: sampDur,
@@ -255,6 +314,9 @@ class AppModel: ObservableObject {
 
         pipeline.$nudgeDecision
             .assign(to: &$nudgeDecision)
+
+        pipeline.$thermalLevel
+            .assign(to: &$thermalLevel)
 
         // React to nudge fire decisions — deliver feedback and record.
         //
@@ -429,6 +491,53 @@ class AppModel: ObservableObject {
         }
     }
 
+    // MARK: - Recording Controls
+
+    func startRecording() {
+        let metadata = SessionMetadata(
+            deviceModel: Self.deviceModelName(),
+            depthAvailable: currentMode != .twoDOnly,
+            thresholds: pipeline.thresholds
+        )
+        recorderService.startRecording(metadata: metadata)
+        pipeline.recorder = recorderService
+        isRecording = true
+    }
+
+    @discardableResult
+    func stopRecording() -> URL? {
+        pipeline.recorder = nil
+        isRecording = false
+        guard let session = recorderService.stopRecording() else { return nil }
+        return exportSession(session)
+    }
+
+    // MARK: - Replay Controls
+
+    func loadSession(_ url: URL) throws {
+        let data = try Data(contentsOf: url)
+        let session = try JSONDecoder().decode(RecordedSession.self, from: data)
+        replayService.load(session: session)
+    }
+
+    func startReplay() {
+        let provider = ReplayPoseProvider(replayService: replayService)
+        switchableProvider.attach(source: provider)
+        isReplaying = true
+        Task {
+            try? await provider.start()
+            // Playback finished naturally
+            isReplaying = false
+        }
+    }
+
+    func stopReplay() {
+        replayService.stop()
+        switchableProvider.detach()
+        switchableProvider.attach(source: providerForMode(cameraMode))
+        isReplaying = false
+    }
+
     func resetCalibrationSettings() {
         maxPositionVariance = Self.defaultMaxPositionVariance
         maxAngleVariance = Self.defaultMaxAngleVariance
@@ -441,6 +550,11 @@ class AppModel: ObservableObject {
         twistThreshold = Self.defaultTwistThreshold
         sideLeanThreshold = Self.defaultSideLeanThreshold
         driftingToBadThreshold = Self.defaultDriftingToBadThreshold
+        headDropThreshold = Self.defaultHeadDropThreshold
+        shoulderRoundingThreshold = Self.defaultShoulderRoundingThreshold
+        slouchDurationBeforeNudge = Self.defaultSlouchDurationBeforeNudge
+        nudgeCooldown = Self.defaultNudgeCooldown
+        maxNudgesPerHour = Self.defaultMaxNudgesPerHour
         syncSettingsToWatch()
     }
 
@@ -459,6 +573,32 @@ class AppModel: ObservableObject {
         providerForMode(cameraMode)
     }
 
+    private func exportSession(_ session: RecordedSession) -> URL? {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(session) else { return nil }
+        let fileName = "posture-session-\(session.id.uuidString.prefix(8)).json"
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(fileName)
+        do {
+            try data.write(to: url)
+            return url
+        } catch {
+            print("Failed to export session: \(error)")
+            return nil
+        }
+    }
+
+    private static func deviceModelName() -> String {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        return withUnsafePointer(to: &systemInfo.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: 1) {
+                String(validatingCString: $0) ?? "Unknown"
+            }
+        }
+    }
+
     private func rebuildCalibrationEngine() {
         let config = CalibrationConfig(
             samplingDuration: samplingDuration,
@@ -474,6 +614,11 @@ class AppModel: ObservableObject {
         t.twistThreshold = twistThreshold
         t.sideLeanThreshold = sideLeanThreshold
         t.driftingToBadThreshold = driftingToBadThreshold
+        t.headDropThreshold = headDropThreshold
+        t.shoulderRoundingThreshold = shoulderRoundingThreshold
+        t.slouchDurationBeforeNudge = slouchDurationBeforeNudge
+        t.nudgeCooldown = nudgeCooldown
+        t.maxNudgesPerHour = maxNudgesPerHour
         pipeline.thresholds = t
     }
 
