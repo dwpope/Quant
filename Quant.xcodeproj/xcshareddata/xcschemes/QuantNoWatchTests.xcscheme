@@ -84,6 +84,24 @@
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
+      <PreActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Grant Camera Permission"
+               scriptText = "xcrun simctl privacy booted grant camera net.davepope.Quant">
+               <EnvironmentBuildable>
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "B0329A7F2EFF739800DA5BDB"
+                     BuildableName = "Quant.app"
+                     BlueprintName = "Quant"
+                     ReferencedContainer = "container:Quant.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PreActions>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
