@@ -11,6 +11,7 @@ import PostureLogic
 struct ContentView: View {
     @EnvironmentObject var appModel: AppModel
     @State private var showSettings = false
+    @State private var showShowcase = false
 
     var body: some View {
         ZStack {
@@ -85,6 +86,16 @@ struct ContentView: View {
                     }
 
                     Button {
+                        showShowcase = true
+                    } label: {
+                        Image(systemName: "rectangle.stack")
+                            .font(.title2)
+                            .padding(10)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                    }
+
+                    Button {
                         showSettings = true
                     } label: {
                         Image(systemName: "gearshape")
@@ -109,6 +120,9 @@ struct ContentView: View {
         .padding()
         .sheet(isPresented: $showSettings) {
             CalibrationSettingsView()
+        }
+        .fullScreenCover(isPresented: $showShowcase) {
+            VariantShowcaseView()
         }
     }
 
