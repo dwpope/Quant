@@ -279,3 +279,155 @@ Decomposed into 2 tasks:
 2. **task-1773705982-48bf** (simulation-engine): 4-phase simulation state machine (Good→Drifting→Bad→Recovery), timer loop, simulation tests. Blocked by task 1.
 
 Updated progress.md. Emitting tasks.ready for the first unblocked task.
+
+## 2026-03-17 — Builder: task-1773705968-191d (MockPostureDataSource manual + preview)
+
+Completed TDD cycle for MockPostureDataSource class skeleton with manual mode and preview factory.
+
+TDD steps:
+1. RED: Wrote MockPostureDataSourceManualTests.swift (2 tests) and MockPostureDataSourcePreviewTests.swift (2 tests). Confirmed "Cannot find 'MockPostureDataSource' in scope" compilation failure.
+2. GREEN: Created `Quant/PostureUI/MockPostureDataSource.swift` — @MainActor final class conforming to PostureDataSourceProtocol.
+3. REFACTOR: No changes needed — implementation is already minimal.
+
+Design decisions:
+- `currentData` is a computed property: returns `_currentData` when auto-simulating (timer will update `_currentData` in next task), or `buildManualData()` when manual. This avoids Combine plumbing for manual mode while keeping protocol conformance.
+- `preview(state:worstMetric:worstRatio:)` creates a non-animating instance by setting `isAutoSimulating = false` and configuring sliders to produce the desired ratio via `worstRatio * threshold`.
+- Timer cleanup stubs (`stopSimulation()` and `deinit`) are present but the timer itself will be added in the simulation-engine task.
+
+Files created:
+- `Quant/PostureUI/MockPostureDataSource.swift` — 96 lines
+- `QuantTests/MockPostureDataSourceManualTests.swift` — 2 tests
+- `QuantTests/MockPostureDataSourcePreviewTests.swift` — 2 tests
+
+All 42 tests pass (4 new + 38 existing), zero regressions.
+
+## 2026-03-17 — Critic: task-1773705968-191d (MockPostureDataSource manual + preview)
+
+Fresh-eyes review of MockPostureDataSource class skeleton, manual mode, preview factory, and tests.
+
+**Requirement fidelity:** All requirements from task description satisfied:
+- `@MainActor final class MockPostureDataSource: ObservableObject, PostureDataSourceProtocol` ✓
+- `currentData` accessible (computed, backed by `@Published _currentData`) ✓
+- 5 manual metric sliders (`@Published var manualForwardCreep/headDrop/shoulderRounding/lateralLean/twist`) ✓
+- `@Published var manualPostureState: PostureState = .good` ✓
+- `@Published var isAutoSimulating: Bool = true` ✓
+- `var simulationThresholds: PostureThresholds = PostureThresholds()` ✓
+- Manual mode: when `isAutoSimulating==false`, `buildManualData()` builds `RawMetrics` from sliders and calls `PostureDisplayData.make()` ✓
+- Static preview factory: `preview(state:worstMetric:worstRatio:)` returns non-animating instance (`isAutoSimulating=false`) ✓
+- `stopSimulation()` and `deinit` for timer cleanup (stubs, timer added in next task) ✓
+- Tests: 4 tests covering all acceptance criteria ✓
+
+**Design doc deviation — `currentData` as computed property:**
+Design doc section 5.2 shows `@Published private(set) var currentData: PostureDisplayData`, but implementation uses a computed property that delegates to `_currentData` (auto) or `buildManualData()` (manual). This is a sound design decision:
+- `PostureDisplayObserver` subscribes to `objectWillChange`, not `$currentData`
+- Any `@Published` slider change fires `objectWillChange`, observer re-reads `currentData` → gets fresh computed value
+- Avoids explicit Combine plumbing to rebuild `currentData` on every slider change
+- No behavioral difference for consumers
+
+**Fresh-eyes code review:**
+- 111 lines, clean, minimal, no YAGNI violations, no unnecessary complexity
+- Imports Foundation, Combine, PostureLogic — correct and minimal
+- `buildManualData()` correctly maps sliders to `RawMetrics` fields and delegates to factory
+- `movementLevel: 0` and `headMovementPattern: .still` are reasonable defaults for manual mode
+- Preview factory correctly computes `value = worstRatio * threshold` and assigns to the right slider via switch
+- No public access modifiers (consistent with existing PostureUI code style)
+
+**Adversarial analysis:**
+- All sliders at 0 + manual mode: `buildManualData()` → ratios = 0, no crash, `worstOffender` nil (ratio > 0 guard). Tested by `test_badStateWithZeroMetrics_doesNotCrash`. ✓
+- Negative slider values: factory uses `abs(value)`, so negative inputs produce correct positive ratios. ✓
+- `threshold(for:)` returning 0: factory guards `threshold > 0 ? abs(value)/threshold : 0`. Division-by-zero prevented. ✓
+- Thread safety: `@MainActor` class, all access on main thread. ✓
+- `deinit` accessing `@MainActor`-isolated `simulationTimer`: `Timer.invalidate()` is thread-safe per Apple docs. Existing codebase pattern. ✓
+- Preview factory with `.absent` state: works — all sliders 0, `worstOffender` nil, `postureState` = `.absent`. ✓
+- Observer integration: `objectWillChange` fires from `@Published` slider properties → observer re-reads computed `currentData` → `buildManualData()` uses updated slider values. Deferred via `receive(on: RunLoop.main)` ensures values are settled. ✓
+
+**Verification:** Independently ran targeted tests — MockPostureDataSourceManualTests 2/2, MockPostureDataSourcePreviewTests 2/2, all 4 pass. Build clean. Full regression suite had simulator contention issues (existing, unrelated to this change — prior AppModelTests passed before hang).
+
+**Real harness:** No runnable UI yet (data layer + mock skeleton). Tests are the strongest available harness. Static code review supplements for protocol integration correctness.
+
+**Verdict: PASS** — Clean, minimal, correct implementation satisfying all task acceptance criteria. Computed `currentData` deviation from design doc is a justified improvement.
+
+## 2026-03-17 — Finalizer: task-1773705968-191d (MockPostureDataSource manual + preview)
+
+Independently verified: MockPostureDataSourceManualTests 2/2, MockPostureDataSourcePreviewTests 2/2 — all 4 pass. TEST SUCCEEDED. Files confirmed present.
+
+Closed task-1773705968-191d. Step 2 progress: 1/2 tasks complete. Remaining:
+- task-1773705982-48bf (simulation-engine) — now unblocked (dependency task-1773705968-191d closed)
+
+Steps 3–16 of the plan remain incomplete. Emitting queue.advance to continue Step 2.
+
+## 2026-03-17 — Planner: queue.advance → task-1773705982-48bf (simulation-engine)
+
+Received queue.advance after task-1773705968-191d closed. Step 2 progress: 1/2 tasks complete.
+
+Last remaining task in Step 2 wave: task-1773705982-48bf (simulation-engine).
+- Blocker task-1773705968-191d (manual-and-preview) is closed
+- MockPostureDataSource.swift exists (111 lines) with class skeleton, manual mode, preview factory, timer stubs
+- Task adds: SimulationPhase enum, 4-phase state machine (Good→Drifting→Bad→Recovery), 30Hz timer loop, simulation tests
+- Tests go in QuantTests/MockPostureDataSourceSimulationTests.swift
+- After this completes, Step 2 is fully done. Next: Step 3 (Live Data Source)
+- Emitting tasks.ready to hand off to Builder.
+
+## 2026-03-17 — Builder: task-1773705982-48bf (simulation-engine)
+
+Completed TDD cycle for 4-phase simulation engine in MockPostureDataSource.
+
+TDD steps:
+1. RED: Wrote MockPostureDataSourceSimulationTests.swift (3 tests). Confirmed "has no member 'simulationTick'" compilation failure.
+2. GREEN: Added simulation engine to MockPostureDataSource.swift:
+   - `SimulationPhase` enum at file scope: `.good(elapsed)`, `.drifting(elapsed, dominantMetric)`, `.bad(elapsed)`, `.recovery(elapsed)`
+   - Private state: `simulationClock`, `currentDominantMetric`, randomized phase durations
+   - `simulationTick()`: advances clock by `(1/30)*speedMultiplier`, calls `advancePhase(by:)` → `buildSimulationData()`
+   - Phase transitions: `enterGoodPhase()`, `enterDriftingPhase()`, `enterBadPhase()`, `enterRecoveryPhase()` — each randomizes duration
+   - Good phase metrics: 3 layered sine waves at irrational frequencies (1.1, 1.7, 2.3) with unique seeds per metric, ±5% threshold
+   - Drifting phase metrics: dominant metric ramps 0→1.2× threshold via quadratic ease-in. Non-dominant metrics have subtle noise.
+   - Bad phase metrics: dominant metric stays at ~1.2× with slight oscillation. nudgeDecision = `.fire` for first 2s, then `.none`
+   - Recovery phase metrics: dominant metric eases from 1.2× to 0 via quadratic ease-out
+   - 30Hz timer via `Timer.scheduledTimer` with `Task { @MainActor }` dispatch, auto-starts in `init()`
+   - Updated `preview()` to call `stopSimulation()` before setting `isAutoSimulating = false`
+3. REFACTOR: No changes needed.
+
+Files modified: `Quant/PostureUI/MockPostureDataSource.swift` (111→~270 lines)
+Files created: `QuantTests/MockPostureDataSourceSimulationTests.swift` (3 tests)
+
+All 45 tests pass (3 new + 42 existing), zero regressions. Emitting review.ready.
+
+## 2026-03-17 — Critic: task-1773705982-48bf (simulation-engine)
+
+Fresh-eyes review of 4-phase simulation engine added to MockPostureDataSource.
+
+**Requirement fidelity:** All requirements from task description satisfied:
+- SimulationPhase enum: `.good(elapsed)`, `.drifting(elapsed, dominantMetric)`, `.bad(elapsed)`, `.recovery(elapsed)` ✓
+- Good phase (8-12s): layered sine waves at frequencies 1.1, 1.7, 2.3 with unique seeds, ±5% threshold amplitude ✓
+- Drifting phase (15-30s): dominant metric ramps 0→1.2× threshold via quadratic ease-in (`progress²`), random dominant metric via `MetricKey.allCases.randomElement()`, `postureState=.drifting(since:)`, `nudgeDecision=.pending` with countdown from `slouchDurationBeforeNudge` ✓
+- Bad phase (10-20s): dominant metric stays at ~1.2× with slight oscillation, `postureState=.bad(since:)`, `nudgeDecision=.fire` for first 2s then `.none` ✓
+- Recovery (3-5s): dominant metric eases from 1.2× to 0 via quadratic ease-out (`1 - progress²`) ✓
+- Timer at 30Hz via `Timer.scheduledTimer`, advances by `(1/30)*simulationSpeedMultiplier` per tick ✓
+- Tests: 3 tests covering full cycle, nudge countdown, and .fire emission ✓
+
+**Fresh-eyes code review:**
+- 369 lines total, clean structure with clear MARK sections
+- `SimulationPhase` enum at file scope — appropriate since it's used by tests
+- `simulationPhase` is `private(set)` — allows test reads without external mutation ✓
+- `simulationTick()` is internal access for test stepping — correct pattern ✓
+- `[weak self]` in timer closure + Task — prevents retain cycle ✓
+- Phase transition methods randomize durations within specified ranges ✓
+- `computeSimulationState()` cleanly separates state→(metrics, postureState, nudgeDecision) mapping ✓
+
+**Adversarial analysis:**
+- Good phase negative metrics: `noise()` returns [-0.05, 0.05], multiplied by threshold. Factory uses `abs(value)` for ratio, so negative raw values → correct small positive ratios ✓
+- Recovery postureState is `.good`: Correct — recovery IS the transition back to good. Test `sawGoodAfterBad` triggers during recovery, which is the intended behavior ✓
+- Phase transition overshoot at 100x speed: each tick = 3.33 sim-sec. Max overshoot into next phase is 3.33s, negligible vs phase durations (8-30s). Overshoot time is lost (not carried to next phase), acceptable for simulation ✓
+- `.fire` emission at 100x speed: On transition tick, bad phase elapsed=0 → `.fire`. Next tick elapsed=3.33 > 2.0 → `.none`. So `.fire` emits exactly once per bad phase at high speed. Test catches it ✓
+- Timer + test interaction: `stopSimulation()` invalidates timer synchronously. Any queued `Task { @MainActor }` would call `simulationTick()` which checks `isAutoSimulating`. Tests keep `isAutoSimulating=true` for manual ticking. `@MainActor` ensures serial execution, no race conditions ✓
+- `_ = elapsed` in good phase: Silences unused binding warning. Minor style issue, not worth rejecting ✓
+- `phaseStartTime` uses wall-clock (`Date().timeIntervalSince1970`): Fine for simulation — represents when simulated state change occurred in real time ✓
+- deinit timer invalidation: `Timer.invalidate()` is thread-safe per Apple docs. Existing codebase pattern ✓
+
+**Verification:** Independently ran:
+- MockPostureDataSourceSimulationTests: 3/3 pass (0.004s total)
+- Full regression suite: 45/45 pass, TEST SUCCEEDED, zero regressions
+
+**Real harness:** No runnable UI yet (data layer + mock simulation). Tests with fast-forward stepping are the strongest available harness. Static code review supplements for phase correctness.
+
+**Verdict: PASS** — Clean, correct implementation satisfying all task acceptance criteria. 4-phase simulation engine with proper state machine, metric generation, and nudge behavior. Step 2 (Mock Data Source) is ready for finalization (2/2 tasks reviewed).

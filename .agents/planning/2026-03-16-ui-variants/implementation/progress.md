@@ -44,5 +44,37 @@
 - ✅ `code-assist:ui-variants:step-01:display-data-and-factory` — PostureDisplayData + factory + tests (task-1773699568-13ad)
 - ✅ `code-assist:ui-variants:step-01:observer-and-protocol` — PostureDataSourceProtocol + PostureDisplayObserver (task-1773699577-32db)
 
+### task-1773705968-191d: MockPostureDataSource manual mode + preview factory
+- **Tests written (RED):** MockPostureDataSourceManualTests (2 tests), MockPostureDataSourcePreviewTests (2 tests) — failed with expected "Cannot find 'MockPostureDataSource' in scope"
+- **Implementation (GREEN):** `Quant/PostureUI/MockPostureDataSource.swift` — @MainActor final class conforming to PostureDataSourceProtocol with:
+  - `currentData` computed property: delegates to `_currentData` (auto-sim) or `buildManualData()` (manual)
+  - 5 manual slider @Published properties, manualPostureState, isAutoSimulating
+  - `buildManualData()` builds RawMetrics from sliders and calls PostureDisplayData.make()
+  - `preview(state:worstMetric:worstRatio:)` static factory for non-animating snapshots
+  - `stopSimulation()` and `deinit` for timer cleanup (timer will be added in simulation-engine task)
+- **Focused tests (4/4):** All pass
+- **Full suite (42 tests):** All pass (4 new + 38 existing), no regressions
+- **Test details:** manual slider ratio==1.0 at threshold; bad state with zero metrics doesn't crash; preview(.good) returns good state; preview(.drifting, worstMetric:.headDrop, worstRatio:1.3) returns correct worstOffender
+
+### task-1773705982-48bf: MockPostureDataSource simulation engine
+- **Tests written (RED):** MockPostureDataSourceSimulationTests (3 tests) — failed with expected "has no member 'simulationTick'"
+- **Implementation (GREEN):** Added to `Quant/PostureUI/MockPostureDataSource.swift`:
+  - `SimulationPhase` enum: `.good(elapsed)`, `.drifting(elapsed, dominantMetric)`, `.bad(elapsed)`, `.recovery(elapsed)`
+  - 4-phase state machine with randomized durations: Good (8-12s), Drifting (15-30s), Bad (10-20s), Recovery (3-5s)
+  - `simulationTick()` method: advances clock by `(1/30)*speedMultiplier`, advances phase, builds `PostureDisplayData`
+  - Good phase: layered sine waves at irrational frequencies (1.1, 1.7, 2.3), ±5% threshold amplitude
+  - Drifting phase: dominant metric ramps 0→1.2× threshold via quadratic ease-in, `nudgeDecision=.pending` with countdown
+  - Bad phase: metrics stay elevated, `.fire(reason:)` for first 2s then `.none`
+  - Recovery phase: quadratic ease-out from 1.2× to zero
+  - 30Hz timer via `Timer.scheduledTimer`, auto-starts in `init()`, `startSimulation()`/`stopSimulation()` for lifecycle
+  - Updated `preview()` factory to call `stopSimulation()` before disabling auto-sim
+- **Focused tests (3/3):** All pass
+- **Full suite (45 tests):** All pass (3 new + 42 existing), zero regressions
+
+## Completed Tasks (Step 2)
+- ✅ `code-assist:ui-variants:step-02:manual-and-preview` — MockPostureDataSource class skeleton + manual mode + preview factory + manual/preview tests (task-1773705968-191d)
+- ✅ `code-assist:ui-variants:step-02:simulation-engine` — Simulation state machine + timer loop + simulation tests (task-1773705982-48bf)
+
 ## Completed Steps
 - ✅ **Step 1 — Shared Data Layer** (4/4 tasks): MetricKey, MetricInfo, PostureDisplayData+factory, PostureDataSourceProtocol+PostureDisplayObserver. 38 tests, all pass.
+- ✅ **Step 2 — Mock Data Source** (2/2 tasks): MockPostureDataSource with manual mode, preview factory, 4-phase simulation engine, 30Hz timer. 45 tests, all pass.
