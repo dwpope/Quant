@@ -11,8 +11,10 @@ enum VariantRegistry {
                           makeView: { AnyView(Variant3View()) }),
         VariantDescriptor(id: 4, name: "Arc Meter", category: .scoreCentric, technologies: [.canvas],
                           makeView: { AnyView(Variant4View()) }),
-        variant(5,  "Numeric Countdown",     .scoreCentric,      []),
-        variant(6,  "Traffic Light",         .scoreCentric,      []),
+        VariantDescriptor(id: 5, name: "Numeric Countdown", category: .scoreCentric, technologies: [],
+                          makeView: { AnyView(Variant5View()) }),
+        VariantDescriptor(id: 6, name: "Traffic Light", category: .scoreCentric, technologies: [],
+                          makeView: { AnyView(Variant6View()) }),
 
         // MARK: - Data Visualization (7–12)
         variant(7,  "Five-Bar Equalizer",    .dataVisualization,  [.swiftCharts]),
