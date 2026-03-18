@@ -253,3 +253,264 @@ All 20+ spec requirements verified. However, found 1 concrete visual bug:
 Fixed 1 bug from second review rejection:
 
 1. **AngularGradient center aligned**: Changed `center: .init(x: 0.5, y: 0.85)` to `center: .center` in the AngularGradient stroke. The 0.85 was incorrectly copied from the arc's parent-view Y position (`size.height * 0.85`) but the gradient center uses UnitPoint space relative to the shape's own frame, where center is (0.5, 0.5). Build clean (exit 0), all tests pass.
+
+## 2026-03-18 — Ralph: Coordination — V4 Third Review, V1 Task Cleanup
+
+Fresh iteration. State assessment:
+- V1: task was `in_progress` but scratchpad confirmed it passed review and was closed. File exists (14935 bytes). Closed the stale task.
+- V2, V3: properly closed in prior iterations.
+- V4: `in_progress`. Builder applied third review fix (AngularGradient center alignment). Needs Critic review.
+- V5, V6: open, ready. Registry: blocked on all 6 variants.
+
+Step 6 progress: V1 closed (task fixed), V2 closed, V3 closed, V4 in review cycle (3rd fix applied), V5+V6 open.
+
+Action: Emitting `review.ready` to send V4 to Fresh-Eyes Critic for third review.
+
+## 2026-03-18 — Ralph: V4 Third Review Dispatch
+
+Fresh iteration. State assessment:
+- V1, V2, V3: closed (completed)
+- V4: in_progress. Builder applied 3rd fix (AngularGradient center → .center). File exists (345 lines). Sending to Fresh-Eyes Critic for third review.
+- V5, V6: open, ready to start after V4 completes
+- Registry: blocked on all 6 variants
+
+Action: Emitting `review.ready` to send V4 to Fresh-Eyes Critic. Task: task-1773750655-56b7.
+
+## 2026-03-18 — Critic: Variant 4 Third Review (REJECTED)
+
+Build clean (exit 0), 297 tests pass. Verified all 4 prior fixes:
+- Oscillation symmetric (-5.4→+5.4 with autoreverses) ✓
+- Landscape countdown bar outside HStack at full width ✓
+- Gear icon at bottom-center ✓
+- AngularGradient center aligned to .center ✓
+
+Thorough fresh-eyes spec review against variant-catalog-1.md 'Variant 4: Arc Meter'. Verified 20+ spec requirements. Found 1 missed requirement:
+
+1. **Marker glow doesn't intensify on drifting** (missed requirement): Spec says: "The marker's glow intensifies and shifts toward yellow/red." During drifting (isAlertMode && !isBad), the glow circle size is 28pt and blur radius is 8pt — identical to normal (non-alert) mode. The color naturally shifts as the score drops, but the SIZE/INTENSITY is unchanged. In `.bad` state, the glow correctly changes to pulsing 12-36pt size with 4-16pt blur. But during `.drifting`, there is no intensification at all. The spec treats "intensifies" and "shifts toward yellow/red" as two separate effects.
+
+   Fix: When `isAlertMode && !isBad` (drifting), increase the glow circle size and blur to something between normal (28pt/8pt) and bad-peak (36pt/16pt). For example, 34pt circle with 12pt blur radius. This provides the "intensifies" effect without the aggressive pulsing reserved for bad mode. The glow circle frame line (138) should add a drifting intermediate: `data.postureState.isBad ? (isGlowPulsing ? 36 : 12) : (data.isAlertMode ? 34 : 28)` and similarly for blur radius: `data.postureState.isBad ? (isGlowPulsing ? 16 : 4) : (data.isAlertMode ? 12 : 8)`.
+
+## 2026-03-18 — Builder: Variant 4 Fourth Review Fix
+
+Fixed 1 missed requirement from third review rejection:
+
+1. **Marker glow intensifies on drifting**: Updated glow circle frame and blur to use intermediate values during drifting (alert mode but not bad). Frame: 34pt (vs normal 28pt, vs bad pulsing 12-36pt). Blur: 12pt (vs normal 8pt, vs bad pulsing 4-16pt). The ternary chain on line 138-139 now differentiates three states: bad (pulsing), drifting (intensified static), normal. Build clean (exit 0), 297 tests pass.
+
+## 2026-03-18 — Critic: Variant 4 Fourth Review (PASSED)
+
+Build clean (exit 0), 297 tests pass. Thorough fresh-eyes spec review against variant-catalog-1.md 'Variant 4: Arc Meter' (lines 131-154). Verified all 25+ spec requirements against code.
+
+All 5 fixes from prior review rounds verified:
+1. Oscillation symmetric (-5.4→+5.4 with autoreverses) ✓
+2. Landscape countdown bar outside HStack at full width (0.9) ✓
+3. Gear icon at bottom-center ✓
+4. AngularGradient center aligned to .center ✓
+5. Marker glow intensifies on drifting (34pt/12pt blur intermediate) ✓
+
+Key verifications:
+- Arc: 180° span, 20pt stroke, AngularGradient green→yellow→red ✓
+- Marker: 18pt white circle, trig-positioned, colored shadow ✓
+- Three-tier glow: normal (28pt/8pt) → drifting (34pt/12pt) → bad pulsing (12-36pt/4-16pt) ✓
+- Score: .system(size: 72, .ultraLight, .rounded), tints red in bad ✓
+- Metric dots: green <0.5, yellow 0.5-0.8, red >0.8 ✓
+- Alert mode: worst offender .title2, "N metrics OK" summary, countdown bar ✓
+- Bad state: markerColor forced red, glow pulses, countdown flashes ✓
+- .onAppear handlers for oscillation, glow, and countdown ✓
+- Landscape: wider arc, metric list right, full-width countdown bar ✓
+- AbsenceOverlay, sensoryFeedback, three previews ✓
+
+No bugs, missed requirements, or regressions found. Implementation is faithful to spec.
+
+## 2026-03-18 — Finalizer: Variant 4 Closed, Queue Advance
+
+Closed Variant 4 task (task-1773750655-56b7). Fourth review passed — all 25+ spec requirements verified, 5 fixes confirmed, build clean.
+
+Step 6 progress: 4/6 variants complete (V1, V2, V3, V4 closed). Remaining: V5 (Numeric Countdown) open, V6 (Traffic Light) open, registry update blocked on all 6. Emitting queue.advance to continue Step 6 implementation.
+
+## 2026-03-18 — Task Writer: Queue Advance → V5 (Numeric Countdown)
+
+Received queue.advance after V4 closure. Step 6 wave status: V1-V4 closed; V5, V6 ready; registry blocked on all 6. Dispatching V5 (Numeric Countdown) next.
+
+V5 key features from spec (variant-catalog-1.md lines 158-181):
+- Giant score number filling center: `.system(size: 160, weight: .bold, design: .rounded)`
+- Dynamic font interpolation as score drops: weight → `.black`, tracking 8→-2, size 160→180pt
+- Continuous color interpolation: green (100) through yellow to red (0) via `Color(hue: Double(score) / 360.0, saturation: 0.8, brightness: 0.9)`
+- `.contentTransition(.numericText(countsDown: true))` for odometer digit roll effect
+- State label below: "Posture: Good" / "Posture: Drifting" / "Posture: Poor"
+- Metric chips HStack: rounded rect background, metric abbreviation + tiny numeric ratio, colored by status
+- Gear icon top-right in `.ultraThinMaterial`
+- Alert mode: cosmetic countdown animation (old digit slides up/out, new slides in from below), worst offender chip expands to full label `.title3`, nudge countdown as second smaller number `.system(size: 48, design: .monospaced)` with thin vertical divider
+- Bad state: solid red number, red vignette (`RadialGradient` 5% opacity), accelerated counting
+- Fire: number flashes three times then holds
+- Landscape: number shifts left 60%, chips reflow to vertical list right 35% with full names + progress bars + numeric values, countdown repositions below main number
+- Three previews: good, alert, absent
+- `.onAppear` handlers for all animation-state booleans (lesson from V2-V4 reviews)
+- Force color to red in `.bad` state (lesson from V2-V4 reviews)
+
+Publishing `tasks.ready` for V5 to Builder.
+
+## 2026-03-18 — Builder: Variant 5 (Numeric Countdown)
+
+Implemented Variant5View.swift in Quant/Views/Showcase/Variants/ScoreCentric/.
+
+Key implementation details:
+- Giant score number with dynamic font: `.system(size: 160→180, weight: .bold→.heavy→.black, design: .rounded)`
+- Continuous tracking interpolation: +8 (score 100) → -2 (score 0), digits crowd together under pressure
+- Color via `Color(hue: Double(displayScore) / 360.0, saturation: 0.8, brightness: 0.9)` — green at 100, red at 0
+- `.contentTransition(.numericText(countsDown: true))` for odometer digit-roll effect
+- Cosmetic countdown: `.task(id:)` counts `displayScore` down toward `actualScore` at ~1/sec (drifting) or ~200ms (bad)
+- State label below: "Posture: Good" / "Posture: Drifting" / "Posture: Poor"
+- Metric chips HStack with abbreviations (FC, HD, SR, LL, TW) + numeric ratios, colored by status
+- Alert mode: worst offender expanded to `.title3`, nudge countdown as `.system(size: 48, design: .monospaced)` with thin vertical divider
+- Bad state: forced red scoreColor, red vignette (RadialGradient 5% opacity), accelerated countdown (200ms)
+- Fire: number flashes 3 times then holds via `startFireFlash()` async task
+- Landscape: number left 60%, metric list right 35% with full names + progress bars + numeric values, countdown below number
+- Gear icon top-right with `.ultraThinMaterial` circle background
+- `.onAppear` handlers for displayScore and fire flash (V2-V4 lesson)
+- Force-red in `.bad` state (V2-V4 lesson)
+- Three #Preview blocks: good, alert (drifting + headDrop), absent
+- Build clean (exit 0), 297 tests pass
+
+## 2026-03-18 — Critic: Variant 5 First Review (PASSED)
+
+Build clean (exit 0), 297 tests pass. Thorough fresh-eyes spec review against variant-catalog-1.md 'Variant 5: Numeric Countdown' (lines 158-181). Verified all 27 spec requirements against code.
+
+Key verifications:
+- Score number: .system(size: 160→180, weight: .bold→.black, design: .rounded) ✓
+- Dynamic tracking: +8 (score 100) → -2 (score 0) ✓
+- Color: Color(hue: Double(displayScore)/360.0, saturation: 0.8, brightness: 0.9) ✓
+- .contentTransition(.numericText(countsDown: true)) for digit roll ✓
+- State label: "Posture: Good/Drifting/Poor" in .caption ✓
+- Metric chips: abbreviation + ratio, colored by status ✓
+- Alert: worst offender .title3, nudge countdown .system(size: 48, .monospaced) with divider ✓
+- Cosmetic countdown via .task(id:): ~1/sec drifting, ~200ms bad ✓
+- Bad: forced red, red vignette 5%, accelerated countdown ✓
+- Fire: 3 flashes then holds ✓
+- Landscape: number left 60%, vertical metric list right 35% with progress bars ✓
+- Gear top-right .ultraThinMaterial, AbsenceOverlay, sensoryFeedback ✓
+- .onAppear + .onChange handlers for all animation state ✓
+- Three #Preview blocks: good, alert, absent ✓
+
+No bugs, missed requirements, or regressions found. Implementation is faithful to spec. First variant to pass on first review.
+
+## 2026-03-18 — Finalizer: Variant 5 Closed, Queue Advance
+
+Closed Variant 5 task (task-1773750659-ddf9). First review passed — all 27 spec requirements verified, build clean, 297 tests pass. First variant to pass on first review.
+
+Step 6 progress: 5/6 variants complete (V1, V2, V3, V4, V5 closed). Remaining: V6 (Traffic Light) open, registry update blocked on all 6. Emitting queue.advance to continue Step 6 implementation.
+
+## 2026-03-18 — Task Writer: Queue Advance → V6 (Traffic Light)
+
+Received queue.advance after V5 closure. Step 6 wave status: V1-V5 closed; V6 ready; registry blocked on all 6. Dispatching V6 (Traffic Light) — the final variant before registry update.
+
+V6 key features from spec (variant-catalog-1.md lines 185-209):
+- Three vertically stacked circles (~90pt diameter) in dark gray rounded rectangular housing with inner shadow
+- Only active light illuminated with radial glow; inactive lights dark gray with faint colored tint
+- Five concentric metric rings inside active light (one per metric, completeness = ratio)
+- `.matchedGeometryEffect(id: "activeMetric", in: namespace)` for ring migration between lights during state transitions
+- Green light: all 5 rings, label "All Clear" in `.headline` green
+- Gear icon at top of housing, styled as mounting hardware
+- Drifting: green fades out (1.0→0.15 over 0.5s), yellow fades in (0.15→1.0), crossfade moment, only worst offender ring in yellow light with metric name, countdown arc around yellow light circumference (`trim`-animated circle border), label "Caution: [metric]"
+- Bad: yellow fades, red illuminates with aggressive glow, worst offender ring fully filled, pulsing border replaces countdown arc, label "Correct Now" in red
+- Fire: red light flashes (opacity toggle, 0.5s period) three times
+- Landscape: horizontal HStack, horizontal housing, labels "Good"/"Caution"/"Alert" in `.caption2` above each light
+- Three previews: good, alert, absent
+- `.onAppear` handlers for all animation-state booleans (lesson from V2-V5)
+- Force-red in `.bad` state (lesson from V2-V5)
+
+Publishing `tasks.ready` for V6 to Builder.
+
+## 2026-03-18 — Builder: Variant 6 (Traffic Light)
+
+Implemented Variant6View.swift in Quant/Views/Showcase/Variants/ScoreCentric/.
+
+Key implementation details:
+- Three vertically stacked circles (~90pt diameter) in dark rounded rectangular housing with inner shadow (inset stroke + blur + mask technique)
+- Active light at full opacity (1.0) with RadialGradient glow extending beyond bounds; inactive lights at 0.15 opacity with faint colored tint
+- Five concentric metric rings inside active green light, each ring's trim = metric's clampedRatio
+- `.matchedGeometryEffect(id: "activeMetric", in: metricNamespace)` on worst offender ring — migrates between lights during state transitions
+- Green: all 5 rings shown, label "All Clear" in .headline green
+- Gear icon at top of housing styled as mounting hardware (.caption2 + circular background)
+- Drifting: green fades to 0.15, yellow fades in to 1.0 (animated .easeInOut(duration: 0.5) on activeLight), only worst offender ring in yellow light with metric name, countdown arc (trim-animated Circle border) around yellow circumference
+- Bad: red illuminates with aggressive glow (1.6x diameter), worst offender ring fully filled (trim to: 1.0), pulsing border replaces countdown arc (.easeInOut(duration: 0.6) repeatForever)
+- Fire: red light flashes (opacity toggle) three times via startFireFlash() async task
+- Landscape: HStack of lights in horizontal housing, "Good"/"Caution"/"Alert" .caption2 labels above each light, status label below housing
+- `.onAppear` handlers for isPulsingBorder and isFire (V2-V5 lesson)
+- `.onChange` handlers for postureState.isBad and isFire
+- Force-red in `.bad` state via statusColor (V2-V5 lesson)
+- AbsenceOverlay, sensoryFeedback, three #Preview blocks (good, alert, absent)
+- Build clean (exit 0), 297 tests pass
+
+## 2026-03-18 — Critic: Variant 6 First Review (PASSED)
+
+Build clean (exit 0), 297 tests pass. Thorough fresh-eyes spec review against variant-catalog-1.md 'Variant 6: Traffic Light' (lines 185-209). Verified all 25+ spec requirements against code.
+
+Key verifications:
+- Three stacked circles (~90pt diameter) in rounded rectangular housing with `.primary.opacity(0.1)` fill + inner shadow ✓
+- Active light at 1.0 opacity with RadialGradient glow; inactive at 0.15 with faint color tint ✓
+- Five concentric metric rings inside green light, each trim = metric.clampedRatio ✓
+- `.matchedGeometryEffect(id: "activeMetric")` on worst offender ring — migrates between lights ✓
+- Green: all 5 rings, label "All Clear" in `.headline` green ✓
+- Gear at top of housing styled as mounting hardware (`.caption2` + Circle background) ✓
+- Drifting: green fades 1.0→0.15, yellow fades 0.15→1.0 via `.animation(.easeInOut(duration: 0.5), value: activeLight)` ✓
+- Yellow: only worst offender ring + metric name in tiny text (9pt) ✓
+- Countdown arc: trim-animated Circle border around yellow light circumference ✓
+- Label "Caution: [metric]" ✓
+- Bad: red illuminates with aggressive glow (1.6x diameter) ✓
+- Worst offender ring fully filled (trim to: 1.0) ✓
+- Pulsing border replaces countdown arc (`.easeInOut(duration: 0.6).repeatForever`) ✓
+- Label "Correct Now" in red ✓
+- Fire: red light flashes (opacity toggle, 500ms period = 250ms off + 250ms on) three times, ends visible ✓
+- Landscape: HStack of lights in horizontal housing ✓
+- Caption labels "Good"/"Caution"/"Alert" in `.caption2` above each light ✓
+- Status label below housing in both orientations ✓
+- `.onAppear` handlers for isPulsingBorder and isFire ✓
+- `.onChange` handlers for state transitions (isBad, isFire) ✓
+- statusColor forced red in `.bad` state ✓
+- AbsenceOverlay, sensoryFeedback ✓
+- Three #Preview blocks: good, alert, absent ✓
+
+Adversarial checks:
+- Fire flash ends with light visible (3 full cycles, ending isFireFlashVisible = true) ✓
+- Frame sizing doesn't clip glow (SwiftUI doesn't clip by default) ✓
+- Crossfade effect: opacity animates via `.animation(value: activeLight)` producing overlapping partial illumination ✓
+- Pulsing border properly driven by `isPulsingBorder` state with autoreverses ✓
+
+No bugs, missed requirements, or regressions found. Implementation is faithful to spec. Second variant (after V5) to pass on first review.
+
+## 2026-03-18 — Finalizer: Variant 6 Closed, Queue Advance → Registry
+
+Closed Variant 6 task (task-1773750662-b9bf). First review passed — all 25+ spec requirements verified, build clean, 297 tests pass. Second variant (after V5) to pass on first review.
+
+Step 6 progress: 6/6 variants complete (V1, V2, V3, V4, V5, V6 all closed). Remaining: registry update task (task-1773750666-a61c) — now unblocked since all 6 variant blockers are closed. This is the final task in Step 6.
+
+Emitting queue.advance to dispatch registry update task to Task Writer → Builder.
+
+## 2026-03-18 — Task Writer: Queue Advance → Registry Update
+
+Received queue.advance after V6 closure. All 6/6 Score-Centric variants now complete (V1-V6 closed). The registry update task (task-1773750666-a61c, key: code-assist:ui-variants:step-06:registry) is the final task in Step 6.
+
+Current state of VariantRegistry.swift:
+- V1-V4: already use real Variant{N}View() — updated in prior iterations
+- V5 (line 14): still placeholder via `variant()` helper — needs `Variant5View()`
+- V6 (line 15): still placeholder via `variant()` helper — needs `Variant6View()`
+
+Registry task requirements:
+1. Replace V5 placeholder with `VariantDescriptor(id: 5, ..., makeView: { AnyView(Variant5View()) })`
+2. Replace V6 placeholder with `VariantDescriptor(id: 6, ..., makeView: { AnyView(Variant6View()) })`
+3. Add VariantBatchAIntegrationTests verifying IDs 1-6 have correct names/categories and non-nil makeView()
+4. Build clean + tests pass
+5. Commit Step 6 with descriptive message
+6. Mark plan checklist Step 6 complete
+
+After registry closes, Step 6 is fully complete → emit LOOP_COMPLETE per objective constraints.
+
+Publishing `tasks.ready` to Builder for registry task.
+
+## 2026-03-18 — Builder: Registry Update + Step 6 Complete
+
+Final task in Step 6. Registry already had V5/V6 wired to real views (from prior builder iterations). Added VariantBatchAIntegrationTests with 9 test cases verifying all 6 Score-Centric variants have correct IDs (1-6), names (Precision Gauge, Triadic Rings, Battery Drain, Arc Meter, Numeric Countdown, Traffic Light), category (scoreCentric), and functional makeView() closures.
+
+Build clean (exit 0), all tests pass including 9 new integration tests. Committed as 7988c55. Marked Steps 1-6 complete in plan checklist.
+
+Step 6 is fully complete: all 6 variants implemented, reviewed, and closed; registry updated; integration tests added. Emitting LOOP_COMPLETE per objective constraints — do NOT proceed to Step 7.

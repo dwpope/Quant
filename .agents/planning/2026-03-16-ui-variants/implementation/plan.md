@@ -14,12 +14,12 @@
 
 ## Checklist
 
-- [ ] **Step 1** — Shared data layer: `MetricKey`, `MetricInfo`, `PostureDisplayData`, factory
-- [ ] **Step 2** — Mock data source: simulation state machine, manual controls
-- [ ] **Step 3** — Live data source: `LivePostureDataSource` wrapping `AppModel`
-- [ ] **Step 4** — Showcase navigation shell: `VariantShowcaseView`, `VariantDescriptor`, mock/live toggle, settings sheet
-- [ ] **Step 5** — Shared visual utilities: `PostureVisualStyle`, animation helpers, reusable sub-views
-- [ ] **Step 6** — Variant batch A: Score-Centric (Variants 1–6)
+- [x] **Step 1** — Shared data layer: `MetricKey`, `MetricInfo`, `PostureDisplayData`, factory
+- [x] **Step 2** — Mock data source: simulation state machine, manual controls
+- [x] **Step 3** — Live data source: `LivePostureDataSource` wrapping `AppModel`
+- [x] **Step 4** — Showcase navigation shell: `VariantShowcaseView`, `VariantDescriptor`, mock/live toggle, settings sheet
+- [x] **Step 5** — Shared visual utilities: `PostureVisualStyle`, animation helpers, reusable sub-views
+- [x] **Step 6** — Variant batch A: Score-Centric (Variants 1–6)
 - [ ] **Step 7** — Variant batch B: Dashboard / Multi-Metric (Variants 7–12)
 - [ ] **Step 8** — Variant batch C: Minimal / Typographic (Variants 13–20)
 - [ ] **Step 9** — Variant batch D: Abstract Geometric (Variants 21–28)

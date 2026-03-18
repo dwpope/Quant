@@ -135,8 +135,8 @@ struct Variant4View: View {
             // Glow behind marker
             Circle()
                 .fill(markerColor(score: score).opacity(0.5))
-                .frame(width: data.postureState.isBad ? (isGlowPulsing ? 36 : 12) : 28, height: data.postureState.isBad ? (isGlowPulsing ? 36 : 12) : 28)
-                .blur(radius: data.postureState.isBad ? (isGlowPulsing ? 16 : 4) : 8)
+                .frame(width: data.postureState.isBad ? (isGlowPulsing ? 36 : 12) : (data.isAlertMode ? 34 : 28), height: data.postureState.isBad ? (isGlowPulsing ? 36 : 12) : (data.isAlertMode ? 34 : 28))
+                .blur(radius: data.postureState.isBad ? (isGlowPulsing ? 16 : 4) : (data.isAlertMode ? 12 : 8))
                 .position(x: markerX, y: markerY)
 
             // Marker dot

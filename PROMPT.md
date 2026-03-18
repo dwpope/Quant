@@ -27,4 +27,4 @@ Check whether tasks have already been completed and committed, if they are done 
 - All existing tests must continue to pass
 - Do NOT refactor code unrelated to the current step
 - Preserve backwards compatibility of all public APIs
-- Emit LOOP_COMPLETE after Step 6 is finished (all 6 Score-Centric variants + registry update closed). Do NOT proceed to Step 7.
+- Emit LOOP_COMPLETE after Step 7 is finished (all 6 Dashboard / Multi-Metric variants 7–12 + registry update closed). Do NOT proceed to Step 8.
