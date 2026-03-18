@@ -1,433 +1,226 @@
-## 2026-03-16 — Planner: Initial Decomposition
+# Scratchpad: UI Variants Implementation
 
-Objective: Implement posture metrics UI variants per plan at `.agents/planning/2026-03-16-ui-variants/implementation/plan.md`.
+## 2026-03-17 — Planner: Step 6 Setup
 
-The plan has 16 steps. Starting with Step 1: Shared Data Layer.
+Steps 1-5 are all committed. The full data layer, mock/live sources, showcase shell, and shared visual utilities are in place.
 
-Step 1 creates the foundational data types that all subsequent steps depend on:
-- MetricKey, MetricInfo, PostureDisplayData, factory, extensions, protocol, observer
-- All in Quant/ app target, tests in QuantTests/
-- Pure Swift (no SwiftUI) for data models, imports PostureLogic
+Step 6 is the first variant batch: Score-Centric (Variants 1-6). Created 7 tasks:
+- 6 variant implementation tasks (one per variant, all independent/parallel)
+- 1 registry update + integration test task (blocked by all 6 variants)
 
-Decomposed Step 1 into 4 atomic tasks:
-1. MetricKey + RawMetrics.value(for:) + PostureThresholds.threshold(for:) + tests — foundational lookup types
-2. MetricInfo + tests — simple data struct with computed properties
-3. PostureDisplayData + factory method + tests — core construction logic (depends on 1 & 2)
-4. PostureDataSourceProtocol + PostureDisplayObserver — observation layer (depends on 3)
+Key API surface for variant builders:
+- `@EnvironmentObject var observer: PostureDisplayObserver` — main data access
+- `observer.data: PostureDisplayData` — metrics, postureState, nudgeDecision, worstOffender, aggregateScore, isAlertMode, nudgeCountdownSeconds
+- `PostureVisualStyle` — stateColor(), metricColor(), stateLabel(), nudgeCountdownLabel()
+- `PostureAnimations` — alertOnset, metricUpdate, nudgePulse, modeTransition
+- Reusable: MetricRatioBar, NudgeCountdownLabel, SettingsGearButton, PostureStateAmbientBackground, AbsenceOverlay
+- Previews: `MockPostureDataSource.preview(state:worstMetric:worstRatio:)` for non-animating snapshots
+- Files go in `Quant/Views/Showcase/Variants/ScoreCentric/`
+- VariantRegistry currently uses placeholders for all 60 variants
 
-Tasks 1 and 2 are independent and unblocked. Task 3 depends on 1 and 2. Task 4 depends on 3.
+Starting with Variant 1 (Precision Gauge) — the most complex Canvas-based variant, establishing the implementation pattern for the rest.
 
-## 2026-03-16 — Builder: task-1773699549-ef9d (MetricKey + extensions)
+## 2026-03-17 — Builder: Variant 2 (Triadic Rings)
 
-Completed TDD cycle for MetricKey enum, RawMetrics.value(for:), PostureThresholds.threshold(for:).
+Implemented Variant2View.swift in Quant/Views/Showcase/Variants/ScoreCentric/.
+- Three concentric rings: outer (overall score with adaptive green/yellow/red color), middle (worst metric inverted, cyan), inner (streak timer, orange)
+- Center score display with numericText contentTransition
+- Five mini ring badges below with 2-letter abbreviations
+- Alert mode: unfilled gap glow/pulse, worst offender label, countdown as 4th dashed outer ring, worst badge scale-pulse, all non-worst badges dim
+- Bad state: vibration animation (rotation oscillation) on ring stack
+- Landscape: rings left, vertical metric list right with full names and percentages
+- Three #Preview blocks: good, alert (drifting + headDrop), absent
+- Build clean, 297 PostureLogic tests pass
 
-Key findings:
-- Project uses `PBXFileSystemSynchronizedRootGroup` (Xcode 16+) — new files in Quant/ and QuantTests/ auto-discovered
-- The `Quant` scheme only runs UI tests; `QuantNoWatchTests` scheme runs unit tests
-- Fixed QuantNoWatchTests scheme: was missing Quant.app build dependency and had buildImplicitDependencies=NO
-- lateralLean → sideLeanThreshold mapping confirmed from PostureThresholds source
+## 2026-03-17 — Critic: Variant 2 Review (REJECTED)
 
-Files created:
-- `Quant/PostureUI/MetricKey.swift` — enum with 5 cases, displayName, symbolName
-- `Quant/PostureUI/RawMetrics+Extensions.swift` — .zero + value(for:)
-- `Quant/PostureUI/PostureThresholds+Extensions.swift` — threshold(for:)
-- `QuantTests/MetricKeyTests.swift` — 4 tests
-- `QuantTests/RawMetricsExtensionTests.swift` — 2 tests
-- `QuantTests/PostureThresholdsExtensionTests.swift` — 1 test
+Found 3 issues requiring fixes:
 
-All 19 tests pass (7 new + 12 existing).
+1. **VibrationModifier bug (critical)**: Two `.rotationEffect` modifiers (+2 and -2) compose additively and always cancel to 0. The `.bad` state vibration is completely invisible. Fix: use a single `.rotationEffect(.degrees(isVibrating && isActive ? 2 : 0))` — the existing `autoreverses: true` on the repeating animation will oscillate it.
 
-## 2026-03-16 — Critic: task-1773699549-ef9d (MetricKey + extensions)
+2. **Outer ring doesn't lock to red in `.bad` state**: `outerRingColor(score:)` only considers score value, not posture state. Spec requires: "On `.bad`, the outer ring's color locks to red." Fix: check `observer.data.postureState.isBad` and return red unconditionally.
 
-Fresh-eyes review of MetricKey, RawMetrics+Extensions, PostureThresholds+Extensions.
+3. **Countdown ring doesn't flash in `.bad` state**: Spec says "the countdown ring flashes." No flashing animation is implemented. Fix: add an opacity toggle animation when `postureState.isBad`.
 
-**Requirement fidelity:** All requirements from task description satisfied:
-- MetricKey: 5 cases ✓, String/CaseIterable/Identifiable ✓, displayName ✓, symbolName ✓
-- RawMetrics: .zero ✓, value(for:) ✓
-- PostureThresholds: threshold(for:) with lateralLean→sideLeanThreshold ✓
-- Tests: MetricKeyTests (4) ✓, RawMetricsExtensionTests (2) ✓, PostureThresholdsExtensionTests (1) ✓
+Minor: worst offender label is outside `ringStack()` in portrait mode (spec says inside), but this is cosmetic.
 
-**Code review:** No YAGNI violations, no unnecessary complexity. Code is native Swift, idiomatic, minimal. No public access modifiers (correct for app target). No speculative code.
+## 2026-03-17 — Builder: Variant 2 Review Fixes
 
-**Verification:** Independently ran targeted tests (7/7 pass) and full suite (19/19 pass, no regressions).
+Fixed all 3 issues from review rejection:
 
-**Verdict: PASS** — clean, minimal, correct implementation matching design doc sections 4.1 and 4.5.
+1. **VibrationModifier**: Removed second `.rotationEffect(.degrees(-2))` that was cancelling the first. Single rotation now oscillates via `autoreverses: true`.
 
-## 2026-03-16 — Finalizer: task-1773699549-ef9d (MetricKey + extensions)
+2. **Outer ring red lock**: Added `observer.data.postureState.isBad` check at top of `outerRingColor()` — returns red unconditionally in bad state.
 
-Independently verified all 7 tests pass (MetricKeyTests 4/4, RawMetricsExtensionTests 2/2, PostureThresholdsExtensionTests 1/1). TEST SUCCEEDED confirmed.
+3. **Countdown ring flash**: Added `isCountdownFlashing` state + opacity animation (1.0↔0.3) with `.easeInOut(duration: 0.5).repeatForever(autoreverses: true)` when `postureState.isBad`.
 
-Closed task-1773699549-ef9d. Step 1 progress: 1/4 tasks complete. Remaining:
-- task-1773699552-eeaf (MetricInfo) — ready, unblocked
-- task-1773699568-13ad (PostureDisplayData + factory) — blocked by task-1773699552-eeaf
-- task-1773699577-32db (observer + protocol) — blocked by task-1773699568-13ad
+Build clean, 297 tests pass.
 
-Emitting queue.advance to continue Step 1.
+## 2026-03-17 — Builder: Variant 2 Second Review Fixes
 
-## 2026-03-16 — Planner: queue.advance → task-1773699552-eeaf (MetricInfo)
+review.rejected event had no payload. Self-reviewed against spec and found 3 additional issues:
 
-Received queue.advance after task-1773699549-ef9d closed. Step 1 progress: 1/4 tasks complete.
+1. **AbsenceOverlay missing**: `.absent`/`.calibrating` states had no special handling. Added `AbsenceOverlay` wrapper that dims the variant content and shows "Waiting for pose..." message. Also added `@ViewBuilder` to `AbsenceOverlay.content` to support conditional content.
 
-Next ready task: task-1773699552-eeaf (MetricInfo struct + computed properties + tests).
-- No blockers — MetricKey already exists from prior task
-- After this completes, task-1773699568-13ad (PostureDisplayData + factory) becomes unblocked
-- Emitting tasks.ready to hand off to Builder.
+2. **Worst offender label outside ring stack**: Spec says "its label appears inside the ring stack below the score number." Moved from `portraitLayout` into `ringStack()` as a VStack below `scoreLabel`.
 
-## 2026-03-16 — Builder: task-1773699552-eeaf (MetricInfo)
+3. **Haptic feedback missing**: Spec lists `.sensoryFeedback(.impact, trigger:)` as a key technique. Added `.sensoryFeedback(.impact, trigger: observer.data.postureState.isBad)`.
 
-Completed TDD cycle for MetricInfo struct.
+Build clean, 297 tests pass.
 
-TDD steps:
-1. RED: Wrote MetricInfoTests.swift with 5 tests (isExceeded true at 1.0, true above 1.0, false below 1.0; clampedRatio caps at 1.0, passes through below 1.0). Confirmed compilation failure.
-2. GREEN: Created `Quant/PostureUI/MetricInfo.swift` — minimal struct matching design doc section 4.2.
-3. REFACTOR: No changes needed — implementation is already minimal and idiomatic.
+## 2026-03-17 — Critic: Variant 2 Third Review (PASSED)
 
-Files created:
-- `Quant/PostureUI/MetricInfo.swift` — struct with 5 let properties + 2 computed properties
-- `QuantTests/MetricInfoTests.swift` — 5 tests
+Thorough fresh-eyes review against full spec (variant-catalog-1.md lines 76-100). All 19 spec requirements verified in code. All 6 fixes from prior review rounds confirmed. Build clean (exit 0), 297 tests pass. No bugs, missed requirements, or regressions found. Implementation is faithful to spec.
 
-All 24 tests pass (5 new + 19 existing), zero regressions.
+## 2026-03-17 — Finalizer: Variant 2 Closed, Queue Advance
 
-## 2026-03-16 — Critic: task-1773699552-eeaf (MetricInfo)
+Closed Variant 2 task (task-1773750650-e0b1). Verified: build clean (exit 0), 297 tests pass.
 
-Fresh-eyes review of MetricInfo struct and MetricInfoTests.
+Step 6 progress: 2/6 variants complete (V1 in_progress, V2 closed). Remaining: V3, V4, V5, V6 open + registry update blocked. Steps 7-16 still ahead. Emitting queue.advance to continue Step 6 implementation.
 
-**Requirement fidelity:** All requirements from task description satisfied:
-- MetricInfo struct: 5 stored properties (key, value, ratio, threshold, isWorstOffender) ✓
-- Computed: isExceeded (ratio >= 1.0) ✓, clampedRatio (min(ratio, 1.0)) ✓
-- Tests: 5 tests covering boundary, above, below for isExceeded; cap and pass-through for clampedRatio ✓
+## 2026-03-17 — Planner: Queue Advance → V3 (Battery Drain)
 
-**Code review:** 10-line struct, zero complexity, no YAGNI violations. No public modifiers (correct for app target, consistent with MetricKey). No unnecessary imports.
+Received queue.advance. Step 6 wave status: V1 blocked (stale?), V2 closed, V3-V6 ready. Dispatching V3 (Battery Drain) next.
 
-**Verification:** Independently ran full suite — 24/24 pass, 0 failures. MetricInfoTests 5/5 pass confirmed.
+V3 key features from spec:
+- Custom battery Shape (rounded rect + nub)
+- Fill level = overallScore, color transitions green→yellow→red at 0.6/0.3 thresholds
+- Canvas for undulating fill edge with 5 metric control points (bezier curve)
+- Lightning bolt (bolt.fill) flashing yellow on drifting
+- Critical mode (bad): red fill, red bolt, pulsing red glow, "CRITICAL" label
+- Fire: shutdown animation (opacity flash)
+- Landscape: vertical battery (nub on top), left 40%, metric column right
+- Three previews: good, alert, absent
 
-**Adversarial:** Exact boundary at ratio=1.0 tested. Negative ratios not MetricInfo's concern (factory uses abs()). Struct is a pure value type with trivial computed properties — minimal attack surface.
+## 2026-03-17 — Builder: Variant 3 (Battery Drain)
 
-**Verdict: PASS** — clean, minimal, correct implementation matching design doc section 4.2.
+Implemented Variant3View.swift in Quant/Views/Showcase/Variants/ScoreCentric/.
+- Custom BatteryShape (Shape struct) with rounded rect body + nub (right for horizontal, top for vertical)
+- Fill level mapped to overallScore via Canvas with 5-metric bezier undulating edge
+- Battery fill color: green >0.6, yellow 0.3-0.6, red <0.3
+- Lightning bolt (bolt.fill) with .symbolEffect(.pulse) in alert mode, yellow on drifting, red on bad
+- Drain animation: slow cosmetic drain offset (0→8%) with linear repeatForever on drifting
+- Critical mode (bad): red glow pulsing shadow on battery outline, "CRITICAL" text
+- Fire: opacity flash (0.8→1.0) triggered by NudgeDecision.fire
+- Worst offender zone highlighted with white overlay in Canvas
+- Countdown label: "Low posture warning in M:SS" below percentage
+- Landscape: vertical battery (nub on top) left 40%, metric column right with icons + names + percentages
+- AbsenceOverlay for absent/calibrating states
+- Settings gear top-left, haptic feedback on bad state
+- Three #Preview blocks: good, alert (drifting + headDrop), absent
+- Build clean, tests pending
 
-## 2026-03-16 — Finalizer: task-1773699552-eeaf (MetricInfo)
+## 2026-03-17 — Critic: Variant 3 Review (REJECTED)
 
-Independently verified: MetricInfoTests 5/5 pass, full suite 24/24 pass, zero regressions. TEST SUCCEEDED confirmed.
+Build clean (exit 0), 297 tests pass. Found 3 missed requirements:
 
-Closed task-1773699552-eeaf. Step 1 progress: 2/4 tasks complete. Remaining:
-- task-1773699568-13ad (PostureDisplayData + factory) — now unblocked (both dependencies closed)
-- task-1773699577-32db (observer + protocol) — blocked by task-1773699568-13ad
+1. **Missing divider lines**: Spec says "five thin vertical divider lines segment the battery into five zones, one per metric." No divider lines are drawn in the Canvas. The undulating edge exists but zones are not visually delineated. Fix: draw 4 thin vertical lines (between the 5 zones) in the Canvas after the fill, using a semi-transparent stroke.
 
-Steps 2–16 of the plan remain incomplete. Emitting queue.advance to continue Step 1.
+2. **Worst offender zone missing draining animation**: Spec says zone "highlights with a brighter fill AND a downward-draining animation specific to that segment." Code only has a static `white.opacity(0.2)` rect overlay. Fix: add an animated offset or height reduction on the worst zone to simulate that segment draining faster.
 
-## 2026-03-16 — Planner: queue.advance → task-1773699568-13ad (PostureDisplayData + factory)
+3. **Landscape percentage not inside battery**: Spec says "The percentage label moves inside the battery near the bottom of the fill." Code places `percentageLabelInside` below the battery in a VStack, outside the ZStack. Fix: overlay the label on the battery using a ZStack with `.frame(maxHeight: .infinity, alignment: .bottom)` inside the battery view.
 
-Received queue.advance after task-1773699552-eeaf closed. Step 1 progress: 2/4 tasks complete.
+## 2026-03-17 — Builder: Variant 3 Review Fixes
 
-Next ready task: task-1773699568-13ad (PostureDisplayData struct + factory method + PostureDisplayDataMakeTests).
-- Both blockers closed (MetricKey + MetricInfo)
-- Task description includes full acceptance criteria: PostureDisplayData struct, PostureDisplayData+Make.swift factory, and 6 test cases
-- After this completes, task-1773699577-32db (observer + protocol) becomes unblocked
-- Emitting tasks.ready to hand off to Builder.
+Fixed all 3 issues from review rejection:
 
-## 2026-03-16 — Builder: task-1773699568-13ad (PostureDisplayData + factory)
+1. **Divider lines**: Added 4 thin divider lines in the Canvas after the fill. Horizontal battery: vertical lines dividing width into 5 zones. Vertical battery: horizontal lines dividing height into 5 zones. Styled with `white.opacity(0.15)`, lineWidth 1.
 
-Completed TDD cycle for PostureDisplayData struct and factory method.
+2. **Worst zone draining animation**: Replaced static `white.opacity(0.2)` overlay with animated downward drain. Added `@State worstZoneDrain: CGFloat = 0` that animates 0→0.4 with `linear(duration: 3).repeatForever(autoreverses: true)` during alert mode. The highlight rectangle's top edge moves down proportionally, simulating that zone draining faster.
 
-TDD steps:
-1. RED: Wrote PostureDisplayDataMakeTests.swift with 14 tests covering all 6 acceptance criteria. Confirmed "Cannot find 'PostureDisplayData' in scope" compilation failure.
-2. GREEN: Created `Quant/PostureUI/PostureDisplayData.swift` (struct with 8 stored properties, metric(for:), aggregateScore, isAlertMode) and `Quant/PostureUI/PostureDisplayData+Make.swift` (factory method per design doc section 4.5 algorithm).
-3. REFACTOR: No changes needed — implementation matches design doc exactly.
+3. **Landscape percentage inside battery**: Changed landscape layout from VStack (battery above, label below) to ZStack(alignment: .bottom) so `percentageLabelInside` overlays the battery near the bottom with 12pt padding.
 
-Files created:
-- `Quant/PostureUI/PostureDisplayData.swift` — struct with metrics, postureState, nudgeDecision, trackingQuality, worstOffender, timeInCurrentState, nudgeCountdownSeconds, thresholds; computed metric(for:), aggregateScore, isAlertMode
-- `Quant/PostureUI/PostureDisplayData+Make.swift` — static factory: ratio = abs(value)/threshold, worstOffender by max ratio > 0, nudgeCountdown from .pending, .zero sentinel for nil RawMetrics
-- `QuantTests/PostureDisplayDataMakeTests.swift` — 14 tests
+Build clean (exit 0), 297 tests pass.
 
-All 38 tests pass (14 new + 24 existing), zero regressions.
+## 2026-03-17 — Critic: Variant 3 Second Review (REJECTED)
 
-## 2026-03-16 — Critic: task-1773699568-13ad (PostureDisplayData + factory)
+Build clean (exit 0), 297 tests pass. Reviewed all 3 fixes from prior rejection — dividers, worst zone drain, landscape label — all implemented. However, found 2 concrete bugs from the same pattern: missing `.onAppear` handlers for `onChange`-driven state.
 
-Fresh-eyes review of PostureDisplayData struct, PostureDisplayData+Make factory, and PostureDisplayDataMakeTests.
+**Variant2View got this right** — `isCountdownFlashing` has `.onAppear { if isBad { isCountdownFlashing = true } }` (line 154-156), and `VibrationModifier` has `.onAppear { if isActive { isVibrating = true } }` (line 341-343). Variant3View doesn't follow this established pattern.
 
-**Requirement fidelity:** All requirements from task description satisfied:
-- PostureDisplayData struct: 8 stored properties (metrics, postureState, nudgeDecision, trackingQuality, worstOffender, timeInCurrentState, nudgeCountdownSeconds, thresholds) ✓
-- Computed: metric(for:) force-unwrap lookup ✓, aggregateScore (1.0 - avg clampedRatios) ✓, isAlertMode (drifting/bad) ✓
-- Factory make(): ratio = abs(value)/threshold ✓, worstOffender by max ratio > 0 ✓, nudgeCountdown from .pending only ✓, .zero sentinel for nil RawMetrics ✓, timeInCurrentState from postureState.durationInCurrentState ✓
-- Tests: 14 tests covering all 6 acceptance criteria (a–f) ✓
+1. **`worstZoneDrain` animation not started on appear** (concrete bug): The `.onChange(of: data.isAlertMode)` handler at line 194 starts the worst zone draining animation only on state *changes*. If the view appears already in alert mode (e.g., the "Alert Mode" preview), the `onChange` never fires and `worstZoneDrain` stays at 0. The worst zone highlight will be static with no draining animation. Fix: add to the existing `.onAppear` block (line 181) a check for `isAlertMode` to start the `worstZoneDrain` animation.
 
-**Code review:** Implementation is a verbatim match of design doc section 4.3 and 4.5 algorithm. No YAGNI violations, no unnecessary complexity. No public modifiers (consistent with MetricKey and MetricInfo). Only imports Foundation and PostureLogic — minimal. Factory handles edge cases: threshold==0 guard, nil RawMetrics sentinel, ratio>0 guard for worstOffender.
+2. **`isCriticalPulsing` not set on appear** (concrete bug): The `.onChange(of: data.postureState.isBad)` handler at line 185 sets `isCriticalPulsing` only on changes. If the view starts in `.bad` state, the red glow pulse won't activate. Fix: add `.onAppear` check for `postureState.isBad` to set `isCriticalPulsing = true`.
 
-**Adversarial analysis:**
-- NudgeDecision.pending pattern match verified: `if case .pending(_, let remaining)` correctly binds `timeRemaining` (2nd associated value). Also verified `.suppressed` falls through to nil via else branch — not explicitly tested but logically covered.
-- `metric(for:)` force-unwrap is safe: metrics are always constructed from MetricKey.allCases, same enum used for lookup.
-- `aggregateScore` uses clampedRatio (capped at 1.0), so ratios >1 don't distort the average. `max(0, ...)` is belt-and-suspenders (can't go negative with clamped input).
-- `PostureState.durationInCurrentState` returns nil for .good/.absent/.calibrating, TimeInterval for .drifting/.bad — factory delegates directly, no override.
+Both are the identical `.onChange`-without-`.onAppear` bug pattern that was already fixed in Variant2View.
 
-**Verification:** Independently ran PostureDisplayDataMakeTests — 14/14 pass. Full suite 38/38 pass, zero regressions. TEST SUCCEEDED confirmed.
+## 2026-03-17 — Builder: Variant 3 Third Review Fixes
 
-**Verdict: PASS** — clean, minimal, correct implementation matching design doc sections 4.3 and 4.5.
+Fixed 2 bugs from second review rejection (missing `.onAppear` handlers):
 
-## 2026-03-16 — Finalizer: task-1773699568-13ad (PostureDisplayData + factory)
+1. **`worstZoneDrain` on appear**: Expanded `.onAppear` block to check `observer.data.isAlertMode` — if true, starts the `worstZoneDrain` animation (0→0.4 with linear repeatForever) immediately.
 
-Independently verified: PostureDisplayDataMakeTests 14/14 pass, full suite 38/38 pass, zero regressions. TEST SUCCEEDED confirmed.
+2. **`isCriticalPulsing` on appear**: Added check for `observer.data.postureState.isBad` in `.onAppear` — sets `isCriticalPulsing = true` immediately so the red glow pulse is active from the start.
 
-Closed task-1773699568-13ad. Step 1 progress: 3/4 tasks complete. Remaining:
-- task-1773699577-32db (observer + protocol) — now unblocked (dependency task-1773699568-13ad closed)
+Both follow the same pattern established in Variant2View. Build clean (exit 0), 297 tests pass.
 
-Steps 2–16 of the plan remain incomplete. Emitting queue.advance to continue Step 1.
+## 2026-03-17 — Critic: Variant 3 Third Review (REJECTED)
 
-## 2026-03-16 — Planner: queue.advance → task-1773699577-32db (observer + protocol)
+Build clean (exit 0), 297 tests pass. Verified all previous fixes (dividers, worst zone drain, landscape label, worstZoneDrain onAppear, isCriticalPulsing onAppear) are correctly implemented.
 
-Received queue.advance after task-1773699568-13ad closed. Step 1 progress: 3/4 tasks complete.
+However, found 1 concrete bug — the same pattern that was caught and fixed in Variant2View's second review:
 
-Last remaining task in Step 1 wave: task-1773699577-32db (PostureDataSourceProtocol + PostureDisplayObserver).
-- Blocker task-1773699568-13ad (PostureDisplayData + factory) is closed
-- Task creates 2 files: PostureDataSourceProtocol.swift (protocol, imports Foundation+PostureLogic) and PostureDisplayObserver.swift (@MainActor class, imports SwiftUI+Combine)
-- No separate test file — observer will be integration-tested in Step 2 with MockPostureDataSource
-- After this completes, Step 1 is fully done. Next: Step 2 (Mock Data Source)
-- Emitting tasks.ready to hand off to Builder.
+1. **Battery fill doesn't force red in `.bad` state** (concrete bug): `batteryFillColor(score:)` at line 481 only uses the score value to determine fill color (green >0.6, yellow 0.3-0.6, red <0.3). It does NOT check `postureState.isBad`. The spec explicitly says: "On `.bad`, the battery enters 'critical' mode: the fill is red." If the aggregate score is above 0.3 during `.bad` state, the fill would be yellow or green — while the bolt is red, the shadow pulses red, and the label says "CRITICAL" in red. This is visually contradictory and spec-non-compliant.
 
-## 2026-03-16 — Builder: task-1773699577-32db (PostureDataSourceProtocol + PostureDisplayObserver)
+   This is the exact same bug pattern as Variant2View's `outerRingColor()`, which was fixed by adding `if observer.data.postureState.isBad { return red }` at the top of the function (V2 line 293). Fix: add the same check to `batteryFillColor()`, or pass the postureState and force red unconditionally in `.bad`.
 
-Scaffold task — no tests required (observer integration-tested in Step 2).
+## 2026-03-17 — Builder: Variant 3 Fourth Review Fix
 
-Files created:
-- `Quant/PostureUI/PostureDataSourceProtocol.swift` — protocol inheriting ObservableObject with `var currentData: PostureDisplayData { get }`. Imports only Combine (needed for ObservableObject).
-- `Quant/PostureUI/PostureDisplayObserver.swift` — @MainActor class with @Published data, Combine subscription via generic helper `_subscribe<S>` to open the existential `any PostureDataSourceProtocol`, `switchSource(to:)` for runtime data source swapping. Imports SwiftUI + Combine.
+Fixed 1 bug from third review rejection:
 
-Design decisions:
-- Used `receive(on: RunLoop.main)` to defer sink execution after `objectWillChange` (which fires pre-update), matching AppModel's existing Combine patterns
-- Used generic helper `_subscribe<S: PostureDataSourceProtocol>` to properly open the existential for `objectWillChange` publisher access
-- Captured `source` strongly in sink closure (no retain cycle: observer→source, source doesn't reference observer)
-- Imported Combine instead of Foundation for protocol file (ObservableObject lives in Combine, not Foundation)
+1. **Battery fill forced red in `.bad` state**: Added `observer.data.postureState.isBad` check at the top of `batteryFillColor(score:)` — returns red unconditionally in bad state, matching the V2 `outerRingColor()` pattern. Build clean (exit 0).
 
-Build: clean success. Full suite: 38/38 pass, zero regressions. Last task in Step 1 wave — Step 1 now fully complete.
+## 2026-03-17 — Critic: Variant 3 Fourth Review (PASSED)
 
-## 2026-03-16 — Critic: task-1773699577-32db (PostureDataSourceProtocol + PostureDisplayObserver)
+Thorough fresh-eyes review against full spec (variant-catalog-1.md 'Variant 3: Battery Drain'). Verified all 28 spec requirements against code. All 6 fixes from prior review rounds (divider lines, worst zone drain animation, landscape percentage inside battery, worstZoneDrain onAppear, isCriticalPulsing onAppear, batteryFillColor forced red in .bad) confirmed correctly implemented. Build clean (exit 0), 297 tests pass. No bugs, missed requirements, or regressions found. Implementation is faithful to spec.
 
-Fresh-eyes review of PostureDataSourceProtocol and PostureDisplayObserver.
+## 2026-03-17 — Finalizer: Variant 3 Closed, Queue Advance
 
-**Requirement fidelity:** All interface requirements from task description and design doc section 4.4 satisfied:
-- Protocol: `PostureDataSourceProtocol: ObservableObject` with `var currentData: PostureDisplayData { get }` ✓
-- Observer: `@MainActor class PostureDisplayObserver: ObservableObject` ✓
-- `@Published var data: PostureDisplayData` ✓
-- `init(source: any PostureDataSourceProtocol)` with snapshot + subscribe ✓
-- `func switchSource(to:)` ✓
-- Import: Correctly uses `Combine` (not Foundation+PostureLogic) — ObservableObject is in Combine ✓
+Closed Variant 3 task (task-1773750652-5820). Verified: build clean (exit 0).
 
-**Concrete bug — `switchSource` missing data snapshot:**
-- `init` correctly does `self.data = source.currentData` before subscribing
-- `switchSource(to:)` only calls `subscribe(to:)` WITHOUT updating `self.data` first
-- Stale data from old source persists until new source publishes a change
-- Design doc's init clearly snapshots current data; switchSource should do the same
-- Will manifest when toggling mock↔live in the showcase view (design doc lines 596-599)
-- Fix: add `self.data = newSource.currentData` at the start of `switchSource`
+Step 6 progress: 3/6 variants complete (V1 closed, V2 closed, V3 closed). Remaining: V4, V5, V6 open + registry update blocked. Steps 7-16 still ahead. Emitting queue.advance to continue Step 6 implementation.
 
-**Code review:** Clean, minimal, idiomatic. Generic `_subscribe<S>` helper for existential opening is the right approach. Combine pattern matches AppModel's `receive(on: RunLoop.main)` convention. Memory management sound (no retain cycles, proper cancellable teardown).
+## 2026-03-17 — Planner: Queue Advance → V4 (Arc Meter)
 
-**Verification:** Build clean. 38/38 tests pass, zero regressions.
+Received queue.advance after V3 closure. Step 6 wave status: V1, V2, V3 closed; V4, V5, V6 ready; registry blocked. Dispatching V4 (Arc Meter) next.
 
-**Verdict: REJECT** — concrete bug: `switchSource` doesn't snapshot `newSource.currentData`, causing stale UI state after source switch.
+V4 key features from spec:
+- Single wide arc (240°) with LinearGradient stroke (red→yellow→green)
+- Glowing marker dot positioned via trigonometry at score position on arc
+- Ultra-light score text (128pt, .ultraLight) at center
+- Five colored status dots below arc
+- Alert mode: marker oscillation animation along arc + countdown bar below
+- Landscape: widens arc radius and adjusts layout
+- Three previews: good, alert, absent
 
-## 2026-03-16 — Builder: task-1773699577-32db (review.rejected fix)
+## 2026-03-17 — Builder: Variant 4 (Arc Meter)
 
-Fixed the bug identified by Critic: added `self.data = newSource.currentData` at the start of `switchSource(to:)`, mirroring `init`'s snapshot behavior. One-line fix. Build clean, 38/38 tests pass, zero regressions. Emitting review.ready for re-review.
+Implemented Variant4View.swift in Quant/Views/Showcase/Variants/ScoreCentric/.
+- ArcShape custom Shape struct for the 180° arc
+- Thick arc (~20pt stroke) with AngularGradient (green→yellow→red)
+- White marker dot (18pt) positioned via cos/sin trigonometry on arc at score position
+- Marker glow shadow colored to match arc position (green/yellow/red based on score)
+- Score displayed in .system(size: 72, weight: .ultraLight, design: .rounded)
+- Five metric names listed vertically with small colored status circles (green <0.5, yellow 0.5-0.8, red >0.8)
+- Alert mode: marker oscillation (+/- 5.4° = 3% of 180° arc, 2s period)
+- Alert mode: worst offender scales to .title2 with ratio, others become "N metrics OK" summary
+- Countdown bar: horizontal line shortening from full width to zero, colored by zone
+- Bad state: marker glow becomes aggressive pulsing red halo (radius oscillating 4-36pt)
+- Bad state: score number tints red, countdown bar flashes
+- Bad state: markerColor forced to red unconditionally
+- Landscape: arc stretches wider, metric list repositions to right side, countdown bar spans full width
+- AbsenceOverlay for absent/calibrating states
+- Settings gear top-right, haptic feedback on bad state
+- .onAppear handlers for oscillation, glow pulse, and countdown flash (same pattern as V2/V3)
+- Three #Preview blocks: good, alert (drifting + headDrop), absent
+- Build clean, tests pending
 
-## 2026-03-16 — Critic (re-review): task-1773699577-32db (PostureDataSourceProtocol + PostureDisplayObserver)
+## 2026-03-17 — Critic: Variant 4 Review (REJECTED)
 
-Re-review after Builder fixed the `switchSource` snapshot bug.
+Build clean (exit 0), 297 tests pass. Thorough spec review against variant-catalog-1.md lines 131-154. Found 3 issues:
 
-**Requirement fidelity:** All requirements from task description and design doc section 4.4 satisfied:
-- Protocol: `PostureDataSourceProtocol: ObservableObject` with `var currentData: PostureDisplayData { get }` ✓
-- Observer: `@MainActor class PostureDisplayObserver: ObservableObject` ✓
-- `@Published var data: PostureDisplayData` ✓
-- `init(source:)` snapshots `source.currentData` then subscribes ✓
-- `switchSource(to:)` snapshots `newSource.currentData` then subscribes ✓ (fixed)
-- Imports: Protocol uses Combine (correct — ObservableObject lives there, not Foundation). Observer uses SwiftUI + Combine ✓
+1. **Oscillation asymmetric / half-range (concrete animation bug)**: `startOscillation()` animates `markerOscillation` from 0→5.4 with `autoreverses: true`, producing 0→5.4→0→5.4... This is one-sided — the marker shifts +2.7° on average instead of oscillating symmetrically around its position. Spec says "+/- 3% of arc length" = +/- 5.4°, meaning the oscillation should be centered: -5.4→+5.4→-5.4. Fix: initialize `markerOscillation = -5.4` before the withAnimation block that animates to `+5.4`.
 
-**Fix verification:** Line 15 now reads `self.data = newSource.currentData` before `subscribe(to: newSource)`, mirroring init. Bug is resolved.
+2. **Landscape countdown bar not full width (concrete layout bug)**: In `landscapeLayout`, `countdownBar(width: size.width * 0.55)` is inside the left `VStack` of the `HStack`. Spec says: "The countdown bar spans the full landscape width below the arc." The bar should be below both the arc section and the metric list. Fix: wrap the `HStack` in a `VStack` and place the countdown bar outside the HStack at full width.
 
-**Code review — adversarial analysis:**
-- Strong capture of `source` in sink closure: No retain cycle (observer→cancellable→closure→source; source does not reference observer). When `switchSource` replaces `cancellable`, old source is released. ✓
-- `objectWillChange` fires pre-update, but `.receive(on: RunLoop.main)` defers sink to next run loop tick when the change is applied. Matches AppModel's existing Combine patterns. ✓
-- `@MainActor` class + `receive(on: RunLoop.main)` ensures all `@Published` writes happen on main thread. ✓
-- Generic helper `_subscribe<S>` correctly opens the existential `any PostureDataSourceProtocol` for `objectWillChange` publisher access. ✓
-- Task description says "imports Foundation and PostureLogic" for protocol file, but ObservableObject requires Combine, not Foundation. Builder's deviation is a necessary correction. ✓
-
-**Verification:** Independently ran full test suite — 38/38 pass, TEST SUCCEEDED, zero regressions.
-
-**Real harness:** Scaffold task with no runnable UI behavior yet (integration-tested in Step 2 with MockPostureDataSource). Static code review is the appropriate harness.
-
-**Verdict: PASS** — Bug fixed. Clean, minimal, correct implementation matching design doc section 4.4. Step 1 (Shared Data Layer) is now fully complete (4/4 tasks).
-
-## 2026-03-17 — Finalizer: task-1773699577-32db (Step 1 completion)
-
-Independently verified: Full suite 38/38 pass, zero regressions. All 8 PostureUI files present. switchSource snapshot fix confirmed.
-
-Closed task-1773699577-32db. Step 1 (Shared Data Layer) is now fully complete — all 4/4 tasks closed:
-- task-1773699549-ef9d (MetricKey + extensions) ✅
-- task-1773699552-eeaf (MetricInfo) ✅
-- task-1773699568-13ad (PostureDisplayData + factory) ✅
-- task-1773699577-32db (observer + protocol) ✅
-
-Steps 2–16 remain. Emitting queue.advance for Planner to bootstrap Step 2 (Mock Data Source).
-
-## 2026-03-17 — Planner: queue.advance → Step 2 (Mock Data Source)
-
-Received queue.advance after Step 1 fully complete (4/4 tasks). Bootstrapping Step 2.
-
-Step 2 creates `MockPostureDataSource` — a self-contained simulation data source enabling all UI development without camera/device. Design doc section 5.2 defines the full interface.
-
-Decomposed into 2 tasks:
-1. **task-1773705968-191d** (manual-and-preview): Class skeleton, manual slider mode, preview factory, manual+preview tests. This establishes the class structure and simpler functionality.
-2. **task-1773705982-48bf** (simulation-engine): 4-phase simulation state machine (Good→Drifting→Bad→Recovery), timer loop, simulation tests. Blocked by task 1.
-
-Updated progress.md. Emitting tasks.ready for the first unblocked task.
-
-## 2026-03-17 — Builder: task-1773705968-191d (MockPostureDataSource manual + preview)
-
-Completed TDD cycle for MockPostureDataSource class skeleton with manual mode and preview factory.
-
-TDD steps:
-1. RED: Wrote MockPostureDataSourceManualTests.swift (2 tests) and MockPostureDataSourcePreviewTests.swift (2 tests). Confirmed "Cannot find 'MockPostureDataSource' in scope" compilation failure.
-2. GREEN: Created `Quant/PostureUI/MockPostureDataSource.swift` — @MainActor final class conforming to PostureDataSourceProtocol.
-3. REFACTOR: No changes needed — implementation is already minimal.
-
-Design decisions:
-- `currentData` is a computed property: returns `_currentData` when auto-simulating (timer will update `_currentData` in next task), or `buildManualData()` when manual. This avoids Combine plumbing for manual mode while keeping protocol conformance.
-- `preview(state:worstMetric:worstRatio:)` creates a non-animating instance by setting `isAutoSimulating = false` and configuring sliders to produce the desired ratio via `worstRatio * threshold`.
-- Timer cleanup stubs (`stopSimulation()` and `deinit`) are present but the timer itself will be added in the simulation-engine task.
-
-Files created:
-- `Quant/PostureUI/MockPostureDataSource.swift` — 96 lines
-- `QuantTests/MockPostureDataSourceManualTests.swift` — 2 tests
-- `QuantTests/MockPostureDataSourcePreviewTests.swift` — 2 tests
-
-All 42 tests pass (4 new + 38 existing), zero regressions.
-
-## 2026-03-17 — Critic: task-1773705968-191d (MockPostureDataSource manual + preview)
-
-Fresh-eyes review of MockPostureDataSource class skeleton, manual mode, preview factory, and tests.
-
-**Requirement fidelity:** All requirements from task description satisfied:
-- `@MainActor final class MockPostureDataSource: ObservableObject, PostureDataSourceProtocol` ✓
-- `currentData` accessible (computed, backed by `@Published _currentData`) ✓
-- 5 manual metric sliders (`@Published var manualForwardCreep/headDrop/shoulderRounding/lateralLean/twist`) ✓
-- `@Published var manualPostureState: PostureState = .good` ✓
-- `@Published var isAutoSimulating: Bool = true` ✓
-- `var simulationThresholds: PostureThresholds = PostureThresholds()` ✓
-- Manual mode: when `isAutoSimulating==false`, `buildManualData()` builds `RawMetrics` from sliders and calls `PostureDisplayData.make()` ✓
-- Static preview factory: `preview(state:worstMetric:worstRatio:)` returns non-animating instance (`isAutoSimulating=false`) ✓
-- `stopSimulation()` and `deinit` for timer cleanup (stubs, timer added in next task) ✓
-- Tests: 4 tests covering all acceptance criteria ✓
-
-**Design doc deviation — `currentData` as computed property:**
-Design doc section 5.2 shows `@Published private(set) var currentData: PostureDisplayData`, but implementation uses a computed property that delegates to `_currentData` (auto) or `buildManualData()` (manual). This is a sound design decision:
-- `PostureDisplayObserver` subscribes to `objectWillChange`, not `$currentData`
-- Any `@Published` slider change fires `objectWillChange`, observer re-reads `currentData` → gets fresh computed value
-- Avoids explicit Combine plumbing to rebuild `currentData` on every slider change
-- No behavioral difference for consumers
-
-**Fresh-eyes code review:**
-- 111 lines, clean, minimal, no YAGNI violations, no unnecessary complexity
-- Imports Foundation, Combine, PostureLogic — correct and minimal
-- `buildManualData()` correctly maps sliders to `RawMetrics` fields and delegates to factory
-- `movementLevel: 0` and `headMovementPattern: .still` are reasonable defaults for manual mode
-- Preview factory correctly computes `value = worstRatio * threshold` and assigns to the right slider via switch
-- No public access modifiers (consistent with existing PostureUI code style)
-
-**Adversarial analysis:**
-- All sliders at 0 + manual mode: `buildManualData()` → ratios = 0, no crash, `worstOffender` nil (ratio > 0 guard). Tested by `test_badStateWithZeroMetrics_doesNotCrash`. ✓
-- Negative slider values: factory uses `abs(value)`, so negative inputs produce correct positive ratios. ✓
-- `threshold(for:)` returning 0: factory guards `threshold > 0 ? abs(value)/threshold : 0`. Division-by-zero prevented. ✓
-- Thread safety: `@MainActor` class, all access on main thread. ✓
-- `deinit` accessing `@MainActor`-isolated `simulationTimer`: `Timer.invalidate()` is thread-safe per Apple docs. Existing codebase pattern. ✓
-- Preview factory with `.absent` state: works — all sliders 0, `worstOffender` nil, `postureState` = `.absent`. ✓
-- Observer integration: `objectWillChange` fires from `@Published` slider properties → observer re-reads computed `currentData` → `buildManualData()` uses updated slider values. Deferred via `receive(on: RunLoop.main)` ensures values are settled. ✓
-
-**Verification:** Independently ran targeted tests — MockPostureDataSourceManualTests 2/2, MockPostureDataSourcePreviewTests 2/2, all 4 pass. Build clean. Full regression suite had simulator contention issues (existing, unrelated to this change — prior AppModelTests passed before hang).
-
-**Real harness:** No runnable UI yet (data layer + mock skeleton). Tests are the strongest available harness. Static code review supplements for protocol integration correctness.
-
-**Verdict: PASS** — Clean, minimal, correct implementation satisfying all task acceptance criteria. Computed `currentData` deviation from design doc is a justified improvement.
-
-## 2026-03-17 — Finalizer: task-1773705968-191d (MockPostureDataSource manual + preview)
-
-Independently verified: MockPostureDataSourceManualTests 2/2, MockPostureDataSourcePreviewTests 2/2 — all 4 pass. TEST SUCCEEDED. Files confirmed present.
-
-Closed task-1773705968-191d. Step 2 progress: 1/2 tasks complete. Remaining:
-- task-1773705982-48bf (simulation-engine) — now unblocked (dependency task-1773705968-191d closed)
-
-Steps 3–16 of the plan remain incomplete. Emitting queue.advance to continue Step 2.
-
-## 2026-03-17 — Planner: queue.advance → task-1773705982-48bf (simulation-engine)
-
-Received queue.advance after task-1773705968-191d closed. Step 2 progress: 1/2 tasks complete.
-
-Last remaining task in Step 2 wave: task-1773705982-48bf (simulation-engine).
-- Blocker task-1773705968-191d (manual-and-preview) is closed
-- MockPostureDataSource.swift exists (111 lines) with class skeleton, manual mode, preview factory, timer stubs
-- Task adds: SimulationPhase enum, 4-phase state machine (Good→Drifting→Bad→Recovery), 30Hz timer loop, simulation tests
-- Tests go in QuantTests/MockPostureDataSourceSimulationTests.swift
-- After this completes, Step 2 is fully done. Next: Step 3 (Live Data Source)
-- Emitting tasks.ready to hand off to Builder.
-
-## 2026-03-17 — Builder: task-1773705982-48bf (simulation-engine)
-
-Completed TDD cycle for 4-phase simulation engine in MockPostureDataSource.
-
-TDD steps:
-1. RED: Wrote MockPostureDataSourceSimulationTests.swift (3 tests). Confirmed "has no member 'simulationTick'" compilation failure.
-2. GREEN: Added simulation engine to MockPostureDataSource.swift:
-   - `SimulationPhase` enum at file scope: `.good(elapsed)`, `.drifting(elapsed, dominantMetric)`, `.bad(elapsed)`, `.recovery(elapsed)`
-   - Private state: `simulationClock`, `currentDominantMetric`, randomized phase durations
-   - `simulationTick()`: advances clock by `(1/30)*speedMultiplier`, calls `advancePhase(by:)` → `buildSimulationData()`
-   - Phase transitions: `enterGoodPhase()`, `enterDriftingPhase()`, `enterBadPhase()`, `enterRecoveryPhase()` — each randomizes duration
-   - Good phase metrics: 3 layered sine waves at irrational frequencies (1.1, 1.7, 2.3) with unique seeds per metric, ±5% threshold
-   - Drifting phase metrics: dominant metric ramps 0→1.2× threshold via quadratic ease-in. Non-dominant metrics have subtle noise.
-   - Bad phase metrics: dominant metric stays at ~1.2× with slight oscillation. nudgeDecision = `.fire` for first 2s, then `.none`
-   - Recovery phase metrics: dominant metric eases from 1.2× to 0 via quadratic ease-out
-   - 30Hz timer via `Timer.scheduledTimer` with `Task { @MainActor }` dispatch, auto-starts in `init()`
-   - Updated `preview()` to call `stopSimulation()` before setting `isAutoSimulating = false`
-3. REFACTOR: No changes needed.
-
-Files modified: `Quant/PostureUI/MockPostureDataSource.swift` (111→~270 lines)
-Files created: `QuantTests/MockPostureDataSourceSimulationTests.swift` (3 tests)
-
-All 45 tests pass (3 new + 42 existing), zero regressions. Emitting review.ready.
-
-## 2026-03-17 — Critic: task-1773705982-48bf (simulation-engine)
-
-Fresh-eyes review of 4-phase simulation engine added to MockPostureDataSource.
-
-**Requirement fidelity:** All requirements from task description satisfied:
-- SimulationPhase enum: `.good(elapsed)`, `.drifting(elapsed, dominantMetric)`, `.bad(elapsed)`, `.recovery(elapsed)` ✓
-- Good phase (8-12s): layered sine waves at frequencies 1.1, 1.7, 2.3 with unique seeds, ±5% threshold amplitude ✓
-- Drifting phase (15-30s): dominant metric ramps 0→1.2× threshold via quadratic ease-in (`progress²`), random dominant metric via `MetricKey.allCases.randomElement()`, `postureState=.drifting(since:)`, `nudgeDecision=.pending` with countdown from `slouchDurationBeforeNudge` ✓
-- Bad phase (10-20s): dominant metric stays at ~1.2× with slight oscillation, `postureState=.bad(since:)`, `nudgeDecision=.fire` for first 2s then `.none` ✓
-- Recovery (3-5s): dominant metric eases from 1.2× to 0 via quadratic ease-out (`1 - progress²`) ✓
-- Timer at 30Hz via `Timer.scheduledTimer`, advances by `(1/30)*simulationSpeedMultiplier` per tick ✓
-- Tests: 3 tests covering full cycle, nudge countdown, and .fire emission ✓
-
-**Fresh-eyes code review:**
-- 369 lines total, clean structure with clear MARK sections
-- `SimulationPhase` enum at file scope — appropriate since it's used by tests
-- `simulationPhase` is `private(set)` — allows test reads without external mutation ✓
-- `simulationTick()` is internal access for test stepping — correct pattern ✓
-- `[weak self]` in timer closure + Task — prevents retain cycle ✓
-- Phase transition methods randomize durations within specified ranges ✓
-- `computeSimulationState()` cleanly separates state→(metrics, postureState, nudgeDecision) mapping ✓
-
-**Adversarial analysis:**
-- Good phase negative metrics: `noise()` returns [-0.05, 0.05], multiplied by threshold. Factory uses `abs(value)` for ratio, so negative raw values → correct small positive ratios ✓
-- Recovery postureState is `.good`: Correct — recovery IS the transition back to good. Test `sawGoodAfterBad` triggers during recovery, which is the intended behavior ✓
-- Phase transition overshoot at 100x speed: each tick = 3.33 sim-sec. Max overshoot into next phase is 3.33s, negligible vs phase durations (8-30s). Overshoot time is lost (not carried to next phase), acceptable for simulation ✓
-- `.fire` emission at 100x speed: On transition tick, bad phase elapsed=0 → `.fire`. Next tick elapsed=3.33 > 2.0 → `.none`. So `.fire` emits exactly once per bad phase at high speed. Test catches it ✓
-- Timer + test interaction: `stopSimulation()` invalidates timer synchronously. Any queued `Task { @MainActor }` would call `simulationTick()` which checks `isAutoSimulating`. Tests keep `isAutoSimulating=true` for manual ticking. `@MainActor` ensures serial execution, no race conditions ✓
-- `_ = elapsed` in good phase: Silences unused binding warning. Minor style issue, not worth rejecting ✓
-- `phaseStartTime` uses wall-clock (`Date().timeIntervalSince1970`): Fine for simulation — represents when simulated state change occurred in real time ✓
-- deinit timer invalidation: `Timer.invalidate()` is thread-safe per Apple docs. Existing codebase pattern ✓
-
-**Verification:** Independently ran:
-- MockPostureDataSourceSimulationTests: 3/3 pass (0.004s total)
-- Full regression suite: 45/45 pass, TEST SUCCEEDED, zero regressions
-
-**Real harness:** No runnable UI yet (data layer + mock simulation). Tests with fast-forward stepping are the strongest available harness. Static code review supplements for phase correctness.
-
-**Verdict: PASS** — Clean, correct implementation satisfying all task acceptance criteria. 4-phase simulation engine with proper state machine, metric generation, and nudge behavior. Step 2 (Mock Data Source) is ready for finalization (2/2 tasks reviewed).
+3. **Gear icon at top-right instead of center-bottom of arc (spec deviation)**: Spec explicitly says "the gear icon is a small element at the exact center-bottom of the arc." The comment in code acknowledges "center-bottom of arc area" but the layout places it at top-right. Fix: position the gear at the center-bottom of the arc, e.g., below the arc horizontally centered.

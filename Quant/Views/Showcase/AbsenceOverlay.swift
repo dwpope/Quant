@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AbsenceOverlay<Content: View>: View {
-    let content: () -> Content
+    @ViewBuilder let content: () -> Content
 
     @State private var isPulsing = false
 
