@@ -17,12 +17,18 @@ enum VariantRegistry {
                           makeView: { AnyView(Variant6View()) }),
 
         // MARK: - Data Visualization (7–12)
-        variant(7,  "Five-Bar Equalizer",    .dataVisualization,  [.swiftCharts]),
-        variant(8,  "Donut Breakdown",       .dataVisualization,  [.swiftCharts]),
-        variant(9,  "Horizontal Rails",      .dataVisualization,  [.canvas]),
-        variant(10, "Radial Dial Array",     .dataVisualization,  [.canvas]),
-        variant(11, "Digital Cockpit",       .dataVisualization,  [.canvas, .gauge]),
-        variant(12, "Split Flap Display",    .dataVisualization,  []),
+        VariantDescriptor(id: 7, name: "Five-Bar Equalizer", category: .dataVisualization, technologies: [.canvas],
+                          makeView: { AnyView(Variant7View()) }),
+        VariantDescriptor(id: 8, name: "Donut Breakdown", category: .dataVisualization, technologies: [.canvas],
+                          makeView: { AnyView(Variant8View()) }),
+        VariantDescriptor(id: 9, name: "Horizontal Rails", category: .dataVisualization, technologies: [],
+                          makeView: { AnyView(Variant9View()) }),
+        VariantDescriptor(id: 10, name: "Radial Dial Array", category: .dataVisualization, technologies: [.canvas],
+                          makeView: { AnyView(Variant10View()) }),
+        VariantDescriptor(id: 11, name: "Digital Cockpit", category: .dataVisualization, technologies: [.canvas],
+                          makeView: { AnyView(Variant11View()) }),
+        VariantDescriptor(id: 12, name: "Split Flap Display", category: .dataVisualization, technologies: [],
+                          makeView: { AnyView(Variant12View()) }),
 
         // MARK: - Typographic (13–20)
         variant(13, "Single Word",           .typographic,        []),

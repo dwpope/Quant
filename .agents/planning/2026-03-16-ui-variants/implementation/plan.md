@@ -20,7 +20,7 @@
 - [x] **Step 4** — Showcase navigation shell: `VariantShowcaseView`, `VariantDescriptor`, mock/live toggle, settings sheet
 - [x] **Step 5** — Shared visual utilities: `PostureVisualStyle`, animation helpers, reusable sub-views
 - [x] **Step 6** — Variant batch A: Score-Centric (Variants 1–6)
-- [ ] **Step 7** — Variant batch B: Dashboard / Multi-Metric (Variants 7–12)
+- [x] **Step 7** — Variant batch B: Dashboard / Multi-Metric (Variants 7–12)
 - [ ] **Step 8** — Variant batch C: Minimal / Typographic (Variants 13–20)
 - [ ] **Step 9** — Variant batch D: Abstract Geometric (Variants 21–28)
 - [ ] **Step 10** — Variant batch E: 3D / Body / Instrument (Variants 29–40)
