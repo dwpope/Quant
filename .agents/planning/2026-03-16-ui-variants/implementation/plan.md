@@ -21,7 +21,7 @@
 - [x] **Step 5** — Shared visual utilities: `PostureVisualStyle`, animation helpers, reusable sub-views
 - [x] **Step 6** — Variant batch A: Score-Centric (Variants 1–6)
 - [x] **Step 7** — Variant batch B: Dashboard / Multi-Metric (Variants 7–12)
-- [ ] **Step 8** — Variant batch C: Minimal / Typographic (Variants 13–20)
+- [x] **Step 8** — Variant batch C: Minimal / Typographic (Variants 13–20)
 - [ ] **Step 9** — Variant batch D: Abstract Geometric (Variants 21–28)
 - [ ] **Step 10** — Variant batch E: 3D / Body / Instrument (Variants 29–40)
 - [ ] **Step 11** — Metal shader infrastructure and shader-driven variants (Variants 43, 47, 51–54, and others using `.distortionEffect`/`.colorEffect`)
