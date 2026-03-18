@@ -3,10 +3,14 @@ import SwiftUI
 enum VariantRegistry {
     static let allVariants: [VariantDescriptor] = [
         // MARK: - Score-Centric (1–6)
-        variant(1,  "Precision Gauge",       .scoreCentric,      [.canvas]),
-        variant(2,  "Triadic Rings",         .scoreCentric,      [.canvas]),
-        variant(3,  "Battery Drain",         .scoreCentric,      [.canvas]),
-        variant(4,  "Arc Meter",             .scoreCentric,      [.canvas]),
+        VariantDescriptor(id: 1, name: "Precision Gauge", category: .scoreCentric, technologies: [.canvas],
+                          makeView: { AnyView(Variant1View()) }),
+        VariantDescriptor(id: 2, name: "Triadic Rings", category: .scoreCentric, technologies: [.canvas],
+                          makeView: { AnyView(Variant2View()) }),
+        VariantDescriptor(id: 3, name: "Battery Drain", category: .scoreCentric, technologies: [.canvas],
+                          makeView: { AnyView(Variant3View()) }),
+        VariantDescriptor(id: 4, name: "Arc Meter", category: .scoreCentric, technologies: [.canvas],
+                          makeView: { AnyView(Variant4View()) }),
         variant(5,  "Numeric Countdown",     .scoreCentric,      []),
         variant(6,  "Traffic Light",         .scoreCentric,      []),
 

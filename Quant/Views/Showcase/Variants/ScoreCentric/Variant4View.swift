@@ -123,7 +123,7 @@ struct Variant4View: View {
                 .stroke(
                     AngularGradient(
                         colors: [.green, .yellow, .red],
-                        center: .init(x: 0.5, y: 0.85),
+                        center: .center,
                         startAngle: .degrees(startAngle),
                         endAngle: .degrees(startAngle + arcAngleSpan)
                     ),

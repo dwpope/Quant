@@ -32,6 +32,12 @@
 - Review rounds: 4 (divider lines, worst zone drain, landscape label, onAppear handlers, batteryFillColor red lock)
 - All fixes confirmed, spec-compliant
 
+### Variant 4: Arc Meter (task-1773750655-56b7) — IN REVIEW (round 3)
+- File: `Quant/Views/Showcase/Variants/ScoreCentric/Variant4View.swift`
+- Build: clean, Tests: all pass
+- Review round 1 fixes: symmetric oscillation, landscape countdown full width, gear at center-bottom
+- Review round 2 fix: AngularGradient center .init(x:0.5,y:0.85) → .center (coordinate space mismatch)
+
 ## Completed Steps
 - Step 1: Shared Data Layer (committed: fb9576c)
 - Step 2: Mock Data Source (committed: cd55ea3)

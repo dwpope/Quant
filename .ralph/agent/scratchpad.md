@@ -224,3 +224,32 @@ Build clean (exit 0), 297 tests pass. Thorough spec review against variant-catal
 2. **Landscape countdown bar not full width (concrete layout bug)**: In `landscapeLayout`, `countdownBar(width: size.width * 0.55)` is inside the left `VStack` of the `HStack`. Spec says: "The countdown bar spans the full landscape width below the arc." The bar should be below both the arc section and the metric list. Fix: wrap the `HStack` in a `VStack` and place the countdown bar outside the HStack at full width.
 
 3. **Gear icon at top-right instead of center-bottom of arc (spec deviation)**: Spec explicitly says "the gear icon is a small element at the exact center-bottom of the arc." The comment in code acknowledges "center-bottom of arc area" but the layout places it at top-right. Fix: position the gear at the center-bottom of the arc, e.g., below the arc horizontally centered.
+
+## 2026-03-17 — Builder: Variant 4 Review Fixes
+
+Fixed all 3 issues from review rejection:
+
+1. **Oscillation symmetric**: Changed `startOscillation()` to set `markerOscillation = -5.4` before animating to `+5.4`. With `autoreverses: true`, this oscillates -5.4→+5.4→-5.4 symmetrically around the score position.
+
+2. **Landscape countdown bar full width**: Wrapped the `HStack` in a `VStack`, moved `countdownBar` outside the HStack at `width: size.width * 0.9` — spans full landscape width below both the arc and metric list.
+
+3. **Gear icon at center-bottom**: Replaced top-right HStack layout with a VStack that pushes gear to bottom-center using `frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)`.
+
+Build clean (exit 0), tests pending.
+
+## 2026-03-17 — Critic: Variant 4 Second Review (REJECTED)
+
+Build clean (exit 0), 297 tests pass. Verified all 3 fixes from prior rejection:
+- Oscillation now symmetric (-5.4→+5.4 with autoreverses) ✓
+- Landscape countdown bar outside HStack at full width ✓
+- Gear icon at bottom-center ✓
+
+All 20+ spec requirements verified. However, found 1 concrete visual bug:
+
+1. **AngularGradient center misaligned with arc center (coordinate space confusion)**: The `AngularGradient` at line 126 uses `center: .init(x: 0.5, y: 0.85)`, but the `ArcShape` draws its path with center at `(rect.midX, rect.midY)` — which is `UnitPoint(0.5, 0.5)` in the shape's coordinate space. The `0.85` value was copied from `centerY = size.height * 0.85` (the arc's position in the *parent* view), but the gradient's center is in UnitPoint space relative to the *shape's own frame*. With the gradient center offset from the arc's geometric center, the angular gradient's color-to-angle mapping is rotated — colors on the arc don't transition evenly green (left) → yellow (top) → red (right) as the spec requires. The marker's computed shadow color (from `markerColor(score:)`) will visually disagree with the arc's actual gradient color at the marker's position. Fix: change `center: .init(x: 0.5, y: 0.85)` to `center: .center`.
+
+## 2026-03-17 — Builder: Variant 4 Third Review Fix
+
+Fixed 1 bug from second review rejection:
+
+1. **AngularGradient center aligned**: Changed `center: .init(x: 0.5, y: 0.85)` to `center: .center` in the AngularGradient stroke. The 0.85 was incorrectly copied from the arc's parent-view Y position (`size.height * 0.85`) but the gradient center uses UnitPoint space relative to the shape's own frame, where center is (0.5, 0.5). Build clean (exit 0), all tests pass.
