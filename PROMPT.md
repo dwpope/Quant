@@ -4,6 +4,18 @@ Follow the implementation plan at `.agents/planning/2026-03-16-ui-variants/imple
 
 Check whether tasks have already been completed and committed, if they are done but not marked complete, mark them as complete and commit. Follow the implementation guidance and test requirements in the plan.
 
+## Progress
+
+Steps 1–7 are complete (shared data layer, mock/live data sources, showcase shell, visual utilities, Score-Centric variants 1–6, Dashboard variants 7–12).
+
+## Scope
+
+Complete Steps 8, 9, and 10:
+
+- **Step 8** — Variant batch C: Minimal / Typographic (Variants 13–20)
+- **Step 9** — Variant batch D: Abstract Geometric (Variants 21–28)
+- **Step 10** — Variant batch E: 3D / Body / Instrument (Variants 29–40)
+
 ## Design documents
 
 - `.agents/planning/2026-03-16-ui-variants/design/detailed-design.md`
@@ -27,4 +39,4 @@ Check whether tasks have already been completed and committed, if they are done 
 - All existing tests must continue to pass
 - Do NOT refactor code unrelated to the current step
 - Preserve backwards compatibility of all public APIs
-- Emit LOOP_COMPLETE after Step 7 is finished (all 6 Dashboard / Multi-Metric variants 7–12 + registry update closed). Do NOT proceed to Step 8.
+- Emit LOOP_COMPLETE after Step 10 is finished (all 3D / Body / Instrument variants 29–40 + registry update). Do NOT proceed to Step 11.
