@@ -22,8 +22,8 @@
 - [x] **Step 6** — Variant batch A: Score-Centric (Variants 1–6)
 - [x] **Step 7** — Variant batch B: Dashboard / Multi-Metric (Variants 7–12)
 - [x] **Step 8** — Variant batch C: Minimal / Typographic (Variants 13–20)
-- [ ] **Step 9** — Variant batch D: Abstract Geometric (Variants 21–28)
-- [ ] **Step 10** — Variant batch E: 3D / Body / Instrument (Variants 29–40)
+- [x] **Step 9** — Variant batch D: Abstract Geometric (Variants 21–28)
+- [x] **Step 10** — Variant batch E: 3D / Body / Instrument (Variants 29–40)
 - [ ] **Step 11** — Metal shader infrastructure and shader-driven variants (Variants 43, 47, 51–54, and others using `.distortionEffect`/`.colorEffect`)
 - [ ] **Step 12** — SceneKit / 3D infrastructure and 3D variants
 - [ ] **Step 13** — Variant batch F: Organic / Nature (Variants 41–46)
