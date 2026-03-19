@@ -127,40 +127,19 @@ enum VariantRegistry {
                           makeView: { AnyView(Variant54View()) }),
 
         // MARK: - Gamified (55–58)
-        variant(55, "XP Health Bar",         .gamified,           [.canvas]),
-        variant(56, "Streak Counter",        .gamified,           []),
-        variant(57, "Achievement Rings",     .gamified,           [.canvas]),
-        variant(58, "Boss Battle",           .gamified,           [.spriteKit]),
+        VariantDescriptor(id: 55, name: "XP Health Bar", category: .gamified, technologies: [.canvas],
+                          makeView: { AnyView(Variant55View()) }),
+        VariantDescriptor(id: 56, name: "Streak Counter", category: .gamified, technologies: [],
+                          makeView: { AnyView(Variant56View()) }),
+        VariantDescriptor(id: 57, name: "Achievement Rings", category: .gamified, technologies: [.canvas],
+                          makeView: { AnyView(Variant57View()) }),
+        VariantDescriptor(id: 58, name: "Boss Battle", category: .gamified, technologies: [.canvas],
+                          makeView: { AnyView(Variant58View()) }),
 
         // MARK: - Experimental — Architectural (59–60)
-        variant(59, "Torii Gate",            .experimental,       [.sceneKit]),
-        variant(60, "Suspension Bridge",     .experimental,       [.sceneKit]),
+        VariantDescriptor(id: 59, name: "Torii Gate", category: .experimental, technologies: [.canvas],
+                          makeView: { AnyView(Variant59View()) }),
+        VariantDescriptor(id: 60, name: "Suspension Bridge", category: .experimental, technologies: [.canvas],
+                          makeView: { AnyView(Variant60View()) }),
     ]
-
-    private static func variant(
-        _ id: Int,
-        _ name: String,
-        _ category: VariantCategory,
-        _ technologies: [TechTag]
-    ) -> VariantDescriptor {
-        VariantDescriptor(
-            id: id,
-            name: name,
-            category: category,
-            technologies: technologies,
-            makeView: {
-                AnyView(
-                    VariantPlaceholderView(
-                        descriptor: VariantDescriptor(
-                            id: id,
-                            name: name,
-                            category: category,
-                            technologies: technologies,
-                            makeView: { AnyView(EmptyView()) }
-                        )
-                    )
-                )
-            }
-        )
-    }
 }
