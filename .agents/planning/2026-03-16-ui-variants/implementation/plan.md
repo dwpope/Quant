@@ -26,7 +26,7 @@
 - [x] **Step 10** — Variant batch E: 3D / Body / Instrument (Variants 29–40)
 - [x] **Step 11** — Metal shader infrastructure and shader-driven variants (Variants 43, 47, 51–54, and others using `.distortionEffect`/`.colorEffect`)
 - [x] **Step 12** — SceneKit / 3D infrastructure and 3D variants
-- [ ] **Step 13** — Variant batch F: Organic / Nature (Variants 41–46)
+- [x] **Step 13** — Variant batch F: Organic / Nature (Variants 41–46)
 - [ ] **Step 14** — Variant batch G: Gamified (Variants 47–54)
 - [ ] **Step 15** — Variant batch H: Architectural / Structural (Variants 55–60)
 - [ ] **Step 16** — Polish, accessibility, performance
