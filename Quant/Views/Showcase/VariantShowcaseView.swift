@@ -40,6 +40,7 @@ struct VariantShowcaseView: View {
             if let variant = selectedVariant {
                 variant.makeView()
                     .environmentObject(observer)
+                    .postureVariantAccessibility()
                     .overlay(alignment: .bottomTrailing) {
                         if dataSourceMode == .mock {
                             mockControlsButton
@@ -89,7 +90,7 @@ struct VariantShowcaseView: View {
             Image(systemName: "slider.horizontal.3")
                 .font(.title3)
                 .padding(12)
-                .background(.ultraThinMaterial)
+                .postureBackground()
                 .clipShape(Circle())
         }
         .padding()

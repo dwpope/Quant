@@ -8,7 +8,7 @@ struct SettingsGearButton: View {
             Image(systemName: "gearshape.fill")
                 .font(.body)
                 .foregroundStyle(.secondary)
-                .padding(10)
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Circle())
         }
         .accessibilityLabel("Settings")

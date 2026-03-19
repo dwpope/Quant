@@ -42,4 +42,13 @@ final class VariantRegistryTests: XCTestCase {
             XCTAssertFalse(variant.name.isEmpty, "Variant \(variant.id) has empty name")
         }
     }
+
+    func test_allVariants_haveNonEmptyTechnologies() {
+        for variant in VariantRegistry.allVariants {
+            XCTAssertFalse(
+                variant.technologies.isEmpty,
+                "Variant \(variant.id) (\(variant.name)) has empty technologies"
+            )
+        }
+    }
 }
