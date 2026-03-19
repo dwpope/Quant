@@ -14,4 +14,8 @@
 
 ## Fixes
 
+### mem-1773883326-2c51
+> Metal Toolchain must be downloaded separately on Xcode 26.3: xcodebuild -downloadComponent MetalToolchain. Without it, .metal files fail to compile with 'cannot execute tool metal due to missing Metal Toolchain'
+<!-- tags: metal, xcode, toolchain | created: 2026-03-19 -->
+
 ## Context
