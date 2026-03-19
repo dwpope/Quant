@@ -14,6 +14,10 @@
 
 ## Fixes
 
+### mem-1773949073-d32e
+> ralph emit defaults to .ralph/events.jsonl but active loops use timestamped files like events-YYYYMMDD-HHMMSS.jsonl. Must use --file flag pointing to the correct timestamped events file for the emit to reach the loop. Find the active file with: ls -t .ralph/events-*.jsonl | head -1
+<!-- tags: ralph, events, loop | created: 2026-03-19 -->
+
 ### mem-1773883326-2c51
 > Metal Toolchain must be downloaded separately on Xcode 26.3: xcodebuild -downloadComponent MetalToolchain. Without it, .metal files fail to compile with 'cannot execute tool metal due to missing Metal Toolchain'
 <!-- tags: metal, xcode, toolchain | created: 2026-03-19 -->
