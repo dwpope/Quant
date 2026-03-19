@@ -16,6 +16,7 @@ struct NudgeCountdownLabel: View {
                 .font(font)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
+                .accessibilityLabel("Nudge in \(accessibilityFormatted(seconds))")
         }
     }
 
@@ -31,6 +32,16 @@ struct NudgeCountdownLabel: View {
         case .hud:
             return "T-\(m):\(String(format: "%02d", s))"
         }
+    }
+
+    private func accessibilityFormatted(_ seconds: TimeInterval) -> String {
+        let clamped = max(0, Int(seconds))
+        let m = clamped / 60
+        let s = clamped % 60
+        if m > 0 {
+            return "\(m) minutes \(s) seconds"
+        }
+        return "\(s) seconds"
     }
 
     private var font: Font {

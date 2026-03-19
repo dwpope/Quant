@@ -42,4 +42,14 @@ final class VariantRegistryTests: XCTestCase {
             XCTAssertFalse(variant.name.isEmpty, "Variant \(variant.id) has empty name")
         }
     }
+
+    func test_allVariantCategories_haveAtLeastOneVariant() {
+        let usedCategories = Set(VariantRegistry.allVariants.map(\.category))
+        for category in VariantCategory.allCases {
+            XCTAssertTrue(
+                usedCategories.contains(category),
+                "\(category.rawValue) has no variants registered"
+            )
+        }
+    }
 }

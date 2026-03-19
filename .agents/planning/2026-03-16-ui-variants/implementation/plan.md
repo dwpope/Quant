@@ -29,7 +29,7 @@
 - [x] **Step 13** — Variant batch F: Organic / Nature (Variants 41–46)
 - [x] **Step 14** — Variant batch G: Gamified (Variants 47–54)
 - [x] **Step 15** — Variant batch H: Architectural / Structural (Variants 55–60)
-- [ ] **Step 16** — Polish, accessibility, performance
+- [x] **Step 16** — Polish, accessibility, performance
 
 ---
 
