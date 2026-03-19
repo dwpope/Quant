@@ -6,15 +6,25 @@ Check whether tasks have already been completed and committed, if they are done 
 
 ## Progress
 
-Steps 1–7 are complete (shared data layer, mock/live data sources, showcase shell, visual utilities, Score-Centric variants 1–6, Dashboard variants 7–12).
+Steps 1–10 are complete:
+- Steps 1–3: Shared data layer, mock data source, live data source
+- Step 4: Showcase navigation shell
+- Step 5: Shared visual utilities
+- Steps 6–7: Score-Centric variants 1–6, Dashboard variants 7–12
+- Steps 8–10: Minimal/Typographic variants 13–20, Abstract Geometric variants 21–28, 3D/Body/Instrument variants 29–40
+
+40 of 60 variants are implemented and registered.
 
 ## Scope
 
-Complete Steps 8, 9, and 10:
+Complete Steps 11 through 16:
 
-- **Step 8** — Variant batch C: Minimal / Typographic (Variants 13–20)
-- **Step 9** — Variant batch D: Abstract Geometric (Variants 21–28)
-- **Step 10** — Variant batch E: 3D / Body / Instrument (Variants 29–40)
+- **Step 11** — Metal shader infrastructure and shader-driven variants (Variants 43, 47, 51–54)
+- **Step 12** — SceneKit / 3D infrastructure and 3D variants
+- **Step 13** — Variant batch F: Organic / Nature (Variants 41–46)
+- **Step 14** — Variant batch G: Gamified (Variants 47–54)
+- **Step 15** — Variant batch H: Architectural / Structural (Variants 55–60)
+- **Step 16** — Polish, accessibility, performance
 
 ## Design documents
 
@@ -39,4 +49,4 @@ Complete Steps 8, 9, and 10:
 - All existing tests must continue to pass
 - Do NOT refactor code unrelated to the current step
 - Preserve backwards compatibility of all public APIs
-- Emit LOOP_COMPLETE after Step 10 is finished (all 3D / Body / Instrument variants 29–40 + registry update). Do NOT proceed to Step 11.
+- Emit LOOP_COMPLETE after Step 16 is finished (all 60 variants implemented + polish/accessibility/performance pass). Do NOT proceed beyond Step 16.

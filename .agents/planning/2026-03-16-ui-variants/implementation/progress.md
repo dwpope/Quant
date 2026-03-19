@@ -1,11 +1,10 @@
 # Progress: Posture Metrics UI Variants
 
 ## Current Step
-**Step 2 — Mock Data Source**
+**Step 11 — Metal Shader Infrastructure**
 
 ## Active Wave
-- `code-assist:ui-variants:step-02:manual-and-preview` (task-1773705968-191d) — MockPostureDataSource class skeleton + manual mode + preview factory + manual/preview tests
-- `code-assist:ui-variants:step-02:simulation-engine` (task-1773705982-48bf) — Simulation state machine + timer loop + simulation tests (blocked by manual-and-preview)
+_(none — ready to begin Step 11)_
 
 ## Verification Notes
 
@@ -78,3 +77,11 @@
 ## Completed Steps
 - ✅ **Step 1 — Shared Data Layer** (4/4 tasks): MetricKey, MetricInfo, PostureDisplayData+factory, PostureDataSourceProtocol+PostureDisplayObserver. 38 tests, all pass.
 - ✅ **Step 2 — Mock Data Source** (2/2 tasks): MockPostureDataSource with manual mode, preview factory, 4-phase simulation engine, 30Hz timer. 45 tests, all pass.
+- ✅ **Step 3 — Live Data Source**: LivePostureDataSource wrapping AppModel via Combine.
+- ✅ **Step 4 — Showcase Navigation Shell**: VariantShowcaseView, VariantRegistry (60 slots), VariantDescriptor, mock/live toggle, settings sheet.
+- ✅ **Step 5 — Shared Visual Utilities**: PostureVisualStyle, PostureAnimations, MetricRatioBar, NudgeCountdownLabel, reusable sub-views.
+- ✅ **Step 6 — Variant Batch A: Score-Centric** (Variants 1–6): Precision Gauge, Triadic Rings, Battery Drain, Arc Meter, Numeric Countdown, Traffic Light.
+- ✅ **Step 7 — Variant Batch B: Dashboard** (Variants 7–12): Five-Bar Equalizer, Donut Breakdown, Horizontal Rails, Radial Dial Array, Digital Cockpit, Split Flap Display.
+- ✅ **Step 8 — Variant Batch C: Minimal/Typographic** (Variants 13–20): Single Word, Color Field, Breathing Orb, Monogram, Haiku, Score+Stripe, Shadow People, Ink Wash.
+- ✅ **Step 9 — Variant Batch D: Abstract Geometric** (Variants 21–28): Stacked Totem, Radar Glyph, Concentric Target, Pendulum Array, Tensegrity, Lissajous Figure, Voronoi Cells, Morphing Blob.
+- ✅ **Step 10 — Variant Batch E: 3D/Body/Instrument** (Variants 29–40): Wire Skeleton, Posture Shadow, Body Heat Map, Muscle Tension Map, Bubble Chart, Sankey Flow, Timeline Waterfall, Horizon Horizon, Altimeter Stack, Seismograph, Compass Rose, Periscope.

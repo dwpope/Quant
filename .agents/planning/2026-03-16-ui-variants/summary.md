@@ -60,14 +60,14 @@ This project transforms the Quant app's bare placeholder monitoring screen into 
 
 ## Next Steps
 
-1. Review the detailed design at `design/detailed-design.md`
-2. Review the variant catalogs at `design/variant-catalog-*.md`
-3. Check the implementation plan and checklist at `implementation/plan.md`
-4. Begin implementation following the checklist
+Steps 1–10 are complete (40 of 60 variants implemented). Remaining work:
 
-To start implementation with Ralph:
-- `ralph run --config presets/pdd-to-code-assist.yml --prompt "<task>"`
-- `ralph run -c ralph.yml -H builtin:pdd-to-code-assist -p "<task>"`
+1. **Step 11** — Metal shader infrastructure (PostureShaders.metal, shader bridge, wave + noise effects)
+2. **Step 12** — SceneKit / 3D infrastructure (SceneKitViewBridge, PostureSceneBuilder)
+3. **Step 13** — Variant batch F: Organic / Nature (Variants 41–46)
+4. **Step 14** — Variant batch G: Gamified (Variants 47–54)
+5. **Step 15** — Variant batch H: Architectural / Structural (Variants 55–60)
+6. **Step 16** — Polish, accessibility, performance
 
 ## Areas for Further Refinement
 

@@ -38,14 +38,14 @@ Build 60 unique SwiftUI variant views for displaying posture monitoring data, wi
 - `LivePostureDataSource` (Step 3) will wrap `AppModel`
 - All variant views read `PostureDisplayObserver` via `@EnvironmentObject`
 
-## Acceptance Criteria (Step 1)
-- `MetricKey` enum with 5 cases, `displayName`, `symbolName`
-- `MetricInfo` struct with `isExceeded`, `clampedRatio` computed properties
-- `PostureDisplayData` struct with factory method `make(from:postureState:nudgeDecision:trackingQuality:thresholds:)`
-- `RawMetrics` extensions: `.zero`, `value(for:)`
-- `PostureThresholds` extension: `threshold(for:)`
-- `PostureDataSourceProtocol` protocol
-- `PostureDisplayObserver` class
+## Acceptance Criteria (Steps 11–16)
+- **Step 11**: Metal shader file (`PostureShaders.metal`), `MetalShaderBridge.swift`, wave distortion + noise color effect shaders, SwiftUI View extensions, fallback handling
+- **Step 12**: SceneKit integration (`SceneKitViewBridge.swift`, `PostureSceneBuilder.swift`), 3D body model with metric-driven deformation
+- **Step 13**: Variants 41–46 (Organic/Nature) — Wilting Plant, Tree of Life, Water Surface, Terrain Map, Weather System, Bioluminescence
+- **Step 14**: Variants 47–54 (Gamified) — Neon Pulse, Health Bar, XP Level Ring, Pixel Art Body, Achievement Shields, Boss Health Bar, Rhythm Game, Tower Defense
+- **Step 15**: Variants 55–60 (Architectural) — Blueprint Grid, Load Diagram, Circuit Board, Structural Frame, Isometric City, Construction Progress
+- **Step 16**: Accessibility (VoiceOver, reduce motion), performance profiling, visual polish, variant thumbnails
+- All 60 variants registered in `VariantRegistry` with correct IDs, names, categories
 - All tests pass in `QuantTests/` target
 
 ## Constraints
