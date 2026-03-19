@@ -73,7 +73,7 @@ enum VariantRegistry {
                           makeView: { AnyView(Variant30View()) }),
         VariantDescriptor(id: 31, name: "Body Silhouette", category: .anatomical, technologies: [.canvas],
                           makeView: { AnyView(Variant31View()) }),
-        VariantDescriptor(id: 32, name: "Muscle Heatmap", category: .anatomical, technologies: [.canvas],
+        VariantDescriptor(id: 32, name: "Muscle Heatmap", category: .anatomical, technologies: [.sceneKit],
                           makeView: { AnyView(Variant32View()) }),
         VariantDescriptor(id: 33, name: "Spine Column", category: .anatomical, technologies: [.canvas],
                           makeView: { AnyView(Variant33View()) }),
