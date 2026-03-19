@@ -5,6 +5,7 @@ struct Variant7View: View {
     @EnvironmentObject var observer: PostureDisplayObserver
     @State private var showingSettings = false
     @State private var flamePhase: TimeInterval = 0
+    @State private var isActive = false
 
     private var data: PostureDisplayData { observer.data }
 
@@ -43,6 +44,8 @@ struct Variant7View: View {
         .sheet(isPresented: $showingSettings) {
             SettingsSheetView()
         }
+        .onAppear { isActive = true }
+        .onDisappear { isActive = false }
         .sensoryFeedback(.impact, trigger: data.postureState.isBad)
         .animation(PostureAnimations.alertOnset, value: data.isAlertMode)
     }
@@ -97,7 +100,7 @@ struct Variant7View: View {
 
                 // Flame + shatter canvas overlay
                 if data.isAlertMode {
-                    TimelineView(.animation) { timeline in
+                    TimelineView(.animation(paused: !isActive || isAbsent)) { timeline in
                         Canvas { context, canvasSize in
                             drawFlameAndShatter(
                                 context: &context,

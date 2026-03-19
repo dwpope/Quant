@@ -7,6 +7,7 @@ struct Variant12View: View {
     @State private var displayedState: String = "GOOD"
     @State private var metricDisplayValues: [MetricKey: String] = [:]
     @State private var isFlipping = false
+    @State private var animationTask: Task<Void, Never>?
 
     private var data: PostureDisplayData { observer.data }
 
@@ -220,18 +221,21 @@ struct Variant12View: View {
     }
 
     private func flipToState(_ newText: String) {
-        Task { @MainActor in
+        animationTask?.cancel()
+        animationTask = Task { @MainActor in
             let maxLen = max(displayedState.count, newText.count)
             let padTarget = newText.padding(toLength: maxLen, withPad: " ", startingAt: 0)
             var current = Array(displayedState.padding(toLength: maxLen, withPad: " ", startingAt: 0))
             let target = Array(padTarget)
 
             for i in 0..<maxLen {
+                guard !Task.isCancelled else { return }
                 try? await Task.sleep(nanoseconds: UInt64(i) * 150_000_000)
                 // Cycle through chars to reach target
                 if current[i] != target[i] {
                     let steps = min(5, abs(Int(current[i].asciiValue ?? 65) - Int(target[i].asciiValue ?? 65)))
                     for step in 0..<steps {
+                        guard !Task.isCancelled else { return }
                         let intermediate = Character(UnicodeScalar(
                             (Int(current[i].asciiValue ?? 65) + step + 1) % 91 + 32
                         ) ?? UnicodeScalar(65))

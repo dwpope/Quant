@@ -8,6 +8,7 @@ struct Variant23View: View {
     @EnvironmentObject var observer: PostureDisplayObserver
     @State private var showingSettings = false
     @State private var trailBuffers: [[CGPoint]] = Array(repeating: [], count: 5)
+    @State private var isActive = false
 
     private var isAbsent: Bool {
         switch observer.data.postureState {
@@ -55,6 +56,8 @@ struct Variant23View: View {
         .sheet(isPresented: $showingSettings) {
             SettingsSheetView()
         }
+        .onAppear { isActive = true }
+        .onDisappear { isActive = false }
         .animation(PostureAnimations.alertOnset, value: observer.data.isAlertMode)
     }
 
@@ -62,7 +65,7 @@ struct Variant23View: View {
         let chartSize = min(size.width, size.height) * 0.8
         let maxRadius = chartSize / 2
 
-        return TimelineView(.animation(minimumInterval: 1.0 / 15.0)) { timeline in
+        return TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: !isActive || isAbsent)) { timeline in
             let ratios: [Float] = MetricKey.allCases.map { key in
                 isAbsent ? 0 : observer.data.metric(for: key).clampedRatio
             }
