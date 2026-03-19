@@ -73,7 +73,7 @@ enum VariantRegistry {
                           makeView: { AnyView(Variant30View()) }),
         VariantDescriptor(id: 31, name: "Body Silhouette", category: .anatomical, technologies: [.canvas],
                           makeView: { AnyView(Variant31View()) }),
-        VariantDescriptor(id: 32, name: "Muscle Heatmap", category: .anatomical, technologies: [.canvas],
+        VariantDescriptor(id: 32, name: "Muscle Heatmap", category: .anatomical, technologies: [.sceneKit],
                           makeView: { AnyView(Variant32View()) }),
         VariantDescriptor(id: 33, name: "Spine Column", category: .anatomical, technologies: [.canvas],
                           makeView: { AnyView(Variant33View()) }),
@@ -95,12 +95,18 @@ enum VariantRegistry {
                           makeView: { AnyView(Variant40View()) }),
 
         // MARK: - Ambient / Atmospheric — Organic / Nature (41–46)
-        variant(41, "Wilting Plant",         .ambient,            [.canvas]),
-        variant(42, "Tree of Life",          .ambient,            [.canvas]),
-        variant(43, "Water Surface",         .ambient,            [.metal]),
-        variant(44, "Terrain Map",           .ambient,            [.canvas]),
-        variant(45, "Weather System",        .ambient,            [.canvas, .spriteKit]),
-        variant(46, "Coral Reef",            .ambient,            [.sceneKit]),
+        VariantDescriptor(id: 41, name: "Wilting Plant", category: .ambient, technologies: [.canvas],
+                          makeView: { AnyView(Variant41View()) }),
+        VariantDescriptor(id: 42, name: "Tree of Life", category: .ambient, technologies: [.canvas],
+                          makeView: { AnyView(Variant42View()) }),
+        VariantDescriptor(id: 43, name: "Water Surface", category: .ambient, technologies: [.metal],
+                          makeView: { AnyView(Variant43View()) }),
+        VariantDescriptor(id: 44, name: "Terrain Map", category: .ambient, technologies: [.canvas],
+                          makeView: { AnyView(Variant44View()) }),
+        VariantDescriptor(id: 45, name: "Weather System", category: .ambient, technologies: [.canvas],
+                          makeView: { AnyView(Variant45View()) }),
+        VariantDescriptor(id: 46, name: "Coral Reef", category: .ambient, technologies: [.canvas],
+                          makeView: { AnyView(Variant46View()) }),
 
         // MARK: - Ambient / Atmospheric — Shader-Driven (47–54)
         variant(47, "Aurora Borealis",       .ambient,            [.metal]),
