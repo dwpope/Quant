@@ -58,7 +58,6 @@ static float fbm(float2 p, int octaves) {
     offset.y += forwardCreep * 4.0 * sin(position.x * 0.035 + time * 2.3);
 
     // Head drop: irregular ripples from center
-    float distFromCenter = length(position - float2(position.x, position.y)) * 0.01;
     offset.y += headDrop * 5.0 * sin(position.y * 0.04 + time * 1.8);
     offset.x += headDrop * 3.0 * cos(position.y * 0.03 + time * 1.2);
 
@@ -70,7 +69,6 @@ static float fbm(float2 p, int octaves) {
     offset.x += lateralLean * 10.0 * sin(position.y * 0.015 + time * 0.8);
 
     // Twist: vortex/spiral distortion from center
-    float angle = twist * 0.3 * sin(time * 0.7);
     float2 centered = position - float2(200.0, 400.0);
     float r = length(centered);
     float vortexStrength = twist * 15.0 / max(r * 0.05, 1.0);
@@ -208,7 +206,6 @@ static float fbm(float2 p, int octaves) {
     float2 center = size * 0.5;
     float2 fromCenter = position - center;
     float dist = length(fromCenter);
-    float angle = atan2(fromCenter.y, fromCenter.x);
 
     // Compute per-channel UV offsets
     float2 redOffset = float2(0.0);
