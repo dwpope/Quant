@@ -38,4 +38,5 @@ enum TechTag: String {
     case metal
     case meshGradient
     case gauge
+    case swiftUI
 }

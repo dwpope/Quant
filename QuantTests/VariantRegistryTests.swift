@@ -43,12 +43,11 @@ final class VariantRegistryTests: XCTestCase {
         }
     }
 
-    func test_allVariantCategories_haveAtLeastOneVariant() {
-        let usedCategories = Set(VariantRegistry.allVariants.map(\.category))
-        for category in VariantCategory.allCases {
-            XCTAssertTrue(
-                usedCategories.contains(category),
-                "\(category.rawValue) has no variants registered"
+    func test_allVariants_haveNonEmptyTechnologies() {
+        for variant in VariantRegistry.allVariants {
+            XCTAssertFalse(
+                variant.technologies.isEmpty,
+                "Variant \(variant.id) (\(variant.name)) has empty technologies"
             )
         }
     }

@@ -11,9 +11,9 @@ enum VariantRegistry {
                           makeView: { AnyView(Variant3View()) }),
         VariantDescriptor(id: 4, name: "Arc Meter", category: .scoreCentric, technologies: [.canvas],
                           makeView: { AnyView(Variant4View()) }),
-        VariantDescriptor(id: 5, name: "Numeric Countdown", category: .scoreCentric, technologies: [],
+        VariantDescriptor(id: 5, name: "Numeric Countdown", category: .scoreCentric, technologies: [.swiftUI],
                           makeView: { AnyView(Variant5View()) }),
-        VariantDescriptor(id: 6, name: "Traffic Light", category: .scoreCentric, technologies: [],
+        VariantDescriptor(id: 6, name: "Traffic Light", category: .scoreCentric, technologies: [.swiftUI],
                           makeView: { AnyView(Variant6View()) }),
 
         // MARK: - Data Visualization (7–12)
@@ -21,19 +21,19 @@ enum VariantRegistry {
                           makeView: { AnyView(Variant7View()) }),
         VariantDescriptor(id: 8, name: "Donut Breakdown", category: .dataVisualization, technologies: [.canvas],
                           makeView: { AnyView(Variant8View()) }),
-        VariantDescriptor(id: 9, name: "Horizontal Rails", category: .dataVisualization, technologies: [],
+        VariantDescriptor(id: 9, name: "Horizontal Rails", category: .dataVisualization, technologies: [.swiftUI],
                           makeView: { AnyView(Variant9View()) }),
         VariantDescriptor(id: 10, name: "Radial Dial Array", category: .dataVisualization, technologies: [.canvas],
                           makeView: { AnyView(Variant10View()) }),
         VariantDescriptor(id: 11, name: "Digital Cockpit", category: .dataVisualization, technologies: [.canvas],
                           makeView: { AnyView(Variant11View()) }),
-        VariantDescriptor(id: 12, name: "Split Flap Display", category: .dataVisualization, technologies: [],
+        VariantDescriptor(id: 12, name: "Split Flap Display", category: .dataVisualization, technologies: [.swiftUI],
                           makeView: { AnyView(Variant12View()) }),
 
         // MARK: - Typographic (13–20)
-        VariantDescriptor(id: 13, name: "Single Word", category: .typographic, technologies: [],
+        VariantDescriptor(id: 13, name: "Single Word", category: .typographic, technologies: [.swiftUI],
                           makeView: { AnyView(Variant13View()) }),
-        VariantDescriptor(id: 14, name: "Breathing Dot", category: .typographic, technologies: [],
+        VariantDescriptor(id: 14, name: "Breathing Dot", category: .typographic, technologies: [.swiftUI],
                           makeView: { AnyView(Variant14View()) }),
         VariantDescriptor(id: 15, name: "Thin Line", category: .typographic, technologies: [.canvas],
                           makeView: { AnyView(Variant15View()) }),
@@ -41,11 +41,11 @@ enum VariantRegistry {
                           makeView: { AnyView(Variant16View()) }),
         VariantDescriptor(id: 17, name: "Clock Face", category: .typographic, technologies: [.canvas],
                           makeView: { AnyView(Variant17View()) }),
-        VariantDescriptor(id: 18, name: "Emoji Mood", category: .typographic, technologies: [],
+        VariantDescriptor(id: 18, name: "Emoji Mood", category: .typographic, technologies: [.swiftUI],
                           makeView: { AnyView(Variant18View()) }),
         VariantDescriptor(id: 19, name: "Concentric Ripples", category: .typographic, technologies: [.canvas],
                           makeView: { AnyView(Variant19View()) }),
-        VariantDescriptor(id: 20, name: "Kanji / Symbol", category: .typographic, technologies: [],
+        VariantDescriptor(id: 20, name: "Kanji / Symbol", category: .typographic, technologies: [.swiftUI],
                           makeView: { AnyView(Variant20View()) }),
 
         // MARK: - Abstract Geometric (21–28)
@@ -129,7 +129,7 @@ enum VariantRegistry {
         // MARK: - Gamified (55–58)
         VariantDescriptor(id: 55, name: "XP Health Bar", category: .gamified, technologies: [.canvas],
                           makeView: { AnyView(Variant55View()) }),
-        VariantDescriptor(id: 56, name: "Streak Counter", category: .gamified, technologies: [],
+        VariantDescriptor(id: 56, name: "Streak Counter", category: .gamified, technologies: [.swiftUI],
                           makeView: { AnyView(Variant56View()) }),
         VariantDescriptor(id: 57, name: "Achievement Rings", category: .gamified, technologies: [.canvas],
                           makeView: { AnyView(Variant57View()) }),

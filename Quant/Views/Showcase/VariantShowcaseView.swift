@@ -41,9 +41,7 @@ struct VariantShowcaseView: View {
             if let variant = selectedVariant {
                 variant.makeView()
                     .environmentObject(observer)
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel(variantAccessibilityLabel(for: variant))
-                    .accessibilityValue(variantAccessibilityValue)
+                    .postureVariantAccessibility()
                     .overlay(alignment: .bottomTrailing) {
                         if dataSourceMode == .mock {
                             mockControlsButton
@@ -75,20 +73,6 @@ struct VariantShowcaseView: View {
         }
     }
 
-    // MARK: - Accessibility
-
-    private func variantAccessibilityLabel(for variant: VariantDescriptor) -> String {
-        let stateLabel = PostureVisualStyle.stateAccessibilityLabel(
-            for: observer.data.postureState,
-            worstOffender: observer.data.worstOffender
-        )
-        return "\(variant.name). \(stateLabel)"
-    }
-
-    private var variantAccessibilityValue: String {
-        "\(Int(observer.data.aggregateScore * 100)) percent"
-    }
-
     // MARK: - Subviews
 
     private var placeholderDetail: some View {
@@ -108,7 +92,7 @@ struct VariantShowcaseView: View {
         } label: {
             Image(systemName: "slider.horizontal.3")
                 .font(.title3)
-                .frame(minWidth: 44, minHeight: 44)
+                .padding(12)
                 .postureBackground()
                 .clipShape(Circle())
         }

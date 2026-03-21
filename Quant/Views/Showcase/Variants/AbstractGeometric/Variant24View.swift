@@ -9,6 +9,7 @@ struct Variant24View: View {
     @State private var showingSettings = false
     @State private var pendulumAngles: [CGFloat] = Array(repeating: 0, count: 5)
     @State private var pendulumVelocities: [CGFloat] = Array(repeating: 0, count: 5)
+    @State private var isActive = false
 
     private var isAbsent: Bool {
         switch observer.data.postureState {
@@ -55,6 +56,8 @@ struct Variant24View: View {
         .sheet(isPresented: $showingSettings) {
             SettingsSheetView()
         }
+        .onAppear { isActive = true }
+        .onDisappear { isActive = false }
         .animation(PostureAnimations.alertOnset, value: observer.data.isAlertMode)
     }
 
@@ -63,7 +66,7 @@ struct Variant24View: View {
         let stringLength = isLandscape ? size.height * 0.4 : size.height * 0.55
         let spacing = size.width / 6
 
-        return TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+        return TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !isActive || isAbsent)) { timeline in
             Canvas { context, canvasSize in
                 // Support bar
                 var barPath = Path()
