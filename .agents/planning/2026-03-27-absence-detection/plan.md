@@ -1,6 +1,7 @@
 # Absence Detection — Implementation Plan
 
 _Planning session: 2026-03-27_
+_Revised: 2026-03-27 (decisions updated before implementation)_
 
 ## Problem Statement
 
@@ -13,85 +14,78 @@ Currently, both cases map to `TrackingQuality.lost`, which silently freezes `Pos
 
 ---
 
-## Design Decisions
+## Design Decisions (Revised)
 
 | # | Question | Decision |
 |---|----------|----------|
-| Q1 | Mental model | **Signal-based.** `.degraded` = user present, tracking bad. `.lost` = user absent. Short `.lost` spikes absorbed by existing 3-frame smoother. |
-| Q2 | Entry timing for `.absent` | **Short dwell.** Require `.lost` quality to sustain for `absentThreshold` (already 3.0s in `PostureThresholds`) before declaring `.absent`. |
-| Q3 | Return path from `.absent` | **Duration-dependent.** Absence < 30s → resume saved pre-absence state. Absence ≥ 30s → reset to `.good`. |
-| Q4 | Session analytics during absence | **Tracked separately.** Session clock continues; absence intervals are logged and excluded from posture quality calculations. |
-| Q5 | `.degraded` visibility | **Distinct PostureState.** Promote to a visible `PostureState` case with its own overlay. User sees "tracking struggling" vs "you're away". |
+| Q1 | Mental model | **Signal-based.** `.degraded` = user present, tracking bad. `.lost` = user absent. Option to add confidence-floor hybrid later if edge cases appear. |
+| Q2 | Entry timing for `.absent` | **1-second dwell.** Require `.lost` quality to sustain for `absentThreshold = 1.0s` before declaring `.absent`. |
+| Q3 | Return path from `.absent` | **2-second re-validation + duration-dependent restore.** Collect 2s of fresh data (`returnValidationWindow = 2.0`) before committing. Then: short absence (<30s) resumes prior state; long absence (≥30s) goes to `.good` with a prompted but dismissible recalibration nudge ("Welcome back, sit comfortably and tap to recalibrate"). If dismissed, old baseline stays and `StaleBaselineDetector` catches drift later. |
+| Q4 | Absence in session analytics | **Internal telemetry only.** `absenceSegments` logged in `Pipeline` but NOT surfaced in posture score or analytics yet. Dead time that doesn't count as good or bad. |
+| Q5 | `.degraded` visibility | **Internal state only.** Do NOT add `.degraded` as a `PostureState` case. No UI overlay. No 60-view blast radius. Show `trackingQuality` as a text label on the debug screen (already present in `DebugOverlayView`). `PostureEngine` handles degraded quality by freezing internally. |
+| Q6 | Recalibration on long return | **Prompted, dismissible.** After ≥30s absence, show a prompt. If dismissed, resume with old baseline. |
+
+### Key Changes from Original Plan
+
+- ~~Step 1 (add `.degraded` to PostureState)~~ — REMOVED, internal only
+- ~~Step 5 (DegradedTrackingOverlay)~~ — REMOVED
+- ~~Step 6 (VariantShowcaseView wiring for .degraded)~~ — REMOVED
+- ~~Step 7 (60-variant switch sweep)~~ — REMOVED
+- `absentThreshold` changed from 3.0 → **1.0**
+- Added `returnValidationWindow = 2.0` (new threshold)
+- Added `absentResumeThreshold = 30.0` (same value as original, now explicit)
+- Added prompted recalibration after long absence (via `showRecalibrationPrompt` on Pipeline)
+- Absence segments are internal telemetry only
 
 ---
 
-## State Machine (New)
+## State Machine (Revised)
 
 ```
-TrackingQuality.good   ──────────────────────────────────────────────────────────────
+TrackingQuality.good ────────────────────────────────────────────────────────
                            ┌────────┐  bad metrics  ┌──────────┐  timeout  ┌───────┐
                            │  GOOD  │ ────────────> │ DRIFTING │ ────────> │  BAD  │
                            └────────┘ <──────────── └──────────┘           └───────┘
                                 good metrics                                    │
                                     ^──────────────── recovery grace ───────────┘
 
-TrackingQuality.degraded ─────────────────────────────────────────────────────────────
-                           Any real state → .degraded immediately
-                           .degraded + quality recovers to .good → restore savedState
+TrackingQuality.degraded ─────────────────────────────────────────────────────
+                           Engine freezes (no PostureState change)
+                           No UI change. PostureEngine handles internally.
 
-TrackingQuality.lost (< absentThreshold) ─────────────────────────────────────────────
-                           Any real state → .degraded (same UI; dwell timer starts)
+TrackingQuality.lost (< absentThreshold = 1s) ────────────────────────────────
+                           Engine freezes (dwell timer accumulates)
 
-TrackingQuality.lost (≥ absentThreshold) ─────────────────────────────────────────────
-                           → .absent
-                           .absent + quality recovers to .good:
-                             absenceDuration < absentResumeThreshold → restore savedState
-                             absenceDuration ≥ absentResumeThreshold → .good
+TrackingQuality.lost (≥ absentThreshold = 1s) ────────────────────────────────
+                           → PostureState.absent (prior state saved)
+
+Return from .absent:
+  → 2s returnValidationWindow of .good quality required
+  → short absence (< 30s): restore saved state + savedDriftTime
+  → long absence (≥ 30s): → .good + pendingRecalibrationPrompt = true
 ```
 
-**Key rule:** `.degraded` and `.absent` never advance the posture state machine. `lastGoodUpdateTimestamp` is cleared on entry to both.
+**Key rule:** `.absent` never advances the posture state machine. `lastGoodUpdateTimestamp` is cleared on entry. `.degraded` freezes silently.
 
 ---
 
 ## Files to Change
 
-### Step 1 — `PostureState`: add `.degraded` case
-
-**File:** `PostureLogic/Sources/PostureLogic/Models/PostureState.swift`
-
-Add `.degraded` between `.absent` and `.calibrating`. The compiler will flag every exhaustive switch that needs updating (60+ variant views, `PostureDisplayData`, `DebugOverlayView`).
-
-```swift
-public enum PostureState: Codable, Equatable {
-    case absent
-    case degraded   // NEW: user present, tracking struggling
-    case calibrating
-    case good
-    case drifting(since: TimeInterval)
-    case bad(since: TimeInterval)
-}
-```
-
-**Blast radius:** Every `switch postureState` in the codebase. Most variant views treat all non-`.absent` states identically for their overlays, so `.degraded` can share the `.absent` arm in most places and only diverge at the overlay layer.
-
----
-
-### Step 2 — `PostureThresholds`: add `absentResumeThreshold`
+### Step 1 — `PostureThresholds`: add thresholds
 
 **File:** `PostureLogic/Sources/PostureLogic/Models/PostureThresholds.swift`
-
-`absentThreshold: TimeInterval = 3.0` already exists and covers the Q2 dwell. Only one new property is needed:
 
 ```swift
 // MARK: - Mode Switching
 public var depthRecoveryDelay: TimeInterval = 2.0
-public var absentThreshold: TimeInterval = 3.0
-public var absentResumeThreshold: TimeInterval = 30.0  // NEW
+public var absentThreshold: TimeInterval = 1.0          // changed from 3.0
+public var absentResumeThreshold: TimeInterval = 30.0   // NEW: short vs long absence
+public var returnValidationWindow: TimeInterval = 2.0   // NEW: re-validation on return
 ```
 
 ---
 
-### Step 3 — `PostureEngine`: rework quality handling
+### Step 2 — `PostureEngine`: rework quality handling
 
 **File:** `PostureLogic/Sources/PostureLogic/Engines/PostureEngine.swift`
 
@@ -99,215 +93,180 @@ public var absentResumeThreshold: TimeInterval = 30.0  // NEW
 
 ```swift
 /// Timestamp when `.lost` quality was first observed in the current run.
-/// Nil when quality is not `.lost`.
 private var lostQualityStart: TimeInterval?
 
-/// The posture state saved immediately before entering `.degraded` or `.absent`.
-/// Restored when tracking quality recovers (subject to absence duration check).
+/// State saved immediately before entering `.absent`.
 private var savedPostureState: PostureState?
 
-/// Timestamp when `.absent` was declared. Used to determine short vs. long absence.
+/// Accumulated drift time saved with savedPostureState (for drifting restoration).
+private var savedDriftTime: TimeInterval = 0
+
+/// Timestamp when `.absent` was declared (nil = not in a real absence).
 private var absenceDeclaredAt: TimeInterval?
+
+/// Timestamp when return-validation began (after quality recovers to .good).
+private var returnValidationStart: TimeInterval?
+
+/// Set to true when a long absence ends. Pipeline reads and clears via consumeRecalibrationPrompt().
+var pendingRecalibrationPrompt: Bool = false
 ```
 
 #### Rework of the guard block
 
-The current `guard trackingQuality.allowsPostureJudgement` block returns early and freezes silently. Replace it with explicit dispatch:
+Replace `guard trackingQuality.allowsPostureJudgement` with:
 
 ```swift
-// SAFETY GATE: Don't judge posture with unreliable data
-guard trackingQuality == .good else {
+guard trackingQuality.allowsPostureJudgement else {
     lastGoodUpdateTimestamp = nil
-    handleNonGoodQuality(trackingQuality, at: metrics.timestamp)
+    handleNonGoodQuality(quality: trackingQuality, at: metrics.timestamp)
     return currentState
 }
 
 // Quality is .good — reset lost-dwell tracker
 lostQualityStart = nil
 
-// Handle return from .absent or .degraded
-if currentState == .absent || currentState == .degraded {
-    restoreFromTrackingLoss(at: metrics.timestamp)
+// Return validation: require returnValidationWindow of good data
+// before committing to a state after a real (declared) absence.
+if currentState == .absent, let declaredAt = absenceDeclaredAt {
+    if returnValidationStart == nil {
+        returnValidationStart = metrics.timestamp
+    }
+    let validationElapsed = metrics.timestamp - returnValidationStart!
+    if validationElapsed < thresholds.returnValidationWindow {
+        return currentState  // Still validating — stay in .absent
+    }
+    returnValidationStart = nil
+    commitReturnFromAbsence(absenceDuration: metrics.timestamp - declaredAt)
 }
 ```
 
 #### `handleNonGoodQuality(_:at:)` (new private method)
 
 ```swift
-private func handleNonGoodQuality(_ quality: TrackingQuality, at timestamp: TimeInterval) {
+private func handleNonGoodQuality(quality: TrackingQuality, at timestamp: TimeInterval) {
     switch quality {
     case .degraded:
-        lostQualityStart = nil          // reset lost dwell
-        saveAndTransition(to: .degraded)
+        lostQualityStart = nil
+        returnValidationStart = nil
 
     case .lost:
+        returnValidationStart = nil
         let dwellStart = lostQualityStart ?? timestamp
         lostQualityStart = dwellStart
-
-        let dwell = timestamp - dwellStart
-        if dwell >= thresholds.absentThreshold {
-            // Sustained loss → declare absent
-            if currentState != .absent {
-                saveAndTransition(to: .absent)
-                absenceDeclaredAt = timestamp
-            }
-        } else {
-            // Still in dwell window → show degraded
-            saveAndTransition(to: .degraded)
+        if timestamp - dwellStart >= thresholds.absentThreshold, currentState != .absent {
+            saveAndDeclareAbsent(at: timestamp)
         }
 
     case .good:
-        break // unreachable; handled by guard above
+        break
     }
 }
 ```
 
-#### `saveAndTransition(to:)` (new private method)
+#### `saveAndDeclareAbsent(at:)` (new private method)
 
 ```swift
-private func saveAndTransition(to newState: PostureState) {
-    // Only save if we're leaving a "real" posture state
+private func saveAndDeclareAbsent(at timestamp: TimeInterval) {
     switch currentState {
     case .good, .drifting, .bad:
         savedPostureState = currentState
+        savedDriftTime = (currentState.isDrifting) ? accumulatedDriftTime : 0
     default:
-        break // already in .absent/.degraded/.calibrating — don't overwrite saved state
+        break
     }
-    currentState = newState
+    currentState = .absent
+    absenceDeclaredAt = timestamp
 }
 ```
 
-#### `restoreFromTrackingLoss(at:)` (new private method)
+#### `commitReturnFromAbsence(absenceDuration:)` (new private method)
 
 ```swift
-private func restoreFromTrackingLoss(at timestamp: TimeInterval) {
+private func commitReturnFromAbsence(absenceDuration: TimeInterval) {
     defer {
         savedPostureState = nil
+        savedDriftTime = 0
         absenceDeclaredAt = nil
-        lostQualityStart = nil
     }
-
-    // For .degraded: always restore (no duration rule — user was present the whole time)
-    guard currentState == .absent else {
-        currentState = savedPostureState ?? .good
-        return
-    }
-
-    // For .absent: duration determines whether to restore or reset
-    let absenceDuration = absenceDeclaredAt.map { timestamp - $0 } ?? .infinity
     if absenceDuration < thresholds.absentResumeThreshold, let saved = savedPostureState {
         currentState = saved
+        accumulatedDriftTime = savedDriftTime
     } else {
-        currentState = .good
+        currentState = .absent  // state machine's .absent/.calibrating arm handles → .good
         accumulatedDriftTime = 0
         recoveryStartTime = nil
+        if absenceDuration >= thresholds.absentResumeThreshold {
+            pendingRecalibrationPrompt = true
+        }
     }
+}
+```
+
+#### `consumeRecalibrationPrompt()` (new internal method)
+
+```swift
+func consumeRecalibrationPrompt() -> Bool {
+    guard pendingRecalibrationPrompt else { return false }
+    pendingRecalibrationPrompt = false
+    return true
 }
 ```
 
 ---
 
-### Step 4 — `Pipeline`: track absence segments
+### Step 3 — `Pipeline`: absence segments + recalibration prompt
 
 **File:** `PostureLogic/Sources/PostureLogic/Pipeline.swift`
 
-Add an `absenceSegments` log published alongside posture state. Each segment is open (nil end) until absence resolves.
-
 ```swift
-// New published property on Pipeline
+// New published properties
 @Published public private(set) var absenceSegments: [(start: TimeInterval, end: TimeInterval?)] = []
-```
+@Published public private(set) var showRecalibrationPrompt: Bool = false
 
-In the section that calls `postureEngine.update(...)`, detect `.absent` entry/exit and append/close segments:
+// After postureEngine.update(...):
+let wasAbsent = self.postureState == .absent
+let newPostureState = self.postureEngine.update(...)
+self.postureState = newPostureState
+let isAbsent = newPostureState == .absent
 
-```swift
-let previousState = currentPostureState
-let newState = postureEngine.update(metrics: smoothedMetrics, taskMode: inferredTaskMode, trackingQuality: finalQuality)
-
-// Track absence segments
-if case .absent = newState, !(previousState == .absent) {
-    absenceSegments.append((start: smoothedMetrics.timestamp, end: nil))
-} else if case .absent = previousState, !(newState == .absent) {
-    if let last = absenceSegments.indices.last, absenceSegments[last].end == nil {
-        absenceSegments[absenceSegments.indices.last!].end = smoothedMetrics.timestamp
+if isAbsent && !wasAbsent {
+    self.absenceSegments.append((start: smoothedMetrics.timestamp, end: nil))
+} else if wasAbsent && !isAbsent {
+    if let idx = self.absenceSegments.indices.last, self.absenceSegments[idx].end == nil {
+        self.absenceSegments[idx].end = smoothedMetrics.timestamp
     }
 }
-```
 
-> **Note:** Absence segments are currently in-memory only. Persistence to session storage is out of scope for this feature.
+if self.postureEngine.consumeRecalibrationPrompt() {
+    self.showRecalibrationPrompt = true
+}
 
----
-
-### Step 5 — New `DegradedTrackingOverlay.swift`
-
-**File:** `Quant/Views/Showcase/DegradedTrackingOverlay.swift`
-
-Mirror of `AbsenceOverlay` with distinct messaging. Uses a different icon (camera/eye symbol rather than person) and different text:
-
-```swift
-struct DegradedTrackingOverlay<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-    // Pulsing indicator + "Tracking struggling..." text
-    // Same reduce-motion and accessibility treatment as AbsenceOverlay
+// New public method for dismissal:
+public func dismissRecalibrationPrompt() {
+    showRecalibrationPrompt = false
 }
 ```
 
----
-
-### Step 6 — `VariantShowcaseView`: wire up new overlay
-
-**File:** `Quant/Views/Showcase/VariantShowcaseView.swift`
-
-The showcase view wraps each variant with overlays based on `postureState`. Add the `.degraded` branch:
-
-```swift
-switch postureState {
-case .absent:
-    AbsenceOverlay { variantView }
-case .degraded:
-    DegradedTrackingOverlay { variantView }  // NEW
-default:
-    variantView
-}
-```
+> **Note:** `showRecalibrationPrompt` is set by the engine on long-absence return. The UI observes it and shows a dismissible sheet/banner. Dismissal calls `pipeline.dismissRecalibrationPrompt()`.
 
 ---
 
-### Step 7 — Update exhaustive switches in variant views
-
-The 60 variant views contain `switch`es on `PostureState` (mostly for alert/overlay colouring). Most already handle `.absent` by dimming or showing an overlay. `.degraded` should receive the same treatment as `.absent` in these views — the overlay layer in `VariantShowcaseView` is the source of truth for the distinct UI.
-
-Pattern to apply across all affected variants:
-
-```swift
-// Before
-case .absent:
-    // dim / freeze
-
-// After
-case .absent, .degraded:
-    // dim / freeze
-```
-
-This is a mechanical compiler-guided sweep, not a design decision per-variant.
-
----
-
-### Step 8 — Tests
+### Step 4 — Tests
 
 **New file:** `PostureLogic/Tests/PostureLogicTests/PostureEngineAbsenceTests.swift`
 
 Test cases:
-1. `.degraded` quality → `PostureState.degraded` immediately
-2. `.lost` quality, dwell < `absentThreshold` → `PostureState.degraded`
-3. `.lost` quality, dwell ≥ `absentThreshold` → `PostureState.absent`
-4. Return from `.absent` (duration < 30s) → resumes saved `.drifting` state
-5. Return from `.absent` (duration ≥ 30s) → resets to `.good`, clears `accumulatedDriftTime`
-6. Return from `.degraded` → always resumes saved state regardless of duration
-7. `.lost` → `.absent` → `.lost` again (re-entry): absence timer continues from original `absenceDeclaredAt`
+1. `.lost` quality, dwell < `absentThreshold` → state does NOT change to `.absent`
+2. `.lost` quality, dwell ≥ `absentThreshold` → `PostureState.absent`
+3. `.degraded` quality → engine freezes (no state change), no absence declared
+4. Return from `.absent` (duration < 30s) with 2s validation → resumes saved state + drift time
+5. Return from `.absent` (duration ≥ 30s) → goes to `.good`, `consumeRecalibrationPrompt()` returns true
+6. Return validation window: quality returns, then drops again before 2s → stays in `.absent`
+7. Initial startup (no `absenceDeclaredAt`): first `.good` frame from `.absent` → `.good` immediately (no 2s delay)
 8. Pipeline: absence segment opened on `.absent` entry, closed on `.absent` exit
+9. `reset()` clears all new state (lostQualityStart, savedPostureState, absenceDeclaredAt, etc.)
 
-**Regression guard:** All 297 existing `PostureLogicTests` must continue to pass.
+**Regression guard:** All existing `PostureLogicTests` must continue to pass.
 
 ---
 
@@ -323,14 +282,11 @@ Test cases:
 ## Implementation Order
 
 ```
-Step 1  PostureState + .degraded case     ← compiler flags all sites
-Step 2  PostureThresholds + absentResumeThreshold
-Step 3  PostureEngine rework              ← core logic
-Step 4  Pipeline absence segments
-Step 5  DegradedTrackingOverlay (new file)
-Step 6  VariantShowcaseView wiring
-Step 7  Variant views (.absent, .degraded arm sweep)
-Step 8  Tests
+Step 0  plan.md updated                       ← this document
+Step 1  PostureThresholds                     ← absentThreshold=1.0, new thresholds
+Step 2  PostureEngine rework                  ← core logic + recalibration prompt
+Step 3  Pipeline absence segments + prompt    ← telemetry + UI signal
+Step 4  Tests (PostureEngineAbsenceTests)     ← verify all cases
 ```
 
-Each step should build clean and pass all tests before proceeding to the next.
+Each step builds clean and passes all tests before proceeding to the next.
