@@ -39,6 +39,16 @@ public class Pipeline {
     /// Current device thermal level. Updated by ThermalMonitor when provided.
     @Published public var thermalLevel: ThermalLevel = .nominal
 
+    /// In-memory log of absence intervals for this session.
+    /// Each entry is opened when `.absent` is entered and closed when it exits.
+    /// Internal telemetry only — not surfaced in posture score or analytics.
+    @Published public private(set) var absenceSegments: [(start: TimeInterval, end: TimeInterval?)] = []
+
+    /// Set to true when the user returns from a long absence (≥ absentResumeThreshold).
+    /// The UI should show a dismissible recalibration prompt when this is true.
+    /// Clear it by calling dismissRecalibrationPrompt().
+    @Published public private(set) var showRecalibrationPrompt: Bool = false
+
     /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
     public var baseline: Baseline?
 
@@ -286,12 +296,30 @@ public class Pipeline {
                         // Update the posture state machine with the latest metrics.
                         // The engine decides good/drifting/bad based on thresholds
                         // and pauses its timers when tracking quality is low.
+                        let previousPostureState = self.postureState
                         let newPostureState = self.postureEngine.update(
                             metrics: smoothedMetrics,
                             taskMode: inferredTaskMode,
                             trackingQuality: finalQuality
                         )
                         self.postureState = newPostureState
+
+                        // Track absence segments (internal telemetry).
+                        let wasAbsent = previousPostureState == .absent
+                        let isAbsent = newPostureState == .absent
+                        if isAbsent && !wasAbsent {
+                            self.absenceSegments.append((start: smoothedMetrics.timestamp, end: nil))
+                        } else if wasAbsent && !isAbsent {
+                            if let idx = self.absenceSegments.indices.last,
+                               self.absenceSegments[idx].end == nil {
+                                self.absenceSegments[idx].end = smoothedMetrics.timestamp
+                            }
+                        }
+
+                        // Forward recalibration prompt from engine to UI.
+                        if self.postureEngine.consumeRecalibrationPrompt() {
+                            self.showRecalibrationPrompt = true
+                        }
 
                         // Evaluate nudge decision based on the updated posture state.
                         // The NudgeEngine checks: Is posture bad long enough?
@@ -355,12 +383,30 @@ public class Pipeline {
             let inferredTaskMode = self.taskModeEngine.infer(from: self.recentMetricsBuffer)
             self.taskMode = inferredTaskMode
 
+            let previousPostureState = self.postureState
             let newPostureState = self.postureEngine.update(
                 metrics: smoothedMetrics,
                 taskMode: inferredTaskMode,
                 trackingQuality: sample.trackingQuality
             )
             self.postureState = newPostureState
+
+            // Track absence segments (internal telemetry).
+            let wasAbsent = previousPostureState == .absent
+            let isAbsent = newPostureState == .absent
+            if isAbsent && !wasAbsent {
+                self.absenceSegments.append((start: smoothedMetrics.timestamp, end: nil))
+            } else if wasAbsent && !isAbsent {
+                if let idx = self.absenceSegments.indices.last,
+                   self.absenceSegments[idx].end == nil {
+                    self.absenceSegments[idx].end = smoothedMetrics.timestamp
+                }
+            }
+
+            // Forward recalibration prompt from engine to UI.
+            if self.postureEngine.consumeRecalibrationPrompt() {
+                self.showRecalibrationPrompt = true
+            }
 
             self.nudgeDecision = self.nudgeEngine.evaluate(
                 state: newPostureState,
@@ -452,6 +498,17 @@ public class Pipeline {
 
         let quality: TrackingQuality = keypointCount >= keypointThreshold ? .degraded : .lost
         return TrackingQualityResult(quality: quality, missingJoints: missingStr)
+    }
+
+    // MARK: - Recalibration Prompt Control
+
+    /// Dismisses the recalibration prompt shown after a long absence.
+    ///
+    /// Call this when the user taps "Dismiss" or "Not now" on the prompt.
+    /// The old baseline stays in effect; StaleBaselineDetector will catch
+    /// any drift that accumulated during the absence.
+    public func dismissRecalibrationPrompt() {
+        showRecalibrationPrompt = false
     }
 
     // MARK: - Nudge Control Methods
