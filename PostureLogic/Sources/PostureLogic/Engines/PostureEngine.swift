@@ -47,6 +47,9 @@ public final class PostureEngine: PostureEngineProtocol {
             "state": stateDescription(currentState),
             "accumulatedDriftTime": accumulatedDriftTime,
             "recoveryStartTime": recoveryStartTime as Any,
+            "lostQualityStart": lostQualityStart as Any,
+            "absenceDeclaredAt": absenceDeclaredAt as Any,
+            "returnValidationStart": returnValidationStart as Any,
         ]
     }
 
@@ -82,6 +85,32 @@ public final class PostureEngine: PostureEngineProtocol {
     /// to `.good`. This prevents flickering between states if the user
     /// briefly straightens up then slumps again.
     private var recoveryStartTime: TimeInterval?
+
+    // MARK: - Absence Tracking (internal)
+
+    /// Timestamp when `.lost` quality was first observed in the current run.
+    /// Nil when quality is not `.lost`. Used to enforce the absentThreshold dwell.
+    private var lostQualityStart: TimeInterval?
+
+    /// The posture state saved immediately before entering `.absent`.
+    /// Restored when the user returns after a short absence.
+    private var savedPostureState: PostureState?
+
+    /// Accumulated drift time saved alongside savedPostureState.
+    /// Restored so the drifting-to-bad timer picks up where it left off.
+    private var savedDriftTime: TimeInterval = 0
+
+    /// Timestamp when `.absent` was declared via saveAndDeclareAbsent.
+    /// Nil during cold-start `.absent` (no real absence has been detected yet).
+    private var absenceDeclaredAt: TimeInterval?
+
+    /// Timestamp when return-validation started (quality first recovered to .good
+    /// after a real absence). Nil when not in a validation window.
+    private var returnValidationStart: TimeInterval?
+
+    /// Set to true when a long-absence return commits. Pipeline reads and clears
+    /// this via consumeRecalibrationPrompt() to show a dismissible prompt.
+    var pendingRecalibrationPrompt: Bool = false
 
     // MARK: - Initialization
 
@@ -128,9 +157,36 @@ public final class PostureEngine: PostureEngineProtocol {
         // When tracking quality is not good enough, we freeze the state
         // machine. We clear the last-good timestamp so that when quality
         // recovers, we don't count the gap as drift time.
+        // handleNonGoodQuality also manages the lost-dwell timer for
+        // absent detection and resets the return-validation window.
         guard trackingQuality.allowsPostureJudgement else {
             lastGoodUpdateTimestamp = nil
+            handleNonGoodQuality(quality: trackingQuality, at: metrics.timestamp)
             return currentState
+        }
+
+        // Quality is .good — reset the lost-dwell tracker.
+        lostQualityStart = nil
+
+        // ──────────────────────────────────────────────
+        // RETURN VALIDATION after a real absence
+        // ──────────────────────────────────────────────
+        //
+        // After a tracked absence (absenceDeclaredAt != nil), require
+        // returnValidationWindow seconds of continuous good-quality data
+        // before committing to the restored state. This avoids a flicker
+        // where one good frame immediately ends a long absence.
+        if currentState == .absent, let declaredAt = absenceDeclaredAt {
+            if returnValidationStart == nil {
+                returnValidationStart = metrics.timestamp
+            }
+            let validationElapsed = metrics.timestamp - returnValidationStart!
+            if validationElapsed < thresholds.returnValidationWindow {
+                return currentState  // Still collecting validation data — stay absent
+            }
+            // Validation complete — commit the return from absence.
+            returnValidationStart = nil
+            commitReturnFromAbsence(absenceDuration: metrics.timestamp - declaredAt)
         }
 
         // Calculate elapsed time since the last reliable update.
@@ -247,6 +303,12 @@ public final class PostureEngine: PostureEngineProtocol {
         accumulatedDriftTime = 0
         lastGoodUpdateTimestamp = nil
         recoveryStartTime = nil
+        lostQualityStart = nil
+        savedPostureState = nil
+        savedDriftTime = 0
+        absenceDeclaredAt = nil
+        returnValidationStart = nil
+        pendingRecalibrationPrompt = false
     }
 
     // MARK: - Threshold Checking
@@ -328,6 +390,92 @@ public final class PostureEngine: PostureEngineProtocol {
             || metrics.lateralLean > sideLeanThreshold
             || metrics.headDrop > headDropThreshold
             || metrics.shoulderRounding > shoulderRoundingThreshold
+    }
+
+    // MARK: - Absence Handling
+
+    /// Freezes based on non-good quality, managing the lost-dwell timer.
+    ///
+    /// - `.degraded`: user is present but tracking is struggling. We freeze the
+    ///   engine silently (no PostureState change) and reset the lost-dwell timer,
+    ///   since the user hasn't actually gone away.
+    /// - `.lost`: user may have left. We accumulate dwell time. Once the dwell
+    ///   exceeds `absentThreshold`, we save the current state and declare `.absent`.
+    private func handleNonGoodQuality(quality: TrackingQuality, at timestamp: TimeInterval) {
+        switch quality {
+        case .degraded:
+            // User present, tracking struggling — freeze silently.
+            // Reset lost-dwell (degraded ≠ lost) and any in-progress return validation.
+            lostQualityStart = nil
+            returnValidationStart = nil
+
+        case .lost:
+            // Reset return validation — we're moving away from a good signal.
+            returnValidationStart = nil
+            let dwellStart = lostQualityStart ?? timestamp
+            lostQualityStart = dwellStart
+            if timestamp - dwellStart >= thresholds.absentThreshold, currentState != .absent {
+                saveAndDeclareAbsent(at: timestamp)
+            }
+
+        case .good:
+            break  // unreachable: handled by guard above
+        }
+    }
+
+    /// Saves the current real posture state and transitions to `.absent`.
+    private func saveAndDeclareAbsent(at timestamp: TimeInterval) {
+        switch currentState {
+        case .good, .drifting, .bad:
+            savedPostureState = currentState
+            if case .drifting = currentState {
+                savedDriftTime = accumulatedDriftTime
+            } else {
+                savedDriftTime = 0  // only .drifting carries a meaningful drift timer
+            }
+        default:
+            break  // already in .absent/.calibrating — don't overwrite saved state
+        }
+        currentState = .absent
+        absenceDeclaredAt = timestamp
+    }
+
+    /// Commits the return from a real absence after the validation window passes.
+    ///
+    /// Short absence (< absentResumeThreshold): restores the saved state.
+    /// Long absence (≥ absentResumeThreshold): resets to `.good` and sets
+    /// `pendingRecalibrationPrompt` so Pipeline can show the dismissible prompt.
+    private func commitReturnFromAbsence(absenceDuration: TimeInterval) {
+        defer {
+            savedPostureState = nil
+            savedDriftTime = 0
+            absenceDeclaredAt = nil
+        }
+        if absenceDuration < thresholds.absentResumeThreshold, let saved = savedPostureState {
+            // Short absence — resume where we left off.
+            currentState = saved
+            accumulatedDriftTime = savedDriftTime
+        } else {
+            // Long absence — fall through to .absent → .good via state machine.
+            // Leave currentState as .absent (absenceDeclaredAt is cleared by defer,
+            // so the guard in update() won't re-enter the validation path).
+            currentState = .absent
+            accumulatedDriftTime = 0
+            recoveryStartTime = nil
+            if absenceDuration >= thresholds.absentResumeThreshold {
+                pendingRecalibrationPrompt = true
+            }
+        }
+    }
+
+    /// Returns true and clears the flag if a recalibration prompt is pending.
+    ///
+    /// Called by Pipeline after each `update` to check whether to show the
+    /// "Welcome back — tap to recalibrate" dismissible prompt.
+    func consumeRecalibrationPrompt() -> Bool {
+        guard pendingRecalibrationPrompt else { return false }
+        pendingRecalibrationPrompt = false
+        return true
     }
 
     // MARK: - Helpers

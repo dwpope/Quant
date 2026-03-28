@@ -25,7 +25,9 @@ public struct PostureThresholds: Codable {
     
     // MARK: - Mode Switching
     public var depthRecoveryDelay: TimeInterval = 2.0
-    public var absentThreshold: TimeInterval = 3.0
+    public var absentThreshold: TimeInterval = 1.0
+    public var absentResumeThreshold: TimeInterval = 30.0
+    public var returnValidationWindow: TimeInterval = 2.0
     
     public init() {}
 }
