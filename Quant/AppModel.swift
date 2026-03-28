@@ -413,6 +413,7 @@ class AppModel: ObservableObject {
     // MARK: - Public Methods
 
     func startMonitoring() async {
+        UIApplication.shared.isIdleTimerDisabled = true
         do {
             try await activeService.start()
             print("\(cameraMode) session started successfully")
@@ -423,6 +424,7 @@ class AppModel: ObservableObject {
 
     func stopMonitoring() {
         activeService.stop()
+        UIApplication.shared.isIdleTimerDisabled = false
         print("\(cameraMode) session stopped")
     }
 
