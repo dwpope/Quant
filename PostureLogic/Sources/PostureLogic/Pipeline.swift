@@ -4,6 +4,17 @@ import Foundation
 public class Pipeline {
     // MARK: - Published Properties
 
+    /// Emits every raw `PoseObservation` produced by the Vision pipeline.
+    ///
+    /// Subscribers (e.g., `SipDetector`) can consume observations independently
+    /// without Pipeline knowing they exist. This mirrors the fan-out pattern used
+    /// throughout the posture system.
+    ///
+    /// Emitted from the same `@MainActor` task that updates all other published
+    /// properties, so subscribers receive observations in the same order as
+    /// `latestSample`, `trackingQuality`, etc.
+    public let poseObservationPublisher = PassthroughSubject<PoseObservation, Never>()
+
     @Published public var latestSample: PoseSample?
     @Published public var latestMetrics: RawMetrics?
     @Published public var currentMode: DepthMode = .twoDOnly
@@ -255,6 +266,9 @@ public class Pipeline {
 
                 // Update published properties
                 self.latestPoseObservation = poseObservation
+                if let observation = poseObservation {
+                    self.poseObservationPublisher.send(observation)
+                }
                 self.poseConfidence = poseObservation?.confidence ?? 0.0
                 self.poseKeypointCount = poseObservation?.keypoints.count ?? 0
                 self.missingCriticalJoints = missingJoints
