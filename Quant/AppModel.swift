@@ -150,6 +150,15 @@ class AppModel: ObservableObject {
     /// AppModel can trigger playback.
     private(set) var audioService = AudioFeedbackService()
 
+    // MARK: - Hydration
+
+    /// The sip detection engine. Subscribes to `poseObservationPublisher`
+    /// independently — Pipeline does not know it exists.
+    let sipDetector = SipDetector()
+
+    /// Persists and exposes today's confirmed sip events.
+    let sipStore = SipStore()
+
     // MARK: - Watch Connectivity
 
     /// The Watch connectivity service that sends nudge events to the Apple Watch.
@@ -392,6 +401,22 @@ class AppModel: ObservableObject {
                 self?.feedCalibration(sample)
             }
             .store(in: &cancellables)
+
+        // Feed pose observations into SipDetector independently.
+        // Pipeline doesn't know SipDetector exists — it just emits observations
+        // and SipDetector subscribes like any other consumer.
+        pipeline.poseObservationPublisher
+            .sink { [weak self] observation in
+                self?.sipDetector.process(observation)
+            }
+            .store(in: &cancellables)
+
+        // When a sip is confirmed, save it to SipStore.
+        sipDetector.onSipConfirmed = { [weak self] event in
+            Task { @MainActor [weak self] in
+                self?.sipStore.add(event)
+            }
+        }
     }
 
     // MARK: - Watch Subscriptions
