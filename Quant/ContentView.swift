@@ -12,6 +12,7 @@ struct ContentView: View {
     @EnvironmentObject var appModel: AppModel
     @State private var showSettings = false
     @State private var showShowcase = false
+    @State private var showSipTimeline = false
 
     var body: some View {
         ZStack {
@@ -127,18 +128,24 @@ struct ContentView: View {
     }
 
     private var monitoringView: some View {
-        VStack {
-            Image(systemName: "person.fill.viewfinder")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Quant: Posture Detection")
-                .font(.title2)
-                .padding(.top, 8)
+        ScrollView {
+            VStack(spacing: 12) {
+                PostureCard(
+                    postureState: appModel.postureState,
+                    trackingQuality: appModel.trackingQuality
+                )
 
-            Text("Monitoring Active")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
+                HydrationCard(
+                    sipCount: appModel.sipStore.sipCount,
+                    lastSipTimestamp: appModel.sipStore.lastSipTimestamp,
+                    onTap: { showSipTimeline = true }
+                )
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 24)
+        }
+        .sheet(isPresented: $showSipTimeline) {
+            SipTimelineView(sipStore: appModel.sipStore)
         }
     }
 

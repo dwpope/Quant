@@ -159,6 +159,18 @@ class AppModel: ObservableObject {
     /// Persists and exposes today's confirmed sip events.
     let sipStore = SipStore()
 
+    /// Records raw sip data for personalised threshold calibration.
+    let sipCalibrationCapture = SipCalibrationCapture()
+
+    /// True while a 10-second sip capture window is active.
+    @Published var sipCalibrationActive = false
+
+    /// Progress (0–1) through the current 10-second capture window.
+    @Published var sipCalibrationProgress: Double = 0
+
+    private var sipCalibrationTimer: Timer?
+    private var sipCalibrationStartTime: Date?
+
     // MARK: - Watch Connectivity
 
     /// The Watch connectivity service that sends nudge events to the Apple Watch.
@@ -402,6 +414,14 @@ class AppModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Feed pose observations into SipCalibrationCapture when active.
+        pipeline.poseObservationPublisher
+            .sink { [weak self] observation in
+                guard let self = self, self.sipCalibrationActive else { return }
+                self.sipCalibrationCapture.process(observation)
+            }
+            .store(in: &cancellables)
+
         // Feed pose observations into SipDetector independently.
         // Pipeline doesn't know SipDetector exists — it just emits observations
         // and SipDetector subscribes like any other consumer.
@@ -569,6 +589,42 @@ class AppModel: ObservableObject {
         switchableProvider.detach()
         switchableProvider.attach(source: providerForMode(cameraMode))
         isReplaying = false
+    }
+
+    // MARK: - Sip Calibration
+
+    /// Starts a 10-second sip capture window.
+    func beginSipCalibrationCapture() {
+        let now = Date()
+        sipCalibrationCapture.beginCapture(at: now.timeIntervalSince1970)
+        sipCalibrationActive = true
+        sipCalibrationProgress = 0
+        sipCalibrationStartTime = now
+
+        sipCalibrationTimer?.invalidate()
+        sipCalibrationTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
+            Task { @MainActor [weak self] in
+                guard let self = self, let start = self.sipCalibrationStartTime else {
+                    timer.invalidate()
+                    return
+                }
+                let elapsed = Date().timeIntervalSince(start)
+                self.sipCalibrationProgress = min(elapsed / 10.0, 1.0)
+                if elapsed >= 10.0 {
+                    timer.invalidate()
+                    self.sipCalibrationTimer = nil
+                    self.sipCalibrationCapture.endCapture(at: Date().timeIntervalSince1970)
+                    self.sipCalibrationActive = false
+                    self.sipCalibrationProgress = 1.0
+                }
+            }
+        }
+    }
+
+    /// Applies derived thresholds from completed calibration to the SipDetector.
+    func applySipCalibration() {
+        guard let thresholds = sipCalibrationCapture.derivedThresholds else { return }
+        sipDetector.thresholds = thresholds
     }
 
     func resetCalibrationSettings() {

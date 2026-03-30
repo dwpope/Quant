@@ -100,6 +100,19 @@ struct DebugOverlayView: View {
 
             Divider()
 
+            // Sip detector state
+            let sipDebug = appModel.sipDetector.debugState
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(sipStateColor(sipDebug["state"] as? String))
+                    .frame(width: 6, height: 6)
+                Text("Sip: \(sipDebug["state"] as? String ?? "?")")
+            }
+            Text("Prox: \(sipDebug["proximityScore"] as? String ?? "?")  Vel: \(sipDebug["velocityScore"] as? String ?? "?")")
+            Text("Sips today: \(appModel.sipStore.sipCount)")
+
+            Divider()
+
             // Column headers
             HStack(spacing: 0) {
                 Text("Metric")
@@ -367,6 +380,16 @@ struct DebugOverlayView: View {
             }
         }
         .font(.system(size: 10))
+    }
+
+    private func sipStateColor(_ state: String?) -> Color {
+        switch state {
+        case "idle":      return .secondary
+        case "candidate": return .yellow
+        default:
+            if let s = state, s.hasPrefix("cooldown") { return .blue }
+            return .secondary
+        }
     }
 }
 
