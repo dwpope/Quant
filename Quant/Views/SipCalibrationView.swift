@@ -34,6 +34,16 @@ struct SipCalibrationView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+                if capture.isReady {
+                    ToolbarItem(placement: .primaryAction) {
+                        ShareLink(
+                            item: thresholdsJSON,
+                            preview: SharePreview("Sip Thresholds")
+                        ) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                    }
+                }
             }
         }
     }
@@ -42,23 +52,19 @@ struct SipCalibrationView: View {
 
     private var progressSection: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 6) {
-                ForEach(0..<max(capture.recordedSipCount, 5), id: \.self) { i in
-                    Circle()
-                        .fill(i < capture.recordedSipCount ? Color.blue : Color.secondary.opacity(0.3))
-                        .frame(width: 12, height: 12)
+            if capture.recordedSipCount > 0 {
+                HStack(spacing: 6) {
+                    ForEach(0..<capture.recordedSipCount, id: \.self) { _ in
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 12, height: 12)
+                    }
                 }
             }
 
-            if capture.isReady {
-                Text("\(capture.recordedSipCount) sips recorded")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("\(capture.recordedSipCount) of 5 sips recorded")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+            Text("\(capture.recordedSipCount) sip\(capture.recordedSipCount == 1 ? "" : "s") recorded")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -103,6 +109,18 @@ struct SipCalibrationView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14))
             }
         }
+    }
+
+    // MARK: - Share
+
+    private var thresholdsJSON: String {
+        guard let thresholds = capture.derivedThresholds else { return "{}" }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(thresholds),
+              let json = String(data: data, encoding: .utf8)
+        else { return "{}" }
+        return json
     }
 
     // MARK: - Apply Button

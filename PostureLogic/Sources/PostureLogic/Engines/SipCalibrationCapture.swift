@@ -34,7 +34,7 @@ public final class SipCalibrationCapture {
 
     // MARK: - Configuration
 
-    private let requiredSipCount = 5
+    private let requiredSipCount = 1
     private let captureDuration: TimeInterval = 10.0
 
     // MARK: - Capture State

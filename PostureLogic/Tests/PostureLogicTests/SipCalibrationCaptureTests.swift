@@ -40,32 +40,26 @@ final class SipCalibrationCaptureTests: XCTestCase {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - 1: Fewer than 5 sips → not ready
+    // MARK: - 1: Zero sips → not ready
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    func test_fewerThan5Sips_notReady() {
+    func test_zeroSips_notReady() {
         let capture = SipCalibrationCapture()
 
-        for i in 0..<4 {
-            recordOneSip(into: capture, startTime: Double(i) * 15)
-        }
-
-        XCTAssertFalse(capture.isReady, "Capture should not be ready with fewer than 5 sips")
+        XCTAssertFalse(capture.isReady, "Capture should not be ready with zero sips")
         XCTAssertNil(capture.derivedThresholds, "Derived thresholds should be nil when not ready")
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - 2: Exactly 5 sips → ready
+    // MARK: - 2: One sip → ready
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    func test_exactly5Sips_isReady() {
+    func test_oneSip_isReady() {
         let capture = SipCalibrationCapture()
 
-        for i in 0..<5 {
-            recordOneSip(into: capture, startTime: Double(i) * 15)
-        }
+        recordOneSip(into: capture, startTime: 0)
 
-        XCTAssertTrue(capture.isReady, "Capture should be ready after 5 sips")
+        XCTAssertTrue(capture.isReady, "Capture should be ready after 1 sip")
         XCTAssertNotNil(capture.derivedThresholds, "Derived thresholds should be non-nil when ready")
     }
 

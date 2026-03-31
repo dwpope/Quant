@@ -111,6 +111,11 @@ struct DebugOverlayView: View {
             Text("Prox: \(sipDebug["proximityScore"] as? String ?? "?")  Vel: \(sipDebug["velocityScore"] as? String ?? "?")")
             Text("Sips today: \(appModel.sipStore.sipCount)")
 
+            // Sip thresholds (current, may be calibrated or default)
+            let st = appModel.sipDetector.thresholds
+            Text("Thr prox: \(st.proximityThreshold, specifier: "%.3f")  vel: \(st.velocityThreshold, specifier: "%.4f")")
+            Text("Thr dur: \(st.minDuration, specifier: "%.1f")–\(st.maxDuration, specifier: "%.1f")s  cd: \(st.cooldownDuration, specifier: "%.0f")s")
+
             Divider()
 
             // Column headers
