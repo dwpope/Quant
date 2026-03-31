@@ -86,8 +86,18 @@ struct SipCalibrationView: View {
 
     @ViewBuilder
     private var actionButton: some View {
-        if appModel.sipCalibrationActive {
-            // Capture in progress — show countdown
+        if appModel.sipCalibrationCountingDown {
+            VStack(spacing: 12) {
+                Text("\(appModel.sipCalibrationCountdown)")
+                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                    .contentTransition(.numericText())
+                    .animation(.default, value: appModel.sipCalibrationCountdown)
+
+                Text("Get ready…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        } else if appModel.sipCalibrationActive {
             VStack(spacing: 8) {
                 ProgressView(value: appModel.sipCalibrationProgress)
                     .tint(.blue)

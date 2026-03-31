@@ -162,6 +162,12 @@ class AppModel: ObservableObject {
     /// Records raw sip data for personalised threshold calibration.
     let sipCalibrationCapture = SipCalibrationCapture()
 
+    /// True during the 5-second countdown before capture begins.
+    @Published var sipCalibrationCountingDown = false
+
+    /// Seconds remaining in the countdown (5…1).
+    @Published var sipCalibrationCountdown: Int = 0
+
     /// True while a 10-second sip capture window is active.
     @Published var sipCalibrationActive = false
 
@@ -594,8 +600,33 @@ class AppModel: ObservableObject {
 
     // MARK: - Sip Calibration
 
-    /// Starts a 10-second sip capture window.
+    /// Starts a 5-second countdown, then a 10-second sip capture window.
     func beginSipCalibrationCapture() {
+        sipCalibrationCountingDown = true
+        sipCalibrationCountdown = 5
+
+        sipCalibrationTimer?.invalidate()
+        let countdownStart = Date()
+        sipCalibrationTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
+            Task { @MainActor [weak self] in
+                guard let self = self else { timer.invalidate(); return }
+                let elapsed = Date().timeIntervalSince(countdownStart)
+                let remaining = 5.0 - elapsed
+                if remaining > 0 {
+                    self.sipCalibrationCountdown = Int(ceil(remaining))
+                } else {
+                    // Countdown finished — start actual capture
+                    timer.invalidate()
+                    self.sipCalibrationCountingDown = false
+                    self.sipCalibrationCountdown = 0
+                    self.startSipCapture()
+                }
+            }
+        }
+    }
+
+    /// Begins the 10-second recording phase after the countdown completes.
+    private func startSipCapture() {
         let now = Date()
         sipCalibrationCapture.beginCapture(at: now.timeIntervalSince1970)
         sipCalibrationActive = true
