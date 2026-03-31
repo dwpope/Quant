@@ -184,6 +184,15 @@ public final class SipCalibrationCapture {
         captureStartTime = nil
     }
 
+    /// Remove the most recently recorded sip. Returns `true` if a sip was removed.
+    @discardableResult
+    public func removeLastSip() -> Bool {
+        guard !recordedSamples.isEmpty else { return false }
+        recordedSamples.removeLast()
+        recordedSipCount = recordedSamples.count
+        return true
+    }
+
     /// Reset all recorded data. Used if the user wants to redo calibration.
     public func reset() {
         recordedSipCount = 0

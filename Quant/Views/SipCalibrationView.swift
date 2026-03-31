@@ -23,6 +23,10 @@ struct SipCalibrationView: View {
 
                 actionButton
 
+                if capture.recordedSipCount > 0 && !appModel.sipCalibrationActive && !appModel.sipCalibrationCountingDown {
+                    undoButton
+                }
+
                 if capture.isReady {
                     applyButton
                 }
@@ -119,6 +123,18 @@ struct SipCalibrationView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14))
             }
         }
+    }
+
+    // MARK: - Undo Button
+
+    private var undoButton: some View {
+        Button {
+            capture.removeLastSip()
+        } label: {
+            Label("Undo Last Sip", systemImage: "arrow.uturn.backward")
+                .font(.subheadline)
+        }
+        .tint(.red)
     }
 
     // MARK: - Share

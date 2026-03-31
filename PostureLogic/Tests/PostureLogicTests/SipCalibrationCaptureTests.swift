@@ -122,7 +122,44 @@ final class SipCalibrationCaptureTests: XCTestCase {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - 6: Velocity threshold is positive
+    // MARK: - 6: removeLastSip removes the most recent sip
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    func test_removeLastSip_decrementsCount() {
+        let capture = SipCalibrationCapture()
+        recordOneSip(into: capture, startTime: 0)
+        recordOneSip(into: capture, startTime: 15)
+        XCTAssertEqual(capture.recordedSipCount, 2)
+
+        let removed = capture.removeLastSip()
+
+        XCTAssertTrue(removed)
+        XCTAssertEqual(capture.recordedSipCount, 1)
+        XCTAssertTrue(capture.isReady, "Should still be ready with 1 sip remaining")
+    }
+
+    func test_removeLastSip_onEmpty_returnsFalse() {
+        let capture = SipCalibrationCapture()
+
+        let removed = capture.removeLastSip()
+
+        XCTAssertFalse(removed)
+        XCTAssertEqual(capture.recordedSipCount, 0)
+    }
+
+    func test_removeLastSip_removingAll_makesNotReady() {
+        let capture = SipCalibrationCapture()
+        recordOneSip(into: capture, startTime: 0)
+        XCTAssertTrue(capture.isReady)
+
+        capture.removeLastSip()
+
+        XCTAssertFalse(capture.isReady)
+        XCTAssertNil(capture.derivedThresholds)
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - 7: Velocity threshold is positive
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func test_derivedVelocityThreshold_isPositive() {
