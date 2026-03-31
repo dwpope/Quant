@@ -43,16 +43,22 @@ struct SipCalibrationView: View {
     private var progressSection: some View {
         VStack(spacing: 8) {
             HStack(spacing: 6) {
-                ForEach(0..<5) { i in
+                ForEach(0..<max(capture.recordedSipCount, 5), id: \.self) { i in
                     Circle()
                         .fill(i < capture.recordedSipCount ? Color.blue : Color.secondary.opacity(0.3))
                         .frame(width: 12, height: 12)
                 }
             }
 
-            Text("\(capture.recordedSipCount) of 5 sips recorded")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            if capture.isReady {
+                Text("\(capture.recordedSipCount) sips recorded")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("\(capture.recordedSipCount) of 5 sips recorded")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -84,7 +90,7 @@ struct SipCalibrationView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-        } else if !capture.isReady {
+        } else {
             Button {
                 appModel.beginSipCalibrationCapture()
             } label: {

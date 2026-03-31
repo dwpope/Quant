@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showShowcase = false
     @State private var showSipTimeline = false
+    @State private var showSipCalibration = false
 
     var body: some View {
         ZStack {
@@ -87,6 +88,16 @@ struct ContentView: View {
                     }
 
                     Button {
+                        showSipCalibration = true
+                    } label: {
+                        Image(systemName: "drop.circle")
+                            .font(.title2)
+                            .padding(10)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                    }
+
+                    Button {
                         showShowcase = true
                     } label: {
                         Image(systemName: "rectangle.stack")
@@ -121,6 +132,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showSettings) {
             CalibrationSettingsView()
+        }
+        .sheet(isPresented: $showSipCalibration) {
+            SipCalibrationView(appModel: appModel)
         }
         .fullScreenCover(isPresented: $showShowcase) {
             VariantShowcaseView()

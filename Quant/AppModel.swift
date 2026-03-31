@@ -296,6 +296,7 @@ class AppModel: ObservableObject {
 
         loadBaseline()
         setupPipeline()
+        loadSipThresholds()
         setupWatchSubscriptions()
         updatePipelineThresholds()
     }
@@ -621,10 +622,34 @@ class AppModel: ObservableObject {
         }
     }
 
-    /// Applies derived thresholds from completed calibration to the SipDetector.
+    /// Applies derived thresholds from completed calibration to the SipDetector
+    /// and persists them to disk so they survive app restarts.
     func applySipCalibration() {
         guard let thresholds = sipCalibrationCapture.derivedThresholds else { return }
         sipDetector.thresholds = thresholds
+        saveSipThresholds(thresholds)
+    }
+
+    // MARK: - Sip Threshold Persistence
+
+    private static let sipThresholdsFile = "sip-thresholds.json"
+
+    private var sipThresholdsURL: URL {
+        FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(Self.sipThresholdsFile)
+    }
+
+    private func loadSipThresholds() {
+        guard let data = try? Data(contentsOf: sipThresholdsURL),
+              let saved = try? JSONDecoder().decode(SipThresholds.self, from: data)
+        else { return }
+        sipDetector.thresholds = saved
+    }
+
+    private func saveSipThresholds(_ thresholds: SipThresholds) {
+        guard let data = try? JSONEncoder().encode(thresholds) else { return }
+        try? data.write(to: sipThresholdsURL, options: .atomic)
     }
 
     func resetCalibrationSettings() {

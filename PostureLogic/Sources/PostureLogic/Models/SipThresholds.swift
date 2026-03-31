@@ -5,7 +5,7 @@ import Foundation
 /// Default values work for most desk setups. After running
 /// `SipCalibrationCapture` with 5 recorded sips, replace these with the
 /// personalised values derived from `SipCalibrationCapture.derivedThresholds`.
-public struct SipThresholds {
+public struct SipThresholds: Codable {
     // MARK: - Proximity (Signal 1)
 
     /// Wrist-to-nose distance normalised by shoulder width.

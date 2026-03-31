@@ -18,7 +18,8 @@ public final class SipCalibrationCapture {
 
     // MARK: - Public State
 
-    /// Number of completed sip recordings. Becomes 5 when calibration is ready.
+    /// Number of completed sip recordings. At least 5 required before thresholds
+    /// can be derived, but more recordings improve accuracy.
     public private(set) var recordedSipCount: Int = 0
 
     /// True when 5 or more sips have been recorded and thresholds can be derived.
