@@ -19,6 +19,10 @@ struct SipCalibrationView: View {
 
                 instructionsSection
 
+                if !capture.recordedSamples.isEmpty {
+                    measurementsSection
+                }
+
                 Spacer()
 
                 actionButton
@@ -79,11 +83,61 @@ struct SipCalibrationView: View {
             Text("Personalise your sip detection")
                 .font(.headline)
 
-            Text("Take a sip from your water bottle naturally, then tap \"Record Sip\" after each one. Quant will learn your typical drinking motion and set thresholds to match.")
+            Text("Tap \"Record Sip\", wait for the countdown, then take a natural sip from your water bottle during the 10-second recording window. Repeat at least 5 times so Quant can learn your drinking motion.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
+    }
+
+    // MARK: - Measurements
+
+    private var measurementsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Recorded Measurements")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ForEach(Array(capture.recordedSamples.enumerated()), id: \.offset) { index, sample in
+                HStack {
+                    Text("Sip \(index + 1)")
+                        .font(.caption.weight(.medium))
+                        .frame(width: 44, alignment: .leading)
+
+                    measurementPill(label: "Prox", value: String(format: "%.3f", sample.minProximity))
+                    measurementPill(label: "Vel", value: String(format: "%.4f", sample.maxVelocity))
+                    measurementPill(label: "Dur", value: String(format: "%.1fs", sample.duration))
+                }
+            }
+
+            if let thresholds = capture.derivedThresholds {
+                Divider()
+                HStack {
+                    Text("Derived")
+                        .font(.caption.weight(.medium))
+                        .frame(width: 44, alignment: .leading)
+
+                    measurementPill(label: "Prox", value: String(format: "%.3f", thresholds.proximityThreshold))
+                    measurementPill(label: "Vel", value: String(format: "%.4f", thresholds.velocityThreshold))
+                    measurementPill(label: "Dur", value: String(format: "%.1fs", thresholds.minDuration))
+                }
+                .foregroundStyle(.green)
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func measurementPill(label: String, value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundStyle(.tertiary)
+            Text(value)
+                .font(.system(.caption, design: .monospaced))
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Action Button

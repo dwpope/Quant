@@ -45,13 +45,18 @@ public final class SipCalibrationCapture {
 
     // MARK: - Recorded Data
 
-    private struct SipSample {
-        let minProximity: Float      // minimum distance/shoulderWidth during sip
-        let maxVelocity: Float       // peak normalised velocity during sip
-        let duration: TimeInterval   // total duration wrist was in proximity zone
+    /// Summary of a single recorded sip used for threshold derivation.
+    public struct SipSample {
+        /// Minimum wrist-to-nose distance normalised by shoulder width (lower = closer).
+        public let minProximity: Float
+        /// Peak normalised wrist velocity during the sip.
+        public let maxVelocity: Float
+        /// Total time the wrist stayed in the proximity zone (seconds).
+        public let duration: TimeInterval
     }
 
-    private var recordedSamples: [SipSample] = []
+    /// All recorded sip samples, most recent last.
+    public private(set) var recordedSamples: [SipSample] = []
 
     // MARK: - Per-Frame Tracking
 
