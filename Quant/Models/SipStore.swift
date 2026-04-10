@@ -59,6 +59,16 @@ final class SipStore: ObservableObject {
         persist()
     }
 
+    /// Applies a training-mode label to the sip with the given ID. No-op if
+    /// the ID isn't in today's store. Passing `nil` clears any existing
+    /// label. Used by both the confirmation popup and the explicit "Label…"
+    /// action in `SipTimelineView`.
+    func setLabel(id: UUID, label: SipEvent.Label?) {
+        guard let idx = sips.firstIndex(where: { $0.id == id }) else { return }
+        sips[idx] = sips[idx].withLabel(label)
+        persist()
+    }
+
     // MARK: - Persistence
 
     private func load() {
