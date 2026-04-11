@@ -77,6 +77,18 @@ public final class SipDetector {
         /// `"leftWrist"` / `"rightWrist"` while a candidate is active,
         /// otherwise `nil` (idle / cooldown).
         public let activeWrist: String?
+
+        public init(
+            proximity: Float,
+            velocity: Float,
+            duration: Float,
+            activeWrist: String?
+        ) {
+            self.proximity = proximity
+            self.velocity = velocity
+            self.duration = duration
+            self.activeWrist = activeWrist
+        }
     }
 
     public var scoresSnapshot: Scores {
