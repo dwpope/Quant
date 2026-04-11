@@ -159,6 +159,40 @@ class AppModel: ObservableObject {
     /// Persists and exposes today's confirmed sip events.
     let sipStore = SipStore()
 
+    /// Rolling 3s buffer feeding training records. Only fed while
+    /// `isTrainingModeEnabled` is true.
+    let sipTrainingBuffer = SipTrainingBuffer()
+
+    /// Sidecar persistence for training-mode feature records. Parallel
+    /// to `sipStore`, joined by `SipEvent.id`.
+    let sipTrainingStore = SipTrainingStore()
+
+    /// FIFO queue of pending label prompts. Owned here so tests can
+    /// inject a fake and UI can bind directly to `activeSipLabelItem`.
+    let sipLabelQueue = SipLabelQueue()
+
+    /// Mirrors `sipLabelQueue.active` as a top-level published property
+    /// so views observing `AppModel` don't have to reach into a nested
+    /// ObservableObject.
+    @Published var activeSipLabelItem: PendingSipLabel?
+
+    /// Feature flag for training-mode capture + labeling. Persisted to
+    /// UserDefaults so it survives relaunches. Everything training-mode
+    /// related gates behind this; flipping it off restores original
+    /// detector-only behavior.
+    @Published var isTrainingModeEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                isTrainingModeEnabled,
+                forKey: Keys.isTrainingModeEnabled
+            )
+            if !isTrainingModeEnabled {
+                sipTrainingBuffer.reset()
+                sipLabelQueue.drainAsUnconfirmed()
+            }
+        }
+    }
+
     /// Records raw sip data for personalised threshold calibration.
     let sipCalibrationCapture = SipCalibrationCapture()
 
@@ -176,6 +210,10 @@ class AppModel: ObservableObject {
 
     private var sipCalibrationTimer: Timer?
     private var sipCalibrationStartTime: Date?
+
+    /// 15s training-mode label popup timeout. Reset whenever the
+    /// queue's active item changes.
+    private var sipLabelTimeoutTimer: Timer?
 
     // MARK: - Watch Connectivity
 
@@ -230,6 +268,7 @@ class AppModel: ObservableObject {
         static let slouchDurationBeforeNudge = "com.quant.posture.slouchDuration"
         static let nudgeCooldown = "com.quant.posture.nudgeCooldown"
         static let maxNudgesPerHour = "com.quant.posture.maxNudgesPerHour"
+        static let isTrainingModeEnabled = "com.quant.sip.isTrainingModeEnabled"
     }
 
     static let defaultMaxPositionVariance: Float = 0.06
@@ -279,6 +318,8 @@ class AppModel: ObservableObject {
         self.slouchDurationBeforeNudge = defaults.object(forKey: Keys.slouchDurationBeforeNudge) as? Double ?? Self.defaultSlouchDurationBeforeNudge
         self.nudgeCooldown = defaults.object(forKey: Keys.nudgeCooldown) as? Double ?? Self.defaultNudgeCooldown
         self.maxNudgesPerHour = defaults.object(forKey: Keys.maxNudgesPerHour) as? Int ?? Self.defaultMaxNudgesPerHour
+
+        self.isTrainingModeEnabled = defaults.bool(forKey: Keys.isTrainingModeEnabled)
 
         let config = CalibrationConfig(
             samplingDuration: sampDur,
@@ -438,12 +479,139 @@ class AppModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // When a sip is confirmed, save it to SipStore.
+        // Feed pose observations into the training-mode rolling buffer
+        // while training mode is enabled. Ignored otherwise so the
+        // buffer stays empty and cheap when the flag is off.
+        pipeline.poseObservationPublisher
+            .sink { [weak self] observation in
+                guard let self, self.isTrainingModeEnabled else { return }
+                self.sipTrainingBuffer.process(observation)
+            }
+            .store(in: &cancellables)
+
+        // When a sip is confirmed: always persist the SipEvent, and
+        // when training mode is on, also capture a sidecar training
+        // record and enqueue a label prompt. Captures a buffer snapshot
+        // and score snapshot *before* enqueuing so the rolling buffer
+        // can keep processing new frames without affecting the record.
         sipDetector.onSipConfirmed = { [weak self] event in
             Task { @MainActor [weak self] in
-                self?.sipStore.add(event)
+                guard let self else { return }
+                self.sipStore.add(event)
+
+                guard self.isTrainingModeEnabled else { return }
+
+                let scores = self.sipDetector.scoresSnapshot
+                let bufferFrames = self.sipTrainingBuffer.snapshot()
+
+                let record = SipTrainingRecord(
+                    id: event.id,
+                    capturedAt: Date().timeIntervalSince1970,
+                    scores: scores,
+                    thresholds: self.sipDetector.thresholds,
+                    bufferFrames: bufferFrames
+                )
+                self.sipTrainingStore.save(record)
+
+                let pending = PendingSipLabel(
+                    id: event.id,
+                    sipStartTimestamp: event.timestamp,
+                    sipDuration: event.duration,
+                    scores: scores
+                )
+                self.enqueueLabel(pending)
             }
         }
+
+        // Wire the label queue. Resolutions (user label, timeout,
+        // background drain) all flow through `onResolved` and end up
+        // as `SipStore.setLabel` calls — which persists the label to
+        // the sips-YYYY-MM-DD.json file.
+        sipLabelQueue.onResolved = { [weak self] id, label in
+            self?.sipStore.setLabel(id: id, label: label)
+        }
+
+        // Mirror the queue's active item onto AppModel and (re)arm the
+        // 15-second timeout every time the active item changes. The
+        // timer is torn down when the queue drains to nil.
+        sipLabelQueue.$active
+            .sink { [weak self] item in
+                guard let self else { return }
+                self.activeSipLabelItem = item
+                self.startLabelTimeout(for: item)
+            }
+            .store(in: &cancellables)
+
+        // Drain pending label prompts when the app leaves the
+        // foreground so the user can't land back on a stale popup
+        // 30 minutes later, and so unreviewed events are marked
+        // `.unconfirmed` rather than left in the "no label" void.
+        NotificationCenter.default.publisher(
+            for: UIApplication.willResignActiveNotification
+        )
+        .sink { [weak self] _ in
+            self?.handleWillResignActive()
+        }
+        .store(in: &cancellables)
+    }
+
+    // MARK: - Training-mode label queue
+
+    /// Entry point that `SipDetector.onSipConfirmed` calls. Kept as a
+    /// named method (rather than inlining the enqueue call) so
+    /// higher-level workflows like "manual missed-sip" can share it.
+    func enqueueLabel(_ item: PendingSipLabel) {
+        sipLabelQueue.enqueue(item)
+    }
+
+    /// Called by the confirmation popup when the user picks a label.
+    func applyLabel(_ label: SipEvent.Label, to id: UUID) {
+        sipLabelQueue.applyLabel(label, to: id)
+    }
+
+    /// Called by the confirmation popup's "Skip" button, and also by
+    /// `startLabelTimeout`'s timer when the 15s window elapses.
+    func dismissLabelAsUnconfirmed(id: UUID) {
+        sipLabelQueue.dismissAsUnconfirmed(id: id)
+    }
+
+    /// Advance the queue manually. Thin wrapper exposed for the UI
+    /// layer and for external control; identical to `applyLabel` +
+    /// allowing callers to express "move on" without choosing a label.
+    func promoteNextLabel() {
+        sipLabelQueue.fireActiveTimeout()
+    }
+
+    /// Starts (or restarts) the 15-second timer bound to the given
+    /// active item. Passing `nil` simply tears down any existing timer.
+    /// The timer captures the item's id so a stale firing targeting a
+    /// since-promoted item is a no-op inside the queue.
+    private func startLabelTimeout(for item: PendingSipLabel?) {
+        sipLabelTimeoutTimer?.invalidate()
+        sipLabelTimeoutTimer = nil
+
+        guard let item else { return }
+
+        let seconds = sipLabelQueue.timeoutSeconds
+        let capturedID = item.id
+        sipLabelTimeoutTimer = Timer.scheduledTimer(
+            withTimeInterval: seconds,
+            repeats: false
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.dismissLabelAsUnconfirmed(id: capturedID)
+            }
+        }
+    }
+
+    /// Backgrounding: tear down the timer and drain the queue as
+    /// `.unconfirmed`. Guarded by the training-mode flag so
+    /// non-training sessions aren't affected.
+    private func handleWillResignActive() {
+        guard isTrainingModeEnabled else { return }
+        sipLabelTimeoutTimer?.invalidate()
+        sipLabelTimeoutTimer = nil
+        sipLabelQueue.drainAsUnconfirmed()
     }
 
     // MARK: - Watch Subscriptions
