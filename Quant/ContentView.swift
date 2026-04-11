@@ -159,7 +159,25 @@ struct ContentView: View {
             .padding(.vertical, 24)
         }
         .sheet(isPresented: $showSipTimeline) {
-            SipTimelineView(sipStore: appModel.sipStore)
+            SipTimelineView(appModel: appModel, sipStore: appModel.sipStore)
+        }
+        .sheet(item: Binding(
+            get: { appModel.activeSipLabelItem },
+            set: { newValue in
+                if newValue == nil, let id = appModel.activeSipLabelItem?.id {
+                    appModel.dismissLabelAsUnconfirmed(id: id)
+                }
+            }
+        )) { item in
+            SipLabelSheet(
+                item: item,
+                onLabel: { label in
+                    appModel.applyLabel(label, toSipID: item.id)
+                },
+                onSkip: {
+                    appModel.dismissLabelAsUnconfirmed(id: item.id)
+                }
+            )
         }
     }
 

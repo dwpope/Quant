@@ -499,7 +499,9 @@ class AppModel: ObservableObject {
                     bufferFrames: self.sipTrainingBuffer.snapshot()
                 )
                 self.sipTrainingStore.save(record)
-                self.labelQueue.enqueue(PendingSipLabel(event: event))
+                self.labelQueue.enqueue(
+                    PendingSipLabel(event: event, scores: self.sipDetector.scoresSnapshot)
+                )
             }
         }
     }

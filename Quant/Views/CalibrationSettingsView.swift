@@ -200,6 +200,12 @@ struct CalibrationSettingsView: View {
                 } footer: {
                     Text("Fine-tune individual posture metrics and nudge timing.")
                 }
+
+                Section {
+                    Toggle("Training mode", isOn: $appModel.isTrainingModeEnabled)
+                } footer: {
+                    Text("Captures labeling data for detector tuning.")
+                }
             }
             .navigationTitle("Calibration Settings")
             .navigationBarTitleDisplayMode(.inline)

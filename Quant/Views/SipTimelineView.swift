@@ -6,12 +6,19 @@ import SwiftUI
 /// This is the minimal v1 scope: no batch operations, no editing — just
 /// add and delete. The "Desk use only" note is shown prominently so the
 /// user understands this measures desk-session frequency, not total volume.
+///
+/// When `appModel.isTrainingModeEnabled` is on, each row shows its label
+/// pill, offers a "Label…" swipe/context action to open `SipLabelSheet`,
+/// and the toolbar exposes a ShareLink that exports the labeled JSONL.
 struct SipTimelineView: View {
+    @ObservedObject var appModel: AppModel
     @ObservedObject var sipStore: SipStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var showAddSip = false
     @State private var addSipDate = Date()
+    @State private var sipBeingLabeled: SipEvent?
+    @State private var exportError: String?
 
     var body: some View {
         NavigationStack {
@@ -29,18 +36,42 @@ struct SipTimelineView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        addSipDate = Date()
-                        showAddSip = true
-                    } label: {
-                        Image(systemName: "plus")
+                    HStack {
+                        if appModel.isTrainingModeEnabled {
+                            exportShareLink
+                        }
+                        Button {
+                            addSipDate = Date()
+                            showAddSip = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
                     }
                 }
             }
             .sheet(isPresented: $showAddSip) {
                 addSipSheet
             }
+            .sheet(item: $sipBeingLabeled) { sip in
+                SipLabelSheet(
+                    item: PendingSipLabel(event: sip, scores: scores(for: sip)),
+                    onLabel: { label in
+                        appModel.sipStore.setLabel(id: sip.id, label: label)
+                    },
+                    onSkip: {}
+                )
+            }
         }
+    }
+
+    private func scores(for sip: SipEvent) -> SipDetector.Scores? {
+        guard let record = appModel.sipTrainingStore.record(for: sip.id) else { return nil }
+        return SipDetector.Scores(
+            proximity: record.proximityScore,
+            velocity: record.velocityScore,
+            duration: record.durationScore,
+            activeWrist: record.activeWrist
+        )
     }
 
     // MARK: - Sip List
@@ -49,7 +80,23 @@ struct SipTimelineView: View {
         List {
             Section {
                 ForEach(sipStore.sips) { sip in
-                    SipRow(sip: sip)
+                    SipRow(sip: sip, showLabel: appModel.isTrainingModeEnabled)
+                        .contentShape(Rectangle())
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            Button {
+                                sipBeingLabeled = sip
+                            } label: {
+                                Label("Label\u{2026}", systemImage: "tag")
+                            }
+                            .tint(.blue)
+                        }
+                        .contextMenu {
+                            Button {
+                                sipBeingLabeled = sip
+                            } label: {
+                                Label("Label\u{2026}", systemImage: "tag")
+                            }
+                        }
                 }
                 .onDelete { offsets in
                     sipStore.remove(at: offsets)
@@ -57,6 +104,20 @@ struct SipTimelineView: View {
             } footer: {
                 footerNote
                     .padding(.top, 8)
+            }
+        }
+    }
+
+    // MARK: - Export ShareLink
+
+    @ViewBuilder
+    private var exportShareLink: some View {
+        if let url = try? appModel.sipTrainingStore.exportJSONL(for: sipStore.sips) {
+            ShareLink(
+                item: url,
+                preview: SharePreview("Sip Training Data")
+            ) {
+                Image(systemName: "square.and.arrow.up")
             }
         }
     }
@@ -117,7 +178,8 @@ struct SipTimelineView: View {
                         let event = SipEvent(
                             timestamp: addSipDate.timeIntervalSince1970,
                             duration: 0,
-                            confidence: nil
+                            confidence: nil,
+                            label: .missed
                         )
                         sipStore.add(event)
                         showAddSip = false
@@ -133,11 +195,16 @@ struct SipTimelineView: View {
 
 private struct SipRow: View {
     let sip: SipEvent
+    let showLabel: Bool
 
     var body: some View {
         HStack {
             Text(formattedTime)
                 .font(.body)
+
+            if showLabel, let label = sip.label {
+                labelPill(for: label)
+            }
 
             Spacer()
 
@@ -146,6 +213,41 @@ private struct SipRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private func labelPill(for label: SipEvent.Label) -> some View {
+        Text(labelText(label))
+            .font(.caption2)
+            .fontWeight(.medium)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(labelColor(label).opacity(0.2), in: Capsule())
+            .foregroundStyle(labelColor(label))
+    }
+
+    private func labelText(_ label: SipEvent.Label) -> String {
+        switch label {
+        case .confirmed: return "confirmed"
+        case .unconfirmed: return "unreviewed"
+        case .missed: return "missed"
+        case .chinRest: return "chin rest"
+        case .faceTouch: return "face touch"
+        case .adjustingGlasses: return "glasses"
+        case .phoneToFace: return "phone"
+        case .coughYawn: return "cough/yawn"
+        case .other: return "other"
+        }
+    }
+
+    private func labelColor(_ label: SipEvent.Label) -> Color {
+        switch label {
+        case .confirmed: return .green
+        case .missed: return .blue
+        case .unconfirmed: return .gray
+        case .chinRest, .faceTouch, .adjustingGlasses,
+             .phoneToFace, .coughYawn, .other:
+            return .orange
         }
     }
 
@@ -158,6 +260,5 @@ private struct SipRow: View {
 }
 
 #Preview {
-    let store = SipStore()
-    return SipTimelineView(sipStore: store)
+    SipTimelineView(appModel: AppModel(), sipStore: SipStore())
 }

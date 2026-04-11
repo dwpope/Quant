@@ -116,6 +116,11 @@ struct DebugOverlayView: View {
             Text("Thr prox: \(st.proximityThreshold, specifier: "%.3f")  vel: \(st.velocityThreshold, specifier: "%.4f")")
             Text("Thr dur: \(st.minDuration, specifier: "%.1f")–\(st.maxDuration, specifier: "%.1f")s  cd: \(st.cooldownDuration, specifier: "%.0f")s")
 
+            if appModel.isTrainingModeEnabled {
+                Text("Training buffer: \(appModel.sipTrainingBuffer.frames.count)f")
+                Text("Pending labels: \(appModel.activeSipLabelItem == nil ? 0 : 1)")
+            }
+
             Divider()
 
             // Column headers
