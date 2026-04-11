@@ -32,7 +32,7 @@ public final class SipTrainingBuffer {
 
     /// A single pose observation retained in the buffer, filtered down
     /// to sip-relevant joints.
-    public struct Frame: Equatable {
+    public struct Frame {
         public let timestamp: TimeInterval
         public let keypoints: [Keypoint]
 

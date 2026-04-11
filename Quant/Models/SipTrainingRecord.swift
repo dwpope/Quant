@@ -12,7 +12,7 @@ import PostureLogic
 /// The on-disk shape is deliberately compact (short field names inside
 /// `Point`, flat arrays) because a 3-second buffer at ~30fps × 9 joints
 /// is around 800 keypoints per record.
-struct SipTrainingRecord: Codable, Identifiable, Equatable {
+struct SipTrainingRecord: Codable, Identifiable {
 
     // MARK: - Join key
 
