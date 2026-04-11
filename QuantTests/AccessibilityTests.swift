@@ -52,28 +52,31 @@ final class AccessibilityTests: XCTestCase {
     // MARK: - PostureAnimations Reduce-Motion
 
     func test_reduceMotion_alertOnset_hasShorterDuration() {
-        // The reduced-motion alternative should be a simple ease-in-out
-        // (not a spring), so it's defined and non-nil.
-        let standard = PostureAnimations.alertOnset(reduceMotion: false)
-        let reduced = PostureAnimations.alertOnset(reduceMotion: true)
-        // Both are valid Animation values (non-crashing)
-        XCTAssertNotNil(standard)
-        XCTAssertNotNil(reduced)
+        // Both the standard and reduced-motion variants must be defined.
+        // `Animation` is an opaque value type without meaningful equality,
+        // so the effective check is that the properties exist and compile.
+        _ = PostureAnimations.alertOnset
+        _ = PostureAnimations.reducedMotion.alertOnset
     }
 
     func test_reduceMotion_nudgePulse_doesNotRepeatForever() {
-        // The reduced version should be a single ease-in-out, not repeating
-        let reduced = PostureAnimations.nudgePulse(reduceMotion: true)
-        XCTAssertNotNil(reduced)
+        // The reduced-motion nudgePulse is intentionally `nil` — no
+        // animation at all — which is stronger than "doesn't repeat
+        // forever".
+        XCTAssertNil(PostureAnimations.reducedMotion.nudgePulse)
     }
 
     func test_reduceMotion_allFactoryMethods_returnValidAnimations() {
-        for rm in [true, false] {
-            XCTAssertNotNil(PostureAnimations.alertOnset(reduceMotion: rm))
-            XCTAssertNotNil(PostureAnimations.metricUpdate(reduceMotion: rm))
-            XCTAssertNotNil(PostureAnimations.nudgePulse(reduceMotion: rm))
-            XCTAssertNotNil(PostureAnimations.modeTransition(reduceMotion: rm))
-        }
+        // Smoke-check that every animation has both a standard and a
+        // reduced-motion counterpart wired up. `nudgePulse`'s reduced
+        // variant is intentionally `nil` and covered by the test above.
+        _ = PostureAnimations.alertOnset
+        _ = PostureAnimations.metricUpdate
+        _ = PostureAnimations.nudgePulse
+        _ = PostureAnimations.modeTransition
+        _ = PostureAnimations.reducedMotion.alertOnset
+        _ = PostureAnimations.reducedMotion.metricUpdate
+        _ = PostureAnimations.reducedMotion.modeTransition
     }
 
     // MARK: - Variant Registry Accessibility Readiness
