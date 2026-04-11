@@ -162,6 +162,36 @@ class AppModel: ObservableObject {
     /// Records raw sip data for personalised threshold calibration.
     let sipCalibrationCapture = SipCalibrationCapture()
 
+    // MARK: - Training Mode
+
+    /// When true, each confirmed sip:
+    ///   - captures a `SipTrainingRecord` (scores + 3s pose buffer) into `sipTrainingStore`
+    ///   - enqueues a label popup so the user can classify the event
+    ///
+    /// Backed by UserDefaults so the toggle persists across launches.
+    @Published var isTrainingModeEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isTrainingModeEnabled, forKey: Keys.isTrainingModeEnabled)
+            if !isTrainingModeEnabled {
+                sipTrainingBuffer.reset()
+                labelQueue.drainAsUnconfirmed()
+            }
+        }
+    }
+
+    /// Rolling ~3-second pose buffer fed by the same observation publisher
+    /// as `SipDetector`. Snapshotted at confirmation time to build training records.
+    let sipTrainingBuffer = SipTrainingBuffer()
+
+    /// Sidecar persistence for `SipTrainingRecord`s captured in training mode.
+    let sipTrainingStore = SipTrainingStore()
+
+    /// The label popup currently shown to the user. `nil` when no popup is
+    /// pending. Driven by `labelQueue`.
+    @Published private(set) var activeSipLabelItem: PendingSipLabel?
+
+    private let labelQueue = SipLabelQueue()
+
     /// True during the 5-second countdown before capture begins.
     @Published var sipCalibrationCountingDown = false
 
@@ -230,6 +260,7 @@ class AppModel: ObservableObject {
         static let slouchDurationBeforeNudge = "com.quant.posture.slouchDuration"
         static let nudgeCooldown = "com.quant.posture.nudgeCooldown"
         static let maxNudgesPerHour = "com.quant.posture.maxNudgesPerHour"
+        static let isTrainingModeEnabled = "com.quant.training.enabled"
     }
 
     static let defaultMaxPositionVariance: Float = 0.06
@@ -280,6 +311,8 @@ class AppModel: ObservableObject {
         self.nudgeCooldown = defaults.object(forKey: Keys.nudgeCooldown) as? Double ?? Self.defaultNudgeCooldown
         self.maxNudgesPerHour = defaults.object(forKey: Keys.maxNudgesPerHour) as? Int ?? Self.defaultMaxNudgesPerHour
 
+        self.isTrainingModeEnabled = defaults.bool(forKey: Keys.isTrainingModeEnabled)
+
         let config = CalibrationConfig(
             samplingDuration: sampDur,
             maxPositionVariance: posVar,
@@ -305,6 +338,7 @@ class AppModel: ObservableObject {
         loadSipThresholds()
         setupWatchSubscriptions()
         updatePipelineThresholds()
+        setupLabelQueue()
     }
 
     // MARK: - Pipeline Setup
@@ -438,12 +472,57 @@ class AppModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // When a sip is confirmed, save it to SipStore.
+        // Feed pose observations into SipTrainingBuffer when training mode is on.
+        // The buffer accumulates a ~3s rolling window so the snapshot grabbed
+        // on sip confirmation contains real pre-event pose history.
+        pipeline.poseObservationPublisher
+            .sink { [weak self] observation in
+                guard let self = self, self.isTrainingModeEnabled else { return }
+                self.sipTrainingBuffer.process(observation)
+            }
+            .store(in: &cancellables)
+
+        // When a sip is confirmed: always persist to SipStore, and when
+        // training mode is on also capture a sidecar record + enqueue a label.
         sipDetector.onSipConfirmed = { [weak self] event in
             Task { @MainActor [weak self] in
-                self?.sipStore.add(event)
+                guard let self = self else { return }
+                self.sipStore.add(event)
+
+                guard self.isTrainingModeEnabled else { return }
+
+                let record = SipTrainingRecord(
+                    id: event.id,
+                    capturedAt: Date().timeIntervalSince1970,
+                    scores: self.sipDetector.scoresSnapshot,
+                    thresholds: self.sipDetector.thresholds,
+                    bufferFrames: self.sipTrainingBuffer.snapshot()
+                )
+                self.sipTrainingStore.save(record)
+                self.labelQueue.enqueue(PendingSipLabel(event: event))
             }
         }
+    }
+
+    // MARK: - Label Queue Setup
+
+    private func setupLabelQueue() {
+        // Mirror queue state onto the published property so SwiftUI can drive the popup.
+        labelQueue.onActiveItemChanged = { [weak self] item in
+            self?.activeSipLabelItem = item
+        }
+        // Forward confirmed labels to SipStore.
+        labelQueue.onLabel = { [weak self] id, label in
+            self?.sipStore.setLabel(id: id, label: label)
+        }
+        // Drain the queue whenever the app enters the background so no event
+        // is left awaiting review while the process is suspended or terminated.
+        NotificationCenter.default
+            .publisher(for: UIApplication.didEnterBackgroundNotification)
+            .sink { [weak self] _ in
+                self?.labelQueue.drainAsUnconfirmed()
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Watch Subscriptions
@@ -549,6 +628,20 @@ class AppModel: ObservableObject {
         } catch {
             print("Failed to start front camera: \(error)")
         }
+    }
+
+    // MARK: - Training Mode Actions
+
+    /// Applies a label chosen by the user in the confirmation popup.
+    /// Forwards to `SipLabelQueue`, which fires `onLabel` → `SipStore.setLabel`.
+    func applyLabel(_ label: SipEvent.Label, toSipID id: UUID) {
+        labelQueue.applyLabel(label, toID: id)
+    }
+
+    /// Dismisses the active label popup without a user choice. The event
+    /// is written as `.unconfirmed` so it doesn't block the queue.
+    func dismissLabelAsUnconfirmed(id: UUID) {
+        labelQueue.applyLabel(.unconfirmed, toID: id)
     }
 
     // MARK: - Recording Controls
