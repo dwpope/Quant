@@ -62,6 +62,32 @@ public final class SipDetector {
         ]
     }
 
+    /// Typed read-only snapshot of the detector's latest three signal
+    /// scores and active wrist. Used by the training-mode label/export
+    /// workflow to attach exact score values to a `SipEvent` without
+    /// having to parse the formatted strings in `debugState`.
+    ///
+    /// Purely additive: reads existing private tracking fields, does not
+    /// affect state machine behavior and is not referenced by the detector
+    /// itself.
+    public struct Scores: Equatable {
+        public let proximity: Float
+        public let velocity: Float
+        public let duration: Float
+        /// `"leftWrist"` / `"rightWrist"` while a candidate is active,
+        /// otherwise `nil` (idle / cooldown).
+        public let activeWrist: String?
+    }
+
+    public var scoresSnapshot: Scores {
+        Scores(
+            proximity: lastProximityScore,
+            velocity: lastVelocityScore,
+            duration: lastDurationScore,
+            activeWrist: activeWrist.map { $0.rawValue }
+        )
+    }
+
     // MARK: - State Machine
 
     private enum State {
