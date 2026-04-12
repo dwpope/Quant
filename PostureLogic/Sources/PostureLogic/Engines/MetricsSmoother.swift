@@ -4,16 +4,16 @@ import simd
 /// Applies exponential moving average (EMA) smoothing to posture metrics
 /// and computes temporal metrics (movementLevel, headMovementPattern)
 /// that require a history of recent samples.
-public struct MetricsSmoother: DebugDumpable {
+struct MetricsSmoother: DebugDumpable {
 
     // MARK: - Configuration
 
     /// EMA blending factor. Higher = more responsive but jittery; lower = smoother but laggy.
-    public var alpha: Float
+    var alpha: Float
 
     // MARK: - Debug State
 
-    public var debugState: [String: Any] {
+    var debugState: [String: Any] {
         [
             "alpha": alpha,
             "sampleCount": sampleCount,
@@ -37,7 +37,7 @@ public struct MetricsSmoother: DebugDumpable {
 
     // MARK: - Initialization
 
-    public init(alpha: Float = 0.3) {
+    init(alpha: Float = 0.3) {
         self.alpha = alpha
     }
 
@@ -49,7 +49,7 @@ public struct MetricsSmoother: DebugDumpable {
     ///   - current: Raw metrics from MetricsEngine
     ///   - sample: The PoseSample that produced these metrics (needed for position deltas)
     /// - Returns: Smoothed metrics with temporal fields populated
-    public mutating func smooth(_ current: RawMetrics, sample: PoseSample) -> RawMetrics {
+    mutating func smooth(_ current: RawMetrics, sample: PoseSample) -> RawMetrics {
         sampleCount += 1
 
         // Compute movement level from position delta
@@ -97,7 +97,7 @@ public struct MetricsSmoother: DebugDumpable {
     }
 
     /// Resets all internal state. Call when baseline changes or user re-enters frame.
-    public mutating func reset() {
+    mutating func reset() {
         previous = nil
         previousSample = nil
         recentHeadPositions.removeAll()

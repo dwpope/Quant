@@ -1,7 +1,7 @@
 import Foundation
 import simd
 
-public protocol PoseDepthFusionProtocol: DebugDumpable {
+protocol PoseDepthFusionProtocol: DebugDumpable {
     mutating func fuse(
         pose: PoseObservation,
         depthSamples: [DepthAtPoint]?,

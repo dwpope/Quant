@@ -26,7 +26,7 @@ public final class MockPoseProvider: PoseProvider {
         frameSubject.send(frame)
     }
     
-    public func emit(scenario: TestScenario) {
+    func emit(scenario: TestScenario) {
         for frame in scenario.frames {
             emit(frame: frame)
         }

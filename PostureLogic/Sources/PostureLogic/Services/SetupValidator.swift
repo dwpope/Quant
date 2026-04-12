@@ -2,7 +2,7 @@ import simd
 import Foundation
 
 /// Result of validating the user's physical setup before/during calibration.
-public enum SetupValidationResult: Equatable {
+enum SetupValidationResult: Equatable {
     case valid
     case tooClose(String)
     case tooFar(String)
@@ -12,13 +12,13 @@ public enum SetupValidationResult: Equatable {
 
 /// Validates that the user is positioned correctly for posture tracking.
 /// Checks distance, angle, and body visibility before calibration begins.
-public struct SetupValidator: DebugDumpable {
+struct SetupValidator: DebugDumpable {
 
-    public init() {}
+    init() {}
 
     /// Validate the user's setup from a single pose sample.
     /// Checks are performed in priority order; the first failure is returned.
-    public func validate(sample: PoseSample, baseline: Baseline?) -> SetupValidationResult {
+    func validate(sample: PoseSample, baseline: Baseline?) -> SetupValidationResult {
         // 1. Body visibility — head and both shoulders must be detected
         if sample.trackingQuality == .lost {
             return .bodyNotFullyVisible("Tracking lost. Make sure your head and shoulders are visible.")
@@ -58,7 +58,7 @@ public struct SetupValidator: DebugDumpable {
 
     // MARK: - DebugDumpable
 
-    public var debugState: [String: Any] {
+    var debugState: [String: Any] {
         ["type": "SetupValidator"]
     }
 }

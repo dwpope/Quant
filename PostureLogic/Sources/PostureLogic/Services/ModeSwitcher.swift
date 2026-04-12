@@ -4,11 +4,11 @@ import Foundation
 ///
 /// The switcher prevents rapid mode changes by requiring sustained good depth confidence
 /// for `depthRecoveryDelay` seconds before switching back to depth fusion mode.
-public final class ModeSwitcher {
+final class ModeSwitcher {
     // MARK: - Public Properties
 
     /// The current depth mode in use
-    public private(set) var currentMode: DepthMode = .depthFusion
+    private(set) var currentMode: DepthMode = .depthFusion
 
     // MARK: - Private Properties
 
@@ -19,7 +19,7 @@ public final class ModeSwitcher {
 
     // MARK: - Initialization
 
-    public init(thresholds: PostureThresholds) {
+    init(thresholds: PostureThresholds) {
         self.thresholds = thresholds
     }
 
@@ -35,7 +35,7 @@ public final class ModeSwitcher {
     ///   - confidence: Current depth confidence level
     ///   - timestamp: Current timestamp for tracking recovery delay
     /// - Returns: The updated current mode
-    public func update(confidence: DepthConfidence, timestamp: TimeInterval) -> DepthMode {
+    func update(confidence: DepthConfidence, timestamp: TimeInterval) -> DepthMode {
         switch currentMode {
         case .depthFusion:
             // Switch to 2D mode immediately if depth confidence drops
@@ -73,7 +73,7 @@ public final class ModeSwitcher {
     }
 
     /// Resets the mode switcher to initial state (DepthFusion mode)
-    public func reset() {
+    func reset() {
         currentMode = .depthFusion
         goodDepthStartTime = nil
     }

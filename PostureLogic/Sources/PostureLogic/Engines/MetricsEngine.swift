@@ -1,25 +1,25 @@
 import Foundation
 import simd
 
-public struct MetricsEngine: MetricsEngineProtocol {
+struct MetricsEngine: MetricsEngineProtocol {
 
     // MARK: - Debug State
 
     private(set) var computeCount: Int = 0
     private(set) var noBaselineCount: Int = 0
 
-    public var debugState: [String: Any] {
+    var debugState: [String: Any] {
         [
             "computeCount": computeCount,
             "noBaselineCount": noBaselineCount,
         ]
     }
 
-    public init() {}
+    init() {}
 
     // MARK: - MetricsEngineProtocol
 
-    public mutating func compute(from sample: PoseSample, baseline: Baseline?) -> RawMetrics {
+    mutating func compute(from sample: PoseSample, baseline: Baseline?) -> RawMetrics {
         guard let baseline = baseline else {
             noBaselineCount += 1
             return zeroMetrics(timestamp: sample.timestamp)

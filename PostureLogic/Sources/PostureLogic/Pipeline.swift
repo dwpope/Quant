@@ -45,7 +45,7 @@ public class Pipeline {
 
     /// Whether the calibration baseline is stale (position shifted or expired).
     /// Checked periodically (every 60s) rather than every frame.
-    @Published public var baselineStaleness: StaleBaselineResult = .fresh
+    @Published var baselineStaleness: StaleBaselineResult = .fresh
 
     /// Current device thermal level. Updated by ThermalMonitor when provided.
     @Published public var thermalLevel: ThermalLevel = .nominal

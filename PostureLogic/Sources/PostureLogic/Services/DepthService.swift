@@ -6,10 +6,10 @@ import Foundation
 ///
 /// This is a stateless service — all methods are pure functions with no mutable state.
 /// Immutable design ensures thread-safety and predictable behavior.
-public final class DepthService: DepthServiceProtocol {
+final class DepthService: DepthServiceProtocol {
     private var lastConfidence: DepthConfidence?
 
-    public var debugState: [String: Any] {
+    var debugState: [String: Any] {
         var state: [String: Any] = [:]
         if let confidence = lastConfidence {
             state["lastConfidence"] = String(describing: confidence)
@@ -19,9 +19,9 @@ public final class DepthService: DepthServiceProtocol {
 
     private let edgeMargin: Float = 0.05  // 5% margin from edges (per Known Gotchas)
 
-    public init() {}
+    init() {}
 
-    public func sampleDepth(at points: [CGPoint], from frame: InputFrame) -> [DepthAtPoint] {
+    func sampleDepth(at points: [CGPoint], from frame: InputFrame) -> [DepthAtPoint] {
         guard let depthMap = frame.depthMap else {
             // No depth map available, return zero-confidence samples
             return points.map { DepthAtPoint(point: $0, depth: 0, confidence: 0) }
@@ -72,7 +72,7 @@ public final class DepthService: DepthServiceProtocol {
         }
     }
 
-    public func computeConfidence(from frame: InputFrame) -> DepthConfidence {
+    func computeConfidence(from frame: InputFrame) -> DepthConfidence {
         guard let depthMap = frame.depthMap else {
             lastConfidence = .unavailable
             return .unavailable
