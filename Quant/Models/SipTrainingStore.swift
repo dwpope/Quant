@@ -76,14 +76,8 @@ final class SipTrainingStore: ObservableObject {
         encoder.outputFormatting = [.sortedKeys]
 
         var lines: [Data] = []
-        for sip in sips {
-            // Skip unreviewed events — they shouldn't feed the model.
-            if sip.label == .unconfirmed { continue }
-            guard let record = records[sip.id] else { continue }
-
-            let row = ExportRow(sip: sip, features: record)
-            let line = try encoder.encode(row)
-            lines.append(line)
+        for sip in labeledRows(from: sips) {
+            lines.append(try encoder.encode(sip))
         }
 
         let joined = lines
@@ -94,6 +88,37 @@ final class SipTrainingStore: ObservableObject {
         let url = cachesFile(name: "sip-training-\(todayKey).jsonl")
         try data.write(to: url, options: .atomic)
         return url
+    }
+
+    /// Builds a labeled training dataset as a pretty-printed JSON array for
+    /// export. Unlike JSONL, nested signal scores and keypoint data are
+    /// preserved in their full hierarchical form inside a single document.
+    ///
+    /// Skips `.unconfirmed` events — same filter as `exportJSONL`.
+    ///
+    /// Returns the URL of a temp file inside `Caches`. Ideal for handing
+    /// to a `ShareLink`.
+    func exportJSON(for sips: [SipEvent]) throws -> URL {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        let rows = labeledRows(from: sips)
+        let data = try encoder.encode(rows)
+
+        let url = cachesFile(name: "sip-training-\(todayKey).json")
+        try data.write(to: url, options: .atomic)
+        return url
+    }
+
+    // MARK: - Shared helpers
+
+    /// Returns ExportRows for all reviewed (non-unconfirmed) sips that have
+    /// a captured training record. Both JSONL and JSON export use this filter.
+    private func labeledRows(from sips: [SipEvent]) -> [ExportRow] {
+        sips.compactMap { sip in
+            guard sip.label != .unconfirmed, let record = records[sip.id] else { return nil }
+            return ExportRow(sip: sip, features: record)
+        }
     }
 
     // MARK: - Persistence
