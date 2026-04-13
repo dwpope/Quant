@@ -19,6 +19,8 @@ struct SipTimelineView: View {
     @State private var addSipDate = Date()
     @State private var sipBeingLabeled: SipEvent?
     @State private var exportError: String?
+    @State private var showExportPicker = false
+    @State private var exportedURL: URL?
 
     var body: some View {
         NavigationStack {
@@ -38,7 +40,7 @@ struct SipTimelineView: View {
                 ToolbarItem(placement: .primaryAction) {
                     HStack {
                         if appModel.isTrainingModeEnabled {
-                            exportShareLink
+                            exportButton
                         }
                         Button {
                             addSipDate = Date()
@@ -47,6 +49,29 @@ struct SipTimelineView: View {
                             Image(systemName: "plus")
                         }
                     }
+                }
+            }
+            .confirmationDialog(
+                "Export Training Data",
+                isPresented: $showExportPicker,
+                titleVisibility: .visible
+            ) {
+                Button("Export JSON") {
+                    exportedURL = try? appModel.sipTrainingStore.exportJSON(for: sipStore.sips)
+                }
+                Button("Export JSONL") {
+                    exportedURL = try? appModel.sipTrainingStore.exportJSONL(for: sipStore.sips)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("JSON keeps the full nested structure. JSONL has one event per line.")
+            }
+            .sheet(isPresented: Binding(
+                get: { exportedURL != nil },
+                set: { if !$0 { exportedURL = nil } }
+            )) {
+                if let url = exportedURL {
+                    ShareSheet(url: url)
                 }
             }
             .sheet(isPresented: $showAddSip) {
@@ -108,17 +133,13 @@ struct SipTimelineView: View {
         }
     }
 
-    // MARK: - Export ShareLink
+    // MARK: - Export Button
 
-    @ViewBuilder
-    private var exportShareLink: some View {
-        if let url = try? appModel.sipTrainingStore.exportJSONL(for: sipStore.sips) {
-            ShareLink(
-                item: url,
-                preview: SharePreview("Sip Training Data")
-            ) {
-                Image(systemName: "square.and.arrow.up")
-            }
+    private var exportButton: some View {
+        Button {
+            showExportPicker = true
+        } label: {
+            Image(systemName: "square.and.arrow.up")
         }
     }
 
@@ -257,6 +278,20 @@ private struct SipRow: View {
         formatter.timeStyle = .short
         return formatter.string(from: date)
     }
+}
+
+// MARK: - Share Sheet
+
+/// Thin UIActivityViewController wrapper so we can present any URL
+/// (JSONL or JSON) from a SwiftUI `.sheet`.
+private struct ShareSheet: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {

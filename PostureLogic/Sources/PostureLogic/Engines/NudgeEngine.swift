@@ -64,7 +64,7 @@ import Foundation
 /// t=800:   Bad for 5 min BUT cooldown active (need 10 min) → .suppressed
 /// t=961:   Cooldown expired + 5 min bad → .fire! (if within hourly limit)
 /// ```
-public final class NudgeEngine: NudgeEngineProtocol {
+final class NudgeEngine: NudgeEngineProtocol {
 
     // MARK: - Debug State
 
@@ -79,7 +79,7 @@ public final class NudgeEngine: NudgeEngineProtocol {
     /// - `cooldownRemaining`: Seconds left before a new nudge can fire.
     /// - `acknowledged`: Whether the most recent nudge was acknowledged.
     /// - `lastDecision`: Description of the last decision made.
-    public var debugState: [String: Any] {
+    var debugState: [String: Any] {
         [
             "nudgesThisHour": nudgeTimestamps.count,
             "lastNudgeTime": lastNudgeTime ?? 0,
@@ -138,7 +138,7 @@ public final class NudgeEngine: NudgeEngineProtocol {
     ///
     /// - Parameter thresholds: The configurable thresholds that control nudge
     ///   timing and limits. Pass `PostureThresholds()` for defaults.
-    public init(thresholds: PostureThresholds = PostureThresholds()) {
+    init(thresholds: PostureThresholds = PostureThresholds()) {
         self.thresholds = thresholds
     }
 
@@ -167,7 +167,7 @@ public final class NudgeEngine: NudgeEngineProtocol {
     ///   - metrics: The current posture metrics, used to determine the specific
     ///     nudge reason. Pass `nil` to default to `.sustainedSlouch`.
     /// - Returns: A `NudgeDecision` indicating what the caller should do.
-    public func evaluate(
+    func evaluate(
         state: PostureState,
         trackingQuality: TrackingQuality,
         movementLevel: Float,
@@ -304,7 +304,7 @@ public final class NudgeEngine: NudgeEngineProtocol {
     /// 3. Clears the acknowledgement flag (new nudge = new episode)
     ///
     /// - Parameter currentTime: When the nudge was delivered.
-    public func recordNudgeFired(at currentTime: TimeInterval) {
+    func recordNudgeFired(at currentTime: TimeInterval) {
         lastNudgeTime = currentTime
         nudgeTimestamps.append(currentTime)
         hasBeenAcknowledged = false  // New nudge episode
@@ -319,7 +319,7 @@ public final class NudgeEngine: NudgeEngineProtocol {
     /// The flag is automatically cleared when:
     /// - A new nudge fires (`recordNudgeFired`)
     /// - The engine is reset (`reset()`)
-    public func recordAcknowledgement() {
+    func recordAcknowledgement() {
         hasBeenAcknowledged = true
     }
 
@@ -329,7 +329,7 @@ public final class NudgeEngine: NudgeEngineProtocol {
     /// - The app relaunches
     /// - Calibration restarts
     /// - The user has been absent for an extended period
-    public func reset() {
+    func reset() {
         nudgeTimestamps = []
         lastNudgeTime = nil
         hasBeenAcknowledged = false

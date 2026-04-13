@@ -8,7 +8,7 @@ import simd
 /// shoulder width, making them scale-invariant regardless of camera distance.
 /// In `twoDOnly` mode all z-values are 0. When depth is available with sufficient
 /// confidence, uses `unproject()` to produce 3D positions in `depthFusion` mode.
-public struct PoseDepthFusion: PoseDepthFusionProtocol {
+struct PoseDepthFusion: PoseDepthFusionProtocol {
 
     // MARK: - Constants
 
@@ -24,7 +24,7 @@ public struct PoseDepthFusion: PoseDepthFusionProtocol {
     private(set) var fusionCount: Int = 0
     private(set) var missingKeypointCount: Int = 0
 
-    public var debugState: [String: Any] {
+    var debugState: [String: Any] {
         [
             "lastShoulderWidth": lastShoulderWidth,
             "lastHeadPosition": [lastHeadPosition.x, lastHeadPosition.y],
@@ -33,11 +33,11 @@ public struct PoseDepthFusion: PoseDepthFusionProtocol {
         ]
     }
 
-    public init() {}
+    init() {}
 
     // MARK: - PoseDepthFusionProtocol
 
-    public mutating func fuse(
+    mutating func fuse(
         pose: PoseObservation,
         depthSamples: [DepthAtPoint]?,
         confidence: DepthConfidence,

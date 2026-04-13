@@ -11,10 +11,10 @@ import os.log
 /// - Corrects Vision's flipped Y coordinates
 /// - Maps Vision keypoints to our Joint enum
 /// - Instruments error paths with detailed logging for debugging
-public final class PoseService: PoseServiceProtocol {
+final class PoseService: PoseServiceProtocol {
     // MARK: - DebugDumpable
 
-    public var debugState: [String: Any] {
+    var debugState: [String: Any] {
         [
             "lastProcessTime": lastProcessTime,
             "keypointsFound": lastKeypointCount,
@@ -38,11 +38,11 @@ public final class PoseService: PoseServiceProtocol {
 
     // MARK: - Initialization
 
-    public init() {}
+    init() {}
 
     // MARK: - PoseServiceProtocol
 
-    public func process(frame: InputFrame) async -> PoseDetectionResult {
+    func process(frame: InputFrame) async -> PoseDetectionResult {
         // Throttle to avoid processing every frame
         guard frame.timestamp - lastProcessTime >= minFrameInterval else {
             framesThrottled += 1

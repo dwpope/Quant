@@ -1,5 +1,5 @@
 import Foundation
 
-public protocol DebugDumpable {
+protocol DebugDumpable {
     var debugState: [String: Any] { get }
 }

@@ -12,7 +12,7 @@ import simd
 ///     - `cx = intrinsics.columns.2.x`
 ///     - `cy = intrinsics.columns.2.y`
 /// - Returns: 3D position in camera space (x, y, z) where z = depth.
-public func unproject(point: SIMD2<Float>, depth: Float, intrinsics: simd_float3x3) -> SIMD3<Float> {
+func unproject(point: SIMD2<Float>, depth: Float, intrinsics: simd_float3x3) -> SIMD3<Float> {
     let fx = intrinsics.columns.0.x
     let fy = intrinsics.columns.1.y
     let cx = intrinsics.columns.2.x

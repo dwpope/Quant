@@ -23,7 +23,7 @@ import Foundation
 /// The engine requires at least 10 metrics entries before it will classify.
 /// With a typical 10 FPS capture rate, this means ~1 second of data.
 /// Until then, it returns `.unknown` to avoid snap judgements.
-public final class TaskModeEngine: DebugDumpable {
+final class TaskModeEngine: DebugDumpable {
 
     // MARK: - Constants
 
@@ -34,7 +34,7 @@ public final class TaskModeEngine: DebugDumpable {
 
     private var lastResult: TaskMode = .unknown
 
-    public var debugState: [String: Any] {
+    var debugState: [String: Any] {
         [
             "lastResult": lastResult.rawValue,
             "minimumSamples": minimumSamples,
@@ -43,7 +43,7 @@ public final class TaskModeEngine: DebugDumpable {
 
     // MARK: - Initialization
 
-    public init() {}
+    init() {}
 
     // MARK: - Classification
 
@@ -51,7 +51,7 @@ public final class TaskModeEngine: DebugDumpable {
     ///
     /// - Parameter recentMetrics: The last ~100 `RawMetrics` entries (≈10 seconds at 10 FPS).
     /// - Returns: The inferred `TaskMode`, or `.unknown` if insufficient data or no pattern matches.
-    public func infer(from recentMetrics: [RawMetrics]) -> TaskMode {
+    func infer(from recentMetrics: [RawMetrics]) -> TaskMode {
         guard recentMetrics.count >= minimumSamples else {
             lastResult = .unknown
             return .unknown

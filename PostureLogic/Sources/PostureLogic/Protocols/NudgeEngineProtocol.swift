@@ -28,7 +28,7 @@ import Foundation
 /// The PostureEngine outputs the current `PostureState` (good/drifting/bad).
 /// The NudgeEngine takes that state and all the suppression rules to produce
 /// a `NudgeDecision`: fire, pending, suppressed, or none.
-public protocol NudgeEngineProtocol: DebugDumpable {
+protocol NudgeEngineProtocol: DebugDumpable {
 
     /// Evaluate whether a nudge should fire right now.
     ///

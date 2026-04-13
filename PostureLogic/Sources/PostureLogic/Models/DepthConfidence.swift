@@ -1,12 +1,12 @@
 import CoreGraphics
 import Foundation
 
-public struct DepthAtPoint {
-    public let point: CGPoint
-    public let depth: Float
-    public let confidence: Float
-    
-    public init(point: CGPoint, depth: Float, confidence: Float) {
+struct DepthAtPoint {
+    let point: CGPoint
+    let depth: Float
+    let confidence: Float
+
+    init(point: CGPoint, depth: Float, confidence: Float) {
         self.point = point
         self.depth = depth
         self.confidence = confidence

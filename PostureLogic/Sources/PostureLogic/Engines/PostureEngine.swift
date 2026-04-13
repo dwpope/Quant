@@ -35,14 +35,14 @@ import Foundation
 /// naturally involves a slight forward lean, so the `forwardCreep` threshold
 /// is relaxed by 20% in reading mode. Stretching disables posture judgement
 /// entirely (you *should* be moving around!).
-public final class PostureEngine: PostureEngineProtocol {
+final class PostureEngine: PostureEngineProtocol {
 
     // MARK: - Debug State
 
     /// Exposes the engine's internal state for the debug overlay.
     /// This dictionary is displayed in the DebugOverlayView so you can
     /// watch the state machine transitions in real time.
-    public var debugState: [String: Any] {
+    var debugState: [String: Any] {
         [
             "state": stateDescription(currentState),
             "accumulatedDriftTime": accumulatedDriftTime,
@@ -58,7 +58,7 @@ public final class PostureEngine: PostureEngineProtocol {
     /// The thresholds that control when posture is considered "bad".
     /// These come from PostureThresholds and can be changed at runtime
     /// via the settings screen (Ticket 7.3).
-    public var thresholds: PostureThresholds
+    var thresholds: PostureThresholds
 
     // MARK: - Internal State
 
@@ -118,7 +118,7 @@ public final class PostureEngine: PostureEngineProtocol {
     ///
     /// - Parameter thresholds: The configurable thresholds that control
     ///   sensitivity. Pass `PostureThresholds()` for defaults.
-    public init(thresholds: PostureThresholds = PostureThresholds()) {
+    init(thresholds: PostureThresholds = PostureThresholds()) {
         self.thresholds = thresholds
     }
 
@@ -145,7 +145,7 @@ public final class PostureEngine: PostureEngineProtocol {
     ///   - trackingQuality: How reliable the current camera data is.
     /// - Returns: The updated PostureState.
     @discardableResult
-    public func update(
+    func update(
         metrics: RawMetrics,
         taskMode: TaskMode,
         trackingQuality: TrackingQuality
@@ -298,7 +298,7 @@ public final class PostureEngine: PostureEngineProtocol {
     /// - The user triggers recalibration
     /// - The user returns after being absent for >5 minutes
     /// - The app relaunches
-    public func reset() {
+    func reset() {
         currentState = .absent
         accumulatedDriftTime = 0
         lastGoodUpdateTimestamp = nil

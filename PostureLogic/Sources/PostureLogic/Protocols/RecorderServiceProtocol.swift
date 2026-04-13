@@ -1,7 +1,7 @@
 /// Protocol for recording posture sessions.
 ///
 /// Lifecycle: ``startRecording(metadata:)`` -> ``record(sample:)`` (repeatedly) -> ``stopRecording()``
-public protocol RecorderServiceProtocol: DebugDumpable {
+public protocol RecorderServiceProtocol {
     /// Whether a recording session is currently active.
     var isRecording: Bool { get }
 

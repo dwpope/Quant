@@ -6,7 +6,7 @@ import Foundation
 /// user's posture is currently good, drifting toward bad, or sustained-bad.
 /// The engine should pause its internal timers when tracking quality is too
 /// low to make reliable judgements.
-public protocol PostureEngineProtocol: DebugDumpable {
+protocol PostureEngineProtocol: DebugDumpable {
     /// Evaluate the latest metrics and return the updated posture state.
     ///
     /// - Parameters:

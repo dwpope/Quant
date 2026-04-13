@@ -1,7 +1,7 @@
 /// Protocol for replaying recorded posture sessions.
 ///
 /// Lifecycle: ``load(session:)`` -> ``play()`` returns `AsyncStream<PoseSample>` -> ``stop()``
-public protocol ReplayServiceProtocol: DebugDumpable {
+protocol ReplayServiceProtocol: DebugDumpable {
     /// Whether a session is loaded and ready for playback.
     var isLoaded: Bool { get }
 
