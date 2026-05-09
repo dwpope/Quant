@@ -1,5 +1,7 @@
 # Quant
 
+[![PostureLogic Tests](https://github.com/dwpope/Quant/actions/workflows/tests.yml/badge.svg)](https://github.com/dwpope/Quant/actions/workflows/tests.yml)
+
 A real-time posture monitoring iOS app that uses the front camera and Apple's Vision framework to track body positioning, detect drinking gestures for hydration logging, and nudge you when you slouch — all processed on-device with no server dependency.
 
 Built with SwiftUI, ARKit, and Vision. Targeting iOS 17+.
@@ -37,7 +39,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~40,000 lines of Swift** across 238 files, with **599 tests** across 68 test files.
+**~40,000 lines of Swift** across 238 files, with **638 tests** across 66 test files.
 
 ## Technical Decisions
 
@@ -85,6 +87,10 @@ xcodebuild test -project Quant.xcodeproj -scheme QuantNoWatchTests \
 ```
 
 Test coverage includes unit tests for each engine in isolation, integration tests wiring multiple engines via Pipeline, golden recording replay tests for deterministic output verification, long-run stability tests, Codable migration tests for backward compatibility, model value tests for core types (TrackingQuality, DepthConfidence, Baseline, PostureState), and batch instantiation tests for all 60 UI variants.
+
+### CI
+
+PostureLogic tests run automatically on every push and PR to `main` via GitHub Actions. The workflow runs `swift test` on a macOS 15 runner — no simulator required. See the badge at the top of this README for current status.
 
 ## Supported Operating Range
 
