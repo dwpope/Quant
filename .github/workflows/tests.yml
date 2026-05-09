@@ -1,0 +1,39 @@
+name: PostureLogic Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'PostureLogic/**'
+      - '.github/workflows/tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'PostureLogic/**'
+      - '.github/workflows/tests.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Swift Package Tests
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: PostureLogic
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Resolve dependencies
+        run: swift package resolve
+
+      - name: Build
+        run: swift build
+
+      - name: Run tests
+        run: swift test
