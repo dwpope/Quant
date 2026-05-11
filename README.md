@@ -1,14 +1,16 @@
-# Quant
+# Aware
 
 [![PostureLogic Tests](https://github.com/dwpope/Quant/actions/workflows/tests.yml/badge.svg)](https://github.com/dwpope/Quant/actions/workflows/tests.yml)
 
 A real-time posture monitoring iOS app that uses the front camera and Apple's Vision framework to track body positioning, detect drinking gestures for hydration logging, and nudge you when you slouch — all processed on-device with no server dependency.
 
+(Codebase is internally named Quant — repo, Xcode project, and source folders still use that name; only the user-facing app brand is "Aware".)
+
 Built with SwiftUI, ARKit, and Vision. Targeting iOS 17+.
 
 ## What It Does
 
-Quant sits on your desk (phone on a stand) and watches your upper body through the front camera. It continuously compares your posture against a personal baseline you calibrate at the start of each session.
+Aware sits on your desk (phone on a stand) and watches your upper body through the front camera. It continuously compares your posture against a personal baseline you calibrate at the start of each session.
 
 **Posture monitoring** — Tracks five metrics (forward lean, head drop, shoulder rounding, lateral lean, twist) with a traffic-light state machine that gives you a grace period to self-correct before nudging. Nudges are gated by cooldown timers, hourly caps, and acknowledgement detection to avoid nagging.
 
