@@ -39,7 +39,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~40,000 lines of Swift** across 239 files, with **652 tests** across 67 test files.
+**~40,000 lines of Swift** across 239 files, with **683 tests** across 67 test files.
 
 ## Technical Decisions
 
