@@ -155,7 +155,7 @@ struct SipTimelineView: View {
                 .font(.headline)
                 .foregroundStyle(.secondary)
 
-            Text("Quant detects sips automatically while you work at your desk.")
+            Text("Aware detects sips automatically while you work at your desk.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)

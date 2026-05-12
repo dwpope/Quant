@@ -83,7 +83,7 @@ struct SipCalibrationView: View {
             Text("Personalise your sip detection")
                 .font(.headline)
 
-            Text("Tap \"Record Sip\", wait for the countdown, then take a natural sip from your water bottle during the 10-second recording window. Repeat at least 5 times so Quant can learn your drinking motion.")
+            Text("Tap \"Record Sip\", wait for the countdown, then take a natural sip from your water bottle during the 10-second recording window. Repeat at least 5 times so Aware can learn your drinking motion.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

@@ -29,7 +29,7 @@ struct CameraPermissionView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("Quant needs camera access to track your posture.\nPlease enable it in Settings.")
+            Text("Aware needs camera access to track your posture.\nPlease enable it in Settings.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
