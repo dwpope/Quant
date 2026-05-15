@@ -39,6 +39,19 @@ struct SipInsights: Equatable {
     /// than two sips.
     let medianGap: TimeInterval?
 
+    /// Population standard deviation of the inter-sip gaps (seconds), or
+    /// `nil` if fewer than two gaps (i.e. fewer than three sips). A single
+    /// gap has no measurable spread, so we return `nil` rather than `0`
+    /// — `0` would falsely imply "perfectly regular cadence."
+    let gapStandardDeviation: TimeInterval?
+
+    /// A 0.0–1.0 score capturing how regular the user's sip cadence is,
+    /// or `nil` if fewer than three sips. Computed as `1 - CV` (where
+    /// CV is the coefficient of variation, `stddev / mean`), clamped
+    /// to `[0, 1]`. `1.0` means perfectly even gaps; `0.0` means very
+    /// erratic.
+    let regularityScore: Double?
+
     // MARK: - Time-of-Day Breakdown
 
     /// Sips recorded before noon (using the reference date's calendar).
@@ -111,8 +124,11 @@ struct SipInsights: Equatable {
             self.shortestGap = nil
             self.longestGap = nil
             self.medianGap = nil
+            self.gapStandardDeviation = nil
+            self.regularityScore = nil
         } else {
-            self.averageInterval = gaps.reduce(0, +) / Double(gaps.count)
+            let mean = gaps.reduce(0, +) / Double(gaps.count)
+            self.averageInterval = mean
             self.shortestGap = gaps.min()
             self.longestGap = gaps.max()
             let sortedGaps = gaps.sorted()
@@ -121,6 +137,26 @@ struct SipInsights: Equatable {
                 self.medianGap = (sortedGaps[mid - 1] + sortedGaps[mid]) / 2.0
             } else {
                 self.medianGap = sortedGaps[mid]
+            }
+
+            // Spread + regularity require ≥ 2 gaps for variability to be
+            // meaningful. A single gap has stddev 0 by convention, but
+            // that would falsely report "perfect regularity" from one
+            // data point.
+            if gaps.count >= 2 {
+                let squaredDeviations = gaps.map { ($0 - mean) * ($0 - mean) }
+                let variance = squaredDeviations.reduce(0, +) / Double(gaps.count)
+                let stddev = variance.squareRoot()
+                self.gapStandardDeviation = stddev
+                if mean > 0 {
+                    let cv = stddev / mean
+                    self.regularityScore = max(0.0, min(1.0, 1.0 - cv))
+                } else {
+                    self.regularityScore = nil
+                }
+            } else {
+                self.gapStandardDeviation = nil
+                self.regularityScore = nil
             }
         }
 

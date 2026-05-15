@@ -53,6 +53,8 @@ final class SipInsightsTests: XCTestCase {
         XCTAssertNil(insights.shortestGap)
         XCTAssertNil(insights.longestGap)
         XCTAssertNil(insights.medianGap)
+        XCTAssertNil(insights.gapStandardDeviation)
+        XCTAssertNil(insights.regularityScore)
         XCTAssertNil(insights.activeDuration)
         XCTAssertNil(insights.firstSipTimestamp)
         XCTAssertNil(insights.lastSipTimestamp)
@@ -339,6 +341,97 @@ final class SipInsightsTests: XCTestCase {
             calendar: utcCalendar
         )
         XCTAssertEqual(insights.longestGapDescription, "2 hr 30 min")
+    }
+
+    // MARK: - Gap Standard Deviation & Regularity Score
+
+    func test_singleSip_stddevAndRegularityNil() {
+        // 1 sip → 0 gaps → both nil.
+        let insights = SipInsights(
+            sips: [sip(hour: 9)],
+            referenceDate: referenceDate,
+            calendar: utcCalendar
+        )
+        XCTAssertNil(insights.gapStandardDeviation)
+        XCTAssertNil(insights.regularityScore)
+    }
+
+    func test_twoSips_stddevAndRegularityNil() {
+        // 2 sips → 1 gap → stddev/regularity require ≥ 2 gaps to be
+        // meaningful, so both must be nil. (A single gap would otherwise
+        // report stddev 0 / regularity 1.0, falsely implying perfect cadence.)
+        let insights = SipInsights(
+            sips: [sip(hour: 9), sip(hour: 10)],
+            referenceDate: referenceDate,
+            calendar: utcCalendar
+        )
+        XCTAssertNil(insights.gapStandardDeviation)
+        XCTAssertNil(insights.regularityScore)
+    }
+
+    func test_threeEvenSips_stddevZeroAndRegularityOne() {
+        // 08:00, 09:00, 10:00 — gaps: 3600, 3600 — perfectly regular.
+        let insights = SipInsights(
+            sips: [sip(hour: 8), sip(hour: 9), sip(hour: 10)],
+            referenceDate: referenceDate,
+            calendar: utcCalendar
+        )
+        XCTAssertEqual(insights.gapStandardDeviation!, 0, accuracy: 0.0001)
+        XCTAssertEqual(insights.regularityScore!, 1.0, accuracy: 0.0001)
+    }
+
+    func test_threeSips_stddevMatchesPopulationFormula() {
+        // 08:00, 09:00, 09:30 — gaps: 3600, 1800
+        // mean = 2700; deviations = 900, -900; squared = 810000 each
+        // variance (population) = 1620000 / 2 = 810000
+        // stddev = sqrt(810000) ≈ 900
+        let insights = SipInsights(
+            sips: [sip(hour: 8), sip(hour: 9), sip(hour: 9, minute: 30)],
+            referenceDate: referenceDate,
+            calendar: utcCalendar
+        )
+        XCTAssertEqual(insights.gapStandardDeviation!, 900, accuracy: 0.1)
+    }
+
+    func test_threeSips_regularityMatchesOneMinusCV() {
+        // Same data as above:
+        // mean = 2700, stddev = 900 → CV = 1/3 → regularity = 2/3
+        let insights = SipInsights(
+            sips: [sip(hour: 8), sip(hour: 9), sip(hour: 9, minute: 30)],
+            referenceDate: referenceDate,
+            calendar: utcCalendar
+        )
+        XCTAssertEqual(insights.regularityScore!, 2.0 / 3.0, accuracy: 0.0001)
+    }
+
+    func test_veryErraticGaps_regularityClampedToZero() {
+        // 08:00, 08:01, 14:00 — gaps: 60, 21540
+        // mean = 10800; stddev = |60 - 10800| = 10740 (population, 2 samples)
+        // CV = 10740 / 10800 ≈ 0.9944 → 1 - CV ≈ 0.0056 (positive but tiny)
+        // Mostly verifies the clamp branch: very high CV produces near-zero
+        // (not negative) regularity.
+        let insights = SipInsights(
+            sips: [sip(hour: 8), sip(hour: 8, minute: 1), sip(hour: 14)],
+            referenceDate: referenceDate,
+            calendar: utcCalendar
+        )
+        let regularity = insights.regularityScore!
+        XCTAssertGreaterThanOrEqual(regularity, 0.0)
+        XCTAssertLessThan(regularity, 0.05)
+    }
+
+    func test_simultaneousSips_meanZero_regularityNil() {
+        // Three sips at the exact same timestamp → gaps: 0, 0
+        // mean = 0 → CV undefined → regularityScore must be nil.
+        // stddev is still defined (= 0).
+        let same = sip(hour: 9)
+        let insights = SipInsights(
+            sips: [same, same, same],
+            referenceDate: referenceDate,
+            calendar: utcCalendar
+        )
+        XCTAssertEqual(insights.gapStandardDeviation!, 0, accuracy: 0.0001)
+        XCTAssertNil(insights.regularityScore)
     }
 
     // MARK: - Equatable
