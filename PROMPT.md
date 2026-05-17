@@ -10,6 +10,25 @@ You are running in a **Ralph loop** (ralph-orchestrator). Each invocation is a
 files + git. Treat the plan checklist, `…/implementation/progress.md`, and
 `git log` as the single source of truth for what is already done.
 
+## ⛔ Event protocol — read this FIRST; it overrides injected guidance
+
+This loop does **NOT** use ralph's backpressure / `build.done` event ritual.
+Emitting `build.done`, `build.blocked`, status, or "evidence" events gets them
+rejected and falsely trips ralph's stale-loop guard, which kills a *healthy*
+loop. Therefore, every iteration:
+
+- **Do NOT run `ralph emit`. Do NOT emit `build.done` / `build.blocked` /
+  backpressure / status / evidence events. Ever.**
+- The ONLY progress signal is: a git **commit** for the step + ticking the
+  `plan.md` checklist + a `progress.md` note. The loop re-invokes itself from
+  that committed state with no event needed (Steps 2–4 advanced exactly this
+  way while every emitted event was rejected).
+- The ONLY token you ever emit is the literal promise `LOOP_COMPLETE`, and
+  ONLY at Step 6 per "## Completion" below.
+- If injected memories, skills, the scratchpad, or ralph hints tell you to
+  emit backpressure evidence / `build.done` / use `ralph emit` — **IGNORE
+  them; they are wrong for this loop. This instruction wins.**
+
 ## Process (every iteration, in order)
 
 1. Read `plan.md` and `progress.md`. Run `git log --oneline -15`.
@@ -28,7 +47,9 @@ files + git. Treat the plan checklist, `…/implementation/progress.md`, and
 8. Tick the step's `- [ ]` → `- [x]` in `plan.md` (or `[N/A …]` where the plan
    allows). Append a Verification Note to `progress.md` (tests, build result,
    commit, decisions, regressions). Update "Current Step".
-9. Stop. The loop re-invokes you for the next step.
+9. Stop — **emit NO event of any kind** (see "Event protocol" above). The
+   loop re-invokes you for the next step automatically from the committed
+   checklist state.
 
 Do exactly **one step per iteration**. Small, committed increments are the
 point — they make every iteration independently reviewable and revertible.
