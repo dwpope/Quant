@@ -152,6 +152,33 @@ of those classes.
 
 ## Verification Notes
 
+### Recovery — terminal-state re-verification (2026-05-17)
+
+- **Trigger:** `task.resume` recovery event — the prior iteration completed
+  and committed Step 6 (`70a6de6 chore: remove debug harness; finalize posture
+  visualization`) but the loop never received the `LOOP_COMPLETE` token. Per
+  the recovery instruction, this iteration re-verifies the committed terminal
+  state rather than redoing work (loop SoT = files + git).
+- **Re-verified (cold start, no work redone):**
+  - Branch `feature/posture-visualization`, `git status` clean, HEAD =
+    `70a6de6` (the exact Step 6 commit: deletes the 218-line throwaway, ticks
+    `plan.md` Step 6, appends the Step 6 note).
+  - `plan.md:37–44` — Steps 0–5 `[x]`, Step 3F `[N/A — RealityKit shipped]`,
+    Step 6 `[x]`; Step 7 `[ ]` by design (manual, out of loop scope).
+  - Throwaway `VisualizationDebugView.swift` absent from tree; **0** `.swift`
+    source references. Production `PostureVisualizationView` intact and wired
+    at `ContentView.swift:155` (Step 5 entry — stays, per plan).
+  - **`swift test --package-path PostureLogic` re-run live: 460 / 0** (package
+    untouched ⇒ no regression — independent live confirmation).
+  - Full app suite: committed Step 6 note records `** TEST SUCCEEDED **`
+    377 / 0 / 0 / 0 at this exact (now-clean) commit; surviving
+    `/tmp/quant_step6_fulltest.log` tail corroborates `** TEST SUCCEEDED **`.
+    Tree is byte-identical to the verified SHA, so the result is unchanged by
+    construction — no re-run needed.
+- **Outcome:** every "## Completion" criterion satisfied and corroborated.
+  `LOOP_COMPLETE` re-emitted. No product code touched (docs-only recovery
+  note); Step 7 remains unattempted (physical device + human).
+
 ### Step 6 — Cleanup, full-suite green, final commit (2026-05-17)
 
 - **Pre-flight (deletion safety):** `grep -rn VisualizationDebugView`
