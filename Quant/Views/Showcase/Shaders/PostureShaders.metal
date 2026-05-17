@@ -1,3 +1,10 @@
+// SwiftUI Metal shaders ([[stitchable]], SwiftUI::Layer) are unavailable on the
+// watchOS SDK — <SwiftUI/SwiftUI_Metal.h> does not exist there. When this file is
+// fed to the watchOS Metal compiler (e.g. the embedded-watch slice of an Xcode
+// Cloud archive), the guard collapses it to an empty—but valid—Metal library so
+// the build succeeds. On iOS the header is present and the real shaders compile.
+#if __has_include(<SwiftUI/SwiftUI_Metal.h>)
+
 #include <metal_stdlib>
 #include <SwiftUI/SwiftUI_Metal.h>
 using namespace metal;
@@ -282,3 +289,5 @@ static float fbm(float2 p, int octaves) {
 
     return position + float2(displacement + tearDisplacement, 0.0);
 }
+
+#endif // __has_include(<SwiftUI/SwiftUI_Metal.h>)
