@@ -6,12 +6,17 @@
 
 ## Current Step
 
-**Step 3 — RealityKit scene scaffold (placeholder entities, build-only)**
-_(Steps 0–2 complete)_
+**Step 4 — Bind ViewModel → entity transforms**
+_(Steps 0–3 complete)_
 
-> ⚠️ Step 3 is a **RealityKit** step — the next iteration MUST read the
-> "RealityKit Attempt Ledger" below (currently `attempts: 0, budget: 2`)
-> before starting and obey its budget rule (`plan.md` Step 3).
+> ⚠️ Step 4 is ALSO a **RealityKit** step — the next iteration MUST read the
+> "RealityKit Attempt Ledger" below (currently `attempts: 0, budget: 2`,
+> `status: in-progress`) before starting and obey its budget rule
+> (`plan.md` Step 3/4). Step 3 ended clean (build + progress) so the counter
+> did **not** increment. Step 4 binds `PostureVisualizationViewModel`'s 10
+> `@Published` outputs to the named scene entities via the `RealityView`
+> `update` closure — resolve entities with `findEntity(named:)` using the
+> shared `PostureVisualizationScene.EntityName` constants.
 
 > ✅ **RESOLVED 2026-05-17** — the pre-existing suite blocker (see "Known
 > Blocker — RESOLVED" below) is fixed and merged (`00bbbbe` + merge `6ccda58`).
@@ -68,11 +73,16 @@ _(Steps 0–2 complete)_
 attempts: 0
 budget: 2
 last_error_class: (none)
-status: not-yet-engaged   # not-yet-engaged | in-progress | shipped | exhausted
+status: in-progress   # not-yet-engaged | in-progress | shipped | exhausted
 ```
 
 Attempt log:
-- _(none yet)_
+- **2026-05-17 — Step 3 (scaffold).** Result: **clean build + progress** →
+  counter NOT incremented (per ledger rule: clean scene build AND
+  done-criteria progress does not burn budget). RealityKit API surface
+  verified against Apple docs (Context7) *before* coding so a guessed API
+  could not cause a budget-burning compile failure. No blocking error.
+  `attempts` stays 0; 2 attempts remain for Step 4.
 
 ## Known Blocker — RESOLVED 2026-05-17 (pre-existing; NOT caused by posture-viz work)
 
@@ -127,6 +137,47 @@ product/test code removed (only the necessary `.gitkeep` build-fix retained),
 of those classes.
 
 ## Verification Notes
+
+### Step 3 — RealityKit scene scaffold (2026-05-17)
+
+- **Added (2 files, `Quant/Views/Visualization/`):**
+  - `PostureVisualizationScene.swift` — value-type-only (`enum` namespace, no
+    class → no `@MainActor` isolated-deinit hazard). `@MainActor` static
+    factories `makeAssembly()` (shoulder disc cylinder + front tick box;
+    head sphere + dark equator band + dark "nose" tick, all named children)
+    and `makeCamera()` (`PerspectiveCamera` at ~80° from horizontal via
+    `look(at:from:relativeTo:)`). `EntityName` constants are the shared
+    scene-graph contract Step 4 will resolve with `findEntity(named:)`.
+  - `PostureVisualizationView.swift` — `struct: View` hosting a `RealityView`
+    that adds the static assembly + camera. **No ViewModel binding** (Step 4
+    owns that — Step 3 kept strictly static per plan).
+- **API safety:** RealityKit surface verified against Apple docs via Context7
+  *before* writing code: `RealityView { content in }`,
+  `MeshResource.generateCylinder(height:radius:)` confirmed **iOS 18.0+**
+  (== `IPHONEOS_DEPLOYMENT_TARGET`), `generateSphere`,
+  `generateBox(width:height:depth:)`, `UnlitMaterial` via
+  `.color = .init(tint:)`, `PerspectiveCamera()` +
+  `Entity.look(at:from:relativeTo:)`. This protected the tight Attempt Ledger
+  budget from a guessed-API compile failure.
+- **Decision DEC-002 (confidence 75, recorded in `.ralph/agent/decisions.md`):**
+  true two-tone hemisphere reveal deferred to Step 5 polish — a single-submesh
+  generated sphere ignores a 2nd material, so a faithful split needs custom
+  mesh/UV work, out of scope for a build-only scaffold. Approximated now with
+  a dark equator band + dark nose tick; entities are named so Step 4/5 can
+  swap the head's mesh/materials without touching disc/camera/container.
+- **Verification:** `xcodebuild build -project Quant.xcodeproj -scheme Quant
+  -destination id=AFD03DDC-D5CC-4B24-97A8-94889AB854A5 -quiet` →
+  **exit 0, 0 `error:` lines** (the plan's explicit Step 3 gate; both new
+  files compiled — synced-folder auto-discovery confirmed). The SourceKit
+  "Cannot find 'PostureVisualizationScene'" / "No such module 'UIKit'"
+  editor diagnostics were the documented stale-index false positive
+  (`mem-1779012223-1e1f`); the compiler resolved everything. `swift test
+  --package-path PostureLogic` → **460 / 0** (package untouched).
+- **RealityKit Attempt Ledger:** clean scene build **and** done-criteria
+  progress ⇒ `attempts` NOT incremented (stays 0/2); `status: in-progress`.
+- **Regressions:** none (additive view-only; logic suites unaffected; no
+  pose-detection / public-API edits — anti-goals respected).
+- **Commit:** `feat: scaffold RealityKit posture visualization scene (static)`.
 
 ### Step 2 — Debug harness: `VisualizationDebugView` (2026-05-17)
 
@@ -238,3 +289,8 @@ of those classes.
   `feat: add throwaway VisualizationDebugView for ViewModel validation`).
   Verified: app build SUCCEEDED, PostureLogic 460/460, no regression. To be
   deleted in Step 6.
+- **Step 3** — RealityKit static scene scaffold: `PostureVisualizationScene`
+  (named entity factory) + `PostureVisualizationView` (RealityView + camera),
+  static placeholders, no binding (commit `feat: scaffold RealityKit posture
+  visualization scene (static)`). Verified: app build exit 0, PostureLogic
+  460/460, no regression. Attempt Ledger NOT burned (clean build + progress).

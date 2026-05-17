@@ -34,7 +34,7 @@ Each iteration is a **cold start** — the agent remembers nothing. Procedure:
 - [x] **Step 0** — Branch + folder scaffolding
 - [x] **Step 1** — Data layer: `PostureVisualizationViewModel` (TDD)
 - [x] **Step 2** — Debug harness: `VisualizationDebugView`
-- [ ] **Step 3** — RealityKit scene scaffold (placeholder entities, build-only)
+- [x] **Step 3** — RealityKit scene scaffold (placeholder entities, build-only)
 - [ ] **Step 4** — Bind ViewModel → entity transforms
 - [ ] **Step 3F** — *Conditional* SwiftUI fallback (only if RealityKit budget blown — see Step 3)
 - [ ] **Step 5** — Integration & polish (navigation, colour transitions, ghosts, animation)
