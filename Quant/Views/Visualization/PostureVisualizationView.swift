@@ -30,6 +30,10 @@ struct PostureVisualizationView: View {
     /// not stack duplicate pipelines onto the same ViewModel.
     @State private var didBind = false
 
+    /// Dev tuning HUD visibility. Off by default — the shipped visualization
+    /// stays purely graphical; this is opt-in for mapping refinement only.
+    @State private var showValues = false
+
     /// Calibration-pulse period (seconds) — a slow, organic "breathing" beat.
     private static let pulsePeriod = 1.6
 
@@ -59,6 +63,23 @@ struct PostureVisualizationView: View {
                     .padding()
             }
             .accessibilityLabel("Close visualization")
+        }
+        .overlay(alignment: .bottomLeading) {
+            VStack(alignment: .leading, spacing: 10) {
+                if showValues {
+                    PostureVisualizationValuesOverlay(viewModel: viewModel)
+                        .transition(.opacity)
+                }
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { showValues.toggle() }
+                } label: {
+                    Image(systemName: showValues ? "gauge.with.dots.needle.bottom.50percent" : "gauge.with.dots.needle.0percent")
+                        .font(.title2)
+                        .foregroundStyle(.white.opacity(showValues ? 0.95 : 0.55))
+                        .padding()
+                }
+                .accessibilityLabel(showValues ? "Hide tuning values" : "Show tuning values")
+            }
         }
         .onAppear {
             guard !didBind else { return }

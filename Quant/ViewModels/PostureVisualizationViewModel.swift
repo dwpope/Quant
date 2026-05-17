@@ -68,6 +68,28 @@ final class PostureVisualizationViewModel: ObservableObject {
     @Published private(set) var stateColor: Color = .gray             // ← postureState
     @Published private(set) var isCalibrating: Bool = false           // ← postureState
 
+    // MARK: Raw upstream inputs (unsmoothed; dev tuning HUD only)
+    //
+    // `ingest` consumes the pipeline signals and immediately maps + smooths
+    // them into the display values above, discarding the raw inputs. The dev
+    // overlay needs the *pre-mapping* numbers next to the mapped outputs to
+    // judge whether the `Mapping` amplify/cap constants feel right, so we keep
+    // a parallel, unsmoothed copy. These never drive the scene — the binding
+    // reads only the display values — so they cannot affect the visual.
+
+    @Published private(set) var rawTwist: Double = 0                  // RawMetrics.twist
+    @Published private(set) var rawLateralLean: Double = 0            // RawMetrics.lateralLean
+    @Published private(set) var rawForwardCreep: Double = 0           // RawMetrics.forwardCreep
+    @Published private(set) var rawHeadForwardOffset: Double = 0      // PoseSample.headForwardOffset
+    @Published private(set) var rawShoulderTwist: Double = 0          // PoseSample.shoulderTwist
+
+    /// Amplified yaw/pitch/roll *before* the per-axis cap. Compared against the
+    /// clamped `head*Degrees` outputs, a divergence here means the cap is
+    /// currently clipping — the single clearest cue for tuning `*CapDegrees`.
+    @Published private(set) var unclampedYawDegrees: Double = 0
+    @Published private(set) var unclampedPitchDegrees: Double = 0
+    @Published private(set) var unclampedRollDegrees: Double = 0
+
     /// Low-pass smoothing factor (design starting value). Tune by eye later.
     static let smoothingAlpha: Double = 0.2
 
@@ -163,10 +185,8 @@ final class PostureVisualizationViewModel: ObservableObject {
             forwardTarget = Double(p.headForwardOffset) * Mapping.headForwardPointsPerUnit
 
             // Yaw ← shoulder twist (already degrees: asin(clamp)·180/π).
-            yawTarget = Self.clamp(
-                Double(p.shoulderTwist) * Mapping.headRotationAmplification,
-                -Mapping.yawCapDegrees, Mapping.yawCapDegrees
-            )
+            let yawRaw = Double(p.shoulderTwist) * Mapping.headRotationAmplification
+            yawTarget = Self.clamp(yawRaw, -Mapping.yawCapDegrees, Mapping.yawCapDegrees)
 
             // Pitch ← head depth offset as an elevation angle. Negative
             // headForwardOffset = head toward camera = leaning forward = +pitch.
@@ -180,11 +200,19 @@ final class PostureVisualizationViewModel: ObservableObject {
             let dy = Double(p.rightShoulder.y - p.leftShoulder.y)
             let rollRaw = atan2(dy, dx) * 180.0 / .pi * Mapping.headRotationAmplification
             rollTarget = Self.clamp(rollRaw, -Mapping.rollCapDegrees, Mapping.rollCapDegrees)
+
+            // Keep the pre-clamp angles for the dev HUD (does not drive scene).
+            unclampedYawDegrees = yawRaw
+            unclampedPitchDegrees = pitchRaw
+            unclampedRollDegrees = rollRaw
         } else {
             forwardTarget = 0
             yawTarget = 0
             pitchTarget = 0
             rollTarget = 0
+            unclampedYawDegrees = 0
+            unclampedPitchDegrees = 0
+            unclampedRollDegrees = 0
         }
 
         shoulderRotationDegrees = rotationFilter.update(rotationTarget)
@@ -199,6 +227,13 @@ final class PostureVisualizationViewModel: ObservableObject {
         // Discrete signals — no smoothing (an interpolated colour/flag is wrong).
         stateColor = Self.color(for: state)
         isCalibrating = (state == .calibrating)
+
+        // Raw inputs mirrored for the dev HUD (unsmoothed, scene-irrelevant).
+        rawTwist = Double(m.twist)
+        rawLateralLean = Double(m.lateralLean)
+        rawForwardCreep = Double(m.forwardCreep)
+        rawHeadForwardOffset = pose.map { Double($0.headForwardOffset) } ?? 0
+        rawShoulderTwist = pose.map { Double($0.shoulderTwist) } ?? 0
     }
 
     // MARK: Pure mappings
