@@ -8,8 +8,11 @@
 
 **Step 2 — Debug harness: `VisualizationDebugView`** _(Step 1 complete)_
 
-> ⚠️ **Pre-existing suite blocker discovered in Step 1 — read "Known Blocker"
-> below before relying on "full app suite green" for Step-completion gates.**
+> ✅ **RESOLVED 2026-05-17** — the pre-existing suite blocker (see "Known
+> Blocker — RESOLVED" below) is fixed and merged (`00bbbbe` + merge `6ccda58`).
+> Full `xcodebuild test … QuantNoWatchTests` is GREEN again — verified
+> `** TEST SUCCEEDED **` (0 failures, 0 crashes) on this merged branch. Step 6's
+> "full app suite green" gate is satisfiable; no special handling needed.
 
 ## Working environment (fill in during Step 0, reuse thereafter)
 
@@ -18,12 +21,12 @@
   (plan default; resolves to an available **iPhone 17**, iOS 26.0.1 — the
   plan's "iPhone 16" comment is stale but the UDID is live). Reuse this.
 - Branch confirmed: `feature/posture-visualization` (never committed to `main`).
-- **Canonical regression command on this toolchain:** the full
-  `xcodebuild test … QuantNoWatchTests` run is **red due to a pre-existing
-  toolchain bug** (see Known Blocker). Until that blocker task is closed,
-  Step verification = (a) the step's own focused tests via
-  `-only-testing:QuantTests/<Class>` **and** (b)
-  `swift test --package-path PostureLogic` (clean, 460 pass).
+- **Canonical regression command:** the full
+  `xcodebuild test … QuantNoWatchTests` run is **GREEN again** as of merge
+  `6ccda58` (blocker fixed — see "Known Blocker — RESOLVED" below). Use it as
+  the Step 6 gate. Per-step, the focused tests via
+  `-only-testing:QuantTests/<Class>` plus
+  `swift test --package-path PostureLogic` (460 pass) remain a fast check.
 
 ## Type Map (authoritative names from the actual codebase — verified Step 0)
 
@@ -66,7 +69,19 @@ status: not-yet-engaged   # not-yet-engaged | in-progress | shipped | exhausted
 Attempt log:
 - _(none yet)_
 
-## Known Blocker (pre-existing; NOT caused by posture-viz work)
+## Known Blocker — RESOLVED 2026-05-17 (pre-existing; NOT caused by posture-viz work)
+
+> ✅ **RESOLVED.** Fixed on branch `fix/mainactor-deinit-sigabrt` (commit
+> `00bbbbe`): `nonisolated deinit {}` added to **10** app-target `@MainActor`
+> classes — AppModel, LivePostureDataSource, SipStore, SipTrainingStore,
+> SipLabelQueue, AudioFeedbackService, WatchConnectivityService,
+> ARSessionService, FrontCameraSessionService, SwitchablePoseProvider — then
+> merged into this branch via `6ccda58`. The original ≈5-class estimate was
+> incomplete (AppModel transitively owns more @MainActor types; full ownership
+> graph = 10). Full `xcodebuild test … QuantNoWatchTests` then ran
+> `** TEST SUCCEEDED **` (0 failures, 0 crashes) on the merged branch;
+> PostureLogic still 460/0. Tracked task `task-1779007181-1bd5` closed. The
+> diagnosis below is retained for historical context only.
 
 **ID:** suite-wide `@MainActor` deinit SIGABRT on the Xcode 26 / iOS 26 SDK /
 macOS 26.2 toolchain. **Tracked task:** see `ralph tools task` —
