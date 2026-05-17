@@ -6,7 +6,12 @@
 
 ## Current Step
 
-**Step 2 — Debug harness: `VisualizationDebugView`** _(Step 1 complete)_
+**Step 3 — RealityKit scene scaffold (placeholder entities, build-only)**
+_(Steps 0–2 complete)_
+
+> ⚠️ Step 3 is a **RealityKit** step — the next iteration MUST read the
+> "RealityKit Attempt Ledger" below (currently `attempts: 0, budget: 2`)
+> before starting and obey its budget rule (`plan.md` Step 3).
 
 > ✅ **RESOLVED 2026-05-17** — the pre-existing suite blocker (see "Known
 > Blocker — RESOLVED" below) is fixed and merged (`00bbbbe` + merge `6ccda58`).
@@ -123,6 +128,40 @@ of those classes.
 
 ## Verification Notes
 
+### Step 2 — Debug harness: `VisualizationDebugView` (2026-05-17)
+
+- **Added:** `Quant/Views/Visualization/VisualizationDebugView.swift` — pure
+  SwiftUI throwaway (top comment `// THROWAWAY — delete in Step 6 (plan.md).`).
+  Sliders for every input the VM's `ingest(metrics:pose:state:quality:)`
+  actually consumes (twist, lateralLean, forwardCreep, headForwardOffset,
+  shoulderTwist, shoulder-line-tilt→roll), `PostureState`/`TrackingQuality`
+  pickers, a "use live data" toggle, and numeric readouts of **all 10**
+  `@Published` outputs (incl. `stateColor` as a swatch, `isCalibrating` glyph).
+- **Design decisions (no VM/public-API change — constraint respected):**
+  1. Both synthetic and live inputs route through the **same** camera-free
+     `ingest(...)` seam (the Step 1 test entry point), so the harness and the
+     unit tests validate identical logic; "use live data" only swaps the
+     source. Avoids needing a VM `unbind` (no public-API churn / no unrelated
+     refactor). Live mode re-pushes via `.onReceive` of AppModel's 4 publishers.
+  2. Roll is driven by reconstructing a shoulder pair on the unit circle
+     (`left=.zero`, `right=(cosθ,sinθ,0)`) so one slider maps 1:1 to the VM's
+     `atan2`-derived roll input (pre 1.5× amplify / ±45 clamp). Exercises the
+     heuristic rather than bypassing it.
+  3. One Equatable `inputSignature` array → a single `.onChange` re-push,
+     instead of ~9 stacked per-control modifiers.
+  - `@EnvironmentObject var appModel: AppModel` + `#Preview … .environmentObject`
+    follows the repo convention (ContentView/CalibrationSettingsView/etc.).
+- **Verification:** app build (plan's explicit Step 2 gate) **SUCCEEDED** —
+  `xcodebuild build -scheme Quant -destination
+  id=AFD03DDC-D5CC-4B24-97A8-94889AB854A5`, exit 0, 0 `error:` lines. The
+  SourceKit "No such module 'PostureLogic'" was a stale-index false positive
+  (identical `import PostureLogic` already compiles in Step 1's VM; the actual
+  compiler build is clean). `swift test --package-path PostureLogic` →
+  **460 / 0 failures** (package untouched, as expected for an app-target-only
+  view). No pose-detection / public-API edits.
+- **Regressions:** none (UI-only addition; logic suites unaffected).
+- **Commit:** `feat: add throwaway VisualizationDebugView for ViewModel validation`.
+
 ### Step 1 — Data layer: `PostureVisualizationViewModel` (TDD) (2026-05-17)
 
 - **TDD:** wrote `QuantTests/PostureVisualizationViewModelTests.swift` first
@@ -195,3 +234,7 @@ of those classes.
   Includes the necessary `.gitkeep` build fix. Verified: 17/17 new tests
   pass, PostureLogic 460/460, no regression (pre-existing toolchain blocker
   documented + tracked).
+- **Step 2** — Throwaway `VisualizationDebugView` SwiftUI harness (commit
+  `feat: add throwaway VisualizationDebugView for ViewModel validation`).
+  Verified: app build SUCCEEDED, PostureLogic 460/460, no regression. To be
+  deleted in Step 6.
