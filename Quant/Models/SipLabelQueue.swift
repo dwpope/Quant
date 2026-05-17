@@ -25,6 +25,12 @@ import PostureLogic
 @MainActor
 final class SipLabelQueue {
 
+    // Teardown only releases stored properties; it touches no main-actor state.
+    // Marking it `nonisolated` keeps Swift's MainActor isolated-deinit
+    // back-deploy shim out of XCTest's NSInvocation-driven dealloc path, which
+    // otherwise corrupts the heap and aborts under Xcode 26 / iOS 26.
+    nonisolated deinit {}
+
     // MARK: - Callbacks
 
     /// Called when a label is determined for an item — either by the user,
