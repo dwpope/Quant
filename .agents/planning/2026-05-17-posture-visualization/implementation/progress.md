@@ -6,26 +6,21 @@
 
 ## Current Step
 
-**Step 6 — Cleanup, full-suite green, final commit → emit `LOOP_COMPLETE`**
-_(Steps 0–5 complete; Step 3F = N/A — RealityKit shipped)_
+**✅ COMPLETE — Steps 0–6 all `[x]` (Step 3F = N/A — RealityKit shipped).
+`LOOP_COMPLETE` emitted. The loop ends here.**
 
-> ✅ Step 5 (integration & polish) **shipped** (commit
-> `feat: integrate posture visualization with state polish`). Next iteration's
-> first unchecked box is **Step 6** — the loop's terminal step:
-> 1. Delete the Step 2 throwaway `Quant/Views/Visualization/VisualizationDebugView.swift`
->    **and** any debug-only navigation entry point for it (grep `VisualizationDebugView`
->    — note: Step 5's *production* `PostureVisualizationView` nav entry in
->    `ContentView` STAYS; only a debug harness entry, if any, is removed. As of
->    Step 5 `VisualizationDebugView` has **no** navigation site — it was never
->    wired in — so Step 6 is just the file deletion + a build/test pass).
-> 2. Run the **full** app suite (`xcodebuild test … QuantNoWatchTests`, the
->    UDID below) + `swift test --package-path PostureLogic`. The full-suite
->    blocker is RESOLVED (merge `6ccda58`) so this gate is now satisfiable —
->    Step 6 must run the *whole* suite, not just focused tests.
-> 3. Confirm Steps 0–5 all `[x]` (3F `[N/A]`), commit
->    `chore: remove debug harness; finalize posture visualization`, finalise
->    this file, then **emit `LOOP_COMPLETE`** (the loop ends — do NOT attempt
->    Step 7, which needs a physical device + human).
+> Step 6 (cleanup, full-suite green, final commit) **shipped** (commit
+> `chore: remove debug harness; finalize posture visualization`). The Step 2
+> throwaway `VisualizationDebugView.swift` is deleted; the full app suite
+> (`** TEST SUCCEEDED **`, 377 cases, 0 fail / 0 crash / 0 error) and
+> `swift test --package-path PostureLogic` (460/0) are green with no
+> regressions. Plan checklist Steps 0–6 are `[x]`, Step 3F `[N/A]`. All loop
+> scope (Steps 0–6) is satisfied.
+>
+> **Step 7 (device test + 60 s demo recording) is NOT a loop task** — it needs
+> a physical device with a live camera + a human operator. It remains
+> `[ ]` in the checklist by design and is verified manually after
+> `LOOP_COMPLETE`, per the plan's Step 7 note.
 
 > ✅ **RESOLVED 2026-05-17** — the pre-existing suite blocker (see "Known
 > Blocker — RESOLVED" below) is fixed and merged (`00bbbbe` + merge `6ccda58`).
@@ -156,6 +151,42 @@ product/test code removed (only the necessary `.gitkeep` build-fix retained),
 of those classes.
 
 ## Verification Notes
+
+### Step 6 — Cleanup, full-suite green, final commit (2026-05-17)
+
+- **Pre-flight (deletion safety):** `grep -rn VisualizationDebugView`
+  matched **only** the 3 planning/design docs + the throwaway file itself —
+  **no source file** imports or instantiates it. This confirms the Step 5
+  note: the harness was never wired into navigation, so there is **no
+  debug-only nav entry point to remove**. Step 5's *production*
+  `PostureVisualizationView` entry in `ContentView` does **not** reference
+  `VisualizationDebugView` and **stays** (verified: absent from the grep
+  match set). File header reconfirmed `// THROWAWAY — delete in Step 6`.
+- **Action:** `git rm Quant/Views/Visualization/VisualizationDebugView.swift`
+  (the Step 2 throwaway; sole change this step besides plan/progress
+  bookkeeping). No other debug-only entry points existed.
+- **Full app suite (Step 6 gate — the *whole* suite, not focused):**
+  `xcodebuild test -project Quant.xcodeproj -scheme QuantNoWatchTests
+  -destination id=AFD03DDC-D5CC-4B24-97A8-94889AB854A5` →
+  **`** TEST SUCCEEDED **`**, exit 0. **377 cases passed, 0 failed,
+  0 `Test crashed with signal`, 0 `error:`**. The pre-existing `@MainActor`
+  back-deploy-deinit SIGABRT stays **resolved** with the harness removed
+  (zero crash lines). All posture-viz tests pass *inside the full parallel
+  run*: `PostureVisualizationViewModelTests` 17/17 +
+  `PostureVisualizationBindingTests` 10/10 (7 resolve/binding + 3 Step-5
+  `stateTint`). Full log: `/tmp/quant_step6_fulltest.log`.
+- **PostureLogic regression:** `swift test --package-path PostureLogic` →
+  **460 / 0** (package untouched, unchanged from every prior step).
+- **Checklist:** Steps 0–5 all `[x]`, Step 3F `[N/A — RealityKit shipped]`,
+  Step 6 now `[x]`. Step 7 intentionally left `[ ]` (manual, out of loop
+  scope per plan).
+- **Regressions:** none — the only product change is the deletion of a
+  throwaway dev-only screen with zero references; full suite + PostureLogic
+  green, no pose-detection / public-API edits (anti-goals respected).
+- **Commit:** `chore: remove debug harness; finalize posture visualization`.
+- **Loop terminus:** Steps 0–6 satisfied, full suite + package green, debug
+  harness gone ⇒ `LOOP_COMPLETE` emitted. The loop ends here; **Step 7 is
+  never attempted** (physical device + human).
 
 ### Step 5 — Integration & polish (2026-05-17)
 
@@ -436,3 +467,11 @@ of those classes.
   with state polish`). Verified: app build exit 0, focused QuantTests
   (3 new + 8 binding + 17 VM) `** TEST SUCCEEDED **` 0 fail, PostureLogic
   460/0, no regression. DEC-004.
+- **Step 6** — Cleanup & finalize: deleted the Step 2 throwaway
+  `VisualizationDebugView.swift` (zero source refs — never nav-wired; the
+  Step 5 production `PostureVisualizationView` entry stays), ran the **full**
+  app suite + PostureLogic (commit `chore: remove debug harness; finalize
+  posture visualization`). Verified: `** TEST SUCCEEDED **` 377/0/0
+  (0 fail / 0 crash / 0 error), PostureLogic 460/0, no regression. Steps 0–6
+  `[x]`, 3F `[N/A]` ⇒ **`LOOP_COMPLETE`**. **Loop ends — Step 7 (device +
+  human) intentionally not attempted.**

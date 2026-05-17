@@ -41,7 +41,7 @@ Each iteration is a **cold start** — the agent remembers nothing. Procedure:
 - [x] **Step 4** — Bind ViewModel → entity transforms
 - [N/A — RealityKit shipped] **Step 3F** — *Conditional* SwiftUI fallback (only if RealityKit budget blown — see Step 3)
 - [x] **Step 5** — Integration & polish (navigation, colour transitions, ghosts, animation)
-- [ ] **Step 6** — Cleanup, full-suite green, final commit → **emit `LOOP_COMPLETE`**
+- [x] **Step 6** — Cleanup, full-suite green, final commit → **emit `LOOP_COMPLETE`**
 - [ ] **Step 7** — *MANUAL, NOT a loop task* — device test + 60s demo recording
 
 > **Loop exit:** emit `LOOP_COMPLETE` when Steps 0–6 are all `[x]` (Step 3F may
