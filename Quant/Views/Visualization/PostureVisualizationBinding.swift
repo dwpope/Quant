@@ -99,6 +99,32 @@ enum PostureVisualizationBinding {
         )
     }
 
+    // MARK: - Step 5: state tint with calibrating pulse (RealityKit-free; tested)
+
+    /// The visualization fill colour, with a *pulsing* grey while the system
+    /// is still calibrating.
+    ///
+    /// The four judged posture states keep the ViewModel's fixed, pairwise-
+    /// distinct hues (`good` green / `drifting` amber / `bad` red / idle grey)
+    /// — the VM owns that mapping; this only consumes its `stateColor`.
+    /// `calibrating` instead *breathes*: the neutral grey's brightness is
+    /// interpolated between a dim and a bright value by `pulse` (0…1, a sine
+    /// phase the view drives from a `TimelineView`). Only luminance changes,
+    /// never hue, so it reads as "working…" rather than as a posture verdict.
+    /// Pure & deterministic, so the four-states-distinct guarantee is
+    /// unit-tested headlessly (plan Step 5 done-criterion).
+    static func stateTint(stateColor: Color, isCalibrating: Bool, pulse: Double) -> Color {
+        guard isCalibrating else { return stateColor }
+        let p = min(max(pulse, 0), 1)
+        let white = pulseGreyMin + (pulseGreyMax - pulseGreyMin) * p
+        return Color(white: white)
+    }
+
+    /// Calibration-pulse grey luminance bounds. Dim..bright keeps the pulse
+    /// clearly visible without ever reaching the judged states' saturation.
+    private static let pulseGreyMin = 0.35
+    private static let pulseGreyMax = 0.85
+
     /// Composes the head's Euler radians into a single quaternion. Order
     /// `yaw · pitch · roll` (Y then X then Z): yaw turns the face left/right
     /// first, pitch tucks the chin, roll tilts last — the natural read for a
@@ -115,8 +141,17 @@ enum PostureVisualizationBinding {
     /// Pushes the resolved transforms onto the scaffold's named entities,
     /// found by `EntityName` from the `assembly` root (the scaffold↔binding
     /// contract). Called from the `RealityView` `update:` closure.
+    ///
+    /// `pulse` (0…1) is the calibration breathing phase the view supplies from
+    /// its `TimelineView`; it only affects the calibrating tint (see
+    /// ``stateTint(stateColor:isCalibrating:pulse:)``). Defaulted so the
+    /// non-animated call sites and tests stay source-compatible.
     @MainActor
-    static func apply(_ viewModel: PostureVisualizationViewModel, to assembly: Entity) {
+    static func apply(
+        _ viewModel: PostureVisualizationViewModel,
+        to assembly: Entity,
+        pulse: Double = 0
+    ) {
         let t = resolve(from: viewModel)
 
         // Whole assembly: uniform scale + opacity fade (propagates to all
@@ -140,8 +175,15 @@ enum PostureVisualizationBinding {
 
         // State colour tints the primary fills. The dark accents (band, nose
         // tick, disc tick) are separate named entities left untouched so the
-        // structure stays legible; richer state transitions are Step 5 polish.
-        let tint = UIColor(viewModel.stateColor)
+        // structure stays legible. Step 5 polish: `stateTint` adds the
+        // calibrating breathing pulse on top of the VM's discrete mapping.
+        let tint = UIColor(
+            stateTint(
+                stateColor: viewModel.stateColor,
+                isCalibrating: viewModel.isCalibrating,
+                pulse: pulse
+            )
+        )
         retint(assembly.findEntity(named: PostureVisualizationScene.EntityName.shoulderDisc), to: tint)
         retint(assembly.findEntity(named: PostureVisualizationScene.EntityName.head), to: tint)
     }

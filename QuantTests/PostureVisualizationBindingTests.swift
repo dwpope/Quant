@@ -136,4 +136,60 @@ final class PostureVisualizationBindingTests: XCTestCase {
         XCTAssertEqual(t.headEulerRadians.y, Float(vm.headYawDegrees) * deg2rad, accuracy: 1e-6)
         XCTAssertEqual(t.headEulerRadians.z, Float(vm.headRollDegrees) * deg2rad, accuracy: 1e-6)
     }
+
+    // MARK: - Step 5: state tint + calibrating pulse
+
+    /// Plan Step 5 done-criterion: "four states visibly distinct in code
+    /// (colour values asserted in a small test)". The three judged states pass
+    /// the VM hue straight through; calibrating contributes a neutral grey.
+    func test_stateTint_fourStates_arePairwiseDistinct() {
+        let good        = Binding.stateTint(stateColor: .green,  isCalibrating: false, pulse: 0)
+        let drifting    = Binding.stateTint(stateColor: .orange, isCalibrating: false, pulse: 0)
+        let bad         = Binding.stateTint(stateColor: .red,    isCalibrating: false, pulse: 0)
+        let calibrating = Binding.stateTint(stateColor: .gray,   isCalibrating: true,  pulse: 0.5)
+
+        XCTAssertEqual(good, .green)
+        XCTAssertEqual(bad, .red)
+
+        let distinct = Set([good, drifting, bad, calibrating].map(rgba))
+        XCTAssertEqual(distinct.count, 4,
+                       "All four visualization states must be visibly distinct")
+    }
+
+    /// Calibrating "breathes": brighter pulse → strictly higher luminance on
+    /// every channel, and the result stays achromatic (R≈G≈B) so only
+    /// brightness changes, never hue.
+    func test_stateTint_calibratingPulse_modulatesBrightnessNotHue() {
+        let dim    = rgba(Binding.stateTint(stateColor: .gray, isCalibrating: true, pulse: 0))
+        let bright = rgba(Binding.stateTint(stateColor: .gray, isCalibrating: true, pulse: 1))
+
+        XCTAssertGreaterThan(bright[0], dim[0])
+        XCTAssertGreaterThan(bright[1], dim[1])
+        XCTAssertGreaterThan(bright[2], dim[2])
+
+        XCTAssertEqual(dim[0], dim[1]);       XCTAssertEqual(dim[1], dim[2])
+        XCTAssertEqual(bright[0], bright[1]); XCTAssertEqual(bright[1], bright[2])
+    }
+
+    /// The pulse phase must not bleed into the judged (non-calibrating) states.
+    func test_stateTint_nonCalibrating_ignoresPulse() {
+        XCTAssertEqual(
+            rgba(Binding.stateTint(stateColor: .green, isCalibrating: false, pulse: 0)),
+            rgba(Binding.stateTint(stateColor: .green, isCalibrating: false, pulse: 1))
+        )
+    }
+
+    // MARK: - Helpers
+
+    /// Repo convention (PostureVisualizationViewModelTests / PostureVisualStyle
+    /// Tests): compare colours via UIColor component extraction, not `Color`
+    /// identity.
+    private func rgba(_ color: Color) -> [Int] {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        #if canImport(UIKit)
+        UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        #endif
+        return [Int((r * 255).rounded()), Int((g * 255).rounded()),
+                Int((b * 255).rounded()), Int((a * 255).rounded())]
+    }
 }

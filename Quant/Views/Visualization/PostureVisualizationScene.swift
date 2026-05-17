@@ -25,6 +25,10 @@ enum PostureVisualizationScene {
         static let headBand = "HeadBand"
         static let headTick = "HeadTick"
         static let camera = "PostureCamera"
+        /// Step 5 — faint static baseline silhouette at the calibrated rest
+        /// pose. A separate scene root (not under ``assembly``) so the binding
+        /// never transforms it; live deviation reads against this fixed ghost.
+        static let ghost = "PostureGhost"
     }
 
     /// Scene-graph *rest pose* constants the Step 4 binding needs to resolve
@@ -126,6 +130,39 @@ enum PostureVisualizationScene {
         head.addChild(headTick)
 
         return assembly
+    }
+
+    // MARK: - Ghost (calibrated-baseline silhouette)
+
+    /// A faint, static duplicate of the disc + head at the *calibrated rest
+    /// pose* (Step 5 polish, design "baseline ghost entities"). Added once as
+    /// its own scene root — ``PostureVisualizationBinding/apply(_:to:pulse:)``
+    /// only ever resolves entities under ``EntityName/assembly``, so the ghost
+    /// is never moved, scaled, or retinted: it stays put as the reference the
+    /// live posture is judged against. Opacity is set on the root so it
+    /// propagates to both children.
+    @MainActor
+    static func makeGhost() -> Entity {
+        let ghost = Entity()
+        ghost.name = EntityName.ghost
+
+        let disc = ModelEntity(
+            mesh: .generateCylinder(height: Metric.discHeight, radius: Metric.discRadius),
+            materials: [unlit(white: 0.5)]
+        )
+        ghost.addChild(disc)
+
+        let head = ModelEntity(
+            mesh: .generateSphere(radius: Metric.headRadius),
+            materials: [unlit(white: 0.5)]
+        )
+        head.position = SIMD3(0, Layout.headCenterY, 0)
+        ghost.addChild(head)
+
+        // Faint so it reads as "where calibrated posture sits" behind the
+        // fully-opaque live assembly, not as a competing solid object.
+        ghost.components.set(OpacityComponent(opacity: 0.15))
+        return ghost
     }
 
     // MARK: - Camera

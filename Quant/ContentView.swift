@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var showShowcase = false
     @State private var showSipTimeline = false
     @State private var showSipCalibration = false
+    @State private var showVisualization = false
 
     var body: some View {
         ZStack {
@@ -108,6 +109,17 @@ struct ContentView: View {
                     }
 
                     Button {
+                        showVisualization = true
+                    } label: {
+                        Image(systemName: "cube.transparent")
+                            .font(.title2)
+                            .padding(10)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                    }
+                    .accessibilityLabel("Posture visualization")
+
+                    Button {
                         showSettings = true
                     } label: {
                         Image(systemName: "gearshape")
@@ -138,6 +150,9 @@ struct ContentView: View {
         }
         .fullScreenCover(isPresented: $showShowcase) {
             VariantShowcaseView()
+        }
+        .fullScreenCover(isPresented: $showVisualization) {
+            PostureVisualizationView()
         }
     }
 

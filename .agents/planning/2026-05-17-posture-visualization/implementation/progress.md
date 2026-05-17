@@ -6,21 +6,26 @@
 
 ## Current Step
 
-**Step 5 — Integration & polish**
-_(Steps 0–4 complete; Step 3F = N/A — RealityKit shipped)_
+**Step 6 — Cleanup, full-suite green, final commit → emit `LOOP_COMPLETE`**
+_(Steps 0–5 complete; Step 3F = N/A — RealityKit shipped)_
 
-> ✅ RealityKit path **shipped**. Steps 3 (scaffold) and 4 (binding) both
-> ended with a clean app build + done-criteria progress, so the Attempt
-> Ledger counter never incremented (`attempts: 0/2`, `status: shipped`).
-> Step 3F (SwiftUI fallback) is therefore `[N/A — RealityKit shipped]` in
-> both `plan.md` and this file — its trigger condition (Ledger exhausted)
-> never fired. The next iteration's first unchecked box is **Step 5**, a
-> SwiftUI/RealityKit *polish* step (not budget-gated): wire the
-> visualization into navigation alongside `DebugOverlayView`, state-driven
-> colour transitions (calibrating pulse / good / drifting / bad), baseline
-> "ghost" duplicates, and ~0.3s eased transforms (`content.animate`). The
-> Step 4 binding (`PostureVisualizationBinding.apply`) and the named-entity
-> contract are the seam Step 5 builds on.
+> ✅ Step 5 (integration & polish) **shipped** (commit
+> `feat: integrate posture visualization with state polish`). Next iteration's
+> first unchecked box is **Step 6** — the loop's terminal step:
+> 1. Delete the Step 2 throwaway `Quant/Views/Visualization/VisualizationDebugView.swift`
+>    **and** any debug-only navigation entry point for it (grep `VisualizationDebugView`
+>    — note: Step 5's *production* `PostureVisualizationView` nav entry in
+>    `ContentView` STAYS; only a debug harness entry, if any, is removed. As of
+>    Step 5 `VisualizationDebugView` has **no** navigation site — it was never
+>    wired in — so Step 6 is just the file deletion + a build/test pass).
+> 2. Run the **full** app suite (`xcodebuild test … QuantNoWatchTests`, the
+>    UDID below) + `swift test --package-path PostureLogic`. The full-suite
+>    blocker is RESOLVED (merge `6ccda58`) so this gate is now satisfiable —
+>    Step 6 must run the *whole* suite, not just focused tests.
+> 3. Confirm Steps 0–5 all `[x]` (3F `[N/A]`), commit
+>    `chore: remove debug harness; finalize posture visualization`, finalise
+>    this file, then **emit `LOOP_COMPLETE`** (the loop ends — do NOT attempt
+>    Step 7, which needs a physical device + human).
 
 > ✅ **RESOLVED 2026-05-17** — the pre-existing suite blocker (see "Known
 > Blocker — RESOLVED" below) is fixed and merged (`00bbbbe` + merge `6ccda58`).
@@ -151,6 +156,64 @@ product/test code removed (only the necessary `.gitkeep` build-fix retained),
 of those classes.
 
 ## Verification Notes
+
+### Step 5 — Integration & polish (2026-05-17)
+
+- **Navigation (done-criterion 1):** `Quant/ContentView.swift` — added
+  `@State showVisualization`, a `cube.transparent` button in the existing
+  button row, and a `.fullScreenCover` presenting `PostureVisualizationView`.
+  Mirrors the **proven** `VariantShowcaseView` precedent: `AppModel` is
+  injected once at the `WindowGroup` root (`QuantApp.swift:17
+  .environmentObject(appModel)`) and propagates into the cover, so
+  `PostureVisualizationView`'s `@EnvironmentObject` resolves without
+  re-injection (same pattern `VariantShowcaseView` already relies on). Added
+  `@Environment(\.dismiss)` + a top-trailing `xmark.circle.fill` close button
+  (full-screen covers carry no default chrome).
+- **Calibrating pulse + continuous re-apply:** `PostureVisualizationView`
+  wraps `RealityView` in `TimelineView(.animation)`. `RealityView` keeps its
+  structural identity across timeline ticks → scene built **once** (`make`),
+  only re-bound (`update`) per tick (Apple-documented SwiftUI↔RealityKit
+  animation pattern; DEC-004, confidence 80). A pure wall-clock sine
+  `pulse∈0…1` (period 1.6 s, no stored state) is threaded into
+  `PostureVisualizationBinding.apply(_:to:pulse:)` (new defaulted param —
+  source-compatible). The VM's α=0.2 low-pass, now applied every frame, is
+  the "smooth ~0.3 s ease" mechanism (no risky RealityKit `move()` API
+  introduced; `content.animate` from a prior memory note does **not** exist
+  as an API — the TimelineView approach replaces it).
+- **Testable colour polish (done-criterion 2):** new **pure**
+  `PostureVisualizationBinding.stateTint(stateColor:isCalibrating:pulse:)` —
+  judged states pass the VM hue straight through (unchanged: `.green` /
+  `.orange` / `.red`); `calibrating` breathes grey *luminance* between
+  `pulseGreyMin 0.35` and `pulseGreyMax 0.85` (hue fixed). The VM's discrete
+  colour mapping is **not** modified (Step 1 tests assert `.green/.orange/.red`
+  — `stateTint` *consumes* `stateColor`, never changes it). +3 headless
+  `PostureVisualizationBindingTests`: four states pairwise-distinct, pulse
+  modulates brightness-not-hue, non-calibrating ignores pulse. Added a private
+  `rgba` helper mirroring the `PostureVisualizationViewModelTests` convention.
+- **Baseline ghost:** `PostureVisualizationScene.makeGhost()` +
+  `EntityName.ghost` — a faint (`OpacityComponent` 0.15) static disc+head at
+  the calibrated rest pose, added as a **separate scene root**. `apply` only
+  resolves entities under `EntityName.assembly`, so the ghost is never moved /
+  scaled / retinted: live deviation reads against the fixed baseline. Reuses
+  only already-shipped RealityKit API (`generateSphere/Cylinder`,
+  `UnlitMaterial`, `OpacityComponent`) — no new surface, Step 5 isn't
+  Attempt-Ledger-gated regardless.
+- **Verification:** `xcodebuild build … -scheme Quant -destination
+  id=AFD03DDC-…` → **`** BUILD SUCCEEDED **`, 0 `error:` lines** (every
+  SourceKit "No such module 'UIKit'/'XCTest'/'PostureLogic'" / "Cannot find
+  'AppModel' in scope" was the documented stale-index false positive
+  `mem-1779012223-1e1f` — the compiler resolved all). Focused
+  `xcodebuild test … QuantNoWatchTests
+  -only-testing:QuantTests/PostureVisualizationBindingTests
+  -only-testing:QuantTests/PostureVisualizationViewModelTests` →
+  **`** TEST SUCCEEDED **`, 0 failures/crashes**: 3 new Step-5 tests + the 8
+  Step-4 binding tests + 17 Step-1 ViewModel tests all passed. `swift test
+  --package-path PostureLogic` → **460 / 0** (package untouched).
+- **Regressions:** none (additive; only the posture-viz surface Step 5 owns —
+  ContentView nav, the view, the scene factory, the binding tint — was
+  touched; no pose-detection / public-API edits — anti-goals respected;
+  PostureLogic 460/0 unchanged).
+- **Commit:** `feat: integrate posture visualization with state polish`.
 
 ### Step 4 — Bind ViewModel → entity transforms (2026-05-17)
 
@@ -366,3 +429,10 @@ of those classes.
 - **Step 3F** — **N/A — RealityKit shipped.** Trigger condition (Attempt
   Ledger exhausted) never fired: Steps 3 + 4 both clean. SwiftUI fallback
   not built (plan Step 3F status rule: mark N/A and skip). DEC-003.
+- **Step 5** — Integration & polish: `ContentView` nav entry +
+  `.fullScreenCover`; `TimelineView`-driven calibrating pulse; pure
+  `PostureVisualizationBinding.stateTint`; `PostureVisualizationScene.makeGhost`
+  baseline; +3 headless tests (commit `feat: integrate posture visualization
+  with state polish`). Verified: app build exit 0, focused QuantTests
+  (3 new + 8 binding + 17 VM) `** TEST SUCCEEDED **` 0 fail, PostureLogic
+  460/0, no regression. DEC-004.
