@@ -32,7 +32,7 @@ Each iteration is a **cold start** — the agent remembers nothing. Procedure:
 ## Checklist
 
 - [x] **Step 0** — Branch + folder scaffolding
-- [ ] **Step 1** — Data layer: `PostureVisualizationViewModel` (TDD)
+- [x] **Step 1** — Data layer: `PostureVisualizationViewModel` (TDD)
 - [ ] **Step 2** — Debug harness: `VisualizationDebugView`
 - [ ] **Step 3** — RealityKit scene scaffold (placeholder entities, build-only)
 - [ ] **Step 4** — Bind ViewModel → entity transforms
