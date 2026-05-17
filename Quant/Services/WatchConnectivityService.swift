@@ -28,6 +28,12 @@ import os.log
 @MainActor
 final class WatchConnectivityService: NSObject {
 
+    // Teardown only releases stored properties; it touches no main-actor state.
+    // Marking it `nonisolated` keeps Swift's MainActor isolated-deinit
+    // back-deploy shim out of XCTest's NSInvocation-driven dealloc path, which
+    // otherwise corrupts the heap and aborts under Xcode 26 / iOS 26.
+    nonisolated deinit {}
+
     // MARK: - Debug State
 
     /// Whether a Watch is paired with this iPhone.

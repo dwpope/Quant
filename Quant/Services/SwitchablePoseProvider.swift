@@ -25,6 +25,12 @@ import PostureLogic
 /// The caller (AppModel) is responsible for calling `start()` / `stop()` on
 /// the actual camera services. This class only forwards frames.
 final class SwitchablePoseProvider: PoseProvider {
+    // Teardown only releases stored properties; it touches no main-actor state.
+    // Marking it `nonisolated` keeps Swift's MainActor isolated-deinit
+    // back-deploy shim out of XCTest's NSInvocation-driven dealloc path, which
+    // otherwise corrupts the heap and aborts under Xcode 26 / iOS 26.
+    nonisolated deinit {}
+
     var framePublisher: AnyPublisher<InputFrame, Never> {
         frameSubject.eraseToAnyPublisher()
     }
