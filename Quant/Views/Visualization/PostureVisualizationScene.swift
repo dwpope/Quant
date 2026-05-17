@@ -27,14 +27,23 @@ enum PostureVisualizationScene {
         static let camera = "PostureCamera"
     }
 
+    /// Scene-graph *rest pose* constants the Step 4 binding needs to resolve
+    /// transforms without reading live entity state. Sibling of ``EntityName``
+    /// in the shared scaffold↔binding contract: `EntityName` says *which*
+    /// entities exist, `Layout` says *where* they rest.
+    enum Layout {
+        /// Head centre height above the disc's top face. The binding sets the
+        /// head's X (side lean) and Z (forward) each frame but must preserve
+        /// this resting Y.
+        static let headCenterY: Float = 0.15
+    }
+
     // MARK: - Tunable scene constants (mirrored/extended by Step 4 mapping)
 
     private enum Metric {
         static let discRadius: Float = 0.20
         static let discHeight: Float = 0.02
         static let headRadius: Float = 0.06
-        /// Head centre height above the disc's top face.
-        static let headCenterY: Float = 0.15
         static let bandRadius: Float = 0.064
         static let bandHeight: Float = 0.012
         /// Camera elevation measured from the horizontal plane. ~80° keeps the
@@ -71,14 +80,19 @@ enum PostureVisualizationScene {
         disc.name = EntityName.shoulderDisc
         assembly.addChild(disc)
 
-        // Front-of-disc direction tick (dark box at the +Z rim).
+        // Front-of-disc direction tick (dark box at the +Z rim). Parented
+        // under the disc (not the assembly) so the Step 4 binding's single
+        // `disc.orientation` carries the tick around with shoulder twist —
+        // design: "tick marker… rotates around vertical axis with twist".
+        // The disc sits at the assembly origin with no offset, so the tick's
+        // disc-local position equals its former assembly-local position.
         let shoulderTick = ModelEntity(
             mesh: .generateBox(width: 0.030, height: 0.026, depth: 0.050),
             materials: [unlit(white: 0.25)]
         )
         shoulderTick.name = EntityName.shoulderTick
         shoulderTick.position = SIMD3(0, Metric.discHeight / 2, Metric.discRadius)
-        assembly.addChild(shoulderTick)
+        disc.addChild(shoulderTick)
 
         // Head sphere — light tone (top hemisphere reads light from above).
         let head = ModelEntity(
@@ -86,7 +100,7 @@ enum PostureVisualizationScene {
             materials: [unlit(white: 0.90)]
         )
         head.name = EntityName.head
-        head.position = SIMD3(0, Metric.headCenterY, 0)
+        head.position = SIMD3(0, Layout.headCenterY, 0)
         assembly.addChild(head)
 
         // Tone-divide band at the head's equator (dark). A true two-tone
@@ -99,7 +113,7 @@ enum PostureVisualizationScene {
             materials: [unlit(white: 0.30)]
         )
         band.name = EntityName.headBand
-        band.position = SIMD3(0, Metric.headCenterY, 0)
+        band.position = SIMD3(0, Layout.headCenterY, 0)
         head.addChild(band)
 
         // "Nose" direction tick on the head's equator (+Z), dark accent.
@@ -125,7 +139,7 @@ enum PostureVisualizationScene {
         let camera = PerspectiveCamera()
         camera.name = EntityName.camera
 
-        let target = SIMD3<Float>(0, Metric.headCenterY, 0)
+        let target = SIMD3<Float>(0, Layout.headCenterY, 0)
         let elevation = Metric.cameraElevationDegrees * .pi / 180
         let position = SIMD3<Float>(
             0,

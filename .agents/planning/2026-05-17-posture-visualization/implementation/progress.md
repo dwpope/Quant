@@ -6,17 +6,21 @@
 
 ## Current Step
 
-**Step 4 — Bind ViewModel → entity transforms**
-_(Steps 0–3 complete)_
+**Step 5 — Integration & polish**
+_(Steps 0–4 complete; Step 3F = N/A — RealityKit shipped)_
 
-> ⚠️ Step 4 is ALSO a **RealityKit** step — the next iteration MUST read the
-> "RealityKit Attempt Ledger" below (currently `attempts: 0, budget: 2`,
-> `status: in-progress`) before starting and obey its budget rule
-> (`plan.md` Step 3/4). Step 3 ended clean (build + progress) so the counter
-> did **not** increment. Step 4 binds `PostureVisualizationViewModel`'s 10
-> `@Published` outputs to the named scene entities via the `RealityView`
-> `update` closure — resolve entities with `findEntity(named:)` using the
-> shared `PostureVisualizationScene.EntityName` constants.
+> ✅ RealityKit path **shipped**. Steps 3 (scaffold) and 4 (binding) both
+> ended with a clean app build + done-criteria progress, so the Attempt
+> Ledger counter never incremented (`attempts: 0/2`, `status: shipped`).
+> Step 3F (SwiftUI fallback) is therefore `[N/A — RealityKit shipped]` in
+> both `plan.md` and this file — its trigger condition (Ledger exhausted)
+> never fired. The next iteration's first unchecked box is **Step 5**, a
+> SwiftUI/RealityKit *polish* step (not budget-gated): wire the
+> visualization into navigation alongside `DebugOverlayView`, state-driven
+> colour transitions (calibrating pulse / good / drifting / bad), baseline
+> "ghost" duplicates, and ~0.3s eased transforms (`content.animate`). The
+> Step 4 binding (`PostureVisualizationBinding.apply`) and the named-entity
+> contract are the seam Step 5 builds on.
 
 > ✅ **RESOLVED 2026-05-17** — the pre-existing suite blocker (see "Known
 > Blocker — RESOLVED" below) is fixed and merged (`00bbbbe` + merge `6ccda58`).
@@ -73,7 +77,7 @@ _(Steps 0–3 complete)_
 attempts: 0
 budget: 2
 last_error_class: (none)
-status: in-progress   # not-yet-engaged | in-progress | shipped | exhausted
+status: shipped   # not-yet-engaged | in-progress | shipped | exhausted
 ```
 
 Attempt log:
@@ -83,6 +87,16 @@ Attempt log:
   verified against Apple docs (Context7) *before* coding so a guessed API
   could not cause a budget-burning compile failure. No blocking error.
   `attempts` stays 0; 2 attempts remain for Step 4.
+- **2026-05-17 — Step 4 (binding).** Result: **clean build + progress** →
+  counter NOT incremented. Same discipline: the full Step-4 RealityKit
+  surface (`RealityView update:`, `content.entities`,
+  `Entity.findEntity(named:)`, `entity.orientation/position/scale`,
+  `simd_quatf(angle:axis:)`, `OpacityComponent`, `UnlitMaterial(color:)`)
+  was verified against Apple docs (Context7) *before* coding. App build
+  `** BUILD SUCCEEDED **` (exit 0, 0 errors); 8 new binding tests + 17
+  ViewModel tests `** TEST SUCCEEDED **`. No blocking error. `attempts`
+  stays **0/2**. **RealityKit is the shipped renderer** → Step 3F N/A; the
+  budget mechanism is now closed out (status: shipped).
 
 ## Known Blocker — RESOLVED 2026-05-17 (pre-existing; NOT caused by posture-viz work)
 
@@ -137,6 +151,54 @@ product/test code removed (only the necessary `.gitkeep` build-fix retained),
 of those classes.
 
 ## Verification Notes
+
+### Step 4 — Bind ViewModel → entity transforms (2026-05-17)
+
+- **Added:** `Quant/Views/Visualization/PostureVisualizationBinding.swift` —
+  value-type `enum` (no class → no `@MainActor` isolated-deinit hazard) split
+  into a **pure `resolve`** (ViewModel display scalars → `Equatable`
+  `ResolvedPostureTransforms`; RealityKit-free, unit-tested) and a thin
+  `@MainActor apply` (builds quaternions, pokes named entities — not
+  unit-tested, only forwards into Apple setters). `headOrientation` composes
+  yaw·pitch·roll (Y·X·Z).
+- **Wired:** `PostureVisualizationView` now owns a `@StateObject`
+  `PostureVisualizationViewModel`, binds it to `AppModel` once on appear
+  (guarded — `bind(to:)` stacks Combine subscriptions), and re-applies in the
+  `RealityView` `update:` closure (re-runs on every `@Published` change).
+- **Scene-contract tweaks (DEC-003, confidence 80):** `shoulderTick`
+  reparented under `shoulderDisc` so one `disc.orientation` carries the
+  direction tick with twist; head rest-Y promoted to shared
+  `PostureVisualizationScene.Layout.headCenterY` (sibling of the `EntityName`
+  contract; single source, `private Metric` duplicate removed). State colour
+  fully retints disc + head fills; dark accents (band, both ticks) untouched
+  — richer transitions are Step 5 (DEC-002 still governs the hemisphere).
+- **Variable Mapping coverage (design table):** twist→disc Y-rotation,
+  lateralLean→head X, headForwardOffset→head Z, forwardCreep→assembly uniform
+  scale, yaw/pitch/roll→head Euler quaternion, trackingQuality→
+  `OpacityComponent` on the assembly, postureState→`UnlitMaterial` tint. New
+  binding constant `metersPerPoint = 0.001` (≤±100 pt → ±0.10 m, inside the
+  0.20 m disc radius; tunable per design "tune by eye").
+- **API safety:** entire Step-4 RealityKit surface verified against Apple
+  docs (Context7) *before* coding — protected the Attempt Ledger from a
+  guessed-API compile failure (same discipline as Step 3).
+- **Verification:** `xcodebuild build … -scheme Quant -destination
+  id=AFD03DDC-…` → **`** BUILD SUCCEEDED **`, exit 0, 0 `error:` lines**
+  (Ledger gate; the SourceKit "No such module 'UIKit'/'XCTest'" and "Cannot
+  find … in scope" diagnostics were the documented stale-index false
+  positive — `mem-1779012223-1e1f` — the compiler resolved everything).
+  Focused `xcodebuild test … QuantNoWatchTests
+  -only-testing:QuantTests/PostureVisualizationBindingTests
+  -only-testing:QuantTests/PostureVisualizationViewModelTests` →
+  **`** TEST SUCCEEDED **`, exit 0**: all **8** new binding tests + all
+  **17** Step-1 ViewModel tests passed, 0 failures/crashes. `swift test
+  --package-path PostureLogic` → **460 / 0** (package untouched).
+- **RealityKit Attempt Ledger:** clean scene build **and** done-criteria
+  progress ⇒ `attempts` NOT incremented (stays **0/2**); `status: shipped`.
+  RealityKit is the shipped renderer → **Step 3F = N/A**.
+- **Regressions:** none (additive; only the scaffold↔binding contract Step 4
+  owns was touched; no pose-detection / public-API edits — anti-goals
+  respected; PostureLogic 460/0 unchanged).
+- **Commit:** `feat: bind PostureVisualizationViewModel to RealityKit scene`.
 
 ### Step 3 — RealityKit scene scaffold (2026-05-17)
 
@@ -294,3 +356,13 @@ of those classes.
   static placeholders, no binding (commit `feat: scaffold RealityKit posture
   visualization scene (static)`). Verified: app build exit 0, PostureLogic
   460/460, no regression. Attempt Ledger NOT burned (clean build + progress).
+- **Step 4** — `PostureVisualizationBinding` (pure `resolve` + thin `apply`)
+  drives the named scene entities from the ViewModel via the `RealityView`
+  `update:` closure; view binds the VM to `AppModel`; DEC-003 scene-contract
+  tweaks (commit `feat: bind PostureVisualizationViewModel to RealityKit
+  scene`). Verified: app build exit 0, 8 new binding tests + 17 ViewModel
+  tests pass, PostureLogic 460/460, no regression. Attempt Ledger NOT burned
+  (stays 0/2; `status: shipped`).
+- **Step 3F** — **N/A — RealityKit shipped.** Trigger condition (Attempt
+  Ledger exhausted) never fired: Steps 3 + 4 both clean. SwiftUI fallback
+  not built (plan Step 3F status rule: mark N/A and skip). DEC-003.

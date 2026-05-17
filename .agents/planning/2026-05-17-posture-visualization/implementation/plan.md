@@ -35,8 +35,8 @@ Each iteration is a **cold start** — the agent remembers nothing. Procedure:
 - [x] **Step 1** — Data layer: `PostureVisualizationViewModel` (TDD)
 - [x] **Step 2** — Debug harness: `VisualizationDebugView`
 - [x] **Step 3** — RealityKit scene scaffold (placeholder entities, build-only)
-- [ ] **Step 4** — Bind ViewModel → entity transforms
-- [ ] **Step 3F** — *Conditional* SwiftUI fallback (only if RealityKit budget blown — see Step 3)
+- [x] **Step 4** — Bind ViewModel → entity transforms
+- [N/A — RealityKit shipped] **Step 3F** — *Conditional* SwiftUI fallback (only if RealityKit budget blown — see Step 3)
 - [ ] **Step 5** — Integration & polish (navigation, colour transitions, ghosts, animation)
 - [ ] **Step 6** — Cleanup, full-suite green, final commit → **emit `LOOP_COMPLETE`**
 - [ ] **Step 7** — *MANUAL, NOT a loop task* — device test + 60s demo recording
