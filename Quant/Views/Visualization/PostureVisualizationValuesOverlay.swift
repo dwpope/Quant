@@ -23,10 +23,44 @@ struct PostureVisualizationValuesOverlay: View {
 
     private typealias Map = PostureVisualizationViewModel.Mapping
 
+    /// Live snapshot of the binding's per-channel isolation switches. Set once
+    /// (Debug-only) in `PostureVisualizationView`'s scene `make`, so it is
+    /// constant for the run — reading it in `body` needs no observation. In
+    /// Release it is the all-on default, so `isIsolating` is false and this
+    /// panel looks exactly as before (no change to the shipped HUD).
+    private var debug: PostureVisualizationBinding.DebugChannels {
+        PostureVisualizationBinding.debug
+    }
+
+    /// True only when at least one channel is frozen. Gates the mute/highlight
+    /// styling so the un-isolated production HUD is left untouched.
+    private var isIsolating: Bool {
+        let d = debug
+        return d.hideShoulderDisc
+            || !d.shoulderRotation || !d.sideLean || !d.headForward
+            || !d.headYaw || !d.headPitch || !d.headRoll
+            || !d.assemblyScale || !d.opacity || !d.stateTint
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("VIZ VALUES — raw → mapped")
-                .fontWeight(.semibold)
+            HStack(spacing: 6) {
+                Text("VIZ VALUES — raw → mapped")
+                    .fontWeight(.semibold)
+                if debug.mirrored {
+                    Text("MIRROR")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.blue.opacity(0.35), in: Capsule())
+                }
+            }
+            if isIsolating {
+                Text("● live · dimmed = frozen by debug")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
 
             Grid(alignment: .trailing, horizontalSpacing: 10, verticalSpacing: 2) {
                 GridRow {
@@ -38,31 +72,50 @@ struct PostureVisualizationValuesOverlay: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
 
-                row("twist",     raw: viewModel.rawTwist,            map: viewModel.shoulderRotationDegrees, mapUnit: "°")
-                row("latLean",   raw: viewModel.rawLateralLean,      map: viewModel.sideLeanOffsetPoints,    mapUnit: "pt")
-                row("fwdCreep",  raw: viewModel.rawForwardCreep,     map: viewModel.assemblyScale,           mapUnit: "×", mapDecimals: 3)
-                row("headFwd",   raw: viewModel.rawHeadForwardOffset, map: viewModel.headForwardOffsetPoints, mapUnit: "pt")
+                // HEAD — everything that translates/rotates the head sphere.
+                section("HEAD")
+                row("latLean",   raw: viewModel.rawLateralLean,      map: viewModel.sideLeanOffsetPoints,    mapUnit: "pt",
+                    active: debug.sideLean)
+                row("headFwd",   raw: viewModel.rawHeadForwardOffset, map: viewModel.headForwardOffsetPoints, mapUnit: "pt",
+                    active: debug.headForward)
 
                 // Capped angles: raw column is the *pre-clamp* amplified value;
                 // a gap vs. the mapped column means the cap is clipping now.
                 row("yaw",   raw: viewModel.unclampedYawDegrees,   rawUnit: "°", map: viewModel.headYawDegrees,   mapUnit: "°",
-                    clipped: abs(viewModel.unclampedYawDegrees)   > Map.yawCapDegrees)
+                    clipped: abs(viewModel.unclampedYawDegrees)   > Map.yawCapDegrees,
+                    active: debug.headYaw)
                 row("pitch", raw: viewModel.unclampedPitchDegrees, rawUnit: "°", map: viewModel.headPitchDegrees, mapUnit: "°",
-                    clipped: abs(viewModel.unclampedPitchDegrees) > Map.pitchCapDegrees)
+                    clipped: abs(viewModel.unclampedPitchDegrees) > Map.pitchCapDegrees,
+                    active: debug.headPitch)
                 row("roll",  raw: viewModel.unclampedRollDegrees,  rawUnit: "°", map: viewModel.headRollDegrees,  mapUnit: "°",
-                    clipped: abs(viewModel.unclampedRollDegrees)  > Map.rollCapDegrees)
+                    clipped: abs(viewModel.unclampedRollDegrees)  > Map.rollCapDegrees,
+                    active: debug.headRoll)
 
-                row("shTwist",  raw: viewModel.rawShoulderTwist, rawUnit: "°", map: nil, mapUnit: "")
+                // shTwist is yaw's raw upstream input → lit with the yaw channel.
+                row("shTwist",  raw: viewModel.rawShoulderTwist, rawUnit: "°", map: nil, mapUnit: "",
+                    active: debug.headYaw)
+
+                // TORSO — the shoulder disc (rotation only).
+                section("TORSO")
+                row("twist",     raw: viewModel.rawTwist,            map: viewModel.shoulderRotationDegrees, mapUnit: "°",
+                    active: debug.shoulderRotation && !debug.hideShoulderDisc)
+
+                // ASSEMBLY — scale/opacity/tint act on the whole rig (both).
+                section("ASSEMBLY — head + torso")
+                row("fwdCreep",  raw: viewModel.rawForwardCreep,     map: viewModel.assemblyScale,           mapUnit: "×", mapDecimals: 3,
+                    active: debug.assemblyScale)
 
                 GridRow {
-                    Text("opacity").gridColumnAlignment(.leading)
+                    nameCell("opacity", active: debug.opacity)
                     Text("—").foregroundStyle(.secondary)
                     Text("→").foregroundStyle(.secondary)
                     Text(fmt(viewModel.opacity, decimals: 2))
                 }
+                .opacity(isIsolating && !debug.opacity ? 0.4 : 1)
+                .fontWeight(isIsolating && debug.opacity ? .semibold : .regular)
 
                 GridRow {
-                    Text("state").gridColumnAlignment(.leading)
+                    nameCell("state", active: debug.stateTint)
                     HStack(spacing: 4) {
                         Circle().fill(viewModel.stateColor).frame(width: 7, height: 7)
                         Text(viewModel.isCalibrating ? "calib" : "—")
@@ -71,6 +124,8 @@ struct PostureVisualizationValuesOverlay: View {
                     .gridCellColumns(3)
                     .gridColumnAlignment(.leading)
                 }
+                .opacity(isIsolating && !debug.stateTint ? 0.4 : 1)
+                .fontWeight(isIsolating && debug.stateTint ? .semibold : .regular)
             }
         }
         .font(.system(.caption, design: .monospaced))
@@ -81,9 +136,45 @@ struct PostureVisualizationValuesOverlay: View {
         .accessibilityLabel("Visualization tuning values")
     }
 
-    /// One raw→mapped line. `clipped` tints the whole row to flag a cap that is
-    /// currently clamping; `map == nil` renders a raw-only channel (no mapped
-    /// counterpart, e.g. an input that feeds another channel's derivation).
+    /// A spanning section divider inside the grid (HEAD / TORSO / ASSEMBLY).
+    /// One cell across all four columns so the heading sits flush-left above
+    /// its group. Structural, never a channel, so it is never dimmed even while
+    /// isolating — it must stay readable as the map of where you are.
+    @ViewBuilder
+    private func section(_ title: String) -> some View {
+        GridRow {
+            Text(title)
+                .font(.caption2)
+                .fontWeight(.bold)
+                .foregroundStyle(.secondary)
+                .gridCellColumns(4)
+                .gridColumnAlignment(.leading)
+                .padding(.top, 4)
+        }
+    }
+
+    /// First grid cell: the channel name, prefixed by a green dot on the live
+    /// channel (and a reserved-width clear dot on frozen ones, so columns stay
+    /// aligned) while isolating. No dot at all when not isolating → unchanged.
+    @ViewBuilder
+    private func nameCell(_ name: String, active: Bool) -> some View {
+        HStack(spacing: 4) {
+            if isIsolating {
+                Circle()
+                    .fill(active ? Color.green : Color.clear)
+                    .frame(width: 5, height: 5)
+            }
+            Text(name)
+        }
+        .gridColumnAlignment(.leading)
+    }
+
+    /// One raw→mapped line. `clipped` tints the whole row orange to flag a cap
+    /// that is currently clamping; `map == nil` renders a raw-only channel (an
+    /// input that feeds another channel's derivation). `active` reflects this
+    /// row's `PostureVisualizationBinding.debug` channel: while isolating, a
+    /// frozen row is dimmed and bold-marked the live one; with nothing frozen
+    /// every row is `active` so the appearance is identical to before.
     @ViewBuilder
     private func row(
         _ name: String,
@@ -93,10 +184,11 @@ struct PostureVisualizationValuesOverlay: View {
         map: Double?,
         mapUnit: String,
         mapDecimals: Int = 1,
-        clipped: Bool = false
+        clipped: Bool = false,
+        active: Bool = true
     ) -> some View {
         GridRow {
-            Text(name).gridColumnAlignment(.leading)
+            nameCell(name, active: active)
             Text(fmt(raw, decimals: rawDecimals) + rawUnit)
             Text("→").foregroundStyle(.secondary)
             if let map {
@@ -106,6 +198,8 @@ struct PostureVisualizationValuesOverlay: View {
             }
         }
         .foregroundStyle(clipped ? AnyShapeStyle(.orange) : AnyShapeStyle(.primary))
+        .opacity(isIsolating && !active ? 0.4 : 1)
+        .fontWeight(isIsolating && active ? .semibold : .regular)
     }
 
     /// Fixed-width-ish numeric formatting; keeps signs aligned in the mono grid.

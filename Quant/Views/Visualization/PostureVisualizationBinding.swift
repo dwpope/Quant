@@ -99,6 +99,33 @@ enum PostureVisualizationBinding {
         )
     }
 
+    // MARK: - Mirror (RealityKit-free; pure, unit-testable)
+
+    /// Reflects resolved transforms across the vertical plane so the rig reads
+    /// like a mirror. A left↔right mirror flips only the *horizontal-sense*
+    /// quantities — head X, head yaw, head roll, and the shoulder-disc twist.
+    /// Head Z (depth), head pitch, scale and opacity have no left/right sense
+    /// and pass through unchanged: negating *those* too would be a point
+    /// inversion, not a mirror. Pure (no entity, no `debug` read) so it stays
+    /// exactly as headlessly unit-testable as `resolve`.
+    static func mirror(_ t: ResolvedPostureTransforms) -> ResolvedPostureTransforms {
+        ResolvedPostureTransforms(
+            discYawRadians: -t.discYawRadians,
+            headTranslation: SIMD3<Float>(
+                -t.headTranslation.x,
+                t.headTranslation.y,
+                t.headTranslation.z
+            ),
+            headEulerRadians: SIMD3<Float>(
+                t.headEulerRadians.x,   // pitch — no left/right sense
+                -t.headEulerRadians.y,  // yaw   — flipped
+                -t.headEulerRadians.z   // roll  — flipped
+            ),
+            assemblyScale: t.assemblyScale,
+            opacity: t.opacity
+        )
+    }
+
     // MARK: - Step 5: state tint with calibrating pulse (RealityKit-free; tested)
 
     /// The visualization fill colour, with a *pulsing* grey while the system
@@ -136,6 +163,65 @@ enum PostureVisualizationBinding {
         return yaw * pitch * roll
     }
 
+    // MARK: - DEBUG: per-channel isolation (tuning only)
+
+    /// Per-channel switches for tuning **one variable at a time**. Every flag
+    /// defaults to its production value, so an untouched `debug` reproduces the
+    /// full behaviour exactly — important here because the nightly auto-build
+    /// routine commits this file, so a frozen rig must never be the default.
+    ///
+    /// Flip a flag (and rebuild) to *freeze* that channel at its rest pose
+    /// while you dial in another. Typical head-only workflow:
+    /// `hideShoulderDisc = true`, then all of
+    /// `sideLean / headForward / headYaw / headPitch / headRoll` = `false`
+    /// except the single axis you are currently tuning.
+    struct DebugChannels {
+        /// Spin the shoulder disc about Y with twist. Off → disc held at rest
+        /// (tick points to +Z front).
+        var shoulderRotation = true
+        /// Disable the shoulder disc subtree (disc + its child tick) entirely.
+        /// Independent of `shoulderRotation`; use this to clear the disc out of
+        /// frame so only the head is visible.
+        var hideShoulderDisc = false
+        /// Skip adding the calibration-baseline ghost (faint disc + head) so it
+        /// doesn't sit behind an isolated head. Unlike the other hides this is
+        /// enforced in the scene `make` (the ghost is a separate root the
+        /// binding never looks up), so it only takes effect on scene rebuild.
+        var hideGhost = false
+        /// Disable the head's tone-divide band — the placeholder cylinder that
+        /// z-fights the sphere (scene DEC-002). With it off, yaw reads cleanly
+        /// off the bare sphere + nose tick, no striping.
+        var hideHeadBand = false
+        /// Head X translation from side lean. Off → X pinned to 0 (centred).
+        var sideLean = true
+        /// Head Z translation from forward offset. Off → Z pinned to 0.
+        var headForward = true
+        /// Head yaw (Y rotation). Off → no yaw.
+        var headYaw = true
+        /// Head pitch (X rotation). Off → no pitch.
+        var headPitch = true
+        /// Head roll (Z rotation). Off → no roll.
+        var headRoll = true
+        /// Whole-assembly uniform scale. Off → scale pinned to 1.
+        var assemblyScale = true
+        /// Whole-assembly opacity fade. Off → fully opaque.
+        var opacity = true
+        /// State colour / calibration-pulse retint. Off → keep the neutral
+        /// scaffold greys (easiest for reading pure geometry while tuning).
+        var stateTint = true
+        /// Reflect the rig left↔right so it reads like a mirror (the natural
+        /// feel for a front camera). Flips only the horizontal-sense channels
+        /// (side-lean, head yaw, head roll, disc twist); pitch / forward /
+        /// scale / opacity are deliberately untouched. Default off → production
+        /// and the auto-build ship path are unchanged.
+        var mirrored = false
+    }
+
+    /// Mutable so a tuning session can flip channels without threading a new
+    /// parameter through the `RealityView` update closure. **Reset every flag
+    /// to its default before shipping** (all `true`, `hideShoulderDisc` false).
+    static var debug = DebugChannels()
+
     // MARK: - Apply (thin RealityKit adapter; not unit-tested)
 
     /// Pushes the resolved transforms onto the scaffold's named entities,
@@ -152,31 +238,54 @@ enum PostureVisualizationBinding {
         to assembly: Entity,
         pulse: Double = 0
     ) {
-        let t = resolve(from: viewModel)
+        var t = resolve(from: viewModel)
+        if debug.mirrored { t = mirror(t) }
 
         // Whole assembly: uniform scale + opacity fade (propagates to all
         // descendants). The camera lives outside the assembly, so scaling here
-        // never moves the viewpoint.
-        assembly.scale = SIMD3<Float>(repeating: t.assemblyScale)
-        assembly.components.set(OpacityComponent(opacity: t.opacity))
+        // never moves the viewpoint. A gated-off channel rests at its identity
+        // value (scale 1 / fully opaque) rather than tracking live data.
+        assembly.scale = SIMD3<Float>(repeating: debug.assemblyScale ? t.assemblyScale : 1)
+        assembly.components.set(OpacityComponent(opacity: debug.opacity ? t.opacity : 1))
 
         // Shoulder disc rotates about Y with twist; the tick is its child, so
-        // one rotation carries the direction marker too.
+        // one rotation carries the direction marker too. `hideShoulderDisc`
+        // disables the whole disc subtree so the head can be built in isolation.
         if let disc = assembly.findEntity(named: PostureVisualizationScene.EntityName.shoulderDisc) {
-            disc.orientation = simd_quatf(angle: t.discYawRadians, axis: SIMD3<Float>(0, 1, 0))
+            disc.isEnabled = !debug.hideShoulderDisc
+            let discYaw = debug.shoulderRotation ? t.discYawRadians : 0
+            disc.orientation = simd_quatf(angle: discYaw, axis: SIMD3<Float>(0, 1, 0))
         }
 
-        // Head: side-lean / forward translation (rest Y preserved) + combined
-        // yaw/pitch/roll. Its band + nose tick are children, so they follow.
+        // Head: side-lean / forward translation (rest Y always preserved) +
+        // combined yaw/pitch/roll. Each axis is independently gated so a single
+        // variable can be isolated while the rest stay frozen at rest pose.
         if let head = assembly.findEntity(named: PostureVisualizationScene.EntityName.head) {
-            head.position = t.headTranslation
-            head.orientation = headOrientation(t.headEulerRadians)
+            head.position = SIMD3<Float>(
+                debug.sideLean ? t.headTranslation.x : 0,
+                t.headTranslation.y,
+                debug.headForward ? t.headTranslation.z : 0
+            )
+            head.orientation = headOrientation(SIMD3<Float>(
+                debug.headPitch ? t.headEulerRadians.x : 0,
+                debug.headYaw   ? t.headEulerRadians.y : 0,
+                debug.headRoll  ? t.headEulerRadians.z : 0
+            ))
+        }
+
+        // Tone-divide band is a placeholder that z-fights the sphere (scene
+        // DEC-002); optionally disable it for a clean, unstriped yaw read.
+        if let band = assembly.findEntity(named: PostureVisualizationScene.EntityName.headBand) {
+            band.isEnabled = !debug.hideHeadBand
         }
 
         // State colour tints the primary fills. The dark accents (band, nose
         // tick, disc tick) are separate named entities left untouched so the
         // structure stays legible. Step 5 polish: `stateTint` adds the
         // calibrating breathing pulse on top of the VM's discrete mapping.
+        // Skipped wholesale when the channel is off so the head/disc keep their
+        // neutral scaffold greys — clearest backdrop for tuning geometry.
+        guard debug.stateTint else { return }
         let tint = UIColor(
             stateTint(
                 stateColor: viewModel.stateColor,

@@ -34,6 +34,12 @@ struct PostureVisualizationView: View {
     /// stays purely graphical; this is opt-in for mapping refinement only.
     @State private var showValues = false
 
+    #if DEBUG
+    /// Dev-notes panel (changelog + open actions) visibility — Debug only,
+    /// stripped from Release so it never ships.
+    @State private var showNotes = false
+    #endif
+
     /// Calibration-pulse period (seconds) — a slow, organic "breathing" beat.
     private static let pulsePeriod = 1.6
 
@@ -41,7 +47,30 @@ struct PostureVisualizationView: View {
         TimelineView(.animation) { timeline in
             let pulse = Self.pulse(at: timeline.date)
             RealityView { content in
-                content.add(PostureVisualizationScene.makeGhost())
+                #if DEBUG
+                // DEBUG TUNING — isolate ONE head variable at a time.
+                // #if DEBUG strips this from Release/TestFlight, so the nightly
+                // auto-build can never ship a frozen rig. To tune a different
+                // axis, set its flag `true` and the others `false`. Delete this
+                // whole block when tuning is finished.
+                PostureVisualizationBinding.debug = .init(
+                    hideShoulderDisc: true,   // disc + its tick removed
+                    hideGhost: true,          // drop the faint baseline disc/head
+                    hideHeadBand: true,       // no z-fighting band — clean sphere
+                    sideLean: false,          // head X frozen at centre
+                    headForward: false,       // head Z frozen
+                    headYaw: true,            // ← the only live channel
+                    headPitch: false,
+                    headRoll: false,
+                    assemblyScale: false,     // no whole-assembly scaling
+                    opacity: false,           // stay fully opaque
+                    stateTint: false,         // stay neutral scaffold grey
+                    mirrored: true            // ← reads like a mirror
+                )
+                #endif
+                if !PostureVisualizationBinding.debug.hideGhost {
+                    content.add(PostureVisualizationScene.makeGhost())
+                }
                 content.add(PostureVisualizationScene.makeAssembly())
                 content.add(PostureVisualizationScene.makeCamera())
             } update: { content in
@@ -81,6 +110,27 @@ struct PostureVisualizationView: View {
                 .accessibilityLabel(showValues ? "Hide tuning values" : "Show tuning values")
             }
         }
+        #if DEBUG
+        .overlay(alignment: .topLeading) {
+            VStack(alignment: .leading, spacing: 10) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { showNotes.toggle() }
+                } label: {
+                    Image(systemName: showNotes ? "info.circle.fill" : "info.circle")
+                        .font(.title2)
+                        .foregroundStyle(.white.opacity(showNotes ? 0.95 : 0.55))
+                        .padding()
+                }
+                .accessibilityLabel(showNotes ? "Hide dev notes" : "Show dev notes")
+
+                if showNotes {
+                    PostureVisualizationNotesOverlay()
+                        .padding(.leading)
+                        .transition(.opacity)
+                }
+            }
+        }
+        #endif
         .onAppear {
             guard !didBind else { return }
             viewModel.bind(to: appModel)
