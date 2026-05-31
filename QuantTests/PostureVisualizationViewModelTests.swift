@@ -171,6 +171,105 @@ final class PostureVisualizationViewModelTests: XCTestCase {
         XCTAssertEqual(vm2.headRollDegrees, -45, accuracy: 0.0001)
     }
 
+    // MARK: - Calibration-relative pitch & roll (B0 fix)
+    //
+    // Pitch and roll are now expressed relative to the pose captured when the
+    // system leaves calibration into a judged state, so a person whose neutral
+    // sit isn't geometrically level no longer renders permanently tilted. The
+    // capture only arms via a `.calibrating` frame — without one the behaviour
+    // stays absolute (the Step 1 tests above rely on that).
+
+    /// Drives the same frame until the α = 0.2 low-pass has effectively
+    /// converged, so assertions can target the steady-state mapped value.
+    private func converge(
+        _ vm: PostureVisualizationViewModel,
+        to pose: PoseSample,
+        state: PostureState = .good,
+        frames: Int = 400
+    ) {
+        for _ in 0..<frames {
+            vm.ingest(metrics: metrics(), pose: pose, state: state, quality: .good)
+        }
+    }
+
+    func test_pitchRoll_neutralReadsZero_afterCalibration() {
+        let vm = PostureVisualizationViewModel()
+        // A neutral sit that is NOT geometrically level: head slightly forward
+        // (+pitch) and shoulders tilted (+roll). Pre-fix this would render
+        // permanently pitched/rolled.
+        let rest = makeSample(headForwardOffset: -0.05,
+                              leftShoulderY: -0.10, rightShoulderY: 0.10)
+
+        vm.ingest(metrics: metrics(), pose: rest, state: .calibrating, quality: .good)
+        converge(vm, to: rest, state: .good)
+
+        XCTAssertEqual(vm.headPitchDegrees, 0, accuracy: 0.01,
+                       "calibrated neutral pose should read ~0° pitch")
+        XCTAssertEqual(vm.headRollDegrees, 0, accuracy: 0.01,
+                       "calibrated neutral pose should read ~0° roll")
+    }
+
+    func test_pitch_deviationFromCalibratedRest_isRelative() {
+        let vm = PostureVisualizationViewModel()
+        let rest = makeSample(headForwardOffset: -0.05,
+                              leftShoulderY: -0.10, rightShoulderY: 0.10)
+        // Deviation: lean further forward (more +pitch); shoulders unchanged.
+        let leanedIn = makeSample(headForwardOffset: -0.10,
+                                  leftShoulderY: -0.10, rightShoulderY: 0.10)
+
+        vm.ingest(metrics: metrics(), pose: rest, state: .calibrating, quality: .good)
+        vm.ingest(metrics: metrics(), pose: rest, state: .good, quality: .good) // captures rest
+        converge(vm, to: leanedIn, state: .good)
+
+        let pitchAbsRest = atan2(0.05, 0.15) * 180 / .pi * 1.5
+        let pitchAbsLean = atan2(0.10, 0.15) * 180 / .pi * 1.5
+        let expected = pitchAbsLean - pitchAbsRest
+
+        XCTAssertEqual(vm.headPitchDegrees, expected, accuracy: 0.01,
+                       "pitch should be measured relative to the calibrated rest")
+        XCTAssertGreaterThan(vm.headPitchDegrees, 0, "leaning in past rest = +pitch")
+        XCTAssertEqual(vm.headRollDegrees, 0, accuracy: 0.01,
+                       "unchanged shoulders should keep roll at the calibrated 0")
+    }
+
+    func test_recalibration_recapturesNeutral() {
+        let vm = PostureVisualizationViewModel()
+        let poseA = makeSample(headForwardOffset: -0.05,
+                               leftShoulderY: -0.10, rightShoulderY: 0.10)
+        // A genuinely different neutral (new desk/posture) on recalibration.
+        let poseB = makeSample(headForwardOffset: -0.08,
+                               leftShoulderY: -0.03, rightShoulderY: 0.03)
+
+        vm.ingest(metrics: metrics(), pose: poseA, state: .calibrating, quality: .good)
+        converge(vm, to: poseA, state: .good)
+        XCTAssertEqual(vm.headPitchDegrees, 0, accuracy: 0.01)
+        XCTAssertEqual(vm.headRollDegrees, 0, accuracy: 0.01)
+
+        // Recalibrate at poseB — the reference must re-arm and re-snapshot.
+        vm.ingest(metrics: metrics(), pose: poseB, state: .calibrating, quality: .good)
+        converge(vm, to: poseB, state: .good)
+        XCTAssertEqual(vm.headPitchDegrees, 0, accuracy: 0.01,
+                       "recalibration should zero pitch against the new neutral")
+        XCTAssertEqual(vm.headRollDegrees, 0, accuracy: 0.01,
+                       "recalibration should zero roll against the new neutral")
+    }
+
+    func test_withoutCalibrationFrame_pitchRollStayAbsolute() {
+        // No `.calibrating` frame is ever ingested → references stay 0 →
+        // behaviour is the original absolute geometry. This is the contract the
+        // Step 1 single-ingest tests depend on; pin it explicitly at steady
+        // state too.
+        let vm = PostureVisualizationViewModel()
+        let tilted = makeSample(headForwardOffset: 0,
+                                leftShoulderY: -0.10, rightShoulderY: 0.10)
+        converge(vm, to: tilted, state: .good)
+
+        let expectedRollAbs = atan2(0.20, 1.0) * 180 / .pi * 1.5
+        XCTAssertEqual(vm.headRollDegrees, expectedRollAbs, accuracy: 0.01,
+                       "without calibration, roll stays absolute")
+        XCTAssertEqual(vm.headPitchDegrees, 0, accuracy: 0.01)
+    }
+
     // MARK: - State → colour (4 states must be visibly distinct)
 
     func test_stateColor_discreteMapping() {

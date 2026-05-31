@@ -122,6 +122,21 @@ final class PostureVisualizationViewModel: ObservableObject {
     private var rollFilter = LowPassFilter(alpha: smoothingAlpha)
     private var opacityFilter = LowPassFilter(alpha: smoothingAlpha)
 
+    // MARK: Calibration-relative reference (pitch & roll)
+    //
+    // Pitch and roll are derived from *absolute* pose geometry, so a person
+    // whose neutral sit isn't geometrically level (camera tilt, natural
+    // posture) renders permanently tilted — the original "buggy look". We
+    // capture the absolute pitch/roll at the moment the system leaves
+    // calibration into a judged state (the user's calibrated neutral) and
+    // express subsequent pitch/roll *relative* to it, so a neutral sit reads
+    // ~0°. Re-armed on every (re)calibration. A VM that never sees a
+    // `.calibrating` frame keeps the `0` references, i.e. absolute behaviour —
+    // which is why the Step 1 absolute-geometry tests still hold.
+    private var restPitchDegrees: Double = 0
+    private var restRollDegrees: Double = 0
+    private var wasCalibrating = false
+
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: Init
@@ -181,6 +196,8 @@ final class PostureVisualizationViewModel: ObservableObject {
         let pitchTarget: Double
         let rollTarget: Double
 
+        let judged = Self.isJudged(state)
+
         if let p = pose {
             forwardTarget = Double(p.headForwardOffset) * Mapping.headForwardPointsPerUnit
 
@@ -188,23 +205,39 @@ final class PostureVisualizationViewModel: ObservableObject {
             let yawRaw = Double(p.shoulderTwist) * Mapping.headRotationAmplification
             yawTarget = Self.clamp(yawRaw, -Mapping.yawCapDegrees, Mapping.yawCapDegrees)
 
-            // Pitch ← head depth offset as an elevation angle. Negative
-            // headForwardOffset = head toward camera = leaning forward = +pitch.
-            let pitchRaw = atan2(Double(-p.headForwardOffset), Mapping.headDepthReference)
+            // Pitch ← head depth offset as an elevation angle (absolute).
+            // Negative headForwardOffset = head toward camera = +pitch.
+            let pitchAbs = atan2(Double(-p.headForwardOffset), Mapping.headDepthReference)
                 * 180.0 / .pi * Mapping.headRotationAmplification
-            pitchTarget = Self.clamp(pitchRaw, -Mapping.pitchCapDegrees, Mapping.pitchCapDegrees)
 
-            // Roll ← angle of the right→left shoulder line (the exposed analog
-            // of the design's ear-line roll).
+            // Roll ← angle of the right→left shoulder line (absolute; the
+            // exposed analog of the design's ear-line roll).
             let dx = Double(p.rightShoulder.x - p.leftShoulder.x)
             let dy = Double(p.rightShoulder.y - p.leftShoulder.y)
-            let rollRaw = atan2(dy, dx) * 180.0 / .pi * Mapping.headRotationAmplification
-            rollTarget = Self.clamp(rollRaw, -Mapping.rollCapDegrees, Mapping.rollCapDegrees)
+            let rollAbs = atan2(dy, dx) * 180.0 / .pi * Mapping.headRotationAmplification
 
-            // Keep the pre-clamp angles for the dev HUD (does not drive scene).
+            // On the calibrating→judged transition, snapshot the absolute
+            // pitch/roll as the rest reference so neutral reads ~0° (fixes the
+            // permanently-tilted rig). Only fires once per (re)calibration.
+            if wasCalibrating && judged {
+                restPitchDegrees = pitchAbs
+                restRollDegrees = rollAbs
+                wasCalibrating = false
+            }
+
+            // Express pitch/roll relative to the calibrated rest pose. With the
+            // default `0` references (no calibration seen) this is identity, so
+            // the absolute-geometry behaviour is preserved.
+            let pitchRel = pitchAbs - restPitchDegrees
+            let rollRel = rollAbs - restRollDegrees
+            pitchTarget = Self.clamp(pitchRel, -Mapping.pitchCapDegrees, Mapping.pitchCapDegrees)
+            rollTarget = Self.clamp(rollRel, -Mapping.rollCapDegrees, Mapping.rollCapDegrees)
+
+            // Keep the pre-clamp (calibration-relative) angles for the dev HUD,
+            // so its cap-clipping highlight reflects what is actually clamped.
             unclampedYawDegrees = yawRaw
-            unclampedPitchDegrees = pitchRaw
-            unclampedRollDegrees = rollRaw
+            unclampedPitchDegrees = pitchRel
+            unclampedRollDegrees = rollRel
         } else {
             forwardTarget = 0
             yawTarget = 0
@@ -214,6 +247,12 @@ final class PostureVisualizationViewModel: ObservableObject {
             unclampedPitchDegrees = 0
             unclampedRollDegrees = 0
         }
+
+        // Re-arm the rest-pose capture while calibrating, so the first run and
+        // every recalibration re-snapshot a fresh neutral on the next judged
+        // frame. Placed after the capture check: a single frame is either
+        // calibrating or judged, never both, so there is no same-frame race.
+        if state == .calibrating { wasCalibrating = true }
 
         shoulderRotationDegrees = rotationFilter.update(rotationTarget)
         sideLeanOffsetPoints = sideLeanFilter.update(sideLeanTarget)
@@ -261,5 +300,15 @@ final class PostureVisualizationViewModel: ObservableObject {
 
     private static func clamp(_ x: Double, _ lo: Double, _ hi: Double) -> Double {
         min(max(x, lo), hi)
+    }
+
+    /// Whether the state is one the engine actively judges (vs. idle/absent or
+    /// still calibrating). Gates the calibration-relative rest-pose capture so
+    /// it snapshots a settled posture, never a transient calibration frame.
+    private static func isJudged(_ state: PostureState) -> Bool {
+        switch state {
+        case .good, .drifting, .bad: return true
+        case .absent, .calibrating:  return false
+        }
     }
 }
