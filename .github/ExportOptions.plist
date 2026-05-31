@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Xcode 26 naming: "app-store-connect" replaces the old "app-store". -->
+    <key>method</key>
+    <string>app-store-connect</string>
+    <!-- Export AND upload to App Store Connect in one step (no altool needed). -->
+    <key>destination</key>
+    <string>upload</string>
+    <key>teamID</key>
+    <string>FHC8TY7TG6</string>
+    <!-- Cloud-managed signing via the App Store Connect API key
+         (-allowProvisioningUpdates in the workflow). -->
+    <key>signingStyle</key>
+    <string>automatic</string>
+    <key>uploadSymbols</key>
+    <true/>
+    <!-- Keep the build number we inject from the commit count; don't let
+         Xcode silently re-number it. -->
+    <key>manageAppVersionAndBuildNumber</key>
+    <false/>
+</dict>
+</plist>

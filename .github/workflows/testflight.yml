@@ -1,0 +1,115 @@
+name: TestFlight
+
+# Builds the iOS app and uploads it to TestFlight on every push to main.
+#
+# One-time setup required before this can succeed — see
+# .github/TESTFLIGHT_SETUP.md. Until the three repository secrets exist the
+# job runs green but skips the build (it just prints a warning), so adding this
+# file doesn't spam you with red failures before you're ready.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Quant/**'
+      - 'PostureLogic/**'
+      - 'QuantWatch Watch App/**'
+      - 'Quant.xcodeproj/**'
+      - '.github/workflows/testflight.yml'
+      - '.github/ExportOptions.plist'
+  workflow_dispatch: {}
+
+concurrency:
+  group: testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: Build & upload to TestFlight
+    # Must provide Xcode 26.5 to match the project. If macos-26 isn't available
+    # to you yet, swap to the runner that ships Xcode 26.5, or use
+    # maxim-lobanov/setup-xcode (see the "Select Xcode" step note below).
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      SCHEME: Quant
+      ARCHIVE_PATH: ${{ github.workspace }}/build/Quant.xcarchive
+      EXPORT_PATH: ${{ github.workspace }}/build/export
+      KEY_DIR: ${{ github.workspace }}/private_keys
+    steps:
+      - name: Check for required secrets
+        id: guard
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::App Store Connect secrets not set — see .github/TESTFLIGHT_SETUP.md. Skipping build."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.ready == 'true'
+        with:
+          fetch-depth: 0   # full history so the build number (commit count) is correct
+
+      - name: Select Xcode 26.5
+        if: steps.guard.outputs.ready == 'true'
+        run: sudo xcode-select -s /Applications/Xcode_26.5.app
+        # If the runner names Xcode differently, replace this step with:
+        #   - uses: maxim-lobanov/setup-xcode@v1
+        #     with: { xcode-version: '26.5' }
+
+      - name: Write App Store Connect API key
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p "$KEY_DIR"
+          echo "$ASC_KEY_P8" | base64 --decode > "$KEY_DIR/AuthKey_${ASC_KEY_ID}.p8"
+
+      - name: Compute build number (commit count — always monotonic)
+        if: steps.guard.outputs.ready == 'true'
+        id: build
+        run: echo "number=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Archive
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild clean archive \
+            -project Quant.xcodeproj \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE_PATH" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_DIR/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CURRENT_PROJECT_VERSION=${{ steps.build.outputs.number }}
+
+      - name: Export & upload to TestFlight
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist .github/ExportOptions.plist \
+            -exportPath "$EXPORT_PATH" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_DIR/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Clean up API key
+        if: always()
+        run: rm -rf "$KEY_DIR"
