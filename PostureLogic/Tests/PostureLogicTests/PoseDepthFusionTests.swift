@@ -396,6 +396,99 @@ final class PoseDepthFusionTests: XCTestCase {
         XCTAssertEqual(fusion.computeHeadAngles(from: pose).pitch, 0, accuracy: 0.001)
     }
 
+    // MARK: - Head Pitch (3D: LiDAR depth elevation, nose vs. ear plane)
+    //
+    // Step 3 upgrade: when depth is available, pitch becomes a true elevation angle
+    // from the nose's *depth* relative to the ear plane — NOT the image-plane
+    // vertical the 2D path uses. To isolate that signal these poses keep the nose
+    // ON the ear line (equal image-y) so the 2D pitch is ~0; any non-zero pitch
+    // must therefore come from depth. Sign matches the 2D *direction* so the
+    // ViewModel behaves identically in either mode: nose nearer than the ears
+    // (relaxed, protruding face) → negative; nose farther / through the ear plane
+    // (chin-down / tech-neck) → positive. When the nose/ear depth is unavailable
+    // the 2D vertical fallback still drives pitch.
+
+    /// Shoulders + level ears + nose-on-ear-line, with a depth per point. Nose is
+    /// at the same image-y as the ears so the 2D pitch is ~0 and only depth moves
+    /// the 3D pitch.
+    private func headDepthPose(noseDepth: Float, earDepth: Float) -> (PoseObservation, [DepthAtPoint]) {
+        let keypoints = [
+            makeKeypoint(.leftShoulder,  x: 0.40, y: 0.50),
+            makeKeypoint(.rightShoulder, x: 0.60, y: 0.50),
+            makeKeypoint(.leftEar,       x: 0.45, y: 0.70),
+            makeKeypoint(.rightEar,      x: 0.55, y: 0.70),
+            makeKeypoint(.nose,          x: 0.50, y: 0.70),   // ON the ear line ⇒ 2D pitch ~0
+        ]
+        let samples = [
+            DepthAtPoint(point: keypoints[0].position, depth: 0.60, confidence: 1.0),  // shoulders
+            DepthAtPoint(point: keypoints[1].position, depth: 0.60, confidence: 1.0),
+            DepthAtPoint(point: keypoints[2].position, depth: earDepth, confidence: 1.0),  // ears
+            DepthAtPoint(point: keypoints[3].position, depth: earDepth, confidence: 1.0),
+            DepthAtPoint(point: keypoints[4].position, depth: noseDepth, confidence: 1.0),  // nose
+        ]
+        return (makePose(keypoints: keypoints), samples)
+    }
+
+    func test_headPitch3D_negativeWhenNoseNearerThanEars() {
+        var fusion = PoseDepthFusion()
+        // Nose closer to the camera than the ears (relaxed, protruding face).
+        let (pose, samples) = headDepthPose(noseDepth: 0.50, earDepth: 0.60)
+        let sample = fusion.fuse(
+            pose: pose,
+            depthSamples: samples,
+            confidence: .high,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )!
+        XCTAssertEqual(sample.depthMode, .depthFusion)
+        XCTAssertLessThan(sample.headPitch, 0, "nose nearer than ears ⇒ negative 3D pitch")
+    }
+
+    func test_headPitch3D_positiveWhenNoseFartherThanEars() {
+        var fusion = PoseDepthFusion()
+        // Nose farther from the camera than the ears (chin-down / tech-neck).
+        let (pose, samples) = headDepthPose(noseDepth: 0.70, earDepth: 0.60)
+        let sample = fusion.fuse(
+            pose: pose,
+            depthSamples: samples,
+            confidence: .high,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )!
+        XCTAssertEqual(sample.depthMode, .depthFusion)
+        XCTAssertGreaterThan(sample.headPitch, 0, "nose farther than ears ⇒ positive 3D pitch")
+    }
+
+    func test_headPitch3D_fallsBackTo2DPitchWhenEarDepthMissing() {
+        var fusion = PoseDepthFusion()
+        // Depth covers the shoulders + nose (so the depth path runs → .depthFusion),
+        // but the EARS have no depth sample → the 3D elevation can't be formed →
+        // pitch falls back to the 2D nose-vs-ear-line value. Nose dropped below the
+        // ear line (y-up) so that 2D fallback is positive.
+        let keypoints = [
+            makeKeypoint(.leftShoulder,  x: 0.40, y: 0.50),
+            makeKeypoint(.rightShoulder, x: 0.60, y: 0.50),
+            makeKeypoint(.leftEar,       x: 0.45, y: 0.70),
+            makeKeypoint(.rightEar,      x: 0.55, y: 0.70),
+            makeKeypoint(.nose,          x: 0.50, y: 0.60),   // below the ear line (y-up)
+        ]
+        // Depth for shoulders + nose only — none near the ears.
+        let samples = [
+            DepthAtPoint(point: keypoints[0].position, depth: 0.60, confidence: 1.0),
+            DepthAtPoint(point: keypoints[1].position, depth: 0.60, confidence: 1.0),
+            DepthAtPoint(point: keypoints[4].position, depth: 0.50, confidence: 1.0),
+        ]
+        let sample = fusion.fuse(
+            pose: makePose(keypoints: keypoints),
+            depthSamples: samples,
+            confidence: .high,
+            intrinsics: makeIntrinsics(),
+            trackingQuality: .good
+        )!
+        XCTAssertEqual(sample.depthMode, .depthFusion)
+        XCTAssertGreaterThan(sample.headPitch, 0, "ear depth missing ⇒ 2D pitch fallback (positive)")
+    }
+
     // MARK: - Head Angles on PoseSample (plumbing: fuse → sample)
 
     // The angle math above is exercised directly via `computeHeadAngles`. These two

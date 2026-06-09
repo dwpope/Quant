@@ -4,12 +4,12 @@
 + `git log`.** Cold-start iterations read this first.
 
 ## Current Step
-**Step 2 = DONE** ✅ — `headPitch/headYaw/headRoll: Float` exposed on `PoseSample`
-(defaulted init), set in both `fuse2D` (:172) and `fuse3D` (:265) from
-`computeHeadAngles(from:)`; ride `Pipeline.latestSample` → `AppModel` with no new
-publisher. Steps 0–1 complete; Type Map populated below.
-**Next: Step 3** — 3D pitch upgrade from LiDAR depth (nose vs. ear elevation in
-`fuse3D`) with the 2D path as graceful fallback.
+**Step 3 = DONE** ✅ — `fuse3D` now overrides head pitch with a LiDAR depth-based
+elevation (`computeHeadPitch3D`): `atan2(noseZ − earMidZ, interaural)·180/π`,
+nil-fallback to the 2D pitch when nose/ear depth is missing. Yaw + roll stay 2D.
+Steps 0–2 complete; Type Map populated below.
+**Next: Step 4** — ViewModel consumes real head angles (replace shoulder-skeleton
+proxies); RED test that pure shoulder twist yields ~0° head yaw.
 
 ### Test-construction shape (for the angle unit tests)
 `PoseObservation(timestamp:keypoints:confidence:)`, `Keypoint(joint:position:confidence:)`
@@ -118,6 +118,25 @@ trackingQuality: TrackingQuality
   xcodebuild's destination error and record the working value here.
 
 ## Verification Notes
+- **2026-06-09 — Step 3 (3D pitch from LiDAR, TDD):** RED → added 3 tests to
+  `PoseDepthFusionTests`: `test_headPitch3D_negativeWhenNoseNearerThanEars` and
+  `…_positiveWhenNoseFartherThanEars` (nose held ON the ear line so the 2D pitch is
+  ~0 → any non-zero pitch is depth-driven) plus
+  `…_fallsBackTo2DPitchWhenEarDepthMissing`. The two sign tests failed (got 0.0 =
+  2D pitch leaking through); the fallback already passed (correctly relies on 2D).
+  GREEN → `fuse3D` now computes `computeHeadPitch3D(from:depthSamples:intrinsics:)`
+  and overrides `headAngles.pitch` when non-nil. **Formula:** unproject nose + ear
+  midpoint (z = metric depth), `pitch = atan2(noseZ − earMidZ, interaural)·180/π`.
+  **Sign locked to the 2D direction** so the ViewModel is mode-agnostic: nose
+  nearer than ears (relaxed, protruding) → negative; nose farther / through the ear
+  plane (chin-down) → positive — same direction as 2D "nose below ear line →
+  positive." Returns nil (→ 2D fallback) when nose/either-ear depth is missing or
+  the ear plane is degenerate; **never crashes a 2D frame.** Yaw + roll stay 2D.
+  Reused existing `findDepth`/`unproject`/`keypoint` (no re-implementation, per
+  plan constraint). Tests: **full PostureLogic suite 483/483 green** (was 480 +3),
+  no regressions. App suite unaffected (no public-surface change beyond Step 2).
+  Commit: `feat: derive head pitch from LiDAR depth when available`.
+  Next: **Step 4** (ViewModel consumes real head angles).
 - **2026-06-09 — Step 2 (expose on PoseSample, TDD):** RED → added 2 end-to-end
   tests to `PoseDepthFusionTests` driving the **public `fuse()`** and asserting on
   the returned `PoseSample`: `test_fuse_populatesHeadAnglesWhenFacialKeypointsPresent`

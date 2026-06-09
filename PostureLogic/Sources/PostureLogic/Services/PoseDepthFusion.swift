@@ -246,9 +246,17 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             shoulderWidth: CGFloat(shoulderWidth3D),
             headPos: headPos
         )
-        // 2D facial-keypoint angles. The depth-based pitch refinement is a separate
-        // sub-stage; for now the depth path carries the same head geometry as 2D.
-        let headAngles = computeHeadAngles(from: pose)
+        // Facial-keypoint angles. Yaw + roll stay 2D (image-plane geometry); pitch
+        // is upgraded to a true depth-based elevation angle when LiDAR depth exists
+        // at the nose + ear plane, falling back to the 2D pitch otherwise.
+        var headAngles = computeHeadAngles(from: pose)
+        if let pitch3D = computeHeadPitch3D(
+            from: pose,
+            depthSamples: depthSamples,
+            intrinsics: intrinsics
+        ) {
+            headAngles.pitch = pitch3D
+        }
 
         return PoseSample(
             timestamp: pose.timestamp,
@@ -508,6 +516,77 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
         let lineY = (left.y + right.y) / 2
         let drop = lineY - nose.position.y  // y-up: nose below the line ⇒ positive drop
         return Float(atan2(drop, scale)) * (180.0 / .pi)
+    }
+
+    /// Pitch (3D) = the nose's elevation relative to the interaural (ear) plane,
+    /// measured from LiDAR depth instead of the image-plane vertical the 2D path
+    /// uses. Returns `nil` whenever the nose or an ear/eye reference pair lacks a
+    /// valid depth sample, so the caller keeps the 2D pitch (graceful fallback —
+    /// a depth frame never crashes or degrades a head that 2D could still read).
+    ///
+    /// Geometry: `unproject` the nose and the ear midpoint into camera space
+    /// (z = metric depth, larger = farther), then take `atan2(noseZ − earMidZ,
+    /// interaural)` — the angle by which the nose sits forward of / behind the ear
+    /// plane, normalized by the interaural distance (a stable, ~fixed metric scale,
+    /// mirroring how the rest of the fusion normalizes by shoulder width).
+    ///
+    /// Sign is locked to match the 2D pitch *direction* for the same motion so the
+    /// ViewModel behaves identically in either mode: a relaxed head has the nose
+    /// protruding *nearer* than the ears (noseZ < earMidZ) → negative; as the chin
+    /// drops (forward-head / tech-neck) the nose rotates down and back toward —
+    /// then through — the ear plane (noseZ → earMidZ and beyond) → pitch rises to
+    /// positive, exactly as the 2D "nose below the ear line → positive" rule does.
+    /// The absolute zero is geometric, not physiological; rest-relative calibration
+    /// re-zeros it downstream. Ear pair primary, eye pair fallback (mirrors 2D).
+    private func computeHeadPitch3D(
+        from pose: PoseObservation,
+        depthSamples: [DepthAtPoint],
+        intrinsics: simd_float3x3
+    ) -> Float? {
+        guard let nose = keypoint(.nose, from: pose) else { return nil }
+
+        let left: Keypoint
+        let right: Keypoint
+        if let le = keypoint(.leftEar, from: pose), let re = keypoint(.rightEar, from: pose) {
+            left = le
+            right = re
+        } else if let le = keypoint(.leftEye, from: pose), let re = keypoint(.rightEye, from: pose) {
+            left = le
+            right = re
+        } else {
+            return nil
+        }
+
+        // Every reference point needs a valid depth sample, else fall back to 2D.
+        guard let noseDepth = findDepth(for: nose.position, in: depthSamples),
+              let leftDepth = findDepth(for: left.position, in: depthSamples),
+              let rightDepth = findDepth(for: right.position, in: depthSamples)
+        else {
+            return nil
+        }
+
+        let nose3D = unproject(
+            point: SIMD2<Float>(Float(nose.position.x), Float(nose.position.y)),
+            depth: noseDepth,
+            intrinsics: intrinsics
+        )
+        let left3D = unproject(
+            point: SIMD2<Float>(Float(left.position.x), Float(left.position.y)),
+            depth: leftDepth,
+            intrinsics: intrinsics
+        )
+        let right3D = unproject(
+            point: SIMD2<Float>(Float(right.position.x), Float(right.position.y)),
+            depth: rightDepth,
+            intrinsics: intrinsics
+        )
+
+        let earMid = (left3D + right3D) / 2
+        let interaural = simd_length(left3D - right3D)
+        guard interaural > 1e-6 else { return nil }  // degenerate ear plane
+
+        let depthOffset = nose3D.z - earMid.z  // +ve = nose farther than ears
+        return atan2(depthOffset, interaural) * (180.0 / .pi)
     }
 
     // MARK: - Helpers
