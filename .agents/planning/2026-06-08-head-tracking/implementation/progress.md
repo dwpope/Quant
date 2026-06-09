@@ -207,3 +207,16 @@ trackingQuality: TrackingQuality
 ## Known blockers
 - simctl device enumeration unresponsive in this environment → simulator
   destination unverified until first build (see Type Map). Not blocking Step 0.
+- **2026-06-09 — app-target (`QuantTests`) cannot be built or executed here**
+  (blocks *execution* of the Step 4 ViewModel tests; PostureLogic `swift test`
+  is unaffected and stays the regression gate). Three stacked causes:
+  (1) `simctl` is wedged and `xcodebuild -showdestinations` lists **no concrete
+  iOS simulator** — only `generic`/placeholder destinations — so `xcodebuild test`
+  has nothing to boot; (2) Mac Catalyst is blocked by a deployment-target mismatch
+  (target needs macOS 26.5, host is 26.2); (3) a **competing build loop from
+  another session** (shell snapshot `1781037542187`, writing `/tmp/quant_appbuild*.log`
+  to `/tmp/quant_dd_headtrack`) runs `pkill -9 -f "xcodebuild build-for-testing"`
+  ~every minute, killing compile checks (observed exit 143). → Step 4 verified by
+  code review + the `PoseSample` API already exercised by `swift test`; **run
+  `xcodebuild test -scheme QuantNoWatchTests` once a simulator is available / the
+  competing loop is stopped** to execute the ViewModel tests.

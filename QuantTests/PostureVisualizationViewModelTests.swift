@@ -23,7 +23,10 @@ final class PostureVisualizationViewModelTests: XCTestCase {
         shoulderTwist: Float = 0,
         leftShoulderY: Float = -0.05,
         rightShoulderY: Float = 0.05,
-        headX: Float = 0
+        headX: Float = 0,
+        headPitch: Float = 0,
+        headYaw: Float = 0,
+        headRoll: Float = 0
     ) -> PoseSample {
         PoseSample(
             timestamp: 0,
@@ -36,7 +39,10 @@ final class PostureVisualizationViewModelTests: XCTestCase {
             headForwardOffset: headForwardOffset,
             shoulderTwist: shoulderTwist,
             shoulderWidthRaw: 0.4,
-            trackingQuality: .good
+            trackingQuality: .good,
+            headPitch: headPitch,
+            headYaw: headYaw,
+            headRoll: headRoll
         )
     }
 
@@ -119,6 +125,34 @@ final class PostureVisualizationViewModelTests: XCTestCase {
         vm.ingest(metrics: metrics(), pose: makeSample(shoulderTwist: -80),
                   state: .good, quality: .good)
         XCTAssertGreaterThanOrEqual(vm.headYawDegrees, -90)
+    }
+
+    // MARK: - Head yaw decoupled from shoulders (Step 4: real head geometry)
+    //
+    // The point of this sub-stage: head yaw must come from the HEAD
+    // (`PoseSample.headYaw`), not the shoulder-twist proxy. A pure shoulder twist
+    // with a forward-facing head must read ~0° head yaw — the proxy's central bug
+    // (a shoulder shrug currently reads as head movement). An actual head turn,
+    // shoulders square, must drive yaw.
+
+    func test_headYaw_isZeroForPureShoulderTwist() {
+        let vm = PostureVisualizationViewModel()
+        // Shoulders rotated hard, but the head faces forward (headYaw = 0).
+        vm.ingest(metrics: metrics(twist: 40),
+                  pose: makeSample(shoulderTwist: 40, headYaw: 0),
+                  state: .good, quality: .good)
+        XCTAssertEqual(vm.headYawDegrees, 0, accuracy: 0.01,
+                       "a pure shoulder twist with a forward-facing head must not move head yaw")
+    }
+
+    func test_headYaw_drivenByRealHeadTurn() {
+        let vm = PostureVisualizationViewModel()
+        // Head turned, shoulders square → yaw tracks PoseSample.headYaw (×1.5).
+        vm.ingest(metrics: metrics(twist: 0),
+                  pose: makeSample(shoulderTwist: 0, headYaw: 30),
+                  state: .good, quality: .good)
+        XCTAssertEqual(vm.headYawDegrees, 45, accuracy: 0.01,
+                       "head yaw must track PoseSample.headYaw, amplified ×1.5")
     }
 
     // MARK: - Head pitch (← headForwardOffset, cap ±60°)
