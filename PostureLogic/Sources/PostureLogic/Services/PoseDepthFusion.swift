@@ -394,11 +394,10 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
     /// degrades gracefully (neutral 0) when the required keypoints are absent —
     /// mirroring `resolveHeadPosition`'s tolerance.
     ///
-    /// Only `roll` is populated in this sub-stage; `pitch`/`yaw` follow.
     func computeHeadAngles(from pose: PoseObservation) -> HeadAngles {
         HeadAngles(
-            pitch: 0,
-            yaw: 0,
+            pitch: computeHeadPitch(from: pose),
+            yaw: computeHeadYaw(from: pose),
             roll: computeHeadRoll(from: pose)
         )
     }
@@ -428,6 +427,77 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
         guard run > 1e-6 else { return 0 }  // degenerate vertical line → no defined tilt
         let rise = right.y - left.y
         return Float(atan2(rise, run)) * (180.0 / .pi)
+    }
+
+    /// Strong yaw emitted when a head turn fully occludes one ear (the one-ear
+    /// rule). A turn large enough to hide an ear is roughly 50–70°.
+    private static let oneEarMissingYawDegrees: Float = 60
+
+    /// Yaw = horizontal offset of the nose from the ear midpoint, normalized by
+    /// ear separation, in degrees. Centred nose → ~0°. Sign: nose toward
+    /// `.rightEar` (larger image-x in our layouts) → positive; toward `.leftEar`
+    /// → negative.
+    ///
+    /// One-ear-missing rule: a strong turn occludes the far ear, so when exactly
+    /// one ear is present we can't measure an offset — instead we report a strong
+    /// yaw *toward the missing side* (missing `.rightEar` → +, missing `.leftEar`
+    /// → −). Falls back to neutral (0) when both ears or the nose are absent.
+    private func computeHeadYaw(from pose: PoseObservation) -> Float {
+        let leftEar = keypoint(.leftEar, from: pose)
+        let rightEar = keypoint(.rightEar, from: pose)
+
+        switch (leftEar, rightEar) {
+        case let (le?, re?):
+            // Both ears visible — measure the nose's normalized horizontal offset.
+            guard let nose = keypoint(.nose, from: pose) else { return 0 }
+            let separation = abs(re.position.x - le.position.x)
+            guard separation > 1e-6 else { return 0 }
+            let midX = (le.position.x + re.position.x) / 2
+            let ratio = (nose.position.x - midX) / separation
+            let clamped = max(-1, min(1, ratio))
+            return Float(asin(clamped)) * (180.0 / .pi)
+        case (.some, .none):
+            // Right ear occluded → strong turn toward the right.
+            return Self.oneEarMissingYawDegrees
+        case (.none, .some):
+            // Left ear occluded → strong turn toward the left.
+            return -Self.oneEarMissingYawDegrees
+        case (.none, .none):
+            return 0
+        }
+    }
+
+    /// Pitch (2D) = vertical offset of the nose relative to the eye/ear line,
+    /// normalized by that line's horizontal separation, in degrees. A coarse
+    /// proxy for chin-down/forward-head tilt — refined into a true elevation
+    /// angle from LiDAR depth in a later sub-stage.
+    ///
+    /// Sign (y-up, larger y = higher): nose *below* the line (chin-down /
+    /// forward-head) → positive; nose above (chin-up) → negative. The raw zero is
+    /// the geometric on-the-line case, not a physiological neutral — the
+    /// ViewModel's rest-relative calibration re-zeros it downstream. Ear line
+    /// primary, eye line fallback (mirrors roll); neutral (0) when no reference
+    /// line or no nose.
+    private func computeHeadPitch(from pose: PoseObservation) -> Float {
+        let left: CGPoint
+        let right: CGPoint
+        if let le = keypoint(.leftEar, from: pose), let re = keypoint(.rightEar, from: pose) {
+            left = le.position
+            right = re.position
+        } else if let le = keypoint(.leftEye, from: pose), let re = keypoint(.rightEye, from: pose) {
+            left = le.position
+            right = re.position
+        } else {
+            return 0
+        }
+
+        guard let nose = keypoint(.nose, from: pose) else { return 0 }
+
+        let scale = abs(right.x - left.x)
+        guard scale > 1e-6 else { return 0 }  // degenerate line → no defined normalizer
+        let lineY = (left.y + right.y) / 2
+        let drop = lineY - nose.position.y  // y-up: nose below the line ⇒ positive drop
+        return Float(atan2(drop, scale)) * (180.0 / .pi)
     }
 
     // MARK: - Helpers

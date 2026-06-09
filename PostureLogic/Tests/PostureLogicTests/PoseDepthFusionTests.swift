@@ -249,6 +249,153 @@ final class PoseDepthFusionTests: XCTestCase {
         XCTAssertEqual(fusion.computeHeadAngles(from: pose).roll, 0, accuracy: 0.001)
     }
 
+    // MARK: - Head Yaw (nose horizontal offset from ear-midpoint ÷ ear separation)
+
+    // Sign convention (locked here, deferred semantics handled in the ViewModel):
+    // positive yaw = nose displaced toward `.rightEar` (larger image-x in these
+    // synthetic layouts); negative = toward `.leftEar`. One-ear-missing rule: a
+    // strong head turn occludes the far ear, so exactly one ear present implies a
+    // strong yaw *toward the missing side* — missing `.rightEar` → strong positive,
+    // missing `.leftEar` → strong negative.
+
+    func test_headYaw_zeroWhenNoseCentredBetweenEars() {
+        let fusion = PoseDepthFusion()
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar,  x: 0.40, y: 0.70),
+            makeKeypoint(.rightEar, x: 0.60, y: 0.70),
+            makeKeypoint(.nose,     x: 0.50, y: 0.65),   // centred between ears
+        ])
+        XCTAssertEqual(fusion.computeHeadAngles(from: pose).yaw, 0, accuracy: 0.5)
+    }
+
+    func test_headYaw_positiveWhenNoseTowardRightEar() {
+        let fusion = PoseDepthFusion()
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar,  x: 0.40, y: 0.70),
+            makeKeypoint(.rightEar, x: 0.60, y: 0.70),
+            makeKeypoint(.nose,     x: 0.55, y: 0.65),   // shifted toward right ear
+        ])
+        XCTAssertGreaterThan(fusion.computeHeadAngles(from: pose).yaw, 0)
+    }
+
+    func test_headYaw_negativeWhenNoseTowardLeftEar() {
+        let fusion = PoseDepthFusion()
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar,  x: 0.40, y: 0.70),
+            makeKeypoint(.rightEar, x: 0.60, y: 0.70),
+            makeKeypoint(.nose,     x: 0.45, y: 0.65),   // shifted toward left ear
+        ])
+        XCTAssertLessThan(fusion.computeHeadAngles(from: pose).yaw, 0)
+    }
+
+    func test_headYaw_strongPositiveWhenRightEarMissing() {
+        let fusion = PoseDepthFusion()
+        // Right ear occluded by a strong turn → strong yaw toward the right.
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar, x: 0.45, y: 0.70),
+            makeKeypoint(.nose,    x: 0.50, y: 0.65),
+        ])
+        XCTAssertGreaterThan(fusion.computeHeadAngles(from: pose).yaw, 30)
+    }
+
+    func test_headYaw_strongNegativeWhenLeftEarMissing() {
+        let fusion = PoseDepthFusion()
+        // Left ear occluded by a strong turn → strong yaw toward the left.
+        let pose = makePose(keypoints: [
+            makeKeypoint(.rightEar, x: 0.55, y: 0.70),
+            makeKeypoint(.nose,     x: 0.50, y: 0.65),
+        ])
+        XCTAssertLessThan(fusion.computeHeadAngles(from: pose).yaw, -30)
+    }
+
+    func test_headYaw_zeroWhenNoEars() {
+        let fusion = PoseDepthFusion()
+        let pose = makePose(keypoints: [
+            makeKeypoint(.nose, x: 0.5, y: 0.7),
+        ])
+        XCTAssertEqual(fusion.computeHeadAngles(from: pose).yaw, 0, accuracy: 0.001)
+    }
+
+    func test_headYaw_zeroWhenNoseMissing() {
+        let fusion = PoseDepthFusion()
+        // Both ears present but no nose → can't measure the offset → neutral.
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar,  x: 0.40, y: 0.70),
+            makeKeypoint(.rightEar, x: 0.60, y: 0.70),
+        ])
+        XCTAssertEqual(fusion.computeHeadAngles(from: pose).yaw, 0, accuracy: 0.001)
+    }
+
+    // MARK: - Head Pitch (2D: nose vertical offset vs eye/ear line, normalized)
+
+    // Coarse 2D proxy — refined by LiDAR depth in a later sub-stage. Sign locked:
+    // nose *below* the eye/ear line (chin-down / forward-head tilt) → positive
+    // pitch (matches Step 8's "forward head tilt ≈ pitch > 15°"). Raw zero is the
+    // geometric on-the-line case, not a physiological neutral; the ViewModel's
+    // rest-relative calibration re-zeros it downstream. y-up: nose below ⇒ nose.y
+    // < lineY. Ear line primary, eye line fallback (mirrors roll).
+
+    func test_headPitch_zeroWhenNoseOnEarLine() {
+        let fusion = PoseDepthFusion()
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar,  x: 0.45, y: 0.70),
+            makeKeypoint(.rightEar, x: 0.55, y: 0.70),
+            makeKeypoint(.nose,     x: 0.50, y: 0.70),   // on the ear line
+        ])
+        XCTAssertEqual(fusion.computeHeadAngles(from: pose).pitch, 0, accuracy: 0.5)
+    }
+
+    func test_headPitch_positiveWhenNoseBelowLine() {
+        let fusion = PoseDepthFusion()
+        // Nose dropped below the ear line (chin-down geometry).
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar,  x: 0.45, y: 0.70),
+            makeKeypoint(.rightEar, x: 0.55, y: 0.70),
+            makeKeypoint(.nose,     x: 0.50, y: 0.60),   // below the line (y-up)
+        ])
+        XCTAssertGreaterThan(fusion.computeHeadAngles(from: pose).pitch, 0)
+    }
+
+    func test_headPitch_negativeWhenNoseAboveLine() {
+        let fusion = PoseDepthFusion()
+        // Nose raised above the ear line (chin-up geometry).
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar,  x: 0.45, y: 0.70),
+            makeKeypoint(.rightEar, x: 0.55, y: 0.70),
+            makeKeypoint(.nose,     x: 0.50, y: 0.80),   // above the line (y-up)
+        ])
+        XCTAssertLessThan(fusion.computeHeadAngles(from: pose).pitch, 0)
+    }
+
+    func test_headPitch_fallsBackToEyeLineWhenEarsMissing() {
+        let fusion = PoseDepthFusion()
+        // No ears; eyes present, nose dropped below the eye line → positive.
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEye,  x: 0.47, y: 0.72),
+            makeKeypoint(.rightEye, x: 0.53, y: 0.72),
+            makeKeypoint(.nose,     x: 0.50, y: 0.62),
+        ])
+        XCTAssertGreaterThan(fusion.computeHeadAngles(from: pose).pitch, 0)
+    }
+
+    func test_headPitch_zeroWhenNoseMissing() {
+        let fusion = PoseDepthFusion()
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar,  x: 0.45, y: 0.70),
+            makeKeypoint(.rightEar, x: 0.55, y: 0.70),
+        ])
+        XCTAssertEqual(fusion.computeHeadAngles(from: pose).pitch, 0, accuracy: 0.001)
+    }
+
+    func test_headPitch_zeroWhenNoReferenceLine() {
+        let fusion = PoseDepthFusion()
+        // Only the nose → no eye/ear line to reference → neutral.
+        let pose = makePose(keypoints: [
+            makeKeypoint(.nose, x: 0.5, y: 0.7),
+        ])
+        XCTAssertEqual(fusion.computeHeadAngles(from: pose).pitch, 0, accuracy: 0.001)
+    }
+
     // MARK: - Head Fallback Chain
 
     func test_headFallback_nose() {
