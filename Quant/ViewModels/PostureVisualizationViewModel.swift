@@ -42,13 +42,15 @@ struct LowPassFilter {
 /// metrics/geometry the pipeline already publishes (design anti-goal: "no new
 /// posture detection logic").
 ///
-/// Head yaw/pitch/roll are *display heuristics* derived from `PoseSample`
-/// geometry. The design doc derives them from raw nose/ear/eye keypoints, but
-/// those are PostureLogic-internal and not exposed on `AppModel`/`PoseSample`
-/// (see implementation/progress.md "Type Map"). The substituted mapping —
-/// roll ← left/right-shoulder line angle, yaw ← `shoulderTwist`,
-/// pitch ← `headForwardOffset` elevation — keeps the work inside the public
-/// surface while preserving the design's amplify-and-cap intent.
+/// Head yaw/pitch/roll come from the **real head geometry** now exposed on
+/// `PoseSample` (`headYaw`/`headPitch`/`headRoll`, degrees, computed in
+/// `PoseDepthFusion.computeHeadAngles` from the nose/ear/eye keypoints — and, in
+/// depth mode, a LiDAR elevation for pitch). Earlier sub-stages substituted
+/// shoulder-skeleton proxies (yaw ← `shoulderTwist`, pitch ← `headForwardOffset`,
+/// roll ← shoulder-line angle) because the keypoints weren't on the public
+/// surface; that surface now exists, so a shoulder shrug with a still head no
+/// longer registers as head movement. The ViewModel only *amplifies, caps, and
+/// rest-relative-zeroes* these angles for display — it owns no detection logic.
 ///
 /// Tests drive the camera-free `ingest(metrics:pose:state:quality:)` seam;
 /// `bind(to:)` wires the same seam to `AppModel`'s Combine publishers in the app.
@@ -61,9 +63,9 @@ final class PostureVisualizationViewModel: ObservableObject {
     @Published private(set) var sideLeanOffsetPoints: Double = 0       // ← lateralLean
     @Published private(set) var headForwardOffsetPoints: Double = 0    // ← PoseSample.headForwardOffset
     @Published private(set) var assemblyScale: Double = 1              // ← forwardCreep
-    @Published private(set) var headYawDegrees: Double = 0             // ← shoulderTwist
-    @Published private(set) var headPitchDegrees: Double = 0           // ← headForwardOffset
-    @Published private(set) var headRollDegrees: Double = 0            // ← shoulder line angle
+    @Published private(set) var headYawDegrees: Double = 0             // ← PoseSample.headYaw
+    @Published private(set) var headPitchDegrees: Double = 0           // ← PoseSample.headPitch
+    @Published private(set) var headRollDegrees: Double = 0            // ← PoseSample.headRoll
     @Published private(set) var opacity: Double = 1                    // ← trackingQuality
     @Published private(set) var stateColor: Color = .gray             // ← postureState
     @Published private(set) var isCalibrating: Bool = false           // ← postureState
@@ -82,6 +84,12 @@ final class PostureVisualizationViewModel: ObservableObject {
     @Published private(set) var rawForwardCreep: Double = 0           // RawMetrics.forwardCreep
     @Published private(set) var rawHeadForwardOffset: Double = 0      // PoseSample.headForwardOffset
     @Published private(set) var rawShoulderTwist: Double = 0          // PoseSample.shoulderTwist
+
+    /// Real head angles straight off `PoseSample` (degrees, pre-amplify/clamp) —
+    /// the raw side of the dev HUD's raw↔mapped head rows (Step 5).
+    @Published private(set) var rawHeadYaw: Double = 0                // PoseSample.headYaw
+    @Published private(set) var rawHeadPitch: Double = 0              // PoseSample.headPitch
+    @Published private(set) var rawHeadRoll: Double = 0               // PoseSample.headRoll
 
     /// Amplified yaw/pitch/roll *before* the per-axis cap. Compared against the
     /// clamped `head*Degrees` outputs, a divergence here means the cap is
@@ -105,10 +113,6 @@ final class PostureVisualizationViewModel: ObservableObject {
         static let yawCapDegrees = 90.0
         static let pitchCapDegrees = 60.0
         static let rollCapDegrees = 45.0
-        /// Reference depth (metres) the head sits forward of the shoulders;
-        /// mirrors the design's ~0.15 head-above-disc offset and turns the
-        /// unbounded `headForwardOffset` into a bounded pitch angle.
-        static let headDepthReference = 0.15
     }
 
     // MARK: Smoothing channels (one filter per continuous output)
@@ -201,20 +205,20 @@ final class PostureVisualizationViewModel: ObservableObject {
         if let p = pose {
             forwardTarget = Double(p.headForwardOffset) * Mapping.headForwardPointsPerUnit
 
-            // Yaw ← shoulder twist (already degrees: asin(clamp)·180/π).
-            let yawRaw = Double(p.shoulderTwist) * Mapping.headRotationAmplification
+            // Yaw ← real head yaw (PoseSample.headYaw, degrees). Absolute: a
+            // forward-facing head already reads ~0°, so no rest reference is
+            // needed (unlike pitch/roll, whose raw zero is geometric).
+            let yawRaw = Double(p.headYaw) * Mapping.headRotationAmplification
             yawTarget = Self.clamp(yawRaw, -Mapping.yawCapDegrees, Mapping.yawCapDegrees)
 
-            // Pitch ← head depth offset as an elevation angle (absolute).
-            // Negative headForwardOffset = head toward camera = +pitch.
-            let pitchAbs = atan2(Double(-p.headForwardOffset), Mapping.headDepthReference)
-                * 180.0 / .pi * Mapping.headRotationAmplification
+            // Pitch ← real head pitch (degrees). Absolute geometry, re-zeroed to
+            // the calibrated rest pose below (the raw zero is the on-the-line /
+            // ear-plane case, not a physiological neutral — see
+            // PoseDepthFusion.computeHeadPitch / computeHeadPitch3D).
+            let pitchAbs = Double(p.headPitch) * Mapping.headRotationAmplification
 
-            // Roll ← angle of the right→left shoulder line (absolute; the
-            // exposed analog of the design's ear-line roll).
-            let dx = Double(p.rightShoulder.x - p.leftShoulder.x)
-            let dy = Double(p.rightShoulder.y - p.leftShoulder.y)
-            let rollAbs = atan2(dy, dx) * 180.0 / .pi * Mapping.headRotationAmplification
+            // Roll ← real head roll (PoseSample.headRoll, degrees).
+            let rollAbs = Double(p.headRoll) * Mapping.headRotationAmplification
 
             // On the calibrating→judged transition, snapshot the absolute
             // pitch/roll as the rest reference so neutral reads ~0° (fixes the
@@ -273,6 +277,9 @@ final class PostureVisualizationViewModel: ObservableObject {
         rawForwardCreep = Double(m.forwardCreep)
         rawHeadForwardOffset = pose.map { Double($0.headForwardOffset) } ?? 0
         rawShoulderTwist = pose.map { Double($0.shoulderTwist) } ?? 0
+        rawHeadYaw = pose.map { Double($0.headYaw) } ?? 0
+        rawHeadPitch = pose.map { Double($0.headPitch) } ?? 0
+        rawHeadRoll = pose.map { Double($0.headRoll) } ?? 0
     }
 
     // MARK: Pure mappings

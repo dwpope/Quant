@@ -4,12 +4,16 @@
 + `git log`.** Cold-start iterations read this first.
 
 ## Current Step
-**Step 3 = DONE** ✅ — `fuse3D` now overrides head pitch with a LiDAR depth-based
-elevation (`computeHeadPitch3D`): `atan2(noseZ − earMidZ, interaural)·180/π`,
-nil-fallback to the 2D pitch when nose/ear depth is missing. Yaw + roll stay 2D.
-Steps 0–2 complete; Type Map populated below.
-**Next: Step 4** — ViewModel consumes real head angles (replace shoulder-skeleton
-proxies); RED test that pure shoulder twist yields ~0° head yaw.
+**Step 4 = DONE** ✅ — `PostureVisualizationViewModel.ingest` now sources head
+angles from real head geometry: yaw ← `p.headYaw`, pitch ← `p.headPitch`, roll ←
+`p.headRoll` (was shoulderTwist / headForwardOffset / shoulder-line proxies).
+Amplify (×1.5) + caps (±90/±60/±45) + rest-relative pitch/roll + α=0.2 smoothing
+all retained; only the *source* changed. Dropped the now-unused
+`Mapping.headDepthReference`. Added `rawHeadYaw/Pitch/Roll` published mirrors for
+the dev HUD. Steps 0–3 complete.
+**Next: Step 5** — surface raw head pitch/yaw/roll in the debug HUD.
+⚠️ App-target tests **not executed** (environment blocker — see Known blockers);
+Step 4 verified by code review + green PostureLogic suite.
 
 ### Test-construction shape (for the angle unit tests)
 `PoseObservation(timestamp:keypoints:confidence:)`, `Keypoint(joint:position:confidence:)`

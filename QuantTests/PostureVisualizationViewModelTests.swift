@@ -4,15 +4,14 @@ import simd
 import PostureLogic
 @testable import Quant
 
-/// Step 1 (plan.md) — TDD coverage for the framework-agnostic display ViewModel.
+/// TDD coverage for the framework-agnostic display ViewModel.
 ///
-/// The design doc derives head yaw/pitch/roll from raw nose/ear/eye keypoints,
-/// but those are NOT exposed on the public `AppModel`/`PoseSample` surface
-/// (raw `Keypoint`/`Joint` are PostureLogic-internal — see progress.md Type
-/// Map). These tests therefore pin the *substituted* geometry derivation:
-/// roll ← left/right shoulder line angle, yaw ← `shoulderTwist`, pitch ←
-/// `headForwardOffset`. The hard caps (±60° pitch, ±45° roll) and the α = 0.2
-/// low-pass are the load-bearing assertions.
+/// As of plan Step 4 the head angles come from the **real head geometry** now
+/// exposed on `PoseSample` — yaw ← `headYaw`, pitch ← `headPitch`, roll ←
+/// `headRoll` (degrees, computed in `PoseDepthFusion.computeHeadAngles`). These
+/// tests pin that source (a pure shoulder twist no longer moves head yaw), the
+/// ×1.5 amplification, the hard caps (±90° yaw, ±60° pitch, ±45° roll), the
+/// calibration-relative rest-zeroing of pitch/roll, and the α = 0.2 low-pass.
 @MainActor
 final class PostureVisualizationViewModelTests: XCTestCase {
 
@@ -108,21 +107,16 @@ final class PostureVisualizationViewModelTests: XCTestCase {
         XCTAssertEqual(vm.headForwardOffsetPoints, -20, accuracy: 0.0001) // -0.2 × 100
     }
 
-    // MARK: - Head yaw (← shoulderTwist, ×1.5, clamp ±90)
-
-    func test_headYaw_fromShoulderTwist_amplified() {
-        let vm = PostureVisualizationViewModel()
-        vm.ingest(metrics: metrics(), pose: makeSample(shoulderTwist: 30),
-                  state: .good, quality: .good)
-        XCTAssertEqual(vm.headYawDegrees, 45, accuracy: 0.0001) // 30 × 1.5
-    }
+    // MARK: - Head yaw (← PoseSample.headYaw, ×1.5, clamp ±90)
+    // The amplify case lives in test_headYaw_drivenByRealHeadTurn below; this
+    // section now only pins the cap.
 
     func test_headYaw_clampedTo90() {
         let vm = PostureVisualizationViewModel()
-        vm.ingest(metrics: metrics(), pose: makeSample(shoulderTwist: 80),
+        vm.ingest(metrics: metrics(), pose: makeSample(headYaw: 80),
                   state: .good, quality: .good)
         XCTAssertEqual(vm.headYawDegrees, 90, accuracy: 0.0001) // 80 × 1.5 → clamp
-        vm.ingest(metrics: metrics(), pose: makeSample(shoulderTwist: -80),
+        vm.ingest(metrics: metrics(), pose: makeSample(headYaw: -80),
                   state: .good, quality: .good)
         XCTAssertGreaterThanOrEqual(vm.headYawDegrees, -90)
     }
@@ -155,52 +149,46 @@ final class PostureVisualizationViewModelTests: XCTestCase {
                        "head yaw must track PoseSample.headYaw, amplified ×1.5")
     }
 
-    // MARK: - Head pitch (← headForwardOffset, cap ±60°)
+    // MARK: - Head pitch (← PoseSample.headPitch, ×1.5, cap ±60°)
 
-    func test_headPitch_withinRange() {
+    func test_headPitch_fromHeadPitch_amplified() {
         let vm = PostureVisualizationViewModel()
-        // atan2(0.05, 0.15) ≈ 18.43° × 1.5 ≈ 27.65°
-        vm.ingest(metrics: metrics(), pose: makeSample(headForwardOffset: -0.05),
+        // No `.calibrating` frame → absolute behaviour: headPitch × 1.5.
+        vm.ingest(metrics: metrics(), pose: makeSample(headPitch: 18),
                   state: .good, quality: .good)
-        let expected = atan2(0.05, 0.15) * 180 / .pi * 1.5
-        XCTAssertEqual(vm.headPitchDegrees, expected, accuracy: 0.01)
-        XCTAssertGreaterThan(vm.headPitchDegrees, 0) // leaning toward camera = +pitch
+        XCTAssertEqual(vm.headPitchDegrees, 18 * 1.5, accuracy: 0.01)
+        XCTAssertGreaterThan(vm.headPitchDegrees, 0) // chin-down / forward head = +pitch
     }
 
     func test_headPitch_cappedAt60() {
         let vm = PostureVisualizationViewModel()
-        vm.ingest(metrics: metrics(), pose: makeSample(headForwardOffset: -100),
+        vm.ingest(metrics: metrics(), pose: makeSample(headPitch: 100),
                   state: .good, quality: .good)
-        XCTAssertEqual(vm.headPitchDegrees, 60, accuracy: 0.0001)
+        XCTAssertEqual(vm.headPitchDegrees, 60, accuracy: 0.0001) // 100 × 1.5 → clamp
 
         let vm2 = PostureVisualizationViewModel()
-        vm2.ingest(metrics: metrics(), pose: makeSample(headForwardOffset: 100),
+        vm2.ingest(metrics: metrics(), pose: makeSample(headPitch: -100),
                    state: .good, quality: .good)
         XCTAssertEqual(vm2.headPitchDegrees, -60, accuracy: 0.0001)
     }
 
-    // MARK: - Head roll (← left/right shoulder line angle, cap ±45°)
+    // MARK: - Head roll (← PoseSample.headRoll, ×1.5, cap ±45°)
 
-    func test_headRoll_fromShoulderLineAngle() {
+    func test_headRoll_fromHeadRoll_amplified() {
         let vm = PostureVisualizationViewModel()
-        // Δy = 0.1 - (-0.1) = 0.2, Δx = 0.5 - (-0.5) = 1.0
-        vm.ingest(metrics: metrics(),
-                  pose: makeSample(leftShoulderY: -0.1, rightShoulderY: 0.1),
+        vm.ingest(metrics: metrics(), pose: makeSample(headRoll: 20),
                   state: .good, quality: .good)
-        let expected = atan2(0.2, 1.0) * 180 / .pi * 1.5
-        XCTAssertEqual(vm.headRollDegrees, expected, accuracy: 0.01)
+        XCTAssertEqual(vm.headRollDegrees, 20 * 1.5, accuracy: 0.01)
     }
 
     func test_headRoll_cappedAt45() {
         let vm = PostureVisualizationViewModel()
-        vm.ingest(metrics: metrics(),
-                  pose: makeSample(leftShoulderY: -100, rightShoulderY: 100),
+        vm.ingest(metrics: metrics(), pose: makeSample(headRoll: 100),
                   state: .good, quality: .good)
-        XCTAssertEqual(vm.headRollDegrees, 45, accuracy: 0.0001)
+        XCTAssertEqual(vm.headRollDegrees, 45, accuracy: 0.0001) // 100 × 1.5 → clamp
 
         let vm2 = PostureVisualizationViewModel()
-        vm2.ingest(metrics: metrics(),
-                   pose: makeSample(leftShoulderY: 100, rightShoulderY: -100),
+        vm2.ingest(metrics: metrics(), pose: makeSample(headRoll: -100),
                    state: .good, quality: .good)
         XCTAssertEqual(vm2.headRollDegrees, -45, accuracy: 0.0001)
     }
@@ -228,11 +216,10 @@ final class PostureVisualizationViewModelTests: XCTestCase {
 
     func test_pitchRoll_neutralReadsZero_afterCalibration() {
         let vm = PostureVisualizationViewModel()
-        // A neutral sit that is NOT geometrically level: head slightly forward
-        // (+pitch) and shoulders tilted (+roll). Pre-fix this would render
+        // A neutral sit whose real head geometry is NOT zero: head slightly
+        // pitched (+pitch) and tilted (+roll). Pre-fix this would render
         // permanently pitched/rolled.
-        let rest = makeSample(headForwardOffset: -0.05,
-                              leftShoulderY: -0.10, rightShoulderY: 0.10)
+        let rest = makeSample(headPitch: 8, headRoll: 6)
 
         vm.ingest(metrics: metrics(), pose: rest, state: .calibrating, quality: .good)
         converge(vm, to: rest, state: .good)
@@ -245,34 +232,29 @@ final class PostureVisualizationViewModelTests: XCTestCase {
 
     func test_pitch_deviationFromCalibratedRest_isRelative() {
         let vm = PostureVisualizationViewModel()
-        let rest = makeSample(headForwardOffset: -0.05,
-                              leftShoulderY: -0.10, rightShoulderY: 0.10)
-        // Deviation: lean further forward (more +pitch); shoulders unchanged.
-        let leanedIn = makeSample(headForwardOffset: -0.10,
-                                  leftShoulderY: -0.10, rightShoulderY: 0.10)
+        let rest = makeSample(headPitch: 8, headRoll: 6)
+        // Deviation: chin further down (more +pitch); roll unchanged.
+        let leanedIn = makeSample(headPitch: 16, headRoll: 6)
 
         vm.ingest(metrics: metrics(), pose: rest, state: .calibrating, quality: .good)
         vm.ingest(metrics: metrics(), pose: rest, state: .good, quality: .good) // captures rest
         converge(vm, to: leanedIn, state: .good)
 
-        let pitchAbsRest = atan2(0.05, 0.15) * 180 / .pi * 1.5
-        let pitchAbsLean = atan2(0.10, 0.15) * 180 / .pi * 1.5
-        let expected = pitchAbsLean - pitchAbsRest
+        // pitch is headPitch × amplification, expressed relative to the rest.
+        let expected = (16.0 - 8.0) * 1.5
 
         XCTAssertEqual(vm.headPitchDegrees, expected, accuracy: 0.01,
                        "pitch should be measured relative to the calibrated rest")
-        XCTAssertGreaterThan(vm.headPitchDegrees, 0, "leaning in past rest = +pitch")
+        XCTAssertGreaterThan(vm.headPitchDegrees, 0, "chin further down past rest = +pitch")
         XCTAssertEqual(vm.headRollDegrees, 0, accuracy: 0.01,
-                       "unchanged shoulders should keep roll at the calibrated 0")
+                       "unchanged head roll should keep roll at the calibrated 0")
     }
 
     func test_recalibration_recapturesNeutral() {
         let vm = PostureVisualizationViewModel()
-        let poseA = makeSample(headForwardOffset: -0.05,
-                               leftShoulderY: -0.10, rightShoulderY: 0.10)
+        let poseA = makeSample(headPitch: 8, headRoll: 6)
         // A genuinely different neutral (new desk/posture) on recalibration.
-        let poseB = makeSample(headForwardOffset: -0.08,
-                               leftShoulderY: -0.03, rightShoulderY: 0.03)
+        let poseB = makeSample(headPitch: 12, headRoll: 2)
 
         vm.ingest(metrics: metrics(), pose: poseA, state: .calibrating, quality: .good)
         converge(vm, to: poseA, state: .good)
@@ -294,11 +276,10 @@ final class PostureVisualizationViewModelTests: XCTestCase {
         // Step 1 single-ingest tests depend on; pin it explicitly at steady
         // state too.
         let vm = PostureVisualizationViewModel()
-        let tilted = makeSample(headForwardOffset: 0,
-                                leftShoulderY: -0.10, rightShoulderY: 0.10)
+        let tilted = makeSample(headPitch: 0, headRoll: 10)
         converge(vm, to: tilted, state: .good)
 
-        let expectedRollAbs = atan2(0.20, 1.0) * 180 / .pi * 1.5
+        let expectedRollAbs = 10.0 * 1.5
         XCTAssertEqual(vm.headRollDegrees, expectedRollAbs, accuracy: 0.01,
                        "without calibration, roll stays absolute")
         XCTAssertEqual(vm.headPitchDegrees, 0, accuracy: 0.01)
