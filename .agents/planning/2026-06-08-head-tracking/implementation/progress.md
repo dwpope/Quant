@@ -4,20 +4,112 @@
 + `git log`.** Cold-start iterations read this first.
 
 ## Current Step
-Step 0 — not started.
+**Step 1** — Compute head pitch/yaw/roll in `PoseDepthFusion` (2D) (TDD).
+Step 0 (branch + orientation) is **complete**; Type Map populated below.
 
 ## Type Map
-*(Populate in Step 0 — verified names/fields, do not assume.)*
-- `PoseObservation` head-keypoint case names: _TBD (expected `nose, leftEye, rightEye, leftEar, rightEar`)_
-- `PoseDepthFusion` helpers (`keypoint`, `unproject`, `findDepth`, `resolveHeadPosition`): _TBD (signatures + line refs)_
-- `PoseSample` init signature + every `PoseSample(` call site: _TBD_
-- ViewModel proxy lines to replace (`p.shoulderTwist`/`p.headForwardOffset`/shoulder-line roll): _TBD (expected ~204–217)_
-- `latestSample` path Pipeline → AppModel (confirm no new publisher needed): _TBD_
-- Working simulator destination: _TBD_
+*(Verified 2026-06-09 via the 5 Step-0 greps + targeted file reads — real
+names/line refs, not assumed.)*
+
+### `PoseObservation` head-keypoint case names
+`PostureLogic/Sources/PostureLogic/Models/PoseObservation.swift:29`
+```swift
+case nose, leftEye, rightEye, leftEar, rightEar   // on the `Joint` enum
+```
+- Already emitted by Vision every frame; reach `pose.keypoints: [Keypoint]`.
+- Each `Keypoint`: `joint`, `position: CGPoint` (Vision-normalized 0…1),
+  `confidence: Float`.
+- **Vision is y-up** (0 = bottom, 1 = top); `PoseService` flips Y. Lock all
+  angle signs against this (same convention as existing `computeShoulderTwist`).
+
+### `PoseDepthFusion` helpers
+`PostureLogic/Sources/PostureLogic/Services/PoseDepthFusion.swift`
+
+| Symbol | Line | Role |
+|---|---|---|
+| `fuse(pose:depthSamples:confidence:intrinsics:trackingQuality:)` | 40 | `mutating`, entry; dispatches 3D→2D |
+| `fuse2D(pose:leftShoulder:rightShoulder:headPos:shoulderWidth:trackingQuality:)` | 103 | private 2D path — builds `PoseSample` at **:143** |
+| `fuse3D(…depthSamples:intrinsics:…)` | 160 | private depth path — builds `PoseSample` at **:230** |
+| `resolveHeadPosition(from:)` | 289 | collapses nose→eye→ear into ONE `CGPoint`, **discarding the geometry** (the gap this stage fixes) |
+| `keypoint(_:from:)` | 375 | `(Joint, PoseObservation) -> Keypoint?`, confidence-filtered. **Reuse for new angle helpers.** |
+| `findDepth(for:in:)` | 249 | `(CGPoint, [DepthAtPoint]) -> Float?`, edge/confidence guarded. **Reuse for 3D pitch (Step 3).** |
+| `computeShoulderTwist(…)` | 361 | sign reference: `asin(yDiff/width)·180/π`, +ve = left shoulder higher |
+| `computeTorsoAngle(…)` | 330 | y-up handling reference |
+
+**`unproject` is a FREE function, NOT a method** —
+`PostureLogic/Sources/PostureLogic/Services/Unproject.swift:15`
+```swift
+func unproject(point: SIMD2<Float>, depth: Float, intrinsics: simd_float3x3) -> SIMD3<Float>
+```
+Called directly (no `self.`) 3× in `fuse3D` (:179/:184/:189).
+
+### `PoseSample` init signature + call sites
+`PostureLogic/Sources/PostureLogic/Models/PoseSample.swift` — `Codable`, memberwise `public init` at :23.
+Stored `public let` fields:
+```
+timestamp: TimeInterval      depthMode: DepthMode
+headPosition: SIMD3<Float>   shoulderMidpoint: SIMD3<Float>
+leftShoulder: SIMD3<Float>   rightShoulder: SIMD3<Float>
+torsoAngle: Float            headForwardOffset: Float
+shoulderTwist: Float         shoulderWidthRaw: Float
+trackingQuality: TrackingQuality
+```
+- **Step 2 adds** `headPitch / headYaw / headRoll: Float`, **defaulted in init**
+  (mirror `Baseline.shoulderTwist`) to minimize churn.
+- **33 `PoseSample(` call sites total:**
+  - **Production: 2** — `PoseDepthFusion.swift:143` (fuse2D) & `:230` (fuse3D).
+    The only two that must *set* the new angles.
+  - **Tests: 31** — PostureLogic `Tests/`: MetricsEngine, PipelineThermal,
+    MetricsSmoother, CoreModelCodable ×3, PipelineTaskMode, LongRunStability ×6,
+    RecorderService, CalibrationEngine ×2, GoldenRecordings ×7, ReplayService,
+    SetupValidator, StaleBaselineDetector, PipelineIntegration ×3; Quant
+    `QuantTests/`: PostureSessionSummaryTests:24, PostureVisualizationViewModelTests:28.
+  - With **defaulted** params none require edits; they are the regression net.
+  - `CoreModelCodableTests` round-trips `PoseSample` (:172/:201/:286) — defaulted
+    init keeps decode-from-old-JSON working; watch for hard-coded golden keys.
+
+### ViewModel proxy lines to replace (Step 4)
+`Quant/ViewModels/PostureVisualizationViewModel.swift`
+- Published head channels: `:64 headYawDegrees` (← `shoulderTwist`),
+  `:65 headPitchDegrees` (← `headForwardOffset`), `:66 headRollDegrees`
+  (← shoulder-line angle).
+- `ingest(...)` proxy math to repoint (keep amplify/cap/rest-relative):
+  - `:205` `yawRaw = p.shoulderTwist * amp`            → source becomes `p.headYaw`
+  - `:210` `pitchAbs = atan2(-p.headForwardOffset, …)` → source becomes `p.headPitch`
+  - `:215-217` `rollAbs = atan2(shoulder dy, dx)`      → source becomes `p.headRoll`
+  - `:202` `forwardTarget ← p.headForwardOffset` is the visualization forward
+    offset (NOT a head angle) — **leave alone**.
+  - `:222-234` rest-relative snapshot + clamp (Stage 1a) — **KEEP**.
+  - `:238-240` dev-HUD mirrors (`unclampedYaw/Pitch/RollDegrees`) — update (Step 4/5).
+  - `:261-263` filtered assignment — unchanged.
+  - Doc block `:44-51` describes the proxy substitution — **update** to cite the
+    real keypoint source.
+
+### `latestSample` path Pipeline → AppModel (no new publisher needed)
+- `Pipeline.swift:18` `@Published public var latestSample: PoseSample?`; set at :287 & :378.
+- `AppModel.swift:23` `@Published var latestSample: PoseSample?`; mirrored via
+  `pipeline.$latestSample.assign(to: &$latestSample)` (:353-354).
+- New `PoseSample` fields ride this existing publisher automatically. **Verify only.**
+
+### Working simulator destination
+- Canonical (per plan): `platform=iOS Simulator,name=iPhone 16 Pro`.
+- ⚠️ `xcrun simctl list devices available` was **unresponsive / returned empty**
+  in this environment (consistent with the known note: simctl enumeration
+  unreliable here; xcodebuild is authoritative). **Confirm a live destination at
+  the first Step-1 build**; if `iPhone 16 Pro` is invalid, resolve from
+  xcodebuild's destination error and record the working value here.
 
 ## Verification Notes
-*(Append one per completed step: tests run, build result, commit hash,
-decisions, sign conventions chosen, any regressions.)*
+- **2026-06-09 — Step 0 (orientation):** created branch `feature/head-tracking`
+  from `main`; ran the 5 orientation greps + targeted reads; Type Map above
+  populated and verified against source. **No product code written.**
+  Assessment: head tracking is **not yet implemented** — Vision detects the five
+  facial keypoints but `resolveHeadPosition` (:289) collapses them to one point
+  and discards the geometry; `PoseSample` has no head-angle fields; the ViewModel
+  fabricates pitch/yaw/roll from shoulder-skeleton proxies (a shoulder shrug with
+  a still head currently reads as head movement — the bug this stage removes).
+  Build all of it across Steps 1-7. Next: **Step 1** (RED-first 2D angle math).
 
 ## Known blockers
-*(none yet)*
+- simctl device enumeration unresponsive in this environment → simulator
+  destination unverified until first build (see Type Map). Not blocking Step 0.
