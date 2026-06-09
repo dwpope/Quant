@@ -71,7 +71,7 @@ Each iteration is a **cold start** — the agent remembers nothing. Procedure:
 
 - [x] **Step 0** — Branch + codebase orientation (Type Map in `progress.md`)
 - [x] **Step 1** — Compute head pitch/yaw/roll in `PoseDepthFusion` (2D) (TDD)
-- [ ] **Step 2** — Expose the three angles on `PoseSample`; thread to `AppModel` (TDD)
+- [x] **Step 2** — Expose the three angles on `PoseSample`; thread to `AppModel` (TDD)
 - [ ] **Step 3** — Optional 3D pitch upgrade when LiDAR depth is present (TDD)
 - [ ] **Step 4** — ViewModel consumes real head angles (replace proxies) (TDD)
 - [ ] **Step 5** — Raw head angles in the debug HUD (build-verified)

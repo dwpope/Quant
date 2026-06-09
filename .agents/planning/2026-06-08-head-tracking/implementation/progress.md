@@ -4,13 +4,12 @@
 + `git log`.** Cold-start iterations read this first.
 
 ## Current Step
-**Step 1 = DONE** ✅ — all three 2D head angles computed in `PoseDepthFusion`
-(`computeHeadAngles(from:)` now populates **roll + yaw + pitch**), TDD.
-Step 0 (branch + orientation) complete; Type Map populated below.
-**Next: Step 2** — expose `headPitch/headYaw/headRoll` on `PoseSample` (defaulted
-init), set them in both `fuse2D`/`fuse3D`, verify they ride `latestSample` →
-`AppModel`. (Per-call-site impact already mapped in the Type Map: 2 production
-sites, 31 test sites, none requiring edits with defaulted params.)
+**Step 2 = DONE** ✅ — `headPitch/headYaw/headRoll: Float` exposed on `PoseSample`
+(defaulted init), set in both `fuse2D` (:172) and `fuse3D` (:265) from
+`computeHeadAngles(from:)`; ride `Pipeline.latestSample` → `AppModel` with no new
+publisher. Steps 0–1 complete; Type Map populated below.
+**Next: Step 3** — 3D pitch upgrade from LiDAR depth (nose vs. ear elevation in
+`fuse3D`) with the 2D path as graceful fallback.
 
 ### Test-construction shape (for the angle unit tests)
 `PoseObservation(timestamp:keypoints:confidence:)`, `Keypoint(joint:position:confidence:)`
@@ -119,6 +118,21 @@ trackingQuality: TrackingQuality
   xcodebuild's destination error and record the working value here.
 
 ## Verification Notes
+- **2026-06-09 — Step 2 (expose on PoseSample, TDD):** RED → added 2 end-to-end
+  tests to `PoseDepthFusionTests` driving the **public `fuse()`** and asserting on
+  the returned `PoseSample`: `test_fuse_populatesHeadAnglesWhenFacialKeypointsPresent`
+  (left ear lower ⇒ +roll, nose toward right ear ⇒ +yaw, nose below ear line ⇒
+  +pitch) and `test_fuse_headAnglesNeutralWhenNoFacialGeometry` (all three == 0).
+  These failed to compile before the fields existed. GREEN → added
+  `headPitch/headYaw/headRoll: Float` to `PoseSample` as **defaulted (`= 0`) init
+  params** (mirrors `Baseline.shoulderTwist`), wired both `fuse2D` (:172) and
+  `fuse3D` (:265) from `computeHeadAngles(from:)`. `Pipeline.latestSample` →
+  `AppModel.latestSample` carries them with **no publisher change** (verify-only,
+  confirmed). Defaulted params meant **0 edits** to the 31 test call sites and old
+  Codable JSON. Tests: **full PostureLogic suite 480/480 green** (was 478 +2), no
+  regressions. App suite unaffected (additive public surface, defaulted).
+  Commit: `feat: expose head pitch/yaw/roll on PoseSample`.
+  Next: **Step 3** (3D pitch from LiDAR depth).
 - **2026-06-09 — Step 1 (YAW + PITCH, TDD):** RED → added 7 `test_headYaw_*` and
   6 `test_headPitch_*` to `PoseDepthFusionTests` driving `computeHeadAngles(from:)`
   → 7 directional assertions failed (zero/centred cases already passed since the

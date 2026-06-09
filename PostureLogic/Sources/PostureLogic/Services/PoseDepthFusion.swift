@@ -155,6 +155,7 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             rightShoulder: rightShoulder.position,
             shoulderWidth: shoulderWidth
         )
+        let headAngles = computeHeadAngles(from: pose)
 
         return PoseSample(
             timestamp: pose.timestamp,
@@ -167,7 +168,10 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             headForwardOffset: 0,
             shoulderTwist: shoulderTwist,
             shoulderWidthRaw: Float(shoulderWidth),
-            trackingQuality: trackingQuality
+            trackingQuality: trackingQuality,
+            headPitch: headAngles.pitch,
+            headYaw: headAngles.yaw,
+            headRoll: headAngles.roll
         )
     }
 
@@ -242,6 +246,9 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             shoulderWidth: CGFloat(shoulderWidth3D),
             headPos: headPos
         )
+        // 2D facial-keypoint angles. The depth-based pitch refinement is a separate
+        // sub-stage; for now the depth path carries the same head geometry as 2D.
+        let headAngles = computeHeadAngles(from: pose)
 
         return PoseSample(
             timestamp: pose.timestamp,
@@ -254,7 +261,10 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             headForwardOffset: headForwardOffset,
             shoulderTwist: shoulderTwist,
             shoulderWidthRaw: Float(shoulderWidth),
-            trackingQuality: trackingQuality
+            trackingQuality: trackingQuality,
+            headPitch: headAngles.pitch,
+            headYaw: headAngles.yaw,
+            headRoll: headAngles.roll
         )
     }
 

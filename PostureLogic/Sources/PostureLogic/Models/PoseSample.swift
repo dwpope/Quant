@@ -20,7 +20,19 @@ public struct PoseSample: Codable {
 
     public let trackingQuality: TrackingQuality
 
-    public init(timestamp: TimeInterval, depthMode: DepthMode, headPosition: SIMD3<Float>, shoulderMidpoint: SIMD3<Float>, leftShoulder: SIMD3<Float>, rightShoulder: SIMD3<Float>, torsoAngle: Float, headForwardOffset: Float, shoulderTwist: Float, shoulderWidthRaw: Float, trackingQuality: TrackingQuality) {
+    /// True head orientation in degrees, derived from facial keypoints
+    /// (`nose`/`eye`/`ear`) independently of the shoulder skeleton — see
+    /// `PoseDepthFusion.computeHeadAngles`. Sign conventions (y-up frame, larger
+    /// `y` = physically higher): forward-head/chin-down → `headPitch` > 0;
+    /// turn toward the subject's right (larger image-x) → `headYaw` > 0; left ear
+    /// physically lower → `headRoll` > 0. Default 0 keeps every existing
+    /// `PoseSample(...)` call site (and old Codable JSON) valid — mirrors the
+    /// additive-default pattern used for `shoulderTwist` on `Baseline`.
+    public let headPitch: Float
+    public let headYaw: Float
+    public let headRoll: Float
+
+    public init(timestamp: TimeInterval, depthMode: DepthMode, headPosition: SIMD3<Float>, shoulderMidpoint: SIMD3<Float>, leftShoulder: SIMD3<Float>, rightShoulder: SIMD3<Float>, torsoAngle: Float, headForwardOffset: Float, shoulderTwist: Float, shoulderWidthRaw: Float, trackingQuality: TrackingQuality, headPitch: Float = 0, headYaw: Float = 0, headRoll: Float = 0) {
         self.timestamp = timestamp
         self.depthMode = depthMode
         self.headPosition = headPosition
@@ -32,5 +44,8 @@ public struct PoseSample: Codable {
         self.shoulderTwist = shoulderTwist
         self.shoulderWidthRaw = shoulderWidthRaw
         self.trackingQuality = trackingQuality
+        self.headPitch = headPitch
+        self.headYaw = headYaw
+        self.headRoll = headRoll
     }
 }

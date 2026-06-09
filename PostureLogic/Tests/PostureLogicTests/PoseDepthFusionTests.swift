@@ -396,6 +396,48 @@ final class PoseDepthFusionTests: XCTestCase {
         XCTAssertEqual(fusion.computeHeadAngles(from: pose).pitch, 0, accuracy: 0.001)
     }
 
+    // MARK: - Head Angles on PoseSample (plumbing: fuse → sample)
+
+    // The angle math above is exercised directly via `computeHeadAngles`. These two
+    // assert the *plumbing*: that `fuse(...)` actually writes those three angles
+    // onto the produced `PoseSample`. A fully-keypointed frame must surface
+    // non-zero values on all three channels; a frame whose head reduces to a bare
+    // position (nose only — no ear/eye line, no ear pair) must surface neutral 0.
+
+    func test_fuse_populatesHeadAnglesWhenFacialKeypointsPresent() {
+        var fusion = PoseDepthFusion()
+        // One layout that drives all three axes off-zero at once:
+        //  • ear line tilted (left ear lower)      → positive roll
+        //  • nose displaced toward the right ear    → positive yaw
+        //  • nose dropped below the ear line (y-up)  → positive pitch
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftShoulder,  x: 0.40, y: 0.50),
+            makeKeypoint(.rightShoulder, x: 0.60, y: 0.50),
+            makeKeypoint(.leftEar,       x: 0.45, y: 0.68),   // lower
+            makeKeypoint(.rightEar,      x: 0.55, y: 0.72),   // higher
+            makeKeypoint(.nose,          x: 0.53, y: 0.60),   // right-of-mid, below line
+        ])
+        guard let sample = fuse(pose, fusion: &fusion) else {
+            return XCTFail("fuse should produce a sample for a fully-keypointed pose")
+        }
+        XCTAssertGreaterThan(sample.headRoll,  0, "left ear lower ⇒ positive roll")
+        XCTAssertGreaterThan(sample.headYaw,   0, "nose toward right ear ⇒ positive yaw")
+        XCTAssertGreaterThan(sample.headPitch, 0, "nose below ear line ⇒ positive pitch")
+    }
+
+    func test_fuse_headAnglesNeutralWhenNoFacialGeometry() {
+        var fusion = PoseDepthFusion()
+        // `uprightPose()` is shoulders + a bare nose: the head position resolves
+        // (so a sample IS produced), but there is no ear/eye line and no ear pair,
+        // so all three head angles must read exactly 0.
+        guard let sample = fuse(uprightPose(), fusion: &fusion) else {
+            return XCTFail("fuse should produce a sample for shoulders + nose")
+        }
+        XCTAssertEqual(sample.headPitch, 0, accuracy: 0.001)
+        XCTAssertEqual(sample.headYaw,   0, accuracy: 0.001)
+        XCTAssertEqual(sample.headRoll,  0, accuracy: 0.001)
+    }
+
     // MARK: - Head Fallback Chain
 
     func test_headFallback_nose() {
