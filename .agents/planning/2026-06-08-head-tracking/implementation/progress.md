@@ -4,9 +4,13 @@
 + `git log`.** Cold-start iterations read this first.
 
 ## Current Step
-**Step 1 (in progress)** — Compute head pitch/yaw/roll in `PoseDepthFusion` (2D) (TDD).
-Being done axis-by-axis: **ROLL = done** ✅; yaw + pitch pending.
-Step 0 (branch + orientation) is **complete**; Type Map populated below.
+**Step 1 = DONE** ✅ — all three 2D head angles computed in `PoseDepthFusion`
+(`computeHeadAngles(from:)` now populates **roll + yaw + pitch**), TDD.
+Step 0 (branch + orientation) complete; Type Map populated below.
+**Next: Step 2** — expose `headPitch/headYaw/headRoll` on `PoseSample` (defaulted
+init), set them in both `fuse2D`/`fuse3D`, verify they ride `latestSample` →
+`AppModel`. (Per-call-site impact already mapped in the Type Map: 2 production
+sites, 31 test sites, none requiring edits with defaulted params.)
 
 ### Test-construction shape (for the angle unit tests)
 `PoseObservation(timestamp:keypoints:confidence:)`, `Keypoint(joint:position:confidence:)`
@@ -115,6 +119,34 @@ trackingQuality: TrackingQuality
   xcodebuild's destination error and record the working value here.
 
 ## Verification Notes
+- **2026-06-09 — Step 1 (YAW + PITCH, TDD):** RED → added 7 `test_headYaw_*` and
+  6 `test_headPitch_*` to `PoseDepthFusionTests` driving `computeHeadAngles(from:)`
+  → 7 directional assertions failed (zero/centred cases already passed since the
+  fn returned 0). GREEN → implemented `computeHeadYaw` + `computeHeadPitch`,
+  wired both into `computeHeadAngles`.
+  **Yaw formula:** `asin(clamp((nose.x − earMidX) / |earSep|, −1, 1))·180/π`;
+  centred nose → ~0°, nose toward `.rightEar` (larger image-x) → **positive**.
+  **One-ear-missing rule** (tuple `switch` on `(leftEar, rightEar)` optionals): a
+  strong turn occludes the far ear, so exactly one ear present → strong yaw
+  **toward the missing side** = `±60°` (`Self.oneEarMissingYawDegrees`); missing
+  `.rightEar` → +, missing `.leftEar` → −. Both ears + no nose, or no ears → 0.
+  **Pitch (2D) formula:** `atan2(lineY − nose.y, |Δx|)·180/π` where `lineY` =
+  ear-midpoint y (eye-line fallback, mirrors roll), `|Δx|` = that line's
+  separation. Nose **below** line (chin-down / forward-head, y-up ⇒ `nose.y <
+  lineY`) → **positive** (aligns with Step 8's "forward head tilt ≈ pitch > 15°").
+  Raw zero = geometric on-the-line case, NOT physiological neutral — the
+  ViewModel's rest-relative calibration re-zeros it (Step 4). No nose / no
+  reference pair → 0.
+  **One bug caught + fixed:** initial pitch used `nose.y` (a `Keypoint` has no
+  `.y`) → `nose.position.y`. SourceKit flagged it; `swift test` is authoritative
+  and confirmed after fix.
+  Tests: 13/13 new green; **full PostureLogic suite 478/478 green** (was 465 +13),
+  no regressions. App suite (`QuantNoWatchTests`) intentionally **not** run this
+  step: `computeHeadAngles`/`HeadAngles` are `internal` with no public-surface
+  change, so the app target is unaffected until Step 2 plumbs `PoseSample` — same
+  regression-gate precedent as the roll commit.
+  Commit: `feat: compute head yaw + pitch from facial keypoints` (f79f9a8).
+  Next: **Step 2** (expose angles on `PoseSample` → `AppModel`).
 - **2026-06-09 — Step 1 (ROLL, TDD):** RED → added 5 `test_headRoll_*` to
   `PoseDepthFusionTests` calling `computeHeadAngles(from:)` (level→~0,
   right-ear-lower→<0, left-ear-lower→>0, eye-line fallback, no-keypoints→0) →
