@@ -4,16 +4,16 @@
 + `git log`.** Cold-start iterations read this first.
 
 ## Current Step
-**Step 4 = DONE** ✅ — `PostureVisualizationViewModel.ingest` now sources head
-angles from real head geometry: yaw ← `p.headYaw`, pitch ← `p.headPitch`, roll ←
-`p.headRoll` (was shoulderTwist / headForwardOffset / shoulder-line proxies).
-Amplify (×1.5) + caps (±90/±60/±45) + rest-relative pitch/roll + α=0.2 smoothing
-all retained; only the *source* changed. Dropped the now-unused
-`Mapping.headDepthReference`. Added `rawHeadYaw/Pitch/Roll` published mirrors for
-the dev HUD. Steps 0–3 complete.
-**Next: Step 5** — surface raw head pitch/yaw/roll in the debug HUD.
-⚠️ App-target tests **not executed** (environment blocker — see Known blockers);
-Step 4 verified by code review + green PostureLogic suite.
+**Step 5 = DONE** ✅ — `DebugOverlayView` gained 3 rows (Head Yaw/Pit/Rol) showing
+the raw head angles off `appModel.latestSample` for on-device Stage 1b tuning
+(Cal column blank — no calibrated head metric until the future judging stage). The
+viz tuning HUD (`PostureVisualizationValuesOverlay`) already shows raw→mapped
+yaw/pitch/roll; its stale `shTwist` row was repointed to `rawHeadYaw/Pitch/Roll`
+in Step 4. Steps 0–5 complete.
+**Remaining (not in this session's scope):** plan Step 6 (axis-direction lock
+tests), Step 7 (full-suite green + `LOOP_COMPLETE`).
+⚠️ App-target build/tests **not executed** (environment blocker — see Known
+blockers); Steps 4–5 verified by code review + green PostureLogic suite (483).
 
 ### Test-construction shape (for the angle unit tests)
 `PoseObservation(timestamp:keypoints:confidence:)`, `Keypoint(joint:position:confidence:)`
@@ -122,6 +122,22 @@ trackingQuality: TrackingQuality
   xcodebuild's destination error and record the working value here.
 
 ## Verification Notes
+- **2026-06-09 — Steps 4 + 5 (ViewModel real head angles + debug HUD):** Swapped
+  `PostureVisualizationViewModel.ingest` head-angle sources from shoulder proxies
+  to the real `PoseSample.headYaw/headPitch/headRoll`; kept amplify/cap/rest-
+  relative/smoothing; dropped unused `Mapping.headDepthReference`; added
+  `rawHeadYaw/Pitch/Roll` published mirrors. Updated the existing proxy ViewModel
+  tests to the new source + added 2 RED-first tests (pure shoulder twist → ~0 head
+  yaw; real head turn → yaw). Repointed the viz HUD's stale `shTwist` row to the
+  raw head inputs. `DebugOverlayView` gained 3 raw head-angle rows.
+  **⚠️ App-target NOT executed:** no concrete iOS simulator (`simctl` wedged),
+  Mac Catalyst deployment-target mismatch, watch-app `actool` hangs at the asset-
+  catalog step (~line 141 every attempt), and a competing build loop kills
+  `build-for-testing`. Verified by **code review** + **PostureLogic `swift test`
+  483/483 green**. To execute the ViewModel tests, run
+  `xcodebuild test -scheme QuantNoWatchTests` on a host with a working simulator
+  and the competing loop stopped. Commits: `9a34580` (RED), `640c980` (GREEN),
+  + the Step 5 HUD commit.
 - **2026-06-09 — Step 3 (3D pitch from LiDAR, TDD):** RED → added 3 tests to
   `PoseDepthFusionTests`: `test_headPitch3D_negativeWhenNoseNearerThanEars` and
   `…_positiveWhenNoseFartherThanEars` (nose held ON the ear line so the 2D pitch is
