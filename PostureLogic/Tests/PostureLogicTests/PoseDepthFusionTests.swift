@@ -195,6 +195,60 @@ final class PoseDepthFusionTests: XCTestCase {
         XCTAssertLessThan(sample.shoulderTwist, 0)
     }
 
+    // MARK: - Head Roll (ear-line atan2; eye-line fallback)
+    //
+    // Sign convention is locked to `computeShoulderTwist` above: inside the
+    // fusion, *larger y = physically higher* (see test_shoulderTwistPositiveWhenLeftHigher,
+    // which calls y=0.55 "higher"). Roll is the tilt of the ear line from
+    // horizontal; the run uses |Δx| so a level head reads ~0° regardless of
+    // which ear sits at larger image-x (front-facing subjects vs. synthetic
+    // layouts). Defined sign: right ear physically lower → negative roll.
+
+    func test_headRoll_zeroWhenEarsLevel() {
+        let fusion = PoseDepthFusion()
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar,  x: 0.45, y: 0.70),
+            makeKeypoint(.rightEar, x: 0.55, y: 0.70),
+        ])
+        XCTAssertEqual(fusion.computeHeadAngles(from: pose).roll, 0, accuracy: 0.5)
+    }
+
+    func test_headRoll_negativeWhenRightEarLower() {
+        let fusion = PoseDepthFusion()
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar,  x: 0.45, y: 0.72),   // higher
+            makeKeypoint(.rightEar, x: 0.55, y: 0.68),   // lower
+        ])
+        XCTAssertLessThan(fusion.computeHeadAngles(from: pose).roll, 0)
+    }
+
+    func test_headRoll_positiveWhenLeftEarLower() {
+        let fusion = PoseDepthFusion()
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar,  x: 0.45, y: 0.68),   // lower
+            makeKeypoint(.rightEar, x: 0.55, y: 0.72),   // higher
+        ])
+        XCTAssertGreaterThan(fusion.computeHeadAngles(from: pose).roll, 0)
+    }
+
+    func test_headRoll_fallsBackToEyeLineWhenEarsMissing() {
+        let fusion = PoseDepthFusion()
+        // No ears; eyes present and tilted so the right side is lower.
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEye,  x: 0.47, y: 0.72),   // higher
+            makeKeypoint(.rightEye, x: 0.53, y: 0.68),   // lower
+        ])
+        XCTAssertLessThan(fusion.computeHeadAngles(from: pose).roll, 0)
+    }
+
+    func test_headRoll_zeroWhenNoEarsOrEyes() {
+        let fusion = PoseDepthFusion()
+        let pose = makePose(keypoints: [
+            makeKeypoint(.nose, x: 0.5, y: 0.7),
+        ])
+        XCTAssertEqual(fusion.computeHeadAngles(from: pose).roll, 0, accuracy: 0.001)
+    }
+
     // MARK: - Head Fallback Chain
 
     func test_headFallback_nose() {

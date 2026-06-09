@@ -2,6 +2,22 @@ import CoreGraphics
 import Foundation
 import simd
 
+/// True head orientation in degrees, derived from facial keypoints
+/// (`nose`/`eye`/`ear`) independently of the shoulder skeleton.
+///
+/// Sign conventions (locked against `PoseDepthFusion`'s y-up frame, where larger
+/// `y` = physically higher — the same convention `computeShoulderTwist` uses):
+/// - `roll`:  tilt of the ear line from horizontal; right ear lower → negative.
+/// - `pitch`: chin-down nod angle (computed in a later sub-stage).
+/// - `yaw`:   left/right head turn (computed in a later sub-stage).
+struct HeadAngles {
+    var pitch: Float
+    var yaw: Float
+    var roll: Float
+
+    static let neutral = HeadAngles(pitch: 0, yaw: 0, roll: 0)
+}
+
 /// Converts a 2D `PoseObservation` into a shoulder-width-normalized `PoseSample`.
 ///
 /// All positions are expressed relative to the shoulder midpoint and divided by
@@ -368,6 +384,50 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
         // Clamp to valid asin range
         let clamped = max(-1, min(ratio, 1))
         return asin(clamped) * (180.0 / .pi)
+    }
+
+    // MARK: - Head Angles (true head geometry from facial keypoints)
+
+    /// Computes true head pitch/yaw/roll from the facial keypoints
+    /// (`nose`/`eye`/`ear`) Vision already detects, independently of the shoulder
+    /// skeleton. Reuses `keypoint(_:from:)` for confidence-filtered lookup and
+    /// degrades gracefully (neutral 0) when the required keypoints are absent —
+    /// mirroring `resolveHeadPosition`'s tolerance.
+    ///
+    /// Only `roll` is populated in this sub-stage; `pitch`/`yaw` follow.
+    func computeHeadAngles(from pose: PoseObservation) -> HeadAngles {
+        HeadAngles(
+            pitch: 0,
+            yaw: 0,
+            roll: computeHeadRoll(from: pose)
+        )
+    }
+
+    /// Roll = tilt of the ear line from horizontal, in degrees. Falls back to the
+    /// eye line when an ear is missing, then to neutral (0).
+    ///
+    /// Uses `atan2(Δy, |Δx|)` of the `leftEar → rightEar` vector: horizontalizing
+    /// the run (|Δx|) makes a level head read ~0° regardless of which ear lands at
+    /// larger image-x (a front-facing subject has anatomical left/right mirrored),
+    /// while the signed Δy carries the tilt. y-up convention (larger y = higher,
+    /// per `computeShoulderTwist`) ⇒ right ear physically lower → negative roll.
+    private func computeHeadRoll(from pose: PoseObservation) -> Float {
+        let left: CGPoint
+        let right: CGPoint
+        if let le = keypoint(.leftEar, from: pose), let re = keypoint(.rightEar, from: pose) {
+            left = le.position
+            right = re.position
+        } else if let le = keypoint(.leftEye, from: pose), let re = keypoint(.rightEye, from: pose) {
+            left = le.position
+            right = re.position
+        } else {
+            return 0
+        }
+
+        let run = abs(right.x - left.x)
+        guard run > 1e-6 else { return 0 }  // degenerate vertical line → no defined tilt
+        let rise = right.y - left.y
+        return Float(atan2(rise, run)) * (180.0 / .pi)
     }
 
     // MARK: - Helpers

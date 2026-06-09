@@ -4,8 +4,23 @@
 + `git log`.** Cold-start iterations read this first.
 
 ## Current Step
-**Step 1** — Compute head pitch/yaw/roll in `PoseDepthFusion` (2D) (TDD).
+**Step 1 (in progress)** — Compute head pitch/yaw/roll in `PoseDepthFusion` (2D) (TDD).
+Being done axis-by-axis: **ROLL = done** ✅; yaw + pitch pending.
 Step 0 (branch + orientation) is **complete**; Type Map populated below.
+
+### Test-construction shape (for the angle unit tests)
+`PoseObservation(timestamp:keypoints:confidence:)`, `Keypoint(joint:position:confidence:)`
+(`position: CGPoint`, normalized 0…1). `PoseDepthFusionTests` builds poses via
+private helpers `makeKeypoint(_:x:y:confidence:)` / `makePose(keypoints:…)` and
+drives the **public `fuse()`**, asserting on the returned `PoseSample`.
+- The new head-angle math is tested **directly** via the **internal** (not
+  `private`) `computeHeadAngles(from:) -> HeadAngles` so it's reachable under
+  `@testable import` before the angles are exposed on `PoseSample` (that's Step 2).
+- **Sign convention is test-locked, not just commented:**
+  `test_shoulderTwistPositiveWhenLeftHigher` places the "higher" shoulder at
+  `y=0.55`, "lower" at `y=0.45` → inside the fusion **larger y = physically
+  higher** (despite PoseService's `1.0 - y` flip at `PoseService.swift:122`).
+  All head angles lock to this same y-up convention.
 
 ## Type Map
 *(Verified 2026-06-09 via the 5 Step-0 greps + targeted file reads — real
@@ -100,6 +115,20 @@ trackingQuality: TrackingQuality
   xcodebuild's destination error and record the working value here.
 
 ## Verification Notes
+- **2026-06-09 — Step 1 (ROLL, TDD):** RED → added 5 `test_headRoll_*` to
+  `PoseDepthFusionTests` calling `computeHeadAngles(from:)` (level→~0,
+  right-ear-lower→<0, left-ear-lower→>0, eye-line fallback, no-keypoints→0) →
+  build failed ("no member 'computeHeadAngles'"). GREEN → added `HeadAngles`
+  struct + internal `computeHeadAngles` + private `computeHeadRoll` to
+  `PoseDepthFusion.swift`. **Roll formula:** `atan2(rightEar.y - leftEar.y,
+  |rightEar.x - leftEar.x|)·180/π`; ear line primary, eye line fallback, neutral 0
+  otherwise. **|Δx| denominator** (not literal `atan2(Δy,Δx)`) so a level head
+  reads ~0° regardless of ear x-ordering — literal atan2 would read 180° on a
+  front-facing subject (anatomical leftEar at larger image-x). **Sign locked:**
+  right ear physically lower → negative roll (y-up, matches `computeShoulderTwist`).
+  Tests: 5/5 roll green; **full PostureLogic suite 465/465 green**, no regressions.
+  Commit: `feat: compute head roll from facial ear/eye line (2D)`.
+  Next: yaw (nose-vs-ear-midpoint ÷ ear separation).
 - **2026-06-09 — Step 0 (orientation):** created branch `feature/head-tracking`
   from `main`; ran the 5 orientation greps + targeted reads; Type Map above
   populated and verified against source. **No product code written.**
