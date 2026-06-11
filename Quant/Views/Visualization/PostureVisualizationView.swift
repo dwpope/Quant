@@ -26,12 +26,10 @@ struct PostureVisualizationView: View {
 
     @StateObject private var viewModel = PostureVisualizationViewModel()
 
-    /// `bind(to:)` appends Combine subscriptions; guard so a re-appear does
-    /// not stack duplicate pipelines onto the same ViewModel.
-    @State private var didBind = false
-
     /// Dev tuning HUD visibility. Off by default — the shipped visualization
     /// stays purely graphical; this is opt-in for mapping refinement only.
+    /// Mirrored into `viewModel.isTuningHUDActive` so the ViewModel only pays
+    /// for the HUD's published properties while the panel is shown.
     @State private var showValues = false
 
     #if DEBUG
@@ -80,6 +78,7 @@ struct PostureVisualizationView: View {
                 }
                 Button {
                     withAnimation(.easeInOut(duration: 0.15)) { showValues.toggle() }
+                    viewModel.isTuningHUDActive = showValues
                 } label: {
                     Image(systemName: showValues ? "gauge.with.dots.needle.bottom.50percent" : "gauge.with.dots.needle.0percent")
                         .font(.title2)
@@ -111,9 +110,7 @@ struct PostureVisualizationView: View {
         }
         #endif
         .onAppear {
-            guard !didBind else { return }
-            viewModel.bind(to: appModel)
-            didBind = true
+            viewModel.bind(to: appModel)   // idempotent — replaces, never stacks
         }
     }
 

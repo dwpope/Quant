@@ -78,6 +78,13 @@ final class PostureVisualizationViewModel: ObservableObject {
     // judge whether the `Mapping` amplify/cap constants feel right, so we keep
     // a parallel, unsmoothed copy. These never drive the scene — the binding
     // reads only the display values — so they cannot affect the visual.
+    // Written only while `isTuningHUDActive`, so the hidden HUD costs no
+    // `objectWillChange` traffic on the per-frame ingest path.
+
+    /// Set by the hosting view when the tuning HUD is shown/hidden. Gates the
+    /// eight HUD-only published properties below; the display values above are
+    /// always live.
+    var isTuningHUDActive = false
 
     @Published private(set) var rawTwist: Double = 0                  // RawMetrics.twist
     @Published private(set) var rawLateralLean: Double = 0            // RawMetrics.lateralLean
@@ -181,14 +188,20 @@ final class PostureVisualizationViewModel: ObservableObject {
     /// Wires `AppModel`'s four posture publishers into the testable `ingest`
     /// seam. `CombineLatest4` re-emits whenever any input changes; all four are
     /// `@Published` so each delivers its current value on subscription.
+    ///
+    /// Idempotent: re-binding replaces any previous subscription instead of
+    /// stacking a duplicate pipeline, so callers can bind on every appear.
+    /// Delivery hops via `DispatchQueue.main` (not `RunLoop.main`, which
+    /// stalls in the tracking run-loop mode during scrolls and drags).
     func bind(to appModel: AppModel) {
+        cancellables.removeAll()
         Publishers.CombineLatest4(
             appModel.$latestMetrics,
             appModel.$latestSample,
             appModel.$postureState,
             appModel.$trackingQuality
         )
-        .receive(on: RunLoop.main)
+        .receive(on: DispatchQueue.main)
         .sink { [weak self] metrics, sample, state, quality in
             self?.ingest(metrics: metrics, pose: sample, state: state, quality: quality)
         }
@@ -267,17 +280,21 @@ final class PostureVisualizationViewModel: ObservableObject {
 
             // Keep the pre-clamp (calibration-relative) angles for the dev HUD,
             // so its cap-clipping highlight reflects what is actually clamped.
-            unclampedYawDegrees = yawRaw
-            unclampedPitchDegrees = pitchRel
-            unclampedRollDegrees = rollRel
+            if isTuningHUDActive {
+                unclampedYawDegrees = yawRaw
+                unclampedPitchDegrees = pitchRel
+                unclampedRollDegrees = rollRel
+            }
         } else {
             forwardTarget = 0
             yawTarget = 0
             pitchTarget = 0
             rollTarget = 0
-            unclampedYawDegrees = 0
-            unclampedPitchDegrees = 0
-            unclampedRollDegrees = 0
+            if isTuningHUDActive {
+                unclampedYawDegrees = 0
+                unclampedPitchDegrees = 0
+                unclampedRollDegrees = 0
+            }
         }
 
         // Re-arm the rest-pose capture while calibrating, so the first run and
@@ -300,14 +317,16 @@ final class PostureVisualizationViewModel: ObservableObject {
         isCalibrating = (state == .calibrating)
 
         // Raw inputs mirrored for the dev HUD (unsmoothed, scene-irrelevant).
-        rawTwist = Double(m.twist)
-        rawLateralLean = Double(m.lateralLean)
-        rawForwardCreep = Double(m.forwardCreep)
-        rawHeadForwardOffset = pose.map { Double($0.headForwardOffset) } ?? 0
-        rawShoulderTwist = pose.map { Double($0.shoulderTwist) } ?? 0
-        rawHeadYaw = pose.map { Double($0.headYaw) } ?? 0
-        rawHeadPitch = pose.map { Double($0.headPitch) } ?? 0
-        rawHeadRoll = pose.map { Double($0.headRoll) } ?? 0
+        if isTuningHUDActive {
+            rawTwist = Double(m.twist)
+            rawLateralLean = Double(m.lateralLean)
+            rawForwardCreep = Double(m.forwardCreep)
+            rawHeadForwardOffset = pose.map { Double($0.headForwardOffset) } ?? 0
+            rawShoulderTwist = pose.map { Double($0.shoulderTwist) } ?? 0
+            rawHeadYaw = pose.map { Double($0.headYaw) } ?? 0
+            rawHeadPitch = pose.map { Double($0.headPitch) } ?? 0
+            rawHeadRoll = pose.map { Double($0.headRoll) } ?? 0
+        }
     }
 
     // MARK: Pure mappings
