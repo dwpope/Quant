@@ -113,6 +113,16 @@ final class PostureVisualizationViewModel: ObservableObject {
         static let yawCapDegrees = 90.0
         static let pitchCapDegrees = 60.0
         static let rollCapDegrees = 45.0
+        /// Reference depth (metres) the head sits forward of the shoulders;
+        /// mirrors the design's ~0.15 head-above-disc offset and turns the
+        /// unbounded `headForwardOffset` into a bounded pitch angle.
+        static let headDepthReference = 0.15
+        /// Number of judged frames averaged into the calibration-relative
+        /// rest reference. Vision keypoints jitter frame to frame; snapshotting
+        /// a single transition frame bakes that noise into every subsequent
+        /// render, so the reference is the running mean of the first N judged
+        /// frames instead (~1 s at the pipeline's ~10 FPS).
+        static let restPoseCaptureFrames = 10
     }
 
     // MARK: Smoothing channels (one filter per continuous output)
@@ -130,9 +140,10 @@ final class PostureVisualizationViewModel: ObservableObject {
     //
     // Pitch and roll are derived from *absolute* pose geometry, so a person
     // whose neutral sit isn't geometrically level (camera tilt, natural
-    // posture) renders permanently tilted — the original "buggy look". We
-    // capture the absolute pitch/roll at the moment the system leaves
-    // calibration into a judged state (the user's calibrated neutral) and
+    // posture) renders permanently tilted — the original "buggy look". When
+    // the system leaves calibration into a judged state we average the
+    // absolute pitch/roll over the first `Mapping.restPoseCaptureFrames`
+    // judged frames (the user's calibrated neutral, noise-averaged) and
     // express subsequent pitch/roll *relative* to it, so a neutral sit reads
     // ~0°. Re-armed on every (re)calibration. A VM that never sees a
     // `.calibrating` frame keeps the `0` references, i.e. absolute behaviour —
@@ -140,6 +151,9 @@ final class PostureVisualizationViewModel: ObservableObject {
     private var restPitchDegrees: Double = 0
     private var restRollDegrees: Double = 0
     private var wasCalibrating = false
+    private var restCaptureRemaining = 0
+    private var restPitchSum: Double = 0
+    private var restRollSum: Double = 0
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -220,13 +234,27 @@ final class PostureVisualizationViewModel: ObservableObject {
             // Roll ← real head roll (PoseSample.headRoll, degrees).
             let rollAbs = Double(p.headRoll) * Mapping.headRotationAmplification
 
-            // On the calibrating→judged transition, snapshot the absolute
-            // pitch/roll as the rest reference so neutral reads ~0° (fixes the
-            // permanently-tilted rig). Only fires once per (re)calibration.
+            // On the calibrating→judged transition, start capturing the rest
+            // reference so neutral reads ~0° (fixes the permanently-tilted
+            // rig). Only re-arms once per (re)calibration.
             if wasCalibrating && judged {
-                restPitchDegrees = pitchAbs
-                restRollDegrees = rollAbs
+                restCaptureRemaining = Mapping.restPoseCaptureFrames
+                restPitchSum = 0
+                restRollSum = 0
                 wasCalibrating = false
+            }
+
+            // While capturing, the reference is the running mean of the judged
+            // frames seen so far — the first frame still zeroes the display
+            // immediately, and each further frame averages the keypoint jitter
+            // out of the reference instead of freezing a single noisy frame in.
+            if restCaptureRemaining > 0 && judged {
+                restPitchSum += pitchAbs
+                restRollSum += rollAbs
+                let captured = Mapping.restPoseCaptureFrames - restCaptureRemaining + 1
+                restPitchDegrees = restPitchSum / Double(captured)
+                restRollDegrees = restRollSum / Double(captured)
+                restCaptureRemaining -= 1
             }
 
             // Express pitch/roll relative to the calibrated rest pose. With the

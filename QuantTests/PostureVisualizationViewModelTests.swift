@@ -237,7 +237,11 @@ final class PostureVisualizationViewModelTests: XCTestCase {
         let leanedIn = makeSample(headPitch: 16, headRoll: 6)
 
         vm.ingest(metrics: metrics(), pose: rest, state: .calibrating, quality: .good)
-        vm.ingest(metrics: metrics(), pose: rest, state: .good, quality: .good) // captures rest
+        // Hold the rest pose through the whole capture window so the averaged
+        // reference equals the rest pose exactly.
+        for _ in 0..<PostureVisualizationViewModel.Mapping.restPoseCaptureFrames {
+            vm.ingest(metrics: metrics(), pose: rest, state: .good, quality: .good)
+        }
         converge(vm, to: leanedIn, state: .good)
 
         // pitch is headPitch × amplification, expressed relative to the rest.
@@ -268,6 +272,35 @@ final class PostureVisualizationViewModelTests: XCTestCase {
                        "recalibration should zero pitch against the new neutral")
         XCTAssertEqual(vm.headRollDegrees, 0, accuracy: 0.01,
                        "recalibration should zero roll against the new neutral")
+    }
+
+    func test_restCapture_averagesOutFrameJitter() {
+        // Vision keypoints jitter frame to frame. The rest reference must be
+        // the mean over the capture window, not a single (possibly outlying)
+        // transition frame. Alternate two noisy rest frames whose mean is the
+        // true neutral; afterwards, sitting at the true neutral must read ~0°.
+        let vm = PostureVisualizationViewModel()
+        let noisyA = makeSample(headForwardOffset: -0.04,
+                                leftShoulderY: -0.08, rightShoulderY: 0.08)
+        let noisyB = makeSample(headForwardOffset: -0.06,
+                                leftShoulderY: -0.12, rightShoulderY: 0.12)
+        let trueNeutral = makeSample(headForwardOffset: -0.05,
+                                     leftShoulderY: -0.10, rightShoulderY: 0.10)
+
+        vm.ingest(metrics: metrics(), pose: noisyA, state: .calibrating, quality: .good)
+        for i in 0..<PostureVisualizationViewModel.Mapping.restPoseCaptureFrames {
+            vm.ingest(metrics: metrics(), pose: i.isMultiple(of: 2) ? noisyA : noisyB,
+                      state: .good, quality: .good)
+        }
+        converge(vm, to: trueNeutral, state: .good)
+
+        // A single-frame snapshot of noisyA would leave a ~5° pitch error
+        // (atan2 is mildly non-linear, so the mean-of-angles reference differs
+        // from the true-neutral angle by well under a degree — accept 0.5°).
+        XCTAssertEqual(vm.headPitchDegrees, 0, accuracy: 0.5,
+                       "averaged rest reference should cancel capture-window jitter")
+        XCTAssertEqual(vm.headRollDegrees, 0, accuracy: 0.5,
+                       "averaged rest reference should cancel capture-window jitter")
     }
 
     func test_withoutCalibrationFrame_pitchRollStayAbsolute() {
