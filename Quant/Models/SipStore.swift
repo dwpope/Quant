@@ -84,9 +84,26 @@ final class SipStore: ObservableObject {
         sips = decoded.sorted { $0.timestamp < $1.timestamp }
     }
 
+    /// Serial utility queue for disk writes: sips are confirmed on the
+    /// MainActor mid-session, and encoding + an atomic file write there blocks
+    /// the UI. Static so every instance writing the same per-day file shares
+    /// one ordered queue — the file on disk is always the latest snapshot.
+    private static let persistQueue = DispatchQueue(label: "com.quant.sipStore.persist", qos: .utility)
+
     private func persist() {
-        guard let data = try? JSONEncoder().encode(sips) else { return }
-        try? data.write(to: fileURL(for: todayKey), options: .atomic)
+        let snapshot = sips
+        let url = fileURL(for: todayKey)
+        Self.persistQueue.async {
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
+    /// Blocks until all queued disk writes have completed. Test hook — lets
+    /// persistence round-trip tests reload (and tear down) deterministically;
+    /// production code never needs to wait on the queue.
+    static func flushPendingWrites() {
+        persistQueue.sync {}
     }
 
     private func fileURL(for key: String) -> URL {

@@ -8,10 +8,12 @@ import PostureLogic
 final class SipTrainingStoreTests: XCTestCase {
 
     override func setUpWithError() throws {
+        SipTrainingStore.flushPendingWrites()   // settle async writes before cleaning
         deleteTodayFiles()
     }
 
     override func tearDownWithError() throws {
+        SipTrainingStore.flushPendingWrites()   // a late write must not outlive cleanup
         deleteTodayFiles()
     }
 
@@ -91,6 +93,7 @@ final class SipTrainingStoreTests: XCTestCase {
         let first = SipTrainingStore()
         let record = makeRecord()
         first.save(record)
+        SipTrainingStore.flushPendingWrites()   // disk writes are async off the MainActor
 
         let reloaded = SipTrainingStore()
 

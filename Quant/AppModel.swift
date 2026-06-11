@@ -868,7 +868,23 @@ class AppModel: ObservableObject {
         pipeline.thresholds = t
     }
 
+    /// Debounce for `syncSettingsToWatch()`: the settings `didSet`s fire once
+    /// per slider tick, and `applySettingsFromWatch` writes eight properties
+    /// back-to-back — each re-triggering a sync, i.e. an echo straight back at
+    /// the watch. Coalescing to one WCSession message after the burst settles
+    /// keeps the channel quiet without changing what the watch eventually sees.
+    private var settingsSyncTask: Task<Void, Never>?
+
     func syncSettingsToWatch() {
+        settingsSyncTask?.cancel()
+        settingsSyncTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled, let self else { return }
+            self.sendSettingsToWatchNow()
+        }
+    }
+
+    private func sendSettingsToWatchNow() {
         let settings: [String: Any] = [
             Keys.maxPositionVariance: maxPositionVariance,
             Keys.maxAngleVariance: maxAngleVariance,
