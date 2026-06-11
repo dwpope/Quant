@@ -212,9 +212,10 @@ enum PostureVisualizationBinding {
         /// Reflect the rig left↔right so it reads like a mirror (the natural
         /// feel for a front camera). Flips only the horizontal-sense channels
         /// (side-lean, head yaw, head roll, disc twist); pitch / forward /
-        /// scale / opacity are deliberately untouched. Default off → production
-        /// and the auto-build ship path are unchanged.
-        var mirrored = false
+        /// scale / opacity are deliberately untouched. Default **on** — the
+        /// mirror reading is the production behaviour for a front camera;
+        /// turn it off only to compare against the unmirrored geometry.
+        var mirrored = true
     }
 
     /// Mutable so a tuning session can flip channels without threading a new

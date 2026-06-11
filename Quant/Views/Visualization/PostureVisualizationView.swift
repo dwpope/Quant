@@ -47,27 +47,6 @@ struct PostureVisualizationView: View {
         TimelineView(.animation) { timeline in
             let pulse = Self.pulse(at: timeline.date)
             RealityView { content in
-                #if DEBUG
-                // DEBUG TUNING — isolate ONE head variable at a time.
-                // #if DEBUG strips this from Release/TestFlight, so the nightly
-                // auto-build can never ship a frozen rig. To tune a different
-                // axis, set its flag `true` and the others `false`. Delete this
-                // whole block when tuning is finished.
-                PostureVisualizationBinding.debug = .init(
-                    hideShoulderDisc: true,   // disc + its tick removed
-                    hideGhost: true,          // drop the faint baseline disc/head
-                    hideHeadBand: true,       // no z-fighting band — clean sphere
-                    sideLean: false,          // head X frozen at centre
-                    headForward: false,       // head Z frozen
-                    headYaw: true,            // ← the only live channel
-                    headPitch: false,
-                    headRoll: false,
-                    assemblyScale: false,     // no whole-assembly scaling
-                    opacity: false,           // stay fully opaque
-                    stateTint: false,         // stay neutral scaffold grey
-                    mirrored: true            // ← reads like a mirror
-                )
-                #endif
                 if !PostureVisualizationBinding.debug.hideGhost {
                     content.add(PostureVisualizationScene.makeGhost())
                 }
