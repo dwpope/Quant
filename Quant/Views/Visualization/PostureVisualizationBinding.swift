@@ -212,9 +212,10 @@ enum PostureVisualizationBinding {
         /// Reflect the rig left↔right so it reads like a mirror (the natural
         /// feel for a front camera). Flips only the horizontal-sense channels
         /// (side-lean, head yaw, head roll, disc twist); pitch / forward /
-        /// scale / opacity are deliberately untouched. Default off → production
-        /// and the auto-build ship path are unchanged.
-        var mirrored = false
+        /// scale / opacity are deliberately untouched. Default **on** — the
+        /// mirror reading is the production behaviour for a front camera;
+        /// turn it off only to compare against the unmirrored geometry.
+        var mirrored = true
     }
 
     /// Mutable so a tuning session can flip channels without threading a new
@@ -222,11 +223,32 @@ enum PostureVisualizationBinding {
     /// to its default before shipping** (all `true`, `hideShoulderDisc` false).
     static var debug = DebugChannels()
 
+    // MARK: - Per-assembly runtime cache (entity lookups + last-applied tint)
+
+    /// Runtime-only component stored on the assembly root. Caches the named
+    /// child entities so `apply` doesn't re-walk the scene graph by string
+    /// every `TimelineView` tick, and the last applied tint so materials are
+    /// only rebuilt when the colour actually changes — recreating an
+    /// `UnlitMaterial` at frame rate churns renderer resources for a value
+    /// that only changes on state transitions (and per-frame during the
+    /// calibration pulse, where rebuilding is the intended behaviour).
+    private struct RuntimeCache: Component {
+        var disc: Entity?
+        var head: Entity?
+        var band: Entity?
+        var lastTint: UIColor?
+    }
+
+    /// One-time component registration, folded into a `static let` so the
+    /// first `apply` performs it exactly once.
+    private static let registerRuntimeCache: Void = RuntimeCache.registerComponent()
+
     // MARK: - Apply (thin RealityKit adapter; not unit-tested)
 
     /// Pushes the resolved transforms onto the scaffold's named entities,
     /// found by `EntityName` from the `assembly` root (the scaffold↔binding
-    /// contract). Called from the `RealityView` `update:` closure.
+    /// contract) on first call and cached on the assembly thereafter. Called
+    /// from the `RealityView` `update:` closure.
     ///
     /// `pulse` (0…1) is the calibration breathing phase the view supplies from
     /// its `TimelineView`; it only affects the calibrating tint (see
@@ -238,6 +260,14 @@ enum PostureVisualizationBinding {
         to assembly: Entity,
         pulse: Double = 0
     ) {
+        _ = registerRuntimeCache
+        var cache = assembly.components[RuntimeCache.self] ?? RuntimeCache(
+            disc: assembly.findEntity(named: PostureVisualizationScene.EntityName.shoulderDisc),
+            head: assembly.findEntity(named: PostureVisualizationScene.EntityName.head),
+            band: assembly.findEntity(named: PostureVisualizationScene.EntityName.headBand)
+        )
+        defer { assembly.components.set(cache) }
+
         var t = resolve(from: viewModel)
         if debug.mirrored { t = mirror(t) }
 
@@ -251,7 +281,7 @@ enum PostureVisualizationBinding {
         // Shoulder disc rotates about Y with twist; the tick is its child, so
         // one rotation carries the direction marker too. `hideShoulderDisc`
         // disables the whole disc subtree so the head can be built in isolation.
-        if let disc = assembly.findEntity(named: PostureVisualizationScene.EntityName.shoulderDisc) {
+        if let disc = cache.disc {
             disc.isEnabled = !debug.hideShoulderDisc
             let discYaw = debug.shoulderRotation ? t.discYawRadians : 0
             disc.orientation = simd_quatf(angle: discYaw, axis: SIMD3<Float>(0, 1, 0))
@@ -260,7 +290,7 @@ enum PostureVisualizationBinding {
         // Head: side-lean / forward translation (rest Y always preserved) +
         // combined yaw/pitch/roll. Each axis is independently gated so a single
         // variable can be isolated while the rest stay frozen at rest pose.
-        if let head = assembly.findEntity(named: PostureVisualizationScene.EntityName.head) {
+        if let head = cache.head {
             head.position = SIMD3<Float>(
                 debug.sideLean ? t.headTranslation.x : 0,
                 t.headTranslation.y,
@@ -275,7 +305,7 @@ enum PostureVisualizationBinding {
 
         // Tone-divide band is a placeholder that z-fights the sphere (scene
         // DEC-002); optionally disable it for a clean, unstriped yaw read.
-        if let band = assembly.findEntity(named: PostureVisualizationScene.EntityName.headBand) {
+        if let band = cache.band {
             band.isEnabled = !debug.hideHeadBand
         }
 
@@ -293,8 +323,10 @@ enum PostureVisualizationBinding {
                 pulse: pulse
             )
         )
-        retint(assembly.findEntity(named: PostureVisualizationScene.EntityName.shoulderDisc), to: tint)
-        retint(assembly.findEntity(named: PostureVisualizationScene.EntityName.head), to: tint)
+        guard tint != cache.lastTint else { return }
+        cache.lastTint = tint
+        retint(cache.disc, to: tint)
+        retint(cache.head, to: tint)
     }
 
     /// Replaces a model entity's fill with a flat, lighting-independent tint

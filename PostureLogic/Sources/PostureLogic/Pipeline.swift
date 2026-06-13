@@ -100,12 +100,39 @@ public class Pipeline {
 
     // Frame throttle to avoid spawning async Tasks at 60fps
     // Matches PoseService's ~10 FPS throttle rate
+    // Confined to the provider's (serial) frame-delivery thread, like
+    // `frameTimestamps` — only `process(_:)` touches it.
     private var lastPoseFrameTime: TimeInterval = 0
-    private var poseFrameInterval: TimeInterval = 0.1
 
     // Thermal monitoring
     private var thermalMonitor: (any ThermalMonitorProtocol)?
+
+    /// Guards `thermalPolicy` and `poseFrameInterval`: written from whatever
+    /// thread the thermal monitor publishes on, read on the frame-delivery
+    /// thread in `process(_:)`. Unsynchronized cross-thread access to these
+    /// was a (benign-looking but undefined) data race.
+    private let thermalStateLock = NSLock()
     private var thermalPolicy: ThermalPolicy = .nominal
+    private var poseFrameInterval: TimeInterval = 0.1
+
+    /// Snapshot of the thermal-derived throttle state, taken once per frame so
+    /// a mid-frame thermal change can't yield a half-updated policy/interval pair.
+    private var thermalState: (policy: ThermalPolicy, frameInterval: TimeInterval) {
+        thermalStateLock.lock()
+        defer { thermalStateLock.unlock() }
+        return (thermalPolicy, poseFrameInterval)
+    }
+
+    /// `frameInterval: nil` keeps the previous interval (mirrors the original
+    /// behaviour when a policy reports `maxFPS <= 0`, i.e. detection paused).
+    private func setThermalState(policy: ThermalPolicy, frameInterval: TimeInterval?) {
+        thermalStateLock.lock()
+        defer { thermalStateLock.unlock() }
+        thermalPolicy = policy
+        if let frameInterval {
+            poseFrameInterval = frameInterval
+        }
+    }
 
     // Tracking quality temporal smoothing
     private var currentTrackingQuality: TrackingQuality = .lost
@@ -128,18 +155,30 @@ public class Pipeline {
         // Subscribe to thermal level changes
         if let monitor = thermalMonitor {
             self.thermalLevel = monitor.currentLevel
-            self.thermalPolicy = monitor.currentPolicy
-            self.poseFrameInterval = ThermalPolicy.policy(for: monitor.currentLevel).maxFPS > 0
-                ? TimeInterval(1.0 / monitor.currentPolicy.maxFPS)
-                : 0.1
+            self.setThermalState(
+                policy: monitor.currentPolicy,
+                frameInterval: monitor.currentPolicy.maxFPS > 0
+                    ? TimeInterval(1.0 / monitor.currentPolicy.maxFPS)
+                    : 0.1
+            )
             monitor.levelPublisher
                 .sink { [weak self] level in
                     guard let self = self else { return }
                     let policy = ThermalPolicy.policy(for: level)
-                    self.thermalLevel = level
-                    self.thermalPolicy = policy
-                    if policy.maxFPS > 0 {
-                        self.poseFrameInterval = TimeInterval(1.0 / policy.maxFPS)
+                    self.setThermalState(
+                        policy: policy,
+                        frameInterval: policy.maxFPS > 0
+                            ? TimeInterval(1.0 / policy.maxFPS)
+                            : nil
+                    )
+                    // `thermalLevel` is @Published — it must be set on the
+                    // main thread, but thermal notifications can arrive on any
+                    // thread. Stay synchronous when already on main so callers
+                    // (and tests) observe the change immediately.
+                    if Thread.isMainThread {
+                        self.thermalLevel = level
+                    } else {
+                        DispatchQueue.main.async { self.thermalLevel = level }
                     }
                 }
                 .store(in: &subscriptions)
@@ -161,6 +200,10 @@ public class Pipeline {
             processPrecomputed(sample, timestamp: frame.timestamp)
             return
         }
+
+        // Single locked snapshot per frame of the thermal-derived throttle
+        // state (it is written from the thermal monitor's thread).
+        let (thermalPolicy, poseFrameInterval) = thermalState
 
         // Thermal throttle: skip all processing when critical
         if thermalPolicy.detectionPaused {
@@ -219,9 +262,11 @@ public class Pipeline {
                 poseObservation = nil
             }
 
-            // Sample depth at keypoint positions when depth is available and not thermally disabled
+            // Sample depth at keypoint positions when depth is available and not
+            // thermally disabled. Uses the policy snapshot taken with this frame,
+            // so the decision is consistent with the throttle gate above.
             let depthSamples: [DepthAtPoint]?
-            if let observation = poseObservation, confidence >= .medium, self.thermalPolicy.depthEnabled {
+            if let observation = poseObservation, confidence >= .medium, thermalPolicy.depthEnabled {
                 let keypointPositions = observation.keypoints.map { $0.position }
                 depthSamples = self.depthService.sampleDepth(at: keypointPositions, from: frame)
             } else {

@@ -12,10 +12,12 @@ import PostureLogic
 final class SipStoreLabelTests: XCTestCase {
 
     override func setUpWithError() throws {
+        SipStore.flushPendingWrites()   // settle async writes before cleaning
         deleteTodayFile()
     }
 
     override func tearDownWithError() throws {
+        SipStore.flushPendingWrites()   // a late write must not outlive cleanup
         deleteTodayFile()
     }
 
@@ -81,6 +83,7 @@ final class SipStoreLabelTests: XCTestCase {
         let event = SipEvent(timestamp: 1_000, duration: 2.0)
         store.add(event)
         store.setLabel(id: event.id, label: .phoneToFace)
+        SipStore.flushPendingWrites()   // disk writes are async off the MainActor
 
         // A brand new SipStore reads the same Documents file on init.
         let reloaded = SipStore()

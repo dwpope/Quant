@@ -137,6 +137,65 @@ final class PostureVisualizationBindingTests: XCTestCase {
         XCTAssertEqual(t.headEulerRadians.z, Float(vm.headRollDegrees) * deg2rad, accuracy: 1e-6)
     }
 
+    // MARK: - Mirror (horizontal-sense flip only)
+
+    private func makeTransforms() -> Binding.ResolvedPostureTransforms {
+        Binding.ResolvedPostureTransforms(
+            discYawRadians: 0.3,
+            headTranslation: SIMD3<Float>(0.04, 0.15, -0.02),
+            headEulerRadians: SIMD3<Float>(0.5, -0.7, 0.2),
+            assemblyScale: 1.2,
+            opacity: 0.6
+        )
+    }
+
+    func test_mirror_flipsOnlyHorizontalSenseChannels() {
+        let t = makeTransforms()
+        let m = Binding.mirror(t)
+
+        // Flipped: disc twist, head X, head yaw, head roll.
+        XCTAssertEqual(m.discYawRadians, -t.discYawRadians)
+        XCTAssertEqual(m.headTranslation.x, -t.headTranslation.x)
+        XCTAssertEqual(m.headEulerRadians.y, -t.headEulerRadians.y)
+        XCTAssertEqual(m.headEulerRadians.z, -t.headEulerRadians.z)
+
+        // Untouched: rest height, depth, pitch, scale, opacity.
+        XCTAssertEqual(m.headTranslation.y, t.headTranslation.y)
+        XCTAssertEqual(m.headTranslation.z, t.headTranslation.z)
+        XCTAssertEqual(m.headEulerRadians.x, t.headEulerRadians.x)
+        XCTAssertEqual(m.assemblyScale, t.assemblyScale)
+        XCTAssertEqual(m.opacity, t.opacity)
+    }
+
+    func test_mirror_isInvolution() {
+        let t = makeTransforms()
+        XCTAssertEqual(Binding.mirror(Binding.mirror(t)), t,
+                       "mirroring twice must restore the original transforms")
+    }
+
+    // MARK: - DebugChannels defaults ARE the production behaviour
+
+    /// The `DebugChannels` contract: an untouched `debug` reproduces the
+    /// shipped behaviour exactly. Every channel live, nothing hidden, and the
+    /// front-camera mirror on. If a tuning session changes a default (or a
+    /// leftover tuning override is committed), this test fails the build.
+    func test_debugChannels_defaultsMatchProduction() {
+        let d = Binding.DebugChannels()
+        XCTAssertTrue(d.shoulderRotation)
+        XCTAssertFalse(d.hideShoulderDisc)
+        XCTAssertFalse(d.hideGhost)
+        XCTAssertFalse(d.hideHeadBand)
+        XCTAssertTrue(d.sideLean)
+        XCTAssertTrue(d.headForward)
+        XCTAssertTrue(d.headYaw)
+        XCTAssertTrue(d.headPitch)
+        XCTAssertTrue(d.headRoll)
+        XCTAssertTrue(d.assemblyScale)
+        XCTAssertTrue(d.opacity)
+        XCTAssertTrue(d.stateTint)
+        XCTAssertTrue(d.mirrored, "mirror reading is the production default for a front camera")
+    }
+
     // MARK: - Step 5: state tint + calibrating pulse
 
     /// Plan Step 5 done-criterion: "four states visibly distinct in code

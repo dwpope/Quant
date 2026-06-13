@@ -136,11 +136,30 @@ final class SipTrainingStore: ObservableObject {
         records = Dictionary(uniqueKeysWithValues: decoded.map { ($0.id, $0) })
     }
 
+    /// Serial utility queue for disk writes: records are captured on the
+    /// MainActor at sip-confirmation time, and encoding multi-second pose
+    /// windows plus an atomic file write there blocks the UI. Static so every
+    /// instance writing the same per-day file shares one ordered queue — the
+    /// file on disk is always the latest snapshot. (The user-initiated
+    /// `exportJSONL`/`exportJSON` stay synchronous — they must return a
+    /// finished file URL.)
+    private static let persistQueue = DispatchQueue(label: "com.quant.sipTrainingStore.persist", qos: .utility)
+
     private func persist() {
         // Sort by capturedAt so the on-disk file has stable ordering.
         let sorted = records.values.sorted { $0.capturedAt < $1.capturedAt }
-        guard let data = try? JSONEncoder().encode(sorted) else { return }
-        try? data.write(to: fileURL(for: todayKey), options: .atomic)
+        let url = fileURL(for: todayKey)
+        Self.persistQueue.async {
+            guard let data = try? JSONEncoder().encode(sorted) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
+    /// Blocks until all queued disk writes have completed. Test hook — lets
+    /// persistence round-trip tests reload (and tear down) deterministically;
+    /// production code never needs to wait on the queue.
+    static func flushPendingWrites() {
+        persistQueue.sync {}
     }
 
     private func fileURL(for key: String) -> URL {

@@ -78,6 +78,13 @@ final class PostureVisualizationViewModel: ObservableObject {
     // judge whether the `Mapping` amplify/cap constants feel right, so we keep
     // a parallel, unsmoothed copy. These never drive the scene — the binding
     // reads only the display values — so they cannot affect the visual.
+    // Written only while `isTuningHUDActive`, so the hidden HUD costs no
+    // `objectWillChange` traffic on the per-frame ingest path.
+
+    /// Set by the hosting view when the tuning HUD is shown/hidden. Gates the
+    /// eight HUD-only published properties below; the display values above are
+    /// always live.
+    var isTuningHUDActive = false
 
     @Published private(set) var rawTwist: Double = 0                  // RawMetrics.twist
     @Published private(set) var rawLateralLean: Double = 0            // RawMetrics.lateralLean
@@ -113,6 +120,16 @@ final class PostureVisualizationViewModel: ObservableObject {
         static let yawCapDegrees = 90.0
         static let pitchCapDegrees = 60.0
         static let rollCapDegrees = 45.0
+        /// Reference depth (metres) the head sits forward of the shoulders;
+        /// mirrors the design's ~0.15 head-above-disc offset and turns the
+        /// unbounded `headForwardOffset` into a bounded pitch angle.
+        static let headDepthReference = 0.15
+        /// Number of judged frames averaged into the calibration-relative
+        /// rest reference. Vision keypoints jitter frame to frame; snapshotting
+        /// a single transition frame bakes that noise into every subsequent
+        /// render, so the reference is the running mean of the first N judged
+        /// frames instead (~1 s at the pipeline's ~10 FPS).
+        static let restPoseCaptureFrames = 10
     }
 
     // MARK: Smoothing channels (one filter per continuous output)
@@ -130,9 +147,10 @@ final class PostureVisualizationViewModel: ObservableObject {
     //
     // Pitch and roll are derived from *absolute* pose geometry, so a person
     // whose neutral sit isn't geometrically level (camera tilt, natural
-    // posture) renders permanently tilted — the original "buggy look". We
-    // capture the absolute pitch/roll at the moment the system leaves
-    // calibration into a judged state (the user's calibrated neutral) and
+    // posture) renders permanently tilted — the original "buggy look". When
+    // the system leaves calibration into a judged state we average the
+    // absolute pitch/roll over the first `Mapping.restPoseCaptureFrames`
+    // judged frames (the user's calibrated neutral, noise-averaged) and
     // express subsequent pitch/roll *relative* to it, so a neutral sit reads
     // ~0°. Re-armed on every (re)calibration. A VM that never sees a
     // `.calibrating` frame keeps the `0` references, i.e. absolute behaviour —
@@ -140,6 +158,9 @@ final class PostureVisualizationViewModel: ObservableObject {
     private var restPitchDegrees: Double = 0
     private var restRollDegrees: Double = 0
     private var wasCalibrating = false
+    private var restCaptureRemaining = 0
+    private var restPitchSum: Double = 0
+    private var restRollSum: Double = 0
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -167,14 +188,20 @@ final class PostureVisualizationViewModel: ObservableObject {
     /// Wires `AppModel`'s four posture publishers into the testable `ingest`
     /// seam. `CombineLatest4` re-emits whenever any input changes; all four are
     /// `@Published` so each delivers its current value on subscription.
+    ///
+    /// Idempotent: re-binding replaces any previous subscription instead of
+    /// stacking a duplicate pipeline, so callers can bind on every appear.
+    /// Delivery hops via `DispatchQueue.main` (not `RunLoop.main`, which
+    /// stalls in the tracking run-loop mode during scrolls and drags).
     func bind(to appModel: AppModel) {
+        cancellables.removeAll()
         Publishers.CombineLatest4(
             appModel.$latestMetrics,
             appModel.$latestSample,
             appModel.$postureState,
             appModel.$trackingQuality
         )
-        .receive(on: RunLoop.main)
+        .receive(on: DispatchQueue.main)
         .sink { [weak self] metrics, sample, state, quality in
             self?.ingest(metrics: metrics, pose: sample, state: state, quality: quality)
         }
@@ -220,13 +247,27 @@ final class PostureVisualizationViewModel: ObservableObject {
             // Roll ← real head roll (PoseSample.headRoll, degrees).
             let rollAbs = Double(p.headRoll) * Mapping.headRotationAmplification
 
-            // On the calibrating→judged transition, snapshot the absolute
-            // pitch/roll as the rest reference so neutral reads ~0° (fixes the
-            // permanently-tilted rig). Only fires once per (re)calibration.
+            // On the calibrating→judged transition, start capturing the rest
+            // reference so neutral reads ~0° (fixes the permanently-tilted
+            // rig). Only re-arms once per (re)calibration.
             if wasCalibrating && judged {
-                restPitchDegrees = pitchAbs
-                restRollDegrees = rollAbs
+                restCaptureRemaining = Mapping.restPoseCaptureFrames
+                restPitchSum = 0
+                restRollSum = 0
                 wasCalibrating = false
+            }
+
+            // While capturing, the reference is the running mean of the judged
+            // frames seen so far — the first frame still zeroes the display
+            // immediately, and each further frame averages the keypoint jitter
+            // out of the reference instead of freezing a single noisy frame in.
+            if restCaptureRemaining > 0 && judged {
+                restPitchSum += pitchAbs
+                restRollSum += rollAbs
+                let captured = Mapping.restPoseCaptureFrames - restCaptureRemaining + 1
+                restPitchDegrees = restPitchSum / Double(captured)
+                restRollDegrees = restRollSum / Double(captured)
+                restCaptureRemaining -= 1
             }
 
             // Express pitch/roll relative to the calibrated rest pose. With the
@@ -239,17 +280,21 @@ final class PostureVisualizationViewModel: ObservableObject {
 
             // Keep the pre-clamp (calibration-relative) angles for the dev HUD,
             // so its cap-clipping highlight reflects what is actually clamped.
-            unclampedYawDegrees = yawRaw
-            unclampedPitchDegrees = pitchRel
-            unclampedRollDegrees = rollRel
+            if isTuningHUDActive {
+                unclampedYawDegrees = yawRaw
+                unclampedPitchDegrees = pitchRel
+                unclampedRollDegrees = rollRel
+            }
         } else {
             forwardTarget = 0
             yawTarget = 0
             pitchTarget = 0
             rollTarget = 0
-            unclampedYawDegrees = 0
-            unclampedPitchDegrees = 0
-            unclampedRollDegrees = 0
+            if isTuningHUDActive {
+                unclampedYawDegrees = 0
+                unclampedPitchDegrees = 0
+                unclampedRollDegrees = 0
+            }
         }
 
         // Re-arm the rest-pose capture while calibrating, so the first run and
@@ -272,14 +317,16 @@ final class PostureVisualizationViewModel: ObservableObject {
         isCalibrating = (state == .calibrating)
 
         // Raw inputs mirrored for the dev HUD (unsmoothed, scene-irrelevant).
-        rawTwist = Double(m.twist)
-        rawLateralLean = Double(m.lateralLean)
-        rawForwardCreep = Double(m.forwardCreep)
-        rawHeadForwardOffset = pose.map { Double($0.headForwardOffset) } ?? 0
-        rawShoulderTwist = pose.map { Double($0.shoulderTwist) } ?? 0
-        rawHeadYaw = pose.map { Double($0.headYaw) } ?? 0
-        rawHeadPitch = pose.map { Double($0.headPitch) } ?? 0
-        rawHeadRoll = pose.map { Double($0.headRoll) } ?? 0
+        if isTuningHUDActive {
+            rawTwist = Double(m.twist)
+            rawLateralLean = Double(m.lateralLean)
+            rawForwardCreep = Double(m.forwardCreep)
+            rawHeadForwardOffset = pose.map { Double($0.headForwardOffset) } ?? 0
+            rawShoulderTwist = pose.map { Double($0.shoulderTwist) } ?? 0
+            rawHeadYaw = pose.map { Double($0.headYaw) } ?? 0
+            rawHeadPitch = pose.map { Double($0.headPitch) } ?? 0
+            rawHeadRoll = pose.map { Double($0.headRoll) } ?? 0
+        }
     }
 
     // MARK: Pure mappings

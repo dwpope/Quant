@@ -26,12 +26,10 @@ struct PostureVisualizationView: View {
 
     @StateObject private var viewModel = PostureVisualizationViewModel()
 
-    /// `bind(to:)` appends Combine subscriptions; guard so a re-appear does
-    /// not stack duplicate pipelines onto the same ViewModel.
-    @State private var didBind = false
-
     /// Dev tuning HUD visibility. Off by default — the shipped visualization
     /// stays purely graphical; this is opt-in for mapping refinement only.
+    /// Mirrored into `viewModel.isTuningHUDActive` so the ViewModel only pays
+    /// for the HUD's published properties while the panel is shown.
     @State private var showValues = false
 
     #if DEBUG
@@ -47,27 +45,6 @@ struct PostureVisualizationView: View {
         TimelineView(.animation) { timeline in
             let pulse = Self.pulse(at: timeline.date)
             RealityView { content in
-                #if DEBUG
-                // DEBUG TUNING — isolate ONE head variable at a time.
-                // #if DEBUG strips this from Release/TestFlight, so the nightly
-                // auto-build can never ship a frozen rig. To tune a different
-                // axis, set its flag `true` and the others `false`. Delete this
-                // whole block when tuning is finished.
-                PostureVisualizationBinding.debug = .init(
-                    hideShoulderDisc: true,   // disc + its tick removed
-                    hideGhost: true,          // drop the faint baseline disc/head
-                    hideHeadBand: true,       // no z-fighting band — clean sphere
-                    sideLean: false,          // head X frozen at centre
-                    headForward: false,       // head Z frozen
-                    headYaw: true,            // ← the only live channel
-                    headPitch: false,
-                    headRoll: false,
-                    assemblyScale: false,     // no whole-assembly scaling
-                    opacity: false,           // stay fully opaque
-                    stateTint: false,         // stay neutral scaffold grey
-                    mirrored: true            // ← reads like a mirror
-                )
-                #endif
                 if !PostureVisualizationBinding.debug.hideGhost {
                     content.add(PostureVisualizationScene.makeGhost())
                 }
@@ -101,6 +78,7 @@ struct PostureVisualizationView: View {
                 }
                 Button {
                     withAnimation(.easeInOut(duration: 0.15)) { showValues.toggle() }
+                    viewModel.isTuningHUDActive = showValues
                 } label: {
                     Image(systemName: showValues ? "gauge.with.dots.needle.bottom.50percent" : "gauge.with.dots.needle.0percent")
                         .font(.title2)
@@ -132,9 +110,7 @@ struct PostureVisualizationView: View {
         }
         #endif
         .onAppear {
-            guard !didBind else { return }
-            viewModel.bind(to: appModel)
-            didBind = true
+            viewModel.bind(to: appModel)   // idempotent — replaces, never stacks
         }
     }
 
