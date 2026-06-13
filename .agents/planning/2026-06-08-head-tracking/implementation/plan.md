@@ -69,12 +69,12 @@ Each iteration is a **cold start** — the agent remembers nothing. Procedure:
 
 ## Checklist
 
-- [ ] **Step 0** — Branch + codebase orientation (Type Map in `progress.md`)
-- [ ] **Step 1** — Compute head pitch/yaw/roll in `PoseDepthFusion` (2D) (TDD)
-- [ ] **Step 2** — Expose the three angles on `PoseSample`; thread to `AppModel` (TDD)
-- [ ] **Step 3** — Optional 3D pitch upgrade when LiDAR depth is present (TDD)
-- [ ] **Step 4** — ViewModel consumes real head angles (replace proxies) (TDD)
-- [ ] **Step 5** — Raw head angles in the debug HUD (build-verified)
+- [x] **Step 0** — Branch + codebase orientation (Type Map in `progress.md`)
+- [x] **Step 1** — Compute head pitch/yaw/roll in `PoseDepthFusion` (2D) (TDD)
+- [x] **Step 2** — Expose the three angles on `PoseSample`; thread to `AppModel` (TDD)
+- [x] **Step 3** — Optional 3D pitch upgrade when LiDAR depth is present (TDD)
+- [x] **Step 4** — ViewModel consumes real head angles (replace proxies) (TDD)
+- [x] **Step 5** — Raw head angles in the debug HUD (build-verified)
 - [ ] **Step 6** — Axis-direction lock tests (sign/channel guards) (TDD)
 - [ ] **Step 7** — Full-suite green + final commit → **emit `LOOP_COMPLETE`**
 - [ ] **Step 8** — *FUTURE, NOT this loop* — head-posture judging + nudges (see below)

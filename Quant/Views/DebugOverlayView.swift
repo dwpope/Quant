@@ -193,6 +193,37 @@ struct DebugOverlayView: View {
                     .foregroundStyle(metricColor(appModel.latestMetrics?.twist,
                                                   threshold: appModel.postureThresholds.twistThreshold))
             }
+
+            Divider()
+
+            // Head angles — true head geometry from facial keypoints
+            // (PoseSample.head*, degrees). Raw on-device readout for Stage 1b
+            // tuning; there is no calibrated head metric yet (head-posture judging
+            // is a future stage), so the Cal column is intentionally blank.
+            HStack(spacing: 0) {
+                Text("Head Yaw")
+                    .frame(width: 70, alignment: .leading)
+                Text(poseAngle(appModel.latestSample?.headYaw))
+                    .frame(width: 55, alignment: .trailing)
+                Text("—")
+                    .frame(width: 55, alignment: .trailing)
+            }
+            HStack(spacing: 0) {
+                Text("Head Pit")
+                    .frame(width: 70, alignment: .leading)
+                Text(poseAngle(appModel.latestSample?.headPitch))
+                    .frame(width: 55, alignment: .trailing)
+                Text("—")
+                    .frame(width: 55, alignment: .trailing)
+            }
+            HStack(spacing: 0) {
+                Text("Head Rol")
+                    .frame(width: 70, alignment: .leading)
+                Text(poseAngle(appModel.latestSample?.headRoll))
+                    .frame(width: 55, alignment: .trailing)
+                Text("—")
+                    .frame(width: 55, alignment: .trailing)
+            }
         }
         .font(.system(.caption, design: .monospaced))
         .padding(8)

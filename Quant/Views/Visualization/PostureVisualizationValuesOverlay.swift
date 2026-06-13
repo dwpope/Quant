@@ -91,9 +91,14 @@ struct PostureVisualizationValuesOverlay: View {
                     clipped: abs(viewModel.unclampedRollDegrees)  > Map.rollCapDegrees,
                     active: debug.headRoll)
 
-                // shTwist is yaw's raw upstream input → lit with the yaw channel.
-                row("shTwist",  raw: viewModel.rawShoulderTwist, rawUnit: "°", map: nil, mapUnit: "",
+                // Raw head-geometry inputs (PoseSample.head*, pre-amplify) that now
+                // drive yaw/pitch/roll — the real upstream the proxies replaced.
+                row("rawYaw",   raw: viewModel.rawHeadYaw,   rawUnit: "°", map: nil, mapUnit: "",
                     active: debug.headYaw)
+                row("rawPitch", raw: viewModel.rawHeadPitch, rawUnit: "°", map: nil, mapUnit: "",
+                    active: debug.headPitch)
+                row("rawRoll",  raw: viewModel.rawHeadRoll,  rawUnit: "°", map: nil, mapUnit: "",
+                    active: debug.headRoll)
 
                 // TORSO — the shoulder disc (rotation only).
                 section("TORSO")

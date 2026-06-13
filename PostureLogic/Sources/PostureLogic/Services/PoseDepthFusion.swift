@@ -2,6 +2,22 @@ import CoreGraphics
 import Foundation
 import simd
 
+/// True head orientation in degrees, derived from facial keypoints
+/// (`nose`/`eye`/`ear`) independently of the shoulder skeleton.
+///
+/// Sign conventions (locked against `PoseDepthFusion`'s y-up frame, where larger
+/// `y` = physically higher — the same convention `computeShoulderTwist` uses):
+/// - `roll`:  tilt of the ear line from horizontal; right ear lower → negative.
+/// - `pitch`: chin-down nod angle (computed in a later sub-stage).
+/// - `yaw`:   left/right head turn (computed in a later sub-stage).
+struct HeadAngles {
+    var pitch: Float
+    var yaw: Float
+    var roll: Float
+
+    static let neutral = HeadAngles(pitch: 0, yaw: 0, roll: 0)
+}
+
 /// Converts a 2D `PoseObservation` into a shoulder-width-normalized `PoseSample`.
 ///
 /// All positions are expressed relative to the shoulder midpoint and divided by
@@ -139,6 +155,7 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             rightShoulder: rightShoulder.position,
             shoulderWidth: shoulderWidth
         )
+        let headAngles = computeHeadAngles(from: pose)
 
         return PoseSample(
             timestamp: pose.timestamp,
@@ -151,7 +168,10 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             headForwardOffset: 0,
             shoulderTwist: shoulderTwist,
             shoulderWidthRaw: Float(shoulderWidth),
-            trackingQuality: trackingQuality
+            trackingQuality: trackingQuality,
+            headPitch: headAngles.pitch,
+            headYaw: headAngles.yaw,
+            headRoll: headAngles.roll
         )
     }
 
@@ -226,6 +246,17 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             shoulderWidth: CGFloat(shoulderWidth3D),
             headPos: headPos
         )
+        // Facial-keypoint angles. Yaw + roll stay 2D (image-plane geometry); pitch
+        // is upgraded to a true depth-based elevation angle when LiDAR depth exists
+        // at the nose + ear plane, falling back to the 2D pitch otherwise.
+        var headAngles = computeHeadAngles(from: pose)
+        if let pitch3D = computeHeadPitch3D(
+            from: pose,
+            depthSamples: depthSamples,
+            intrinsics: intrinsics
+        ) {
+            headAngles.pitch = pitch3D
+        }
 
         return PoseSample(
             timestamp: pose.timestamp,
@@ -238,7 +269,10 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             headForwardOffset: headForwardOffset,
             shoulderTwist: shoulderTwist,
             shoulderWidthRaw: Float(shoulderWidth),
-            trackingQuality: trackingQuality
+            trackingQuality: trackingQuality,
+            headPitch: headAngles.pitch,
+            headYaw: headAngles.yaw,
+            headRoll: headAngles.roll
         )
     }
 
@@ -368,6 +402,191 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
         // Clamp to valid asin range
         let clamped = max(-1, min(ratio, 1))
         return asin(clamped) * (180.0 / .pi)
+    }
+
+    // MARK: - Head Angles (true head geometry from facial keypoints)
+
+    /// Computes true head pitch/yaw/roll from the facial keypoints
+    /// (`nose`/`eye`/`ear`) Vision already detects, independently of the shoulder
+    /// skeleton. Reuses `keypoint(_:from:)` for confidence-filtered lookup and
+    /// degrades gracefully (neutral 0) when the required keypoints are absent —
+    /// mirroring `resolveHeadPosition`'s tolerance.
+    ///
+    func computeHeadAngles(from pose: PoseObservation) -> HeadAngles {
+        HeadAngles(
+            pitch: computeHeadPitch(from: pose),
+            yaw: computeHeadYaw(from: pose),
+            roll: computeHeadRoll(from: pose)
+        )
+    }
+
+    /// Roll = tilt of the ear line from horizontal, in degrees. Falls back to the
+    /// eye line when an ear is missing, then to neutral (0).
+    ///
+    /// Uses `atan2(Δy, |Δx|)` of the `leftEar → rightEar` vector: horizontalizing
+    /// the run (|Δx|) makes a level head read ~0° regardless of which ear lands at
+    /// larger image-x (a front-facing subject has anatomical left/right mirrored),
+    /// while the signed Δy carries the tilt. y-up convention (larger y = higher,
+    /// per `computeShoulderTwist`) ⇒ right ear physically lower → negative roll.
+    private func computeHeadRoll(from pose: PoseObservation) -> Float {
+        let left: CGPoint
+        let right: CGPoint
+        if let le = keypoint(.leftEar, from: pose), let re = keypoint(.rightEar, from: pose) {
+            left = le.position
+            right = re.position
+        } else if let le = keypoint(.leftEye, from: pose), let re = keypoint(.rightEye, from: pose) {
+            left = le.position
+            right = re.position
+        } else {
+            return 0
+        }
+
+        let run = abs(right.x - left.x)
+        guard run > 1e-6 else { return 0 }  // degenerate vertical line → no defined tilt
+        let rise = right.y - left.y
+        return Float(atan2(rise, run)) * (180.0 / .pi)
+    }
+
+    /// Strong yaw emitted when a head turn fully occludes one ear (the one-ear
+    /// rule). A turn large enough to hide an ear is roughly 50–70°.
+    private static let oneEarMissingYawDegrees: Float = 60
+
+    /// Yaw = horizontal offset of the nose from the ear midpoint, normalized by
+    /// ear separation, in degrees. Centred nose → ~0°. Sign: nose toward
+    /// `.rightEar` (larger image-x in our layouts) → positive; toward `.leftEar`
+    /// → negative.
+    ///
+    /// One-ear-missing rule: a strong turn occludes the far ear, so when exactly
+    /// one ear is present we can't measure an offset — instead we report a strong
+    /// yaw *toward the missing side* (missing `.rightEar` → +, missing `.leftEar`
+    /// → −). Falls back to neutral (0) when both ears or the nose are absent.
+    private func computeHeadYaw(from pose: PoseObservation) -> Float {
+        let leftEar = keypoint(.leftEar, from: pose)
+        let rightEar = keypoint(.rightEar, from: pose)
+
+        switch (leftEar, rightEar) {
+        case let (le?, re?):
+            // Both ears visible — measure the nose's normalized horizontal offset.
+            guard let nose = keypoint(.nose, from: pose) else { return 0 }
+            let separation = abs(re.position.x - le.position.x)
+            guard separation > 1e-6 else { return 0 }
+            let midX = (le.position.x + re.position.x) / 2
+            let ratio = (nose.position.x - midX) / separation
+            let clamped = max(-1, min(1, ratio))
+            return Float(asin(clamped)) * (180.0 / .pi)
+        case (.some, .none):
+            // Right ear occluded → strong turn toward the right.
+            return Self.oneEarMissingYawDegrees
+        case (.none, .some):
+            // Left ear occluded → strong turn toward the left.
+            return -Self.oneEarMissingYawDegrees
+        case (.none, .none):
+            return 0
+        }
+    }
+
+    /// Pitch (2D) = vertical offset of the nose relative to the eye/ear line,
+    /// normalized by that line's horizontal separation, in degrees. A coarse
+    /// proxy for chin-down/forward-head tilt — refined into a true elevation
+    /// angle from LiDAR depth in a later sub-stage.
+    ///
+    /// Sign (y-up, larger y = higher): nose *below* the line (chin-down /
+    /// forward-head) → positive; nose above (chin-up) → negative. The raw zero is
+    /// the geometric on-the-line case, not a physiological neutral — the
+    /// ViewModel's rest-relative calibration re-zeros it downstream. Ear line
+    /// primary, eye line fallback (mirrors roll); neutral (0) when no reference
+    /// line or no nose.
+    private func computeHeadPitch(from pose: PoseObservation) -> Float {
+        let left: CGPoint
+        let right: CGPoint
+        if let le = keypoint(.leftEar, from: pose), let re = keypoint(.rightEar, from: pose) {
+            left = le.position
+            right = re.position
+        } else if let le = keypoint(.leftEye, from: pose), let re = keypoint(.rightEye, from: pose) {
+            left = le.position
+            right = re.position
+        } else {
+            return 0
+        }
+
+        guard let nose = keypoint(.nose, from: pose) else { return 0 }
+
+        let scale = abs(right.x - left.x)
+        guard scale > 1e-6 else { return 0 }  // degenerate line → no defined normalizer
+        let lineY = (left.y + right.y) / 2
+        let drop = lineY - nose.position.y  // y-up: nose below the line ⇒ positive drop
+        return Float(atan2(drop, scale)) * (180.0 / .pi)
+    }
+
+    /// Pitch (3D) = the nose's elevation relative to the interaural (ear) plane,
+    /// measured from LiDAR depth instead of the image-plane vertical the 2D path
+    /// uses. Returns `nil` whenever the nose or an ear/eye reference pair lacks a
+    /// valid depth sample, so the caller keeps the 2D pitch (graceful fallback —
+    /// a depth frame never crashes or degrades a head that 2D could still read).
+    ///
+    /// Geometry: `unproject` the nose and the ear midpoint into camera space
+    /// (z = metric depth, larger = farther), then take `atan2(noseZ − earMidZ,
+    /// interaural)` — the angle by which the nose sits forward of / behind the ear
+    /// plane, normalized by the interaural distance (a stable, ~fixed metric scale,
+    /// mirroring how the rest of the fusion normalizes by shoulder width).
+    ///
+    /// Sign is locked to match the 2D pitch *direction* for the same motion so the
+    /// ViewModel behaves identically in either mode: a relaxed head has the nose
+    /// protruding *nearer* than the ears (noseZ < earMidZ) → negative; as the chin
+    /// drops (forward-head / tech-neck) the nose rotates down and back toward —
+    /// then through — the ear plane (noseZ → earMidZ and beyond) → pitch rises to
+    /// positive, exactly as the 2D "nose below the ear line → positive" rule does.
+    /// The absolute zero is geometric, not physiological; rest-relative calibration
+    /// re-zeros it downstream. Ear pair primary, eye pair fallback (mirrors 2D).
+    private func computeHeadPitch3D(
+        from pose: PoseObservation,
+        depthSamples: [DepthAtPoint],
+        intrinsics: simd_float3x3
+    ) -> Float? {
+        guard let nose = keypoint(.nose, from: pose) else { return nil }
+
+        let left: Keypoint
+        let right: Keypoint
+        if let le = keypoint(.leftEar, from: pose), let re = keypoint(.rightEar, from: pose) {
+            left = le
+            right = re
+        } else if let le = keypoint(.leftEye, from: pose), let re = keypoint(.rightEye, from: pose) {
+            left = le
+            right = re
+        } else {
+            return nil
+        }
+
+        // Every reference point needs a valid depth sample, else fall back to 2D.
+        guard let noseDepth = findDepth(for: nose.position, in: depthSamples),
+              let leftDepth = findDepth(for: left.position, in: depthSamples),
+              let rightDepth = findDepth(for: right.position, in: depthSamples)
+        else {
+            return nil
+        }
+
+        let nose3D = unproject(
+            point: SIMD2<Float>(Float(nose.position.x), Float(nose.position.y)),
+            depth: noseDepth,
+            intrinsics: intrinsics
+        )
+        let left3D = unproject(
+            point: SIMD2<Float>(Float(left.position.x), Float(left.position.y)),
+            depth: leftDepth,
+            intrinsics: intrinsics
+        )
+        let right3D = unproject(
+            point: SIMD2<Float>(Float(right.position.x), Float(right.position.y)),
+            depth: rightDepth,
+            intrinsics: intrinsics
+        )
+
+        let earMid = (left3D + right3D) / 2
+        let interaural = simd_length(left3D - right3D)
+        guard interaural > 1e-6 else { return nil }  // degenerate ear plane
+
+        let depthOffset = nose3D.z - earMid.z  // +ve = nose farther than ears
+        return atan2(depthOffset, interaural) * (180.0 / .pi)
     }
 
     // MARK: - Helpers
