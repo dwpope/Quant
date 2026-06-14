@@ -1,8 +1,52 @@
 # USDZ Figure Pipeline — Implementation Plan
 
 Date: 2026-06-14
-Status: IMPLEMENTED — Blender re-export + Swift loader/binding done; builds clean;
-asset bundles. PENDING: on-device visual tuning (scale/lean gains/signs).
+Status: IMPLEMENTED + on-device tuning in progress (PR #13, branch usdz-figure-pipeline).
+NEXT TASK for a fresh session: head-yaw proportionality (see "HANDOFF" below).
+
+## HANDOFF 2026-06-14 — make head yaw proportional (open blocker)
+
+**Symptom (validated on device):** turning the head reads "all or nothing" — the
+figure's head snaps to a big turn rather than tracking the real angle. Direction
+and the earlier downward-tilt bug are FIXED. Goal: head yaw should *roughly match
+the user's real turn angle* — accuracy matters (an inaccurate head turn breaks
+trust). User OK with editing detection provided it's revertible (it's on a branch).
+
+**Root cause — upstream in PostureLogic, not the visualization:**
+`PostureLogic/Sources/PostureLogic/Services/PoseDepthFusion.swift`
+- `computeHeadYaw(from:)` lines **463–486**. Two regimes:
+  - Both ears visible: `asin((nose.x − earMidX) / earSeparation)` in degrees —
+    smooth & proportional. GOOD regime.
+  - One ear occluded (full turn): returns the **constant** `±oneEarMissingYawDegrees`
+    (= **60**, line **452**) and pins there → the discontinuous "all or nothing".
+    Flicker = far ear toggling in/out of detection at the boundary.
+- `computeHeadAngles` 415–421; roll 431–448; pitch-2D 499–519; pitch-3D 541–590.
+- The viz already compensates as far as it can: `PostureVisualizationBinding.headYawGain
+  = -0.6` (flip + tame). It can't add proportionality the raw signal lacks.
+
+**Proposed fix (tune on device):** replace the flat ±60 one-ear branch with a
+*monotonic, proportional* estimate that continues past ear occlusion, e.g. use the
+**eyes** (still visible at large yaw — pitch already falls back to the eye line) as
+the scale reference: ratio = (nose.x − eyeMidX) / eyeSeparation, with a calibration
+factor so it joins the two-ear curve continuously and ramps toward ~90°. Keep the
+sign rule (missing right ear → +, missing left → −). Add hysteresis/smoothing at the
+two-ear↔one-ear boundary to kill flicker. Calibration factor MUST be tuned by eye on
+device (turn to known angles); it can't be validated headlessly.
+
+**Tests to update (CI-gated — TestFlight upload gates on PostureLogic tests):**
+`PostureLogic/Tests/PostureLogicTests/PoseDepthFusionTests.swift`, head-yaw tests
+**252–327** (one-ear tests 291–309 currently assert `>30` / `<−30`; integration 517).
+Keep them green; add a monotonicity assertion (more turn → more yaw, no snap).
+
+**Constraints/safety:** all on branch `usdz-figure-pipeline` (PR #13 → main). Revert =
+drop the single PostureLogic commit. Don't touch `resolve()/mirror()/ViewModel`
+(unit-tested). Test scheme is `QuantNoWatchTests`; sim id e.g. iPhone 16
+`D78638EB-2FF6-4C9E-9260-9B9DB9473565`. Build scheme `Quant`. SourceKit shows false
+"No such module" errors — xcodebuild is authoritative.
+
+---
+
+Status: IMPLEMENTED + on-device tuning in progress.
 Decision inputs: build loader later; **rename entities in Blender, re-export** (no Swift naming adapter).
 Scale handled in Swift (`Layout.figureScale`); materials forced unlit at load.
 
