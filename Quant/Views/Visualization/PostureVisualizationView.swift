@@ -36,6 +36,10 @@ struct PostureVisualizationView: View {
     /// Dev-notes panel (changelog + open actions) visibility — Debug only,
     /// stripped from Release so it never ships.
     @State private var showNotes = false
+
+    /// Head-yaw calibration slider visibility — Debug only. Lets us tune
+    /// `HeadYawTuning.oneEarCalibration` on device against known turn angles.
+    @State private var showCalibration = false
     #endif
 
     /// Calibration-pulse period (seconds) — a slow, organic "breathing" beat.
@@ -112,6 +116,23 @@ struct PostureVisualizationView: View {
                         .padding(.leading)
                         .transition(.opacity)
                 }
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            VStack(alignment: .trailing, spacing: 10) {
+                if showCalibration {
+                    PostureVisualizationCalibrationOverlay(viewModel: viewModel)
+                        .transition(.opacity)
+                }
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { showCalibration.toggle() }
+                } label: {
+                    Image(systemName: showCalibration ? "slider.horizontal.3" : "slider.horizontal.below.rectangle")
+                        .font(.title2)
+                        .foregroundStyle(.white.opacity(showCalibration ? 0.95 : 0.55))
+                        .padding()
+                }
+                .accessibilityLabel(showCalibration ? "Hide head-yaw calibration" : "Show head-yaw calibration")
             }
         }
         #endif

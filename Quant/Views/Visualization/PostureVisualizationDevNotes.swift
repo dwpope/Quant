@@ -13,10 +13,11 @@ import SwiftUI
 /// `lastUpdated`. Keep entries terse — this is a scan target, not a doc.
 enum PostureVisualizationDevNotes {
 
-    static let lastUpdated = "2026-05-18"
+    static let lastUpdated = "2026-06-14"
 
     /// What this tuning session has already changed.
     static let changes: [String] = [
+        "Head YAW is now PROPORTIONAL past ear occlusion: PoseDepthFusion.oneEarYaw scales the turn off the eyes (θ=atan(k·noseOffset/eyeSep)) instead of snapping to ±60°. Tune k live via the slider (bottom-right ▭ button) — HeadYawTuning.oneEarCalibration, device-tuned default 8.0 (anatomical ideal ≈2.7; Vision keypoints push it higher).",
         "Per-channel isolation switches added (PostureVisualizationBinding.debug / DebugChannels) — freeze any channel, tune one at a time.",
         "Current debug config: shoulder disc hidden, only HEAD YAW live; every other channel frozen at rest.",
         "Tuning HUD: live channel shown green/bold, frozen channels dimmed; rows grouped HEAD / TORSO / ASSEMBLY.",

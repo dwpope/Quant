@@ -38,6 +38,33 @@ device (turn to known angles); it can't be validated headlessly.
 **252–327** (one-ear tests 291–309 currently assert `>30` / `<−30`; integration 517).
 Keep them green; add a monotonicity assertion (more turn → more yaw, no snap).
 
+### IMPLEMENTED 2026-06-14 (3) — proportional one-ear yaw (pending on-device tuning)
+`PoseDepthFusion.swift`:
+- New `oneEarYaw(toward:from:)` replaces the flat ±60 branch. Scales the turn off
+  the **eyes** (visible past ear occlusion): `θ = atan(k · |nose.x − eyeMidX| /
+  eyeSeparation)`, sign forced by the missing ear. Monotonic, saturates → 90°,
+  continuous-ish with the two-ear `asin` curve (so far-ear flicker no longer snaps).
+- Kept the function **pure / non-mutating** (tests call it on a `let`; value-type
+  `deinit` discipline). No stateful hysteresis — continuity de-flickers structurally;
+  ViewModel low-pass handles residual. Eyes-missing → old flat `±60` fallback.
+- **THE KNOB:** `HeadYawTuning.oneEarCalibration` (public, **device-tuned default
+  `8.0`** as of 2026-06-14, confirmed mid-slider/not railed; anatomical ideal ≈2.7
+  but Vision's nose/eye keypoints push the real value higher). ↑ k ⇒ a given offset
+  reads as a bigger turn. `oneEarMaxYawDegrees` (90 ceiling) stays `private`.
+- **ON-DEVICE SLIDER** (`PostureVisualizationCalibrationOverlay`, `#if DEBUG`):
+  bottom-right ▭ button in `PostureVisualizationView` reveals a `k` slider (range
+  1.0–12.0 — widened after the first pass railed at the old 6.0 max) + live `rawYaw`
+  readout (turns green ≥45°) + reset. Tune without rebuild: turn until one ear hides,
+  then nudge k until rawYaw matches the real angle. Stripped from Release.
+- **STATUS:** k=8.0 confirmed good on device (mid-slider, settled) and committed.
+  Ghost now hidden **by product decision** (`DebugChannels.hideGhost = true` — the
+  baseline clone obstructs the stylized figure; committed separately). Open: decide
+  whether the `#if DEBUG` calibration slider stays long-term or is removed at merge.
+- Tests added (all 486 PostureLogic tests green via `swift test`): proportional +
+  monotonic with eyes, sign-follows-missing-side, eyes-missing constant fallback.
+  Existing one-ear tests (291–309, no eyes) still pass via the fallback path.
+- NOT committed — left in working tree for on-device tuning of k first.
+
 **Constraints/safety:** all on branch `usdz-figure-pipeline` (PR #13 → main). Revert =
 drop the single PostureLogic commit. Don't touch `resolve()/mirror()/ViewModel`
 (unit-tested). Test scheme is `QuantNoWatchTests`; sim id e.g. iPhone 16
