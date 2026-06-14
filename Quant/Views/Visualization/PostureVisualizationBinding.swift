@@ -236,11 +236,17 @@ enum PostureVisualizationBinding {
         /// Independent of `shoulderRotation`; use this to clear the disc out of
         /// frame so only the head is visible.
         var hideShoulderDisc = false
-        /// Skip adding the calibration-baseline ghost (faint disc + head) so it
-        /// doesn't sit behind an isolated head. Unlike the other hides this is
-        /// enforced in the scene `make` (the ghost is a separate root the
-        /// binding never looks up), so it only takes effect on scene rebuild.
-        var hideGhost = false
+        /// Skip adding the calibration-baseline ghost (faint rest-pose clone) so
+        /// it doesn't sit in front of / behind the live figure. Unlike the other
+        /// hides this is enforced in the scene `make` (the ghost is a separate
+        /// root the binding never looks up), so it only takes effect on scene
+        /// rebuild — dismiss and reopen the visualization to apply.
+        ///
+        /// Default **on** as a product decision (2026-06-14): with the stylized
+        /// USDZ figure the baseline clone obstructs the read more than it helps, so
+        /// the shipped visualization omits it. Flip to `false` only to bring the
+        /// calibration baseline back for debugging.
+        var hideGhost = true
         /// Disable the head's tone-divide band — the placeholder cylinder that
         /// z-fights the sphere (scene DEC-002). With it off, yaw reads cleanly
         /// off the bare sphere + nose tick, no striping.
