@@ -56,10 +56,12 @@ Keep them green; add a monotonicity assertion (more turn → more yaw, no snap).
   1.0–12.0 — widened after the first pass railed at the old 6.0 max) + live `rawYaw`
   readout (turns green ≥45°) + reset. Tune without rebuild: turn until one ear hides,
   then nudge k until rawYaw matches the real angle. Stripped from Release.
-- **STATUS:** k=8.0 confirmed good on device (mid-slider, settled) and committed.
-  Ghost now hidden **by product decision** (`DebugChannels.hideGhost = true` — the
-  baseline clone obstructs the stylized figure; committed separately). Open: decide
-  whether the `#if DEBUG` calibration slider stays long-term or is removed at merge.
+- **STATUS: DONE.** k=8.0 confirmed good on device (mid-slider, settled), committed
+  (be852eb) + pushed; PR #13 CI green against b696e64 (Swift Package / PostureLogic
+  Tests pass — the TestFlight gate). Ghost hidden **by product decision**
+  (`DebugChannels.hideGhost = true`, committed separately b696e64). The `#if DEBUG`
+  calibration slider **stays** (decided 2026-06-14) — permanent tuning affordance,
+  stripped from Release.
 - Tests added (all 486 PostureLogic tests green via `swift test`): proportional +
   monotonic with eyes, sign-follows-missing-side, eyes-missing constant fallback.
   Existing one-ear tests (291–309, no eyes) still pass via the fallback path.
