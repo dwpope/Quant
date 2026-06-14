@@ -62,6 +62,25 @@ enum PostureVisualizationBinding {
     /// reads can differ from side lean.
     static let forwardLeanRadiansPerMeter: Float = 2.0
 
+    /// Head pitch/roll come from noisy, yaw-cross-coupled 2D pose estimation, so
+    /// the figure should *turn* (yaw) crisply and only nod/tilt on a clear,
+    /// deliberate movement. `headTiltDeadzoneRadians` drops jitter below ~6°;
+    /// `headTiltScale` gentles the remainder. Both compose with the cos(yaw)
+    /// fade in `apply` that removes the turn-induced phantom tilt. Yaw itself is
+    /// left at full strength — it's the reliable signal. (A residual forward
+    /// tilt while facing forward is a *calibration* baseline, not this path:
+    /// recapture neutral during calibration to clear it.)
+    static let headTiltDeadzoneRadians: Float = 6 * .pi / 180
+    static let headTiltScale: Float = 0.6
+
+    /// Head-yaw display gain. **Negative flips** the turn direction to match the
+    /// front-camera view (mirror is also on); **magnitude < 1** tames the
+    /// ViewModel's ×1.5 amplification, which otherwise pegs even a moderate head
+    /// turn at the ±90° cap and reads as "all or nothing" — at 0.6 a full turn
+    /// renders ~54° and the mid-range tracks proportionally. Flip the sign if the
+    /// direction is still reversed; raise/lower the magnitude for sensitivity.
+    static let headYawGain: Float = -0.6
+
     private static let degreesToRadians = Float.pi / 180
 
     // MARK: - Pure mapping (RealityKit-free; unit-tested)
@@ -170,10 +189,31 @@ enum PostureVisualizationBinding {
     /// first, pitch tucks the chin, roll tilts last — the natural read for a
     /// head, and the VM already caps each axis so no gimbal extreme is hit.
     static func headOrientation(_ euler: SIMD3<Float>) -> simd_quatf {
-        let yaw = simd_quatf(angle: euler.y, axis: SIMD3<Float>(0, 1, 0))
+        // AXES NOTE — the loaded figure's local frame is Blender **Z-up**: the
+        // USDZ's Y-up conversion sits on the `/root` prim, so every entity below
+        // it (torso, head) keeps a Z-up local frame (head's local "up toward the
+        // crown" is +Z, its front is +Y). So the head's anatomical axes are:
+        //   yaw (turn)  → up        = +Z
+        //   pitch (nod) → left-right = +X
+        //   roll (tilt) → front      = +Y
+        // NOT the Y-up RealityKit default. Yawing about +Y (the old assumption)
+        // rotated the head about a near-horizontal world axis — i.e. it *tilted*
+        // the head down instead of turning it (the reported bug).
+        let yaw = simd_quatf(angle: euler.y, axis: SIMD3<Float>(0, 0, 1))
         let pitch = simd_quatf(angle: euler.x, axis: SIMD3<Float>(1, 0, 0))
-        let roll = simd_quatf(angle: euler.z, axis: SIMD3<Float>(0, 0, 1))
+        let roll = simd_quatf(angle: euler.z, axis: SIMD3<Float>(0, 1, 0))
         return yaw * pitch * roll
+    }
+
+    /// Shapes a noisy head pitch/roll angle (radians) for display: a deadzone
+    /// drops jitter below ``headTiltDeadzoneRadians``, ``headTiltScale`` gentles
+    /// the remainder, and `yawAtten` (cos of the current yaw) fades it out as the
+    /// head turns — where 2D pose estimation can't be trusted for tilt. Pure, so
+    /// it could be unit-tested, but it's tuning so it lives with `apply`'s knobs.
+    static func shapeHeadTilt(_ angle: Float, yawAtten: Float) -> Float {
+        let beyond = max(abs(angle) - headTiltDeadzoneRadians, 0)
+        let signed: Float = angle < 0 ? -beyond : beyond
+        return signed * headTiltScale * yawAtten
     }
 
     // MARK: - DEBUG: per-channel isolation (tuning only)
@@ -304,9 +344,12 @@ enum PostureVisualizationBinding {
             let twist = debug.shoulderRotation ? t.discYawRadians : 0
             let roll  = debug.sideLean    ? t.headTranslation.x * leanRadiansPerMeter : 0
             let pitch = debug.headForward ? t.headTranslation.z * forwardLeanRadiansPerMeter : 0
-            let yawQ   = simd_quatf(angle: twist, axis: SIMD3<Float>(0, 1, 0))
+            // Z-up local frame (see headOrientation's AXES NOTE): twist about
+            // up (+Z), forward-lean pitch about left-right (+X), side-lean roll
+            // about front (+Y).
+            let yawQ   = simd_quatf(angle: twist, axis: SIMD3<Float>(0, 0, 1))
             let pitchQ = simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
-            let rollQ  = simd_quatf(angle: roll,  axis: SIMD3<Float>(0, 0, 1))
+            let rollQ  = simd_quatf(angle: roll,  axis: SIMD3<Float>(0, 1, 0))
             torso.orientation = yawQ * pitchQ * rollQ
         }
 
@@ -317,10 +360,24 @@ enum PostureVisualizationBinding {
         // orientation because the head is parented to it, so head-look reads as
         // relative to the torso. Each axis stays independently gated for tuning.
         if let head = cache.head {
+            // Head look — yaw-dominant. Yaw is the reliable signal and drives the
+            // head at full strength. Pitch/roll are noisy and yaw-cross-coupled
+            // (a pure left/right turn reads as ~−20° pitch + ~−15° roll), and
+            // since the neck pivot sits below the head's centre that phantom tilt
+            // swings the head *down*. So pitch/roll are shaped (deadzone + gentle
+            // scale + cos(yaw) fade — see `shapeHeadTilt`) so the head turns
+            // crisply and only nods/tilts on a clear, deliberate movement.
+            let rawYaw = debug.headYaw ? t.headEulerRadians.y : 0
+            // Damp pitch/roll by the *actual* turn amount (pre-gain), so the
+            // cross-coupling fade tracks how far the head really turned.
+            let yawAtten = cos(min(abs(rawYaw), .pi / 2))
+            // Flip + tame the yaw for display: front-camera direction and a
+            // proportional turn instead of slamming to the ±90° cap.
+            let renderedYaw = rawYaw * headYawGain
             head.orientation = headOrientation(SIMD3<Float>(
-                debug.headPitch ? t.headEulerRadians.x : 0,
-                debug.headYaw   ? t.headEulerRadians.y : 0,
-                debug.headRoll  ? t.headEulerRadians.z : 0
+                debug.headPitch ? shapeHeadTilt(t.headEulerRadians.x, yawAtten: yawAtten) : 0,
+                renderedYaw,
+                debug.headRoll  ? shapeHeadTilt(t.headEulerRadians.z, yawAtten: yawAtten) : 0
             ))
         }
 
