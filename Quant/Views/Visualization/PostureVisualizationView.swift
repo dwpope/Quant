@@ -45,10 +45,16 @@ struct PostureVisualizationView: View {
         TimelineView(.animation) { timeline in
             let pulse = Self.pulse(at: timeline.date)
             RealityView { content in
+                // Async: the figure is loaded from `quant_person.usdz` (falls
+                // back to the procedural scaffold on failure). The ghost is a
+                // rest-pose clone of the live assembly, so it must be built
+                // *after* loading and added first stays the live one for the
+                // update lookup (the clone is renamed to PostureGhost).
+                let assembly = await PostureVisualizationScene.loadAssembly()
+                content.add(assembly)
                 if !PostureVisualizationBinding.debug.hideGhost {
-                    content.add(PostureVisualizationScene.makeGhost())
+                    content.add(PostureVisualizationScene.makeGhost(from: assembly))
                 }
-                content.add(PostureVisualizationScene.makeAssembly())
                 content.add(PostureVisualizationScene.makeCamera())
             } update: { content in
                 guard let assembly = content.entities.first(where: {

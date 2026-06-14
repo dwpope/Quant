@@ -49,6 +49,19 @@ enum PostureVisualizationBinding {
     /// value — tune by eye during demo recording (design "Variable Mapping").
     static let metersPerPoint: Float = 0.001
 
+    /// Torso-lean gain: radians of base-pivot tilt per metre of the resolved
+    /// lean offset. With the loaded figure, "side lean" is no longer a head
+    /// translation — it rocks the torso about its ground-contact origin (which
+    /// carries the parented head). `resolve` still emits the offset in metres
+    /// (`headTranslation.x` ≈ ±0.10 m for a unit lean); this converts it to an
+    /// angle (~±0.20 rad ≈ ±11°). Tune by eye — one knob for lean intensity.
+    static let leanRadiansPerMeter: Float = 2.0
+
+    /// Forward-lean gain: radians of forward base-pivot pitch per metre of the
+    /// resolved forward offset (`headTranslation.z`). Separate knob so fore/aft
+    /// reads can differ from side lean.
+    static let forwardLeanRadiansPerMeter: Float = 2.0
+
     private static let degreesToRadians = Float.pi / 180
 
     // MARK: - Pure mapping (RealityKit-free; unit-tested)
@@ -278,24 +291,32 @@ enum PostureVisualizationBinding {
         assembly.scale = SIMD3<Float>(repeating: debug.assemblyScale ? t.assemblyScale : 1)
         assembly.components.set(OpacityComponent(opacity: debug.opacity ? t.opacity : 1))
 
-        // Shoulder disc rotates about Y with twist; the tick is its child, so
-        // one rotation carries the direction marker too. `hideShoulderDisc`
-        // disables the whole disc subtree so the head can be built in isolation.
-        if let disc = cache.disc {
-            disc.isEnabled = !debug.hideShoulderDisc
-            let discYaw = debug.shoulderRotation ? t.discYawRadians : 0
-            disc.orientation = simd_quatf(angle: discYaw, axis: SIMD3<Float>(0, 1, 0))
+        // Torso (named `ShoulderDisc`): twist about Y *and* lean about the
+        // ground contact. The figure's torso origin is authored at the base, so
+        // roll/pitch here rock the whole upper body about that contact point —
+        // and because the head is parented to the torso, torso motion carries
+        // the head (the propagation the rig is designed for). "Side lean" and
+        // "forward" are reinterpreted from the resolved translation into lean
+        // angles (see `leanRadiansPerMeter`). `hideShoulderDisc` disables the
+        // whole subtree so the head can be isolated while tuning.
+        if let torso = cache.disc {
+            torso.isEnabled = !debug.hideShoulderDisc
+            let twist = debug.shoulderRotation ? t.discYawRadians : 0
+            let roll  = debug.sideLean    ? t.headTranslation.x * leanRadiansPerMeter : 0
+            let pitch = debug.headForward ? t.headTranslation.z * forwardLeanRadiansPerMeter : 0
+            let yawQ   = simd_quatf(angle: twist, axis: SIMD3<Float>(0, 1, 0))
+            let pitchQ = simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
+            let rollQ  = simd_quatf(angle: roll,  axis: SIMD3<Float>(0, 0, 1))
+            torso.orientation = yawQ * pitchQ * rollQ
         }
 
-        // Head: side-lean / forward translation (rest Y always preserved) +
-        // combined yaw/pitch/roll. Each axis is independently gated so a single
-        // variable can be isolated while the rest stay frozen at rest pose.
+        // Head: look (yaw/pitch/roll) about its authored neck origin. Position
+        // is left exactly as the USDZ authored it (the neck atop the torso) —
+        // unlike the old primitive scaffold we no longer translate the head;
+        // lean is the torso's job above. This composes *on top of* the torso's
+        // orientation because the head is parented to it, so head-look reads as
+        // relative to the torso. Each axis stays independently gated for tuning.
         if let head = cache.head {
-            head.position = SIMD3<Float>(
-                debug.sideLean ? t.headTranslation.x : 0,
-                t.headTranslation.y,
-                debug.headForward ? t.headTranslation.z : 0
-            )
             head.orientation = headOrientation(SIMD3<Float>(
                 debug.headPitch ? t.headEulerRadians.x : 0,
                 debug.headYaw   ? t.headEulerRadians.y : 0,
@@ -329,11 +350,17 @@ enum PostureVisualizationBinding {
         retint(cache.head, to: tint)
     }
 
-    /// Replaces a model entity's fill with a flat, lighting-independent tint
-    /// (`UnlitMaterial` — matches the design's "no photorealistic materials").
+    /// Recursively replaces every mesh's fill with a flat, lighting-independent
+    /// tint (`UnlitMaterial` — matches the design's "no photorealistic
+    /// materials"). Must recurse: in the loaded USDZ the `ModelComponent` lives
+    /// on child mesh prims under the named `ShoulderDisc` / `Head` Xforms, so a
+    /// single top-level `as? ModelEntity` cast would tint nothing.
     @MainActor
     private static func retint(_ entity: Entity?, to color: UIColor) {
-        guard let model = entity as? ModelEntity else { return }
-        model.model?.materials = [UnlitMaterial(color: color)]
+        guard let entity else { return }
+        if let model = entity as? ModelEntity, model.model != nil {
+            model.model?.materials = [UnlitMaterial(color: color)]
+        }
+        for child in entity.children { retint(child, to: color) }
     }
 }
