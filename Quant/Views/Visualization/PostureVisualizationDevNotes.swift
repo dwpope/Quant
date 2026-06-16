@@ -18,6 +18,7 @@ enum PostureVisualizationDevNotes {
     /// What this tuning session has already changed.
     static let changes: [String] = [
         "Head YAW is now PROPORTIONAL past ear occlusion: PoseDepthFusion.oneEarYaw scales the turn off the eyes (θ=atan(k·noseOffset/eyeSep)) instead of snapping to ±60°. Tune k live via the slider (bottom-right ▭ button) — HeadYawTuning.oneEarCalibration, device-tuned default 8.0 (anatomical ideal ≈2.7; Vision keypoints push it higher).",
+        "Side lean is now DIRECTIONAL: added RawMetrics.lateralLeanSigned (no abs; abs metric kept for scoring) so the figure leans toward the real side. Forward lean = head−shoulder depth (LiDAR only). Tuning panel (bottom-right ▭) carries SIGNED lean-gain sliders — Binding.lean/forwardLeanRadiansPerMeter; slide past 0 to flip, away for intensity. PENDING: confirm sign + dial gains on device, then bake the defaults.",
         "Per-channel isolation switches added (PostureVisualizationBinding.debug / DebugChannels) — freeze any channel, tune one at a time.",
         "Current debug config: shoulder disc hidden, only HEAD YAW live; every other channel frozen at rest.",
         "Tuning HUD: live channel shown green/bold, frozen channels dimmed; rows grouped HEAD / TORSO / ASSEMBLY.",

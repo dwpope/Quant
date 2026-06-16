@@ -108,6 +108,12 @@ final class PostureVisualizationViewModel: ObservableObject {
     /// Low-pass smoothing factor (design starting value). Tune by eye later.
     static let smoothingAlpha: Double = 0.2
 
+    /// Faster smoothing for the lean channels. Lean already passes through the
+    /// pipeline's `MetricsSmoother` upstream, so a second α=0.2 stage here stacks
+    /// into a sluggish ~1.5–2 s settle; a higher α keeps lean responsive to a real
+    /// torso movement while the upstream stage still removes per-frame jitter.
+    static let leanSmoothingAlpha: Double = 0.5
+
     /// All scaling/clamping constants in one place so the renderer and the
     /// ViewModel stay in sync and remain tunable during demo recording
     /// (design "Variable Mapping" reference table).
@@ -135,8 +141,8 @@ final class PostureVisualizationViewModel: ObservableObject {
     // MARK: Smoothing channels (one filter per continuous output)
 
     private var rotationFilter = LowPassFilter(alpha: smoothingAlpha)
-    private var sideLeanFilter = LowPassFilter(alpha: smoothingAlpha)
-    private var forwardFilter = LowPassFilter(alpha: smoothingAlpha)
+    private var sideLeanFilter = LowPassFilter(alpha: leanSmoothingAlpha)
+    private var forwardFilter = LowPassFilter(alpha: leanSmoothingAlpha)
     private var scaleFilter = LowPassFilter(alpha: smoothingAlpha)
     private var yawFilter = LowPassFilter(alpha: smoothingAlpha)
     private var pitchFilter = LowPassFilter(alpha: smoothingAlpha)
@@ -219,7 +225,9 @@ final class PostureVisualizationViewModel: ObservableObject {
         let m = metrics ?? .zero
 
         let rotationTarget = Double(m.twist) * Mapping.twistAmplification
-        let sideLeanTarget = Double(m.lateralLean) * Mapping.sideLeanPointsPerUnit
+        // Signed lateral lean so the figure tilts toward the actual lean side
+        // (`m.lateralLean` is unsigned magnitude for scoring; the viz needs sense).
+        let sideLeanTarget = Double(m.lateralLeanSigned) * Mapping.sideLeanPointsPerUnit
         let scaleTarget = 1.0 + Double(m.forwardCreep) * Mapping.forwardCreepScaleFactor
 
         let forwardTarget: Double
@@ -319,7 +327,7 @@ final class PostureVisualizationViewModel: ObservableObject {
         // Raw inputs mirrored for the dev HUD (unsmoothed, scene-irrelevant).
         if isTuningHUDActive {
             rawTwist = Double(m.twist)
-            rawLateralLean = Double(m.lateralLean)
+            rawLateralLean = Double(m.lateralLeanSigned)   // signed: the viz HUD shows lean direction
             rawForwardCreep = Double(m.forwardCreep)
             rawHeadForwardOffset = pose.map { Double($0.headForwardOffset) } ?? 0
             rawShoulderTwist = pose.map { Double($0.shoulderTwist) } ?? 0

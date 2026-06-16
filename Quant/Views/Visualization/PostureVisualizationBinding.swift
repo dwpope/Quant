@@ -53,14 +53,34 @@ enum PostureVisualizationBinding {
     /// lean offset. With the loaded figure, "side lean" is no longer a head
     /// translation — it rocks the torso about its ground-contact origin (which
     /// carries the parented head). `resolve` still emits the offset in metres
-    /// (`headTranslation.x` ≈ ±0.10 m for a unit lean); this converts it to an
-    /// angle (~±0.20 rad ≈ ±11°). Tune by eye — one knob for lean intensity.
-    static let leanRadiansPerMeter: Float = 2.0
+    /// resolved lean offset.
+    ///
+    /// NOTE the scale: `headTranslation.x = lateralLeanSigned × sideLeanPointsPerUnit
+    /// (100) × metersPerPoint (0.001)`, so this gain multiplies a value ≈
+    /// `lateralLeanSigned × 0.1`. A real torso lean shifts the shoulder midpoint
+    /// only ~0.05–0.10 of frame width, so the default is deliberately large to make
+    /// that small normalized signal a visible tilt (the old 2.0 assumed a
+    /// near-full-frame "unit lean" that never happens). The points→metres chain is
+    /// now vestigial (the head no longer translates); a future cleanup can fold it
+    /// into a single degrees-per-unit gain.
+    ///
+    /// **Signed & tunable.** A `#if DEBUG` slider overrides it live on device so
+    /// we can confirm direction (slide past 0 to flip the lean sign — net sign is
+    /// gain × `mirror()`'s `-headTranslation.x` flip) and dial intensity in one
+    /// gesture. Output is clamped to ±`leanCapRadians`. Release uses the default.
+    static var leanRadiansPerMeter: Float = leanRadiansPerMeterDefault
+    static let leanRadiansPerMeterDefault: Float = 30.0
 
     /// Forward-lean gain: radians of forward base-pivot pitch per metre of the
     /// resolved forward offset (`headTranslation.z`). Separate knob so fore/aft
-    /// reads can differ from side lean.
-    static let forwardLeanRadiansPerMeter: Float = 2.0
+    /// reads can differ from side lean. Signed & tunable like `leanRadiansPerMeter`
+    /// (not flipped by `mirror()` — fore/aft has no left/right sense).
+    static var forwardLeanRadiansPerMeter: Float = forwardLeanRadiansPerMeterDefault
+    static let forwardLeanRadiansPerMeterDefault: Float = 30.0
+
+    /// Clamp on the lean tilt (radians) so a high gain can't rotate the figure
+    /// past a believable lean (≈40°). Applied to both side roll and forward pitch.
+    static let leanCapRadians: Float = 0.7
 
     /// Head pitch/roll come from noisy, yaw-cross-coupled 2D pose estimation, so
     /// the figure should *turn* (yaw) crisply and only nod/tilt on a clear,
@@ -348,8 +368,9 @@ enum PostureVisualizationBinding {
         if let torso = cache.disc {
             torso.isEnabled = !debug.hideShoulderDisc
             let twist = debug.shoulderRotation ? t.discYawRadians : 0
-            let roll  = debug.sideLean    ? t.headTranslation.x * leanRadiansPerMeter : 0
-            let pitch = debug.headForward ? t.headTranslation.z * forwardLeanRadiansPerMeter : 0
+            let cap = leanCapRadians
+            let roll  = debug.sideLean    ? max(-cap, min(cap, t.headTranslation.x * leanRadiansPerMeter)) : 0
+            let pitch = debug.headForward ? max(-cap, min(cap, t.headTranslation.z * forwardLeanRadiansPerMeter)) : 0
             // Z-up local frame (see headOrientation's AXES NOTE): twist about
             // up (+Z), forward-lean pitch about left-right (+X), side-lean roll
             // about front (+Y).

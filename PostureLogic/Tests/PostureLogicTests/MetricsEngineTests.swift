@@ -194,6 +194,21 @@ final class MetricsEngineTests: XCTestCase {
                        "Lateral lean should be symmetric")
     }
 
+    func test_lateralLeanSigned_carriesDirection() {
+        var engine = MetricsEngine()
+        let baseline = makeBaseline(shoulderMidpoint: SIMD3(0, 0, 0))
+
+        let left = engine.compute(from: makeSample(shoulderMidpoint: SIMD3(-0.1, 0, 0)), baseline: baseline)
+        let right = engine.compute(from: makeSample(shoulderMidpoint: SIMD3(0.1, 0, 0)), baseline: baseline)
+
+        // Signed keeps left/right sense (image-x: right of baseline → positive)…
+        XCTAssertLessThan(left.lateralLeanSigned, 0)
+        XCTAssertGreaterThan(right.lateralLeanSigned, 0)
+        XCTAssertEqual(left.lateralLeanSigned, -right.lateralLeanSigned, accuracy: 0.001)
+        // …while its magnitude still matches the unsigned scoring metric.
+        XCTAssertEqual(abs(right.lateralLeanSigned), right.lateralLean, accuracy: 0.001)
+    }
+
     // MARK: - Twist
 
     func test_twist_positive() {

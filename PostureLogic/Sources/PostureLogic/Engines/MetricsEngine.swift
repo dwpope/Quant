@@ -41,8 +41,10 @@ struct MetricsEngine: MetricsEngineProtocol {
         // Shoulder rounding: more torso angle = more forward lean
         let shoulderRounding = sample.torsoAngle - baseline.torsoAngle
 
-        // Lateral lean: off-center from baseline shoulder midpoint
-        let lateralLean = abs(sample.shoulderMidpoint.x - baseline.shoulderMidpoint.x)
+        // Lateral lean: off-center from baseline shoulder midpoint. Signed keeps
+        // left/right (for the visualization); magnitude is what scoring thresholds.
+        let lateralLeanSigned = sample.shoulderMidpoint.x - baseline.shoulderMidpoint.x
+        let lateralLean = abs(lateralLeanSigned)
 
         // Twist: deviation from baseline shoulder twist
         let twist = abs(sample.shoulderTwist - baseline.shoulderTwist)
@@ -61,7 +63,8 @@ struct MetricsEngine: MetricsEngineProtocol {
             lateralLean: lateralLean,
             twist: twist,
             movementLevel: movementLevel,
-            headMovementPattern: headMovementPattern
+            headMovementPattern: headMovementPattern,
+            lateralLeanSigned: lateralLeanSigned
         )
     }
 
