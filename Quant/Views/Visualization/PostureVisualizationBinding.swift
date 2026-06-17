@@ -302,6 +302,17 @@ enum PostureVisualizationBinding {
     /// to its default before shipping** (all `true`, `hideShoulderDisc` false).
     static var debug = DebugChannels()
 
+    #if DEBUG
+    /// Live torso telemetry for the tuning HUD — diagnostic only. Tells us, on
+    /// device, whether the `ShoulderDisc` entity actually resolved and the angles
+    /// (degrees) `apply` last wrote to it, so "the figure won't lean" can be
+    /// pinned to entity-missing vs. zero-signal vs. wrong-axis without guessing.
+    static var debugDiscResolved = false
+    static var debugTorsoRollDegrees: Float = 0
+    static var debugTorsoPitchDegrees: Float = 0
+    static var debugTorsoTwistDegrees: Float = 0
+    #endif
+
     // MARK: - Per-assembly runtime cache (entity lookups + last-applied tint)
 
     /// Runtime-only component stored on the assembly root. Caches the named
@@ -365,12 +376,20 @@ enum PostureVisualizationBinding {
         // "forward" are reinterpreted from the resolved translation into lean
         // angles (see `leanRadiansPerMeter`). `hideShoulderDisc` disables the
         // whole subtree so the head can be isolated while tuning.
+        #if DEBUG
+        debugDiscResolved = cache.disc != nil
+        #endif
         if let torso = cache.disc {
             torso.isEnabled = !debug.hideShoulderDisc
             let twist = debug.shoulderRotation ? t.discYawRadians : 0
             let cap = leanCapRadians
             let roll  = debug.sideLean    ? max(-cap, min(cap, t.headTranslation.x * leanRadiansPerMeter)) : 0
             let pitch = debug.headForward ? max(-cap, min(cap, t.headTranslation.z * forwardLeanRadiansPerMeter)) : 0
+            #if DEBUG
+            debugTorsoTwistDegrees = twist * 180 / .pi
+            debugTorsoRollDegrees = roll * 180 / .pi
+            debugTorsoPitchDegrees = pitch * 180 / .pi
+            #endif
             // Z-up local frame (see headOrientation's AXES NOTE): twist about
             // up (+Z), forward-lean pitch about left-right (+X), side-lean roll
             // about front (+Y).

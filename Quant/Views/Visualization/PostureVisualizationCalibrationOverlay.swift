@@ -85,10 +85,23 @@ struct PostureVisualizationCalibrationOverlay: View {
 
             // Live raw lean inputs — for orientation while you lean to test sign.
             HStack(spacing: 10) {
-                Text(String(format: "latLean %+.2f", viewModel.rawLateralLean))
-                Text(String(format: "fwd %+.2f", viewModel.rawHeadForwardOffset))
+                Text(String(format: "latLean %+.3f", viewModel.rawLateralLean))
+                Text(String(format: "fwd %+.3f", viewModel.rawHeadForwardOffset))
             }
             .foregroundStyle(.secondary)
+
+            // Diagnostic: did the ShoulderDisc entity resolve, and what angle is
+            // actually being written to it? Pins "won't lean" to a concrete cause.
+            HStack(spacing: 8) {
+                Text("disc")
+                Text(Bind.debugDiscResolved ? "✓" : "✗")
+                    .fontWeight(.bold)
+                    .foregroundStyle(Bind.debugDiscResolved ? .green : .red)
+                Text(String(format: "roll %+.1f°", Bind.debugTorsoRollDegrees))
+                    .foregroundStyle(abs(Bind.debugTorsoRollDegrees) >= 2 ? .green : .secondary)
+                Text(String(format: "twist %+.1f°", Bind.debugTorsoTwistDegrees))
+                    .foregroundStyle(.secondary)
+            }
             Text("lean left/right & fwd/back; flip a sign if it reads backwards")
                 .font(.caption2).foregroundStyle(.secondary)
         }
