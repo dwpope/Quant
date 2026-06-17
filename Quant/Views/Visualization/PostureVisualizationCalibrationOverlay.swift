@@ -21,6 +21,7 @@ import PostureLogic
 struct PostureVisualizationCalibrationOverlay: View {
 
     @ObservedObject var viewModel: PostureVisualizationViewModel
+    @ObservedObject var appModel: AppModel
 
     private typealias Bind = PostureVisualizationBinding
 
@@ -46,6 +47,26 @@ struct PostureVisualizationCalibrationOverlay: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+
+            // ── Calibration ───────────────────────────────────────────
+            // Lean/twist/creep are measured relative to a calibration baseline;
+            // with none, they read 0 no matter the gain (head angles bypass it).
+            // The viz shows no calibration prompt, so surface it here.
+            HStack(spacing: 6) {
+                Text("CALIBRATION").fontWeight(.semibold)
+                Spacer(minLength: 12)
+                Button("recalibrate") { appModel.recalibrate() }
+                    .buttonStyle(.plain).foregroundStyle(.blue)
+            }
+            let calib = calibLabel(appModel.calibrationStatus)
+            HStack(spacing: 6) {
+                Text("state").foregroundStyle(.secondary)
+                Text(calib.text).fontWeight(.semibold).foregroundStyle(calib.tint)
+            }
+            Text("sit upright & still until 'calibrated ✓', then lean")
+                .font(.caption2).foregroundStyle(.secondary)
+
+            Divider().overlay(Color.white.opacity(0.2))
 
             // ── Head yaw ──────────────────────────────────────────────
             sectionHeader("HEAD-YAW CALIB",
@@ -127,6 +148,18 @@ struct PostureVisualizationCalibrationOverlay: View {
         .accessibilityLabel("Visualization tuning")
     }
 
+    /// Short coloured label for the live calibration state.
+    private func calibLabel(_ s: CalibrationStatus) -> (text: String, tint: Color) {
+        switch s {
+        case .waiting:            return ("waiting — hold still", .orange)
+        case .countdown(let n):   return ("countdown \(n)", .yellow)
+        case .sampling:           return ("sampling…", .blue)
+        case .validating:         return ("validating…", .blue)
+        case .success:            return ("calibrated ✓", .green)
+        case .failed(let m):      return ("failed: \(m)", .red)
+        }
+    }
+
     /// A subsection title with a right-aligned reset that disables at default.
     @ViewBuilder
     private func sectionHeader(_ title: String, reset: @escaping () -> Void, isDefault: Bool) -> some View {
@@ -153,7 +186,7 @@ struct PostureVisualizationCalibrationOverlay: View {
 }
 
 #Preview {
-    PostureVisualizationCalibrationOverlay(viewModel: PostureVisualizationViewModel())
+    PostureVisualizationCalibrationOverlay(viewModel: PostureVisualizationViewModel(), appModel: AppModel())
         .padding()
         .background(Color(white: 0.06))
 }

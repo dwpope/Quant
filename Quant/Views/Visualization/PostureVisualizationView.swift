@@ -121,7 +121,7 @@ struct PostureVisualizationView: View {
         .overlay(alignment: .bottomTrailing) {
             VStack(alignment: .trailing, spacing: 10) {
                 if showCalibration {
-                    PostureVisualizationCalibrationOverlay(viewModel: viewModel)
+                    PostureVisualizationCalibrationOverlay(viewModel: viewModel, appModel: appModel)
                         .transition(.opacity)
                 }
                 Button {
