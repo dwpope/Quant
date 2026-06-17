@@ -92,6 +92,13 @@ final class PostureVisualizationViewModel: ObservableObject {
     @Published private(set) var rawHeadForwardOffset: Double = 0      // PoseSample.headForwardOffset
     @Published private(set) var rawShoulderTwist: Double = 0          // PoseSample.shoulderTwist
 
+    /// Lean diagnostics: is the pipeline delivering metrics at all (nil ⇒ no
+    /// baseline ⇒ every baseline-relative channel is 0), and the raw shoulder
+    /// midpoint image-x that `lateralLeanSigned` is the baseline-delta of — so we
+    /// can see whether the *source* moves when you lean.
+    @Published private(set) var metricsPresent: Bool = false         // metrics != nil
+    @Published private(set) var rawShoulderMidX: Double = 0          // PoseSample.shoulderMidpoint.x
+
     /// Real head angles straight off `PoseSample` (degrees, pre-amplify/clamp) —
     /// the raw side of the dev HUD's raw↔mapped head rows (Step 5).
     @Published private(set) var rawHeadYaw: Double = 0                // PoseSample.headYaw
@@ -329,6 +336,8 @@ final class PostureVisualizationViewModel: ObservableObject {
             rawTwist = Double(m.twist)
             rawLateralLean = Double(m.lateralLeanSigned)   // signed: the viz HUD shows lean direction
             rawForwardCreep = Double(m.forwardCreep)
+            metricsPresent = (metrics != nil)
+            rawShoulderMidX = pose.map { Double($0.shoulderMidpoint.x) } ?? 0
             rawHeadForwardOffset = pose.map { Double($0.headForwardOffset) } ?? 0
             rawShoulderTwist = pose.map { Double($0.shoulderTwist) } ?? 0
             rawHeadYaw = pose.map { Double($0.headYaw) } ?? 0

@@ -90,8 +90,8 @@ struct PostureVisualizationCalibrationOverlay: View {
             }
             .foregroundStyle(.secondary)
 
-            // Diagnostic: did the ShoulderDisc entity resolve, and what angle is
-            // actually being written to it? Pins "won't lean" to a concrete cause.
+            // Diagnostic A — output side: did the ShoulderDisc entity resolve, and
+            // what angle is actually being written to it?
             HStack(spacing: 8) {
                 Text("disc")
                 Text(Bind.debugDiscResolved ? "✓" : "✗")
@@ -100,8 +100,18 @@ struct PostureVisualizationCalibrationOverlay: View {
                 Text(String(format: "roll %+.1f°", Bind.debugTorsoRollDegrees))
                     .foregroundStyle(abs(Bind.debugTorsoRollDegrees) >= 2 ? .green : .secondary)
                 Text(String(format: "twist %+.1f°", Bind.debugTorsoTwistDegrees))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(abs(Bind.debugTorsoTwistDegrees) >= 2 ? .green : .secondary)
             }
+            // Diagnostic B — source side: are metrics flowing (else no baseline),
+            // and does the raw shoulder midpoint move at all when you lean?
+            HStack(spacing: 8) {
+                Text("metrics")
+                Text(viewModel.metricsPresent ? "✓" : "✗")
+                    .fontWeight(.bold)
+                    .foregroundStyle(viewModel.metricsPresent ? .green : .red)
+                Text(String(format: "midX %.3f", viewModel.rawShoulderMidX))
+            }
+            .foregroundStyle(.secondary)
             Text("lean left/right & fwd/back; flip a sign if it reads backwards")
                 .font(.caption2).foregroundStyle(.secondary)
         }
