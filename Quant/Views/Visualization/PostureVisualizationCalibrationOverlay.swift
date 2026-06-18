@@ -31,6 +31,7 @@ struct PostureVisualizationCalibrationOverlay: View {
     @State private var calibration: Float = HeadYawTuning.oneEarCalibration
     @State private var sideLeanGain: Float = Bind.leanRadiansPerMeter
     @State private var fwdLeanGain: Float = Bind.forwardLeanRadiansPerMeter
+    @State private var twistGain: Float = Float(PostureVisualizationViewModel.Mapping.twistAmplification)
 
     /// Head-yaw `k` bounds. Spans well below/above the device-tuned default (≈8.0)
     /// so a flatter mapping and headroom past it are both reachable without code
@@ -44,6 +45,10 @@ struct PostureVisualizationCalibrationOverlay: View {
     /// by the legacy points→metres chain, so visible tilt needs a large gain (the
     /// output is capped at `leanCapRadians`, so over-driving just saturates).
     private static let leanRange: ClosedRange<Float> = -100.0...100.0
+
+    /// Twist-gain bounds. **Signed** so the slider flips the disc-rotation sense
+    /// (the twist signal is already an angle, so this gain stays near ±1–2).
+    private static let twistRange: ClosedRange<Float> = -4.0...4.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -91,22 +96,26 @@ struct PostureVisualizationCalibrationOverlay: View {
 
             Divider().overlay(Color.white.opacity(0.2))
 
-            // ── Lean ──────────────────────────────────────────────────
-            sectionHeader("LEAN GAINS  rad/m",
+            // ── Lean + twist ──────────────────────────────────────────
+            sectionHeader("LEAN / TWIST GAINS",
                           reset: {
                               sideLeanGain = Bind.leanRadiansPerMeterDefault
                               fwdLeanGain = Bind.forwardLeanRadiansPerMeterDefault
+                              twistGain = Float(PostureVisualizationViewModel.Mapping.twistAmplificationDefault)
                           },
                           isDefault: sideLeanGain == Bind.leanRadiansPerMeterDefault
-                                  && fwdLeanGain == Bind.forwardLeanRadiansPerMeterDefault)
+                                  && fwdLeanGain == Bind.forwardLeanRadiansPerMeterDefault
+                                  && twistGain == Float(PostureVisualizationViewModel.Mapping.twistAmplificationDefault))
 
             // Signed: slide past 0 to flip direction, away from 0 for intensity.
-            gainRow("side", value: $sideLeanGain, range: Self.leanRange, step: 0.25, decimals: 2)
-            gainRow("fwd",  value: $fwdLeanGain,  range: Self.leanRange, step: 0.25, decimals: 2)
+            gainRow("side",  value: $sideLeanGain, range: Self.leanRange,  step: 0.25, decimals: 2)
+            gainRow("fwd",   value: $fwdLeanGain,  range: Self.leanRange,  step: 0.25, decimals: 2)
+            gainRow("twist", value: $twistGain,    range: Self.twistRange, step: 0.10, decimals: 2)
 
-            // Live raw lean inputs — for orientation while you lean to test sign.
+            // Live raw inputs — orientation while testing sign (all signed now).
             HStack(spacing: 10) {
                 Text(String(format: "latLean %+.3f", viewModel.rawLateralLean))
+                Text(String(format: "twist %+.3f", viewModel.rawTwist))
                 Text(String(format: "fwd %+.3f", viewModel.rawHeadForwardOffset))
             }
             .foregroundStyle(.secondary)
@@ -158,6 +167,7 @@ struct PostureVisualizationCalibrationOverlay: View {
         .onChange(of: calibration) { _, v in HeadYawTuning.oneEarCalibration = v }
         .onChange(of: sideLeanGain) { _, v in Bind.leanRadiansPerMeter = v }
         .onChange(of: fwdLeanGain)  { _, v in Bind.forwardLeanRadiansPerMeter = v }
+        .onChange(of: twistGain)    { _, v in PostureVisualizationViewModel.Mapping.twistAmplification = Double(v) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Visualization tuning")
     }

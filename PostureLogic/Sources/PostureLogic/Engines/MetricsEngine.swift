@@ -46,8 +46,10 @@ struct MetricsEngine: MetricsEngineProtocol {
         let lateralLeanSigned = sample.shoulderMidpoint.x - baseline.shoulderMidpoint.x
         let lateralLean = abs(lateralLeanSigned)
 
-        // Twist: deviation from baseline shoulder twist
-        let twist = abs(sample.shoulderTwist - baseline.shoulderTwist)
+        // Twist: deviation from baseline shoulder twist. Signed keeps left/right
+        // (for the visualization); magnitude is what scoring thresholds.
+        let twistSigned = sample.shoulderTwist - baseline.shoulderTwist
+        let twist = abs(twistSigned)
 
         // Movement level: deferred to Ticket 2.5 (requires temporal data)
         let movementLevel: Float = 0
@@ -64,7 +66,8 @@ struct MetricsEngine: MetricsEngineProtocol {
             twist: twist,
             movementLevel: movementLevel,
             headMovementPattern: headMovementPattern,
-            lateralLeanSigned: lateralLeanSigned
+            lateralLeanSigned: lateralLeanSigned,
+            twistSigned: twistSigned
         )
     }
 

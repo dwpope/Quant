@@ -125,7 +125,10 @@ final class PostureVisualizationViewModel: ObservableObject {
     /// ViewModel stay in sync and remain tunable during demo recording
     /// (design "Variable Mapping" reference table).
     enum Mapping {
-        static let twistAmplification = 1.5            // twist → shoulder disc rotation
+        /// twist → shoulder-disc rotation. Signed & tunable (a DEBUG slider flips
+        /// it past 0 to correct direction); Release uses the default.
+        static var twistAmplification: Double = twistAmplificationDefault
+        static let twistAmplificationDefault: Double = 1.5
         static let sideLeanPointsPerUnit = 100.0       // lateralLean → points
         static let headForwardPointsPerUnit = 100.0    // headForwardOffset → points
         static let forwardCreepScaleFactor = 0.5       // assemblyScale = 1 + creep × 0.5
@@ -231,7 +234,9 @@ final class PostureVisualizationViewModel: ObservableObject {
     ) {
         let m = metrics ?? .zero
 
-        let rotationTarget = Double(m.twist) * Mapping.twistAmplification
+        // Signed twist so the disc rotates the way the torso actually turned
+        // (m.twist is unsigned magnitude for scoring; the viz needs the sense).
+        let rotationTarget = Double(m.twistSigned) * Double(Mapping.twistAmplification)
         // Signed lateral lean so the figure tilts toward the actual lean side
         // (`m.lateralLean` is unsigned magnitude for scoring; the viz needs sense).
         let sideLeanTarget = Double(m.lateralLeanSigned) * Mapping.sideLeanPointsPerUnit
@@ -333,7 +338,7 @@ final class PostureVisualizationViewModel: ObservableObject {
 
         // Raw inputs mirrored for the dev HUD (unsmoothed, scene-irrelevant).
         if isTuningHUDActive {
-            rawTwist = Double(m.twist)
+            rawTwist = Double(m.twistSigned)               // signed: the viz HUD shows twist direction
             rawLateralLean = Double(m.lateralLeanSigned)   // signed: the viz HUD shows lean direction
             rawForwardCreep = Double(m.forwardCreep)
             metricsPresent = (metrics != nil)
