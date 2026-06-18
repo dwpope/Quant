@@ -140,6 +140,9 @@ struct PostureVisualizationCalibrationOverlay: View {
                     .fontWeight(.bold)
                     .foregroundStyle(viewModel.metricsPresent ? .green : .red)
                 Text(String(format: "midX %.3f", viewModel.rawShoulderMidX))
+                // Depth availability — gates forward-lean + a real axial twist.
+                Text("depth \(String(describing: appModel.depthConfidence))")
+                    .foregroundStyle(appModel.depthConfidence == .unavailable ? .red : .green)
             }
             .foregroundStyle(.secondary)
             Text("lean left/right & fwd/back; flip a sign if it reads backwards")
