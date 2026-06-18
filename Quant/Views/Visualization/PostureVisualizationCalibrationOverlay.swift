@@ -135,6 +135,20 @@ struct PostureVisualizationCalibrationOverlay: View {
             .foregroundStyle(.secondary)
             Text("lean left/right & fwd/back; flip a sign if it reads backwards")
                 .font(.caption2).foregroundStyle(.secondary)
+
+            Divider().overlay(Color.white.opacity(0.2))
+
+            // ── Channel isolation ─────────────────────────────────────
+            // Real movements cross-couple (forward → scale "zoom"; twist →
+            // forward-pitch). Solo one channel to verify its axis/direction.
+            Text("CHANNELS  tap to toggle").fontWeight(.semibold)
+            HStack(spacing: 6) {
+                chip("mirror", debugBinding(\.mirrored))
+                chip("twist",  debugBinding(\.shoulderRotation))
+                chip("side",   debugBinding(\.sideLean))
+                chip("fwd",    debugBinding(\.headForward))
+                chip("scale",  debugBinding(\.assemblyScale))
+            }
         }
         .font(.system(.caption, design: .monospaced))
         .padding(8)
@@ -146,6 +160,29 @@ struct PostureVisualizationCalibrationOverlay: View {
         .onChange(of: fwdLeanGain)  { _, v in Bind.forwardLeanRadiansPerMeter = v }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Visualization tuning")
+    }
+
+    /// Two-way binding onto a `DebugChannels` flag (a mutable static struct, so we
+    /// read/write through the key path; the scene reads `debug` every frame, so a
+    /// toggle takes effect immediately — no rebuild).
+    private func debugBinding(_ keyPath: WritableKeyPath<PostureVisualizationBinding.DebugChannels, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { PostureVisualizationBinding.debug[keyPath: keyPath] },
+            set: { PostureVisualizationBinding.debug[keyPath: keyPath] = $0 }
+        )
+    }
+
+    /// A compact tap-to-toggle channel chip — green when the channel is live.
+    @ViewBuilder
+    private func chip(_ label: String, _ on: Binding<Bool>) -> some View {
+        Button { on.wrappedValue.toggle() } label: {
+            Text(label)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(on.wrappedValue ? Color.green.opacity(0.35) : Color.white.opacity(0.12),
+                            in: Capsule())
+                .foregroundStyle(on.wrappedValue ? .green : .secondary)
+        }
+        .buttonStyle(.plain)
     }
 
     /// Short coloured label for the live calibration state.

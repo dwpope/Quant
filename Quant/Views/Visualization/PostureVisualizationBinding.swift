@@ -69,7 +69,9 @@ enum PostureVisualizationBinding {
     /// gain × `mirror()`'s `-headTranslation.x` flip) and dial intensity in one
     /// gesture. Output is clamped to ±`leanCapRadians`. Release uses the default.
     static var leanRadiansPerMeter: Float = leanRadiansPerMeterDefault
-    static let leanRadiansPerMeterDefault: Float = 30.0
+    /// 70 ⇒ a full side lean (measured latLean ≈ 0.059 on device) reads as
+    /// ≈0.059 × 0.1 × 70 ≈ 0.41 rad ≈ 24° of tilt (then capped at leanCapRadians).
+    static let leanRadiansPerMeterDefault: Float = 70.0
 
     /// Forward-lean gain: radians of forward base-pivot pitch per metre of the
     /// resolved forward offset (`headTranslation.z`). Separate knob so fore/aft
