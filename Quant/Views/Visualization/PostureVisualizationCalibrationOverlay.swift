@@ -64,8 +64,9 @@ struct PostureVisualizationCalibrationOverlay: View {
     private static let scaleRange: ClosedRange<Float> = 0.0...2.0
 
     /// Chin-down nod boost bounds (`headPitchDownBoost`): 1 = symmetric with the
-    /// base nod gain, up to 3× extra travel going down.
-    private static let nodBoostRange: ClosedRange<Float> = 1.0...3.0
+    /// base nod gain, up to 8× extra travel going down (the 2D pitch signal is
+    /// small, so the down nod needs a large multiplier to read).
+    private static let nodBoostRange: ClosedRange<Float> = 1.0...8.0
 
     /// Turn-cancels-lean aggressiveness (`cos(headYaw)^this`): 0 = off, 1 = cos,
     /// >1 = a small turn already kills the lean.

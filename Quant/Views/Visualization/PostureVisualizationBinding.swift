@@ -129,10 +129,11 @@ enum PostureVisualizationBinding {
     /// chin-down** — i.e. positive, per `PoseSample`'s "chin-down → headPitch > 0",
     /// a sign `shapeHeadTilt` preserves. 1.0 = symmetric with `headPitchGain`; >1 =
     /// the down nod travels further while chin-up/back keeps the base gain (which
-    /// reads fine at −6). Device-tuned 2026-06-19: 1.7 (≈ −6 × 1.7 ≈ −10 effective
-    /// down) because a plain −6 nodded too shallow going down but fine coming back.
+    /// reads fine at −6). Device-tuned 2026-06-19: **6.0** (≈ −6 × 6 ≈ −36 effective
+    /// down) — the 2D head-pitch signal is small, so a big multiplier is what makes
+    /// a real forward nod read clearly; chin-up stays at the base −6.
     static var headPitchDownBoost: Float = headPitchDownBoostDefault
-    static let headPitchDownBoostDefault: Float = 1.7
+    static let headPitchDownBoostDefault: Float = 6.0
 
     /// Head-roll (tilt) display gain, applied on top of `shapeHeadTilt`. As
     /// `headPitchGain`: **−3.0** device-tuned (2026-06-19) — sign reversed so the
