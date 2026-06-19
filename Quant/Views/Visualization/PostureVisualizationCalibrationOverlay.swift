@@ -124,13 +124,16 @@ struct PostureVisualizationCalibrationOverlay: View {
                                   && scaleGain == Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault)
                                   && leanTurnAtten == Bind.leanTurnAttenPowerDefault)
 
-            // Signed gains: slide past 0 to flip direction, away from 0 for intensity.
-            gainRow("side lean", value: $sideLeanGain,  range: Self.leanRange,     step: 0.5,  decimals: 1)
-            gainRow("head turn", value: $headYawGain,   range: Self.headGainRange, step: 0.05, decimals: 2)
-            gainRow("head nod",  value: $headPitchGain, range: Self.headGainRange, step: 0.05, decimals: 2)
-            gainRow("head tilt", value: $headRollGain,  range: Self.headGainRange, step: 0.05, decimals: 2)
-            gainRow("zoom",      value: $scaleGain,     range: Self.scaleRange,    step: 0.05, decimals: 2)
-            // How hard a chair-swivel (head turn) cancels the side lean.
+            // Signed gains: slide past 0 to flip direction, away from 0 for
+            // intensity. Tap a label to toggle that channel off — isolate a
+            // misbehaving gain by switching others off until the issue clears.
+            gainRow("side lean", value: $sideLeanGain,  range: Self.leanRange,     step: 0.5,  decimals: 1, enabled: debugBinding(\.sideLean))
+            gainRow("head turn", value: $headYawGain,   range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headYaw))
+            gainRow("head nod",  value: $headPitchGain, range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headPitch))
+            gainRow("head tilt", value: $headRollGain,  range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headRoll))
+            gainRow("zoom",      value: $scaleGain,     range: Self.scaleRange,    step: 0.05, decimals: 2, enabled: debugBinding(\.assemblyScale))
+            // How hard a chair-swivel (head turn) cancels the side lean (no channel
+            // toggle — set to 0 to disable).
             gainRow("turn↓lean", value: $leanTurnAtten, range: Self.attenRange,    step: 0.1,  decimals: 1)
 
             // Live raw inputs (signed) for orientation while tuning.
@@ -154,18 +157,13 @@ struct PostureVisualizationCalibrationOverlay: View {
 
             Divider().overlay(Color.white.opacity(0.2))
 
-            // ── Channel isolation ─────────────────────────────────────
-            // Solo one 2D channel (others off) to verify its direction in isolation.
-            Text("CHANNELS  tap to toggle").fontWeight(.semibold)
+            // ── Global toggles + isolation helpers ────────────────────
+            // Per-channel on/off lives on each gain label above; these are the
+            // mirror flip and quick all-on/all-off for fast soloing.
             HStack(spacing: 6) {
                 chip("mirror", debugBinding(\.mirrored))
-                chip("lean",   debugBinding(\.sideLean))
-                chip("zoom",   debugBinding(\.assemblyScale))
-            }
-            HStack(spacing: 6) {
-                chip("yaw",    debugBinding(\.headYaw))
-                chip("pitch",  debugBinding(\.headPitch))
-                chip("roll",   debugBinding(\.headRoll))
+                actionChip("all on")  { setAllChannels(true) }
+                actionChip("all off") { setAllChannels(false) }
             }
         }
         .font(.system(.caption, design: .monospaced))
@@ -207,6 +205,28 @@ struct PostureVisualizationCalibrationOverlay: View {
         .buttonStyle(.plain)
     }
 
+    /// A momentary action chip (not a toggle) — for all-on / all-off helpers.
+    @ViewBuilder
+    private func actionChip(_ label: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Color.white.opacity(0.12), in: Capsule())
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Flip every tunable 2D-posture channel on or off at once (the per-gain
+    /// toggles' bulk control), for quick soloing.
+    private func setAllChannels(_ on: Bool) {
+        PostureVisualizationBinding.debug.sideLean = on
+        PostureVisualizationBinding.debug.headYaw = on
+        PostureVisualizationBinding.debug.headPitch = on
+        PostureVisualizationBinding.debug.headRoll = on
+        PostureVisualizationBinding.debug.assemblyScale = on
+    }
+
     /// Short coloured label for the live calibration state.
     private func calibLabel(_ s: CalibrationStatus) -> (text: String, tint: Color) {
         switch s {
@@ -233,14 +253,36 @@ struct PostureVisualizationCalibrationOverlay: View {
     }
 
     /// One labelled slider + numeric value. `decimals` keeps the readout aligned.
+    /// When `enabled` is supplied the label becomes a tap-to-toggle for that
+    /// channel — green = live, dim = off — so a gain can be isolated in place
+    /// (tap others off until the wrong behaviour disappears). The row dims and the
+    /// slider is held while off, but its value is preserved for when it's back on.
     @ViewBuilder
-    private func gainRow(_ label: String, value: Binding<Float>, range: ClosedRange<Float>, step: Float, decimals: Int) -> some View {
+    private func gainRow(_ label: String,
+                         value: Binding<Float>,
+                         range: ClosedRange<Float>,
+                         step: Float,
+                         decimals: Int,
+                         enabled: Binding<Bool>? = nil) -> some View {
+        let isOn = enabled?.wrappedValue ?? true
         HStack(spacing: 8) {
-            Text(label).foregroundStyle(.secondary)
-            Slider(value: value, in: range, step: step).tint(.green)
+            if let enabled {
+                Button { enabled.wrappedValue.toggle() } label: {
+                    Text(label)
+                        .foregroundStyle(isOn ? .green : .secondary)
+                        .frame(width: 62, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text(label).foregroundStyle(.secondary).frame(width: 62, alignment: .leading)
+            }
+            Slider(value: value, in: range, step: step)
+                .tint(isOn ? .green : .gray)
+                .disabled(!isOn)
             Text(String(format: "%+.\(decimals)f", value.wrappedValue))
                 .frame(width: 46, alignment: .trailing)
         }
+        .opacity(isOn ? 1 : 0.45)
     }
 }
 
