@@ -38,6 +38,9 @@ struct PostureVisualizationCalibrationOverlay: View {
     @State private var headRollGain: Float = Bind.headRollGain
     @State private var scaleGain: Float = Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactor)
     @State private var leanTurnAtten: Float = Bind.leanTurnAttenPower
+    @State private var turnDecouple: Float = Bind.turnTiltDecouple
+    @State private var tiltFade: Float = Bind.tiltTurnFadePower
+    @State private var smoothing: Float = Bind.orientationSmoothing
 
     /// Bumped on every channel toggle / solo / all-off so the panel's label &
     /// `iso` states refresh — the underlying `debug` flags are a non-observable
@@ -71,6 +74,21 @@ struct PostureVisualizationCalibrationOverlay: View {
     /// Turn-cancels-lean aggressiveness (`cos(headYaw)^this`): 0 = off, 1 = cos,
     /// >1 = a small turn already kills the lean.
     private static let attenRange: ClosedRange<Float> = 0.0...3.0
+
+    /// Turn→nod decouple bounds (`turnTiltDecouple`): **signed** raw-pitch
+    /// correction gain. Defaulted OFF — the additive shape didn't match the device's
+    /// phantom (it bulged instead of flattening); `turn↓tilt` fade is the live knob.
+    private static let decoupleRange: ClosedRange<Float> = -2.0...2.0
+
+    /// Turn-fades-tilt exponent (`tiltTurnFadePower`, `cos(yaw)^this` on pitch/roll):
+    /// 1 = plain cos (full W, fully round circle), higher = flatter pure turn at the
+    /// cost of a slightly flatter circle. Overshoot-proof (only fades toward flat).
+    private static let tiltFadeRange: ClosedRange<Float> = 1.0...6.0
+
+    /// Orientation smoothing bounds (`orientationSmoothing`): the per-frame slerp
+    /// weight toward the live pose. 1.0 = no smoothing (snap); lower = smoother but
+    /// laggier. Floor at 0.05 so it can't stall into never reaching the target.
+    private static let smoothRange: ClosedRange<Float> = 0.05...1.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -133,6 +151,9 @@ struct PostureVisualizationCalibrationOverlay: View {
                               headRollGain = Bind.headRollGainDefault
                               scaleGain = Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault)
                               leanTurnAtten = Bind.leanTurnAttenPowerDefault
+                              turnDecouple = Bind.turnTiltDecoupleDefault
+                              tiltFade = Bind.tiltTurnFadePowerDefault
+                              smoothing = Bind.orientationSmoothingDefault
                           },
                           isDefault: sideLeanGain == Bind.leanRadiansPerMeterDefault
                                   && headYawGain == Bind.headYawGainDefault
@@ -140,7 +161,10 @@ struct PostureVisualizationCalibrationOverlay: View {
                                   && nodDownBoost == Bind.headPitchDownBoostDefault
                                   && headRollGain == Bind.headRollGainDefault
                                   && scaleGain == Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault)
-                                  && leanTurnAtten == Bind.leanTurnAttenPowerDefault)
+                                  && leanTurnAtten == Bind.leanTurnAttenPowerDefault
+                                  && turnDecouple == Bind.turnTiltDecoupleDefault
+                                  && tiltFade == Bind.tiltTurnFadePowerDefault
+                                  && smoothing == Bind.orientationSmoothingDefault)
 
             Text("2D only — torso-turn & forward-lean need LiDAR, hidden here")
                 .font(.caption2).foregroundStyle(.secondary)
@@ -159,6 +183,16 @@ struct PostureVisualizationCalibrationOverlay: View {
             // How hard a chair-swivel (head turn) cancels the side lean (no channel
             // toggle — set to 0 to disable).
             gainRow("turn↓lean", value: $leanTurnAtten, range: Self.attenRange,    step: 0.1,  decimals: 1)
+            // Fades phantom nod/tilt as the head turns — raise to flatten the "W" of
+            // a pure left↔right sweep (overshoot-proof; slightly flattens a circle).
+            gainRow("turn↓tilt", value: $tiltFade,      range: Self.tiltFadeRange, step: 0.1,  decimals: 1)
+            // Additive turn→nod decouple — defaulted OFF (the fade above is the live
+            // knob); kept for a future, shape-matched phantom model.
+            gainRow("turn→nod",  value: $turnDecouple,  range: Self.decoupleRange, step: 0.05, decimals: 2)
+            // Motion smoothing (head + torso): lower = more fluid/laggy follow,
+            // 1.0 = instant snap. Smooths the combined pose so a nod+turn eases as
+            // one arc (no channel toggle — global feel).
+            gainRow("smooth",    value: $smoothing,     range: Self.smoothRange,   step: 0.05, decimals: 2)
 
             // Live raw inputs (signed) for orientation while tuning.
             HStack(spacing: 10) {
@@ -203,6 +237,9 @@ struct PostureVisualizationCalibrationOverlay: View {
         .onChange(of: headRollGain)  { _, v in Bind.headRollGain = v }
         .onChange(of: scaleGain)     { _, v in PostureVisualizationViewModel.Mapping.forwardCreepScaleFactor = Double(v) }
         .onChange(of: leanTurnAtten) { _, v in Bind.leanTurnAttenPower = v }
+        .onChange(of: turnDecouple)  { _, v in Bind.turnTiltDecouple = v }
+        .onChange(of: tiltFade)      { _, v in Bind.tiltTurnFadePower = v }
+        .onChange(of: smoothing)     { _, v in Bind.orientationSmoothing = v }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Visualization tuning")
     }
