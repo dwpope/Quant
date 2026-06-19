@@ -99,9 +99,21 @@ enum PostureVisualizationBinding {
     /// front-camera view (mirror is also on); **magnitude < 1** tames the
     /// ViewModel's ×1.5 amplification, which otherwise pegs even a moderate head
     /// turn at the ±90° cap and reads as "all or nothing" — at 0.6 a full turn
-    /// renders ~54° and the mid-range tracks proportionally. Flip the sign if the
-    /// direction is still reversed; raise/lower the magnitude for sensitivity.
-    static let headYawGain: Float = -0.6
+    /// renders ~54° and the mid-range tracks proportionally. Signed & tunable
+    /// (DEBUG slider): flip the sign to reverse, raise/lower for sensitivity.
+    static var headYawGain: Float = headYawGainDefault
+    static let headYawGainDefault: Float = -0.6
+
+    /// Head-pitch (nod / forward-head) display gain, applied on top of
+    /// `shapeHeadTilt`. 1.0 = the shaped angle as-is; signed so a DEBUG slider can
+    /// flip nod direction or damp/boost the forward-head cue.
+    static var headPitchGain: Float = headPitchGainDefault
+    static let headPitchGainDefault: Float = 1.0
+
+    /// Head-roll (tilt) display gain, applied on top of `shapeHeadTilt`. As
+    /// `headPitchGain`, for the head's side-tilt.
+    static var headRollGain: Float = headRollGainDefault
+    static let headRollGainDefault: Float = 1.0
 
     private static let degreesToRadians = Float.pi / 180
 
@@ -429,9 +441,9 @@ enum PostureVisualizationBinding {
             // proportional turn instead of slamming to the ±90° cap.
             let renderedYaw = rawYaw * headYawGain
             head.orientation = headOrientation(SIMD3<Float>(
-                debug.headPitch ? shapeHeadTilt(t.headEulerRadians.x, yawAtten: yawAtten) : 0,
+                debug.headPitch ? shapeHeadTilt(t.headEulerRadians.x, yawAtten: yawAtten) * headPitchGain : 0,
                 renderedYaw,
-                debug.headRoll  ? shapeHeadTilt(t.headEulerRadians.z, yawAtten: yawAtten) : 0
+                debug.headRoll  ? shapeHeadTilt(t.headEulerRadians.z, yawAtten: yawAtten) * headRollGain : 0
             ))
         }
 

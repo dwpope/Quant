@@ -136,7 +136,10 @@ final class PostureVisualizationViewModel: ObservableObject {
         static let twistAmplificationDefault: Double = 1.5
         static let sideLeanPointsPerUnit = 100.0       // lateralLean → points
         static let headForwardPointsPerUnit = 100.0    // headForwardOffset → points
-        static let forwardCreepScaleFactor = 0.5       // assemblyScale = 1 + creep × 0.5
+        /// assemblyScale = 1 + creep × this. Tunable (DEBUG slider) so the
+        /// lean-in/proximity zoom can be dialled; Release uses the default.
+        static var forwardCreepScaleFactor: Double = forwardCreepScaleFactorDefault
+        static let forwardCreepScaleFactorDefault: Double = 0.5
         static let headRotationAmplification = 1.5     // yaw/pitch/roll amplify
         static let yawCapDegrees = 90.0
         static let pitchCapDegrees = 60.0

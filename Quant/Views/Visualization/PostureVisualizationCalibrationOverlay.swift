@@ -28,27 +28,31 @@ struct PostureVisualizationCalibrationOverlay: View {
     /// Sources of truth for the sliders. Each backing knob is a plain `static var`
     /// (not observable), so we drive it from `@State` and write through on change
     /// rather than binding to it directly.
+    // One @State per tunable 2D-posture knob. Depth-only channels (forward-lean,
+    // axial twist) have no sliders here — they can't be tuned without LiDAR.
     @State private var calibration: Float = HeadYawTuning.oneEarCalibration
     @State private var sideLeanGain: Float = Bind.leanRadiansPerMeter
-    @State private var fwdLeanGain: Float = Bind.forwardLeanRadiansPerMeter
-    @State private var twistGain: Float = Float(PostureVisualizationViewModel.Mapping.twistAmplification)
+    @State private var headYawGain: Float = Bind.headYawGain
+    @State private var headPitchGain: Float = Bind.headPitchGain
+    @State private var headRollGain: Float = Bind.headRollGain
+    @State private var scaleGain: Float = Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactor)
 
-    /// Head-yaw `k` bounds. Spans well below/above the device-tuned default (≈8.0)
-    /// so a flatter mapping and headroom past it are both reachable without code
-    /// edits (the first device pass railed at the old 6.0 max — keep the optimum
-    /// off the rail so it stays verifiable).
+    /// Head-yaw `k` (one-ear detection calibration) bounds — device-tuned to ≈8.0.
     private static let yawRange: ClosedRange<Float> = 1.0...12.0
 
-    /// Lean-gain bounds. **Signed**, straddling 0, so the same slider both flips
-    /// the lean direction (slide past 0) and sets its intensity. Wide because the
-    /// lean signal is a small normalized shoulder shift (~0.05–0.1) attenuated ×0.1
-    /// by the legacy points→metres chain, so visible tilt needs a large gain (the
-    /// output is capped at `leanCapRadians`, so over-driving just saturates).
+    /// Side-lean gain bounds. **Signed**, straddling 0, so the slider both flips
+    /// direction (past 0) and sets intensity. Wide because the lean signal is a
+    /// small normalized shoulder shift (~0.05–0.1) attenuated ×0.1 by the legacy
+    /// points→metres chain (output capped at `leanCapRadians`, so over-driving
+    /// just saturates).
     private static let leanRange: ClosedRange<Float> = -100.0...100.0
 
-    /// Twist-gain bounds. **Signed** so the slider flips the disc-rotation sense
-    /// (the twist signal is already an angle, so this gain stays near ±1–2).
-    private static let twistRange: ClosedRange<Float> = -4.0...4.0
+    /// Head display-gain bounds. **Signed** so each head axis can be flipped or
+    /// damped/boosted; 1.0 (yaw ≈ −0.6) is the as-shaped angle.
+    private static let headGainRange: ClosedRange<Float> = -3.0...3.0
+
+    /// Proximity (lean-in) zoom bounds — unsigned; 0 = no scale response.
+    private static let scaleRange: ClosedRange<Float> = 0.0...2.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -96,70 +100,63 @@ struct PostureVisualizationCalibrationOverlay: View {
 
             Divider().overlay(Color.white.opacity(0.2))
 
-            // ── Lean + twist ──────────────────────────────────────────
-            sectionHeader("LEAN / TWIST GAINS",
+            // ── 2D posture display gains ──────────────────────────────
+            // One slider per posture type the 2D image can infer. Depth-only
+            // channels (forward-lean, axial twist) are intentionally absent.
+            sectionHeader("2D POSTURE GAINS",
                           reset: {
                               sideLeanGain = Bind.leanRadiansPerMeterDefault
-                              fwdLeanGain = Bind.forwardLeanRadiansPerMeterDefault
-                              twistGain = Float(PostureVisualizationViewModel.Mapping.twistAmplificationDefault)
+                              headYawGain = Bind.headYawGainDefault
+                              headPitchGain = Bind.headPitchGainDefault
+                              headRollGain = Bind.headRollGainDefault
+                              scaleGain = Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault)
                           },
                           isDefault: sideLeanGain == Bind.leanRadiansPerMeterDefault
-                                  && fwdLeanGain == Bind.forwardLeanRadiansPerMeterDefault
-                                  && twistGain == Float(PostureVisualizationViewModel.Mapping.twistAmplificationDefault))
+                                  && headYawGain == Bind.headYawGainDefault
+                                  && headPitchGain == Bind.headPitchGainDefault
+                                  && headRollGain == Bind.headRollGainDefault
+                                  && scaleGain == Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault))
 
-            // Signed: slide past 0 to flip direction, away from 0 for intensity.
-            gainRow("side",  value: $sideLeanGain, range: Self.leanRange,  step: 0.25, decimals: 2)
-            gainRow("fwd",   value: $fwdLeanGain,  range: Self.leanRange,  step: 0.25, decimals: 2)
-            gainRow("twist", value: $twistGain,    range: Self.twistRange, step: 0.10, decimals: 2)
+            // Signed gains: slide past 0 to flip direction, away from 0 for intensity.
+            gainRow("side lean", value: $sideLeanGain,  range: Self.leanRange,     step: 0.5,  decimals: 1)
+            gainRow("head turn", value: $headYawGain,   range: Self.headGainRange, step: 0.05, decimals: 2)
+            gainRow("head nod",  value: $headPitchGain, range: Self.headGainRange, step: 0.05, decimals: 2)
+            gainRow("head tilt", value: $headRollGain,  range: Self.headGainRange, step: 0.05, decimals: 2)
+            gainRow("zoom",      value: $scaleGain,     range: Self.scaleRange,    step: 0.05, decimals: 2)
 
-            // Live raw inputs — orientation while testing sign (all signed now).
+            // Live raw inputs (signed) for orientation while tuning.
             HStack(spacing: 10) {
-                Text(String(format: "latLean %+.3f", viewModel.rawLateralLean))
-                Text(String(format: "twist %+.3f", viewModel.rawTwist))
-                Text(String(format: "fwd %+.3f", viewModel.rawHeadForwardOffset))
+                Text(String(format: "lean %+.3f", viewModel.rawLateralLean))
+                Text(String(format: "yaw %+.0f°", viewModel.rawHeadYaw))
+                Text(String(format: "pitch %+.0f°", viewModel.rawHeadPitch))
             }
             .foregroundStyle(.secondary)
-
-            // Diagnostic A — output side: did the ShoulderDisc entity resolve, and
-            // what angle is actually being written to it?
-            HStack(spacing: 8) {
-                Text("disc")
-                Text(Bind.debugDiscResolved ? "✓" : "✗")
-                    .fontWeight(.bold)
-                    .foregroundStyle(Bind.debugDiscResolved ? .green : .red)
-                Text(String(format: "roll %+.1f°", Bind.debugTorsoRollDegrees))
-                    .foregroundStyle(abs(Bind.debugTorsoRollDegrees) >= 2 ? .green : .secondary)
-                Text(String(format: "twist %+.1f°", Bind.debugTorsoTwistDegrees))
-                    .foregroundStyle(abs(Bind.debugTorsoTwistDegrees) >= 2 ? .green : .secondary)
-            }
-            // Diagnostic B — source side: are metrics flowing (else no baseline),
-            // and does the raw shoulder midpoint move at all when you lean?
+            // Source/depth diagnostic: metrics ✗ = no baseline; depth gates the
+            // (absent) forward-lean + real-twist channels.
             HStack(spacing: 8) {
                 Text("metrics")
                 Text(viewModel.metricsPresent ? "✓" : "✗")
                     .fontWeight(.bold)
                     .foregroundStyle(viewModel.metricsPresent ? .green : .red)
-                Text(String(format: "midX %.3f", viewModel.rawShoulderMidX))
-                // Depth availability — gates forward-lean + a real axial twist.
                 Text("depth \(String(describing: appModel.depthConfidence))")
                     .foregroundStyle(appModel.depthConfidence == .unavailable ? .red : .green)
             }
             .foregroundStyle(.secondary)
-            Text("lean left/right & fwd/back; flip a sign if it reads backwards")
-                .font(.caption2).foregroundStyle(.secondary)
 
             Divider().overlay(Color.white.opacity(0.2))
 
             // ── Channel isolation ─────────────────────────────────────
-            // Real movements cross-couple (forward → scale "zoom"; twist →
-            // forward-pitch). Solo one channel to verify its axis/direction.
+            // Solo one 2D channel (others off) to verify its direction in isolation.
             Text("CHANNELS  tap to toggle").fontWeight(.semibold)
             HStack(spacing: 6) {
                 chip("mirror", debugBinding(\.mirrored))
-                chip("twist",  debugBinding(\.shoulderRotation))
-                chip("side",   debugBinding(\.sideLean))
-                chip("fwd",    debugBinding(\.headForward))
-                chip("scale",  debugBinding(\.assemblyScale))
+                chip("lean",   debugBinding(\.sideLean))
+                chip("zoom",   debugBinding(\.assemblyScale))
+            }
+            HStack(spacing: 6) {
+                chip("yaw",    debugBinding(\.headYaw))
+                chip("pitch",  debugBinding(\.headPitch))
+                chip("roll",   debugBinding(\.headRoll))
             }
         }
         .font(.system(.caption, design: .monospaced))
@@ -167,10 +164,12 @@ struct PostureVisualizationCalibrationOverlay: View {
         .frame(maxWidth: 260)
         .background(.ultraThinMaterial)
         .cornerRadius(8)
-        .onChange(of: calibration) { _, v in HeadYawTuning.oneEarCalibration = v }
-        .onChange(of: sideLeanGain) { _, v in Bind.leanRadiansPerMeter = v }
-        .onChange(of: fwdLeanGain)  { _, v in Bind.forwardLeanRadiansPerMeter = v }
-        .onChange(of: twistGain)    { _, v in PostureVisualizationViewModel.Mapping.twistAmplification = Double(v) }
+        .onChange(of: calibration)   { _, v in HeadYawTuning.oneEarCalibration = v }
+        .onChange(of: sideLeanGain)  { _, v in Bind.leanRadiansPerMeter = v }
+        .onChange(of: headYawGain)   { _, v in Bind.headYawGain = v }
+        .onChange(of: headPitchGain) { _, v in Bind.headPitchGain = v }
+        .onChange(of: headRollGain)  { _, v in Bind.headRollGain = v }
+        .onChange(of: scaleGain)     { _, v in PostureVisualizationViewModel.Mapping.forwardCreepScaleFactor = Double(v) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Visualization tuning")
     }
