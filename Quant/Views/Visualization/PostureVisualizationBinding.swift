@@ -124,6 +124,16 @@ enum PostureVisualizationBinding {
     static var headPitchGain: Float = headPitchGainDefault
     static let headPitchGainDefault: Float = -6.0
 
+    /// Asymmetric nod. A chin-DOWN nod is the posture that matters (forward-head),
+    /// so `apply` multiplies the nod by this **only when the shaped pitch is
+    /// chin-down** — i.e. positive, per `PoseSample`'s "chin-down → headPitch > 0",
+    /// a sign `shapeHeadTilt` preserves. 1.0 = symmetric with `headPitchGain`; >1 =
+    /// the down nod travels further while chin-up/back keeps the base gain (which
+    /// reads fine at −6). Device-tuned 2026-06-19: 1.7 (≈ −6 × 1.7 ≈ −10 effective
+    /// down) because a plain −6 nodded too shallow going down but fine coming back.
+    static var headPitchDownBoost: Float = headPitchDownBoostDefault
+    static let headPitchDownBoostDefault: Float = 1.7
+
     /// Head-roll (tilt) display gain, applied on top of `shapeHeadTilt`. As
     /// `headPitchGain`: **−3.0** device-tuned (2026-06-19) — sign reversed so the
     /// head tilts toward the real side, magnitude boosted for a legible tilt.
@@ -463,8 +473,13 @@ enum PostureVisualizationBinding {
             // Flip + tame the yaw for display: front-camera direction and a
             // proportional turn instead of slamming to the ±90° cap.
             let renderedYaw = rawYaw * headYawGain
+            // Nod is asymmetric: a chin-DOWN nod (positive shaped pitch — see
+            // headPitchDownBoost) gets extra travel; chin-up/back keeps the base
+            // gain. Mirror leaves pitch unflipped, so the sign test is reliable.
+            let shapedPitch = shapeHeadTilt(t.headEulerRadians.x, yawAtten: yawAtten)
+            let pitchDownBoost: Float = shapedPitch > 0 ? headPitchDownBoost : 1
             head.orientation = headOrientation(SIMD3<Float>(
-                debug.headPitch ? shapeHeadTilt(t.headEulerRadians.x, yawAtten: yawAtten) * headPitchGain : 0,
+                debug.headPitch ? shapedPitch * headPitchGain * pitchDownBoost : 0,
                 renderedYaw,
                 debug.headRoll  ? shapeHeadTilt(t.headEulerRadians.z, yawAtten: yawAtten) * headRollGain : 0
             ))

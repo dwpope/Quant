@@ -34,6 +34,7 @@ struct PostureVisualizationCalibrationOverlay: View {
     @State private var sideLeanGain: Float = Bind.leanRadiansPerMeter
     @State private var headYawGain: Float = Bind.headYawGain
     @State private var headPitchGain: Float = Bind.headPitchGain
+    @State private var nodDownBoost: Float = Bind.headPitchDownBoost
     @State private var headRollGain: Float = Bind.headRollGain
     @State private var scaleGain: Float = Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactor)
     @State private var leanTurnAtten: Float = Bind.leanTurnAttenPower
@@ -61,6 +62,10 @@ struct PostureVisualizationCalibrationOverlay: View {
 
     /// Proximity (lean-in) zoom bounds — unsigned; 0 = no scale response.
     private static let scaleRange: ClosedRange<Float> = 0.0...2.0
+
+    /// Chin-down nod boost bounds (`headPitchDownBoost`): 1 = symmetric with the
+    /// base nod gain, up to 3× extra travel going down.
+    private static let nodBoostRange: ClosedRange<Float> = 1.0...3.0
 
     /// Turn-cancels-lean aggressiveness (`cos(headYaw)^this`): 0 = off, 1 = cos,
     /// >1 = a small turn already kills the lean.
@@ -123,6 +128,7 @@ struct PostureVisualizationCalibrationOverlay: View {
                               sideLeanGain = Bind.leanRadiansPerMeterDefault
                               headYawGain = Bind.headYawGainDefault
                               headPitchGain = Bind.headPitchGainDefault
+                              nodDownBoost = Bind.headPitchDownBoostDefault
                               headRollGain = Bind.headRollGainDefault
                               scaleGain = Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault)
                               leanTurnAtten = Bind.leanTurnAttenPowerDefault
@@ -130,6 +136,7 @@ struct PostureVisualizationCalibrationOverlay: View {
                           isDefault: sideLeanGain == Bind.leanRadiansPerMeterDefault
                                   && headYawGain == Bind.headYawGainDefault
                                   && headPitchGain == Bind.headPitchGainDefault
+                                  && nodDownBoost == Bind.headPitchDownBoostDefault
                                   && headRollGain == Bind.headRollGainDefault
                                   && scaleGain == Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault)
                                   && leanTurnAtten == Bind.leanTurnAttenPowerDefault)
@@ -143,6 +150,9 @@ struct PostureVisualizationCalibrationOverlay: View {
             gainRow("side lean", value: $sideLeanGain,  range: Self.leanRange,     step: 0.5,  decimals: 1, enabled: debugBinding(\.sideLean),     solo: { soloChannel(\.sideLean) })
             gainRow("head turn", value: $headYawGain,   range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headYaw),      solo: { soloChannel(\.headYaw) })
             gainRow("head nod",  value: $headPitchGain, range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headPitch),    solo: { soloChannel(\.headPitch) })
+            // Extra down-travel for the nod (chin-down only); no toggle — it's a
+            // refinement of the head-nod channel above, gated by the same flag.
+            gainRow("nod ↓",     value: $nodDownBoost,  range: Self.nodBoostRange,  step: 0.1,  decimals: 1)
             gainRow("head tilt", value: $headRollGain,  range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headRoll),     solo: { soloChannel(\.headRoll) })
             gainRow("zoom",      value: $scaleGain,     range: Self.scaleRange,    step: 0.05, decimals: 2, enabled: debugBinding(\.assemblyScale), solo: { soloChannel(\.assemblyScale) })
             // How hard a chair-swivel (head turn) cancels the side lean (no channel
@@ -188,6 +198,7 @@ struct PostureVisualizationCalibrationOverlay: View {
         .onChange(of: sideLeanGain)  { _, v in Bind.leanRadiansPerMeter = v }
         .onChange(of: headYawGain)   { _, v in Bind.headYawGain = v }
         .onChange(of: headPitchGain) { _, v in Bind.headPitchGain = v }
+        .onChange(of: nodDownBoost)  { _, v in Bind.headPitchDownBoost = v }
         .onChange(of: headRollGain)  { _, v in Bind.headRollGain = v }
         .onChange(of: scaleGain)     { _, v in PostureVisualizationViewModel.Mapping.forwardCreepScaleFactor = Double(v) }
         .onChange(of: leanTurnAtten) { _, v in Bind.leanTurnAttenPower = v }
