@@ -54,8 +54,10 @@ struct PostureVisualizationCalibrationOverlay: View {
     private static let leanRange: ClosedRange<Float> = -100.0...100.0
 
     /// Head display-gain bounds. **Signed** so each head axis can be flipped or
-    /// damped/boosted; 1.0 (yaw ≈ −0.6) is the as-shaped angle.
-    private static let headGainRange: ClosedRange<Float> = -3.0...3.0
+    /// damped/boosted. ±6 (widened 2026-06-19): head nod needed −6 for a legible
+    /// nod once the ×0.6 shaping + deadzone are accounted for; turn (−0.6) and
+    /// tilt (−3) sit well inside.
+    private static let headGainRange: ClosedRange<Float> = -6.0...6.0
 
     /// Proximity (lean-in) zoom bounds — unsigned; 0 = no scale response.
     private static let scaleRange: ClosedRange<Float> = 0.0...2.0

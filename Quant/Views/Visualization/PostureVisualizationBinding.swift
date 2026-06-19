@@ -117,11 +117,12 @@ enum PostureVisualizationBinding {
 
     /// Head-pitch (nod / forward-head) display gain, applied on top of
     /// `shapeHeadTilt`. Signed so the sign flips nod direction and the magnitude
-    /// damps/boosts it. **−3.0** device-tuned (2026-06-19): the raw pitch read
-    /// the wrong way (chin-down rendered as chin-up), so the sign is negative, and
-    /// the shaped angle (×0.6 + deadzone) needed boosting to a visible nod.
+    /// damps/boosts it. **−6.0** device-tuned (2026-06-19): the raw pitch read
+    /// the wrong way (chin-down rendered as chin-up), so the sign is negative; at
+    /// −3 the nod was still shallow (shaped angle is pre-scaled ×0.6 with a 6°
+    /// deadzone), so it was opened to −6 for a legible nod.
     static var headPitchGain: Float = headPitchGainDefault
-    static let headPitchGainDefault: Float = -3.0
+    static let headPitchGainDefault: Float = -6.0
 
     /// Head-roll (tilt) display gain, applied on top of `shapeHeadTilt`. As
     /// `headPitchGain`: **−3.0** device-tuned (2026-06-19) — sign reversed so the
