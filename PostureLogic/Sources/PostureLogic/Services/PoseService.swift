@@ -57,10 +57,16 @@ final class PoseService: PoseServiceProtocol {
         }
 
         let request = VNDetectHumanBodyPoseRequest()
+        // Joint face-model fit for decoupled head yaw/pitch/roll. Runs on the SAME
+        // handler/buffer as the body pose (one perform, one ML pass scheduling) and
+        // is purely additive — its results only populate the optional face fields and
+        // never affect body keypoints, so a face failure degrades to the legacy path.
+        let faceRequest = VNDetectFaceRectanglesRequest()
+        faceRequest.revision = VNDetectFaceRectanglesRequestRevision3  // rev-3 supplies pitch (yaw/roll since rev-1/2)
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
 
         do {
-            try handler.perform([request])
+            try handler.perform([request, faceRequest])
             guard let observation = request.results?.first else {
                 noPoseDetectedCount += 1
                 lastKeypointCount = 0
@@ -72,10 +78,15 @@ final class PoseService: PoseServiceProtocol {
             lastKeypointCount = keypoints.count
             lastConfidence = observation.confidence
 
+            let faceAngles = extractFaceAngles(from: faceRequest.results)
+
             return .observation(PoseObservation(
                 timestamp: frame.timestamp,
                 keypoints: keypoints,
-                confidence: observation.confidence
+                confidence: observation.confidence,
+                faceYaw: faceAngles.yaw,
+                facePitch: faceAngles.pitch,
+                faceRoll: faceAngles.roll
             ))
         } catch {
             visionErrorCount += 1
@@ -133,5 +144,35 @@ final class PoseService: PoseServiceProtocol {
         }
 
         return keypoints
+    }
+
+    /// Minimum `VNFaceObservation.confidence` to trust a face's pose angles. Below
+    /// this we drop to the legacy body-pose head estimate rather than feed a shaky
+    /// fit into the figure.
+    private static let minFaceConfidence: Float = 0.3
+
+    /// Picks the most prominent confident face and converts its Vision-native
+    /// yaw/pitch/roll (radians, `NSNumber?`) into the pipeline's degree convention.
+    /// Returns all-nil when no usable face was fit, so `computeHeadAngles` falls back
+    /// per-axis. Largest bounding box = the subject closest to camera (the user),
+    /// not a face in the background.
+    private func extractFaceAngles(
+        from results: [VNFaceObservation]?
+    ) -> (yaw: Float?, pitch: Float?, roll: Float?) {
+        guard let face = results?
+            .filter({ $0.confidence >= Self.minFaceConfidence })
+            .max(by: { lhs, rhs in
+                lhs.boundingBox.width * lhs.boundingBox.height
+                    < rhs.boundingBox.width * rhs.boundingBox.height
+            })
+        else {
+            return (nil, nil, nil)
+        }
+
+        return FaceAngleConversion.degrees(
+            yawRadians: face.yaw?.floatValue,
+            pitchRadians: face.pitch?.floatValue,
+            rollRadians: face.roll?.floatValue
+        )
     }
 }

@@ -446,11 +446,27 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
     /// degrades gracefully (neutral 0) when the required keypoints are absent —
     /// mirroring `resolveHeadPosition`'s tolerance.
     ///
+    /// Head orientation in the `PoseSample` degree convention.
+    ///
+    /// The legacy estimate computes pitch/yaw/roll as three INDEPENDENT 2D formulas
+    /// off the same nose/eye/ear keypoints, each assuming the other two axes are zero
+    /// — so a turn foreshortens the ear line and tips the projected nose, leaking a
+    /// phantom nod/tilt (the "W"). When `FaceAngleTuning.useFaceAngles` is on and
+    /// Vision supplied a *jointly-fit* angle for an axis, that axis is taken from the
+    /// face fit instead (decoupled by construction), with a transparent per-axis
+    /// fallback to the legacy value wherever Vision didn't fit (e.g. a strong turn
+    /// that hides the face still tracks via the body-pose one-ear path).
     func computeHeadAngles(from pose: PoseObservation) -> HeadAngles {
-        HeadAngles(
+        let legacy = HeadAngles(
             pitch: computeHeadPitch(from: pose),
             yaw: computeHeadYaw(from: pose),
             roll: computeHeadRoll(from: pose)
+        )
+        guard FaceAngleTuning.useFaceAngles else { return legacy }
+        return HeadAngles(
+            pitch: pose.facePitch ?? legacy.pitch,
+            yaw: pose.faceYaw ?? legacy.yaw,
+            roll: pose.faceRoll ?? legacy.roll
         )
     }
 
