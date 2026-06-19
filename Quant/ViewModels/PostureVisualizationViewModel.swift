@@ -69,6 +69,11 @@ final class PostureVisualizationViewModel: ObservableObject {
     @Published private(set) var opacity: Double = 1                    // ← trackingQuality
     @Published private(set) var stateColor: Color = .gray             // ← postureState
     @Published private(set) var isCalibrating: Bool = false           // ← postureState
+    /// Whether the current sample was depth-fused. Gates the figure's
+    /// depth-dependent channels (forward-lean pitch, axial twist): off in 2D so
+    /// they don't misbehave on signals that need the third dimension, on with
+    /// LiDAR. Scoring is unaffected (it's all 2D).
+    @Published private(set) var depthActive: Bool = false             // ← PoseSample.depthMode
 
     // MARK: Raw upstream inputs (unsmoothed; dev tuning HUD only)
     //
@@ -335,6 +340,7 @@ final class PostureVisualizationViewModel: ObservableObject {
         // Discrete signals — no smoothing (an interpolated colour/flag is wrong).
         stateColor = Self.color(for: state)
         isCalibrating = (state == .calibrating)
+        depthActive = (pose?.depthMode == .depthFusion)
 
         // Raw inputs mirrored for the dev HUD (unsmoothed, scene-irrelevant).
         if isTuningHUDActive {

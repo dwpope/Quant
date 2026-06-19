@@ -383,10 +383,16 @@ enum PostureVisualizationBinding {
         #endif
         if let torso = cache.disc {
             torso.isEnabled = !debug.hideShoulderDisc
-            let twist = debug.shoulderRotation ? t.discYawRadians : 0
+            // Depth-gated channels: axial twist and forward-lean both need the
+            // third dimension (twist = shoulder *tilt* in 2D, not rotation; forward
+            // = depth-only headForwardOffset). Off in 2D so the figure doesn't
+            // misbehave on signals it can't see; they light up automatically under
+            // LiDAR. Side lean stays unconditional — it's a true 2D signal.
+            let depthOK = viewModel.depthActive
+            let twist = (debug.shoulderRotation && depthOK) ? t.discYawRadians : 0
             let cap = leanCapRadians
-            let roll  = debug.sideLean    ? max(-cap, min(cap, t.headTranslation.x * leanRadiansPerMeter)) : 0
-            let pitch = debug.headForward ? max(-cap, min(cap, t.headTranslation.z * forwardLeanRadiansPerMeter)) : 0
+            let roll  = debug.sideLean ? max(-cap, min(cap, t.headTranslation.x * leanRadiansPerMeter)) : 0
+            let pitch = (debug.headForward && depthOK) ? max(-cap, min(cap, t.headTranslation.z * forwardLeanRadiansPerMeter)) : 0
             #if DEBUG
             debugTorsoTwistDegrees = twist * 180 / .pi
             debugTorsoRollDegrees = roll * 180 / .pi
