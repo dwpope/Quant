@@ -124,14 +124,16 @@ enum PostureVisualizationBinding {
     static var headPitchGain: Float = headPitchGainDefault
     static let headPitchGainDefault: Float = -6.0
 
-    /// Asymmetric nod. A chin-DOWN nod is the posture that matters (forward-head),
-    /// so `apply` multiplies the nod by this **only when the shaped pitch is
-    /// chin-down** — i.e. positive, per `PoseSample`'s "chin-down → headPitch > 0",
-    /// a sign `shapeHeadTilt` preserves. 1.0 = symmetric with `headPitchGain`; >1 =
-    /// the down nod travels further while chin-up/back keeps the base gain (which
-    /// reads fine at −6). Device-tuned 2026-06-19: **6.0** (≈ −6 × 6 ≈ −36 effective
-    /// down) — the 2D head-pitch signal is small, so a big multiplier is what makes
-    /// a real forward nod read clearly; chin-up stays at the base −6.
+    /// Asymmetric nod. A chin-DOWN (forward) nod is the posture that matters
+    /// (forward-head), so `apply` multiplies the nod by this **only on the forward
+    /// branch** — empirically the *negative* shaped-pitch sign here (the raw
+    /// `PoseSample` "chin-down → headPitch > 0" is inverted by the VM's rest-relative
+    /// subtraction and the negative base gain, so boosting the positive branch
+    /// amplified the backward nod by mistake). 1.0 = symmetric with `headPitchGain`;
+    /// >1 = the forward nod travels further while chin-up/back keeps the base gain
+    /// (which reads fine at −6). Device-tuned 2026-06-19: **6.0** (≈ −6 × 6 ≈ −36
+    /// effective forward) — the 2D head-pitch signal is small, so a big multiplier
+    /// is what makes a real forward nod read clearly; chin-up stays at the base −6.
     static var headPitchDownBoost: Float = headPitchDownBoostDefault
     static let headPitchDownBoostDefault: Float = 6.0
 
@@ -474,11 +476,13 @@ enum PostureVisualizationBinding {
             // Flip + tame the yaw for display: front-camera direction and a
             // proportional turn instead of slamming to the ±90° cap.
             let renderedYaw = rawYaw * headYawGain
-            // Nod is asymmetric: a chin-DOWN nod (positive shaped pitch — see
-            // headPitchDownBoost) gets extra travel; chin-up/back keeps the base
-            // gain. Mirror leaves pitch unflipped, so the sign test is reliable.
+            // Nod is asymmetric: the forward (chin-DOWN) nod gets extra travel;
+            // chin-up/back keeps the base gain. Empirically the forward nod renders
+            // on the NEGATIVE shaped-pitch branch here (the VM's rest-relative
+            // subtraction + the negative base gain invert the raw PoseSample sign),
+            // so boost when shapedPitch < 0. Mirror leaves pitch unflipped.
             let shapedPitch = shapeHeadTilt(t.headEulerRadians.x, yawAtten: yawAtten)
-            let pitchDownBoost: Float = shapedPitch > 0 ? headPitchDownBoost : 1
+            let pitchDownBoost: Float = shapedPitch < 0 ? headPitchDownBoost : 1
             head.orientation = headOrientation(SIMD3<Float>(
                 debug.headPitch ? shapedPitch * headPitchGain * pitchDownBoost : 0,
                 renderedYaw,
