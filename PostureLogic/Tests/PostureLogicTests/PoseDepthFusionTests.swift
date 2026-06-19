@@ -326,6 +326,64 @@ final class PoseDepthFusionTests: XCTestCase {
         XCTAssertEqual(fusion.computeHeadAngles(from: pose).yaw, 0, accuracy: 0.001)
     }
 
+    // MARK: - Head Yaw (one-ear proportional regime, scaled off the eyes)
+
+    // When one ear occludes (strong turn) but the eyes are still visible, yaw is
+    // a *proportional* estimate — θ = atan(k · noseOffset/eyeSeparation) — rather
+    // than the flat ±oneEarMissingYawDegrees fallback. It must (a) keep the locked
+    // sign (missing right → +, missing left → −), (b) stay strictly monotonic in
+    // the turn (more nose offset ⇒ more yaw, no snap), and (c) stay bounded < 90°.
+
+    /// Builds a one-ear-occluded pose with the eyes visible. `noseOffset` is the
+    /// nose's image-x displacement from the eye midpoint (0.5); larger ⇒ more turn.
+    private func oneEarPose(missingRightEar: Bool, noseOffset: CGFloat) -> PoseObservation {
+        let visibleEar: Keypoint = missingRightEar
+            ? makeKeypoint(.leftEar,  x: 0.45, y: 0.70)
+            : makeKeypoint(.rightEar, x: 0.55, y: 0.70)
+        // Sign of the nose displacement follows the missing side (toward the turn).
+        let noseX = 0.5 + (missingRightEar ? noseOffset : -noseOffset)
+        return makePose(keypoints: [
+            visibleEar,
+            makeKeypoint(.leftEye,  x: 0.45, y: 0.72),
+            makeKeypoint(.rightEye, x: 0.55, y: 0.72),
+            makeKeypoint(.nose,     x: noseX, y: 0.65),
+        ])
+    }
+
+    func test_headYaw_oneEar_proportionalAndMonotonicWithEyes() {
+        let fusion = PoseDepthFusion()
+        // Right ear missing, eyes visible, increasing nose offset ⇒ bigger turn.
+        let small = fusion.computeHeadAngles(from: oneEarPose(missingRightEar: true, noseOffset: 0.05)).yaw
+        let mid   = fusion.computeHeadAngles(from: oneEarPose(missingRightEar: true, noseOffset: 0.20)).yaw
+        let large = fusion.computeHeadAngles(from: oneEarPose(missingRightEar: true, noseOffset: 0.40)).yaw
+
+        // Locked sign + proportional (not pinned to the flat 60° fallback).
+        XCTAssertGreaterThan(small, 0)
+        XCTAssertLessThan(small, mid)       // strictly monotonic — the anti-snap property
+        XCTAssertLessThan(mid, large)
+        XCTAssertLessThan(large, 90)        // bounded by the atan ceiling
+        XCTAssertNotEqual(mid, 60, accuracy: 0.001)  // genuinely proportional, not the constant
+    }
+
+    func test_headYaw_oneEar_signFollowsMissingSideWithEyes() {
+        let fusion = PoseDepthFusion()
+        let rightMissing = fusion.computeHeadAngles(from: oneEarPose(missingRightEar: true,  noseOffset: 0.25)).yaw
+        let leftMissing  = fusion.computeHeadAngles(from: oneEarPose(missingRightEar: false, noseOffset: 0.25)).yaw
+        XCTAssertGreaterThan(rightMissing, 0)               // missing right ear → positive
+        XCTAssertLessThan(leftMissing, 0)                   // missing left ear  → negative
+        XCTAssertEqual(rightMissing, -leftMissing, accuracy: 0.001)  // symmetric magnitude
+    }
+
+    func test_headYaw_oneEar_fallsBackToConstantWhenEyesMissing() {
+        let fusion = PoseDepthFusion()
+        // No eyes to scale the turn → flat fallback (still strong, still signed).
+        let pose = makePose(keypoints: [
+            makeKeypoint(.leftEar, x: 0.45, y: 0.70),
+            makeKeypoint(.nose,    x: 0.50, y: 0.65),
+        ])
+        XCTAssertEqual(fusion.computeHeadAngles(from: pose).yaw, 60, accuracy: 0.001)
+    }
+
     // MARK: - Head Pitch (2D: nose vertical offset vs eye/ear line, normalized)
 
     // Coarse 2D proxy — refined by LiDAR depth in a later sub-stage. Sign locked:

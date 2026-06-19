@@ -80,13 +80,22 @@ final class PostureVisualizationBindingTests: XCTestCase {
         XCTAssertEqual(q.angle, 0, accuracy: 1e-6)
     }
 
-    func test_headOrientation_pureYaw90_rotatesForwardToRight() {
-        // +90° about Y maps local +Z (the "nose" axis) to +X.
+    func test_headOrientation_pureYaw90_turnsAboutVerticalZ() {
+        // The loaded USDZ figure's local frame is Blender Z-up (the Y-up
+        // conversion sits on the /root prim), so yaw is about +Z (up) and the
+        // front/nose axis is +Y. A +90° yaw must leave the up axis (+Z) fixed
+        // and swing the front (+Y) to -X — a turn, not a tilt. (Yawing about +Y,
+        // the old Y-up assumption, tilted the head down — the shipped bug this
+        // axis convention fixes.)
         let q = Binding.headOrientation(SIMD3<Float>(0, .pi / 2, 0))
-        let rotated = q.act(SIMD3<Float>(0, 0, 1))
-        XCTAssertEqual(rotated.x, 1, accuracy: 1e-5)
-        XCTAssertEqual(rotated.y, 0, accuracy: 1e-5)
-        XCTAssertEqual(rotated.z, 0, accuracy: 1e-5)
+        let up = q.act(SIMD3<Float>(0, 0, 1))
+        XCTAssertEqual(up.x, 0, accuracy: 1e-5)
+        XCTAssertEqual(up.y, 0, accuracy: 1e-5)
+        XCTAssertEqual(up.z, 1, accuracy: 1e-5)
+        let front = q.act(SIMD3<Float>(0, 1, 0))
+        XCTAssertEqual(front.x, -1, accuracy: 1e-5)
+        XCTAssertEqual(front.y, 0, accuracy: 1e-5)
+        XCTAssertEqual(front.z, 0, accuracy: 1e-5)
     }
 
     // MARK: - End-to-end: RawMetrics/PoseSample → ViewModel → resolved transforms

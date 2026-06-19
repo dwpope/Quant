@@ -69,6 +69,11 @@ final class PostureVisualizationViewModel: ObservableObject {
     @Published private(set) var opacity: Double = 1                    // ← trackingQuality
     @Published private(set) var stateColor: Color = .gray             // ← postureState
     @Published private(set) var isCalibrating: Bool = false           // ← postureState
+    /// Whether the current sample was depth-fused. Gates the figure's
+    /// depth-dependent channels (forward-lean pitch, axial twist): off in 2D so
+    /// they don't misbehave on signals that need the third dimension, on with
+    /// LiDAR. Scoring is unaffected (it's all 2D).
+    @Published private(set) var depthActive: Bool = false             // ← PoseSample.depthMode
 
     // MARK: Raw upstream inputs (unsmoothed; dev tuning HUD only)
     //
@@ -92,6 +97,13 @@ final class PostureVisualizationViewModel: ObservableObject {
     @Published private(set) var rawHeadForwardOffset: Double = 0      // PoseSample.headForwardOffset
     @Published private(set) var rawShoulderTwist: Double = 0          // PoseSample.shoulderTwist
 
+    /// Lean diagnostics: is the pipeline delivering metrics at all (nil ⇒ no
+    /// baseline ⇒ every baseline-relative channel is 0), and the raw shoulder
+    /// midpoint image-x that `lateralLeanSigned` is the baseline-delta of — so we
+    /// can see whether the *source* moves when you lean.
+    @Published private(set) var metricsPresent: Bool = false         // metrics != nil
+    @Published private(set) var rawShoulderMidX: Double = 0          // PoseSample.shoulderMidpoint.x
+
     /// Real head angles straight off `PoseSample` (degrees, pre-amplify/clamp) —
     /// the raw side of the dev HUD's raw↔mapped head rows (Step 5).
     @Published private(set) var rawHeadYaw: Double = 0                // PoseSample.headYaw
@@ -108,14 +120,26 @@ final class PostureVisualizationViewModel: ObservableObject {
     /// Low-pass smoothing factor (design starting value). Tune by eye later.
     static let smoothingAlpha: Double = 0.2
 
+    /// Faster smoothing for the lean channels. Lean already passes through the
+    /// pipeline's `MetricsSmoother` upstream, so a second α=0.2 stage here stacks
+    /// into a sluggish ~1.5–2 s settle; a higher α keeps lean responsive to a real
+    /// torso movement while the upstream stage still removes per-frame jitter.
+    static let leanSmoothingAlpha: Double = 0.5
+
     /// All scaling/clamping constants in one place so the renderer and the
     /// ViewModel stay in sync and remain tunable during demo recording
     /// (design "Variable Mapping" reference table).
     enum Mapping {
-        static let twistAmplification = 1.5            // twist → shoulder disc rotation
+        /// twist → shoulder-disc rotation. Signed & tunable (a DEBUG slider flips
+        /// it past 0 to correct direction); Release uses the default.
+        static var twistAmplification: Double = twistAmplificationDefault
+        static let twistAmplificationDefault: Double = 1.5
         static let sideLeanPointsPerUnit = 100.0       // lateralLean → points
         static let headForwardPointsPerUnit = 100.0    // headForwardOffset → points
-        static let forwardCreepScaleFactor = 0.5       // assemblyScale = 1 + creep × 0.5
+        /// assemblyScale = 1 + creep × this. Tunable (DEBUG slider) so the
+        /// lean-in/proximity zoom can be dialled; Release uses the default.
+        static var forwardCreepScaleFactor: Double = forwardCreepScaleFactorDefault
+        static let forwardCreepScaleFactorDefault: Double = 0.5
         static let headRotationAmplification = 1.5     // yaw/pitch/roll amplify
         static let yawCapDegrees = 90.0
         static let pitchCapDegrees = 60.0
@@ -135,8 +159,8 @@ final class PostureVisualizationViewModel: ObservableObject {
     // MARK: Smoothing channels (one filter per continuous output)
 
     private var rotationFilter = LowPassFilter(alpha: smoothingAlpha)
-    private var sideLeanFilter = LowPassFilter(alpha: smoothingAlpha)
-    private var forwardFilter = LowPassFilter(alpha: smoothingAlpha)
+    private var sideLeanFilter = LowPassFilter(alpha: leanSmoothingAlpha)
+    private var forwardFilter = LowPassFilter(alpha: leanSmoothingAlpha)
     private var scaleFilter = LowPassFilter(alpha: smoothingAlpha)
     private var yawFilter = LowPassFilter(alpha: smoothingAlpha)
     private var pitchFilter = LowPassFilter(alpha: smoothingAlpha)
@@ -218,8 +242,12 @@ final class PostureVisualizationViewModel: ObservableObject {
     ) {
         let m = metrics ?? .zero
 
-        let rotationTarget = Double(m.twist) * Mapping.twistAmplification
-        let sideLeanTarget = Double(m.lateralLean) * Mapping.sideLeanPointsPerUnit
+        // Signed twist so the disc rotates the way the torso actually turned
+        // (m.twist is unsigned magnitude for scoring; the viz needs the sense).
+        let rotationTarget = Double(m.twistSigned) * Double(Mapping.twistAmplification)
+        // Signed lateral lean so the figure tilts toward the actual lean side
+        // (`m.lateralLean` is unsigned magnitude for scoring; the viz needs sense).
+        let sideLeanTarget = Double(m.lateralLeanSigned) * Mapping.sideLeanPointsPerUnit
         let scaleTarget = 1.0 + Double(m.forwardCreep) * Mapping.forwardCreepScaleFactor
 
         let forwardTarget: Double
@@ -315,12 +343,15 @@ final class PostureVisualizationViewModel: ObservableObject {
         // Discrete signals — no smoothing (an interpolated colour/flag is wrong).
         stateColor = Self.color(for: state)
         isCalibrating = (state == .calibrating)
+        depthActive = (pose?.depthMode == .depthFusion)
 
         // Raw inputs mirrored for the dev HUD (unsmoothed, scene-irrelevant).
         if isTuningHUDActive {
-            rawTwist = Double(m.twist)
-            rawLateralLean = Double(m.lateralLean)
+            rawTwist = Double(m.twistSigned)               // signed: the viz HUD shows twist direction
+            rawLateralLean = Double(m.lateralLeanSigned)   // signed: the viz HUD shows lean direction
             rawForwardCreep = Double(m.forwardCreep)
+            metricsPresent = (metrics != nil)
+            rawShoulderMidX = pose.map { Double($0.shoulderMidpoint.x) } ?? 0
             rawHeadForwardOffset = pose.map { Double($0.headForwardOffset) } ?? 0
             rawShoulderTwist = pose.map { Double($0.shoulderTwist) } ?? 0
             rawHeadYaw = pose.map { Double($0.headYaw) } ?? 0

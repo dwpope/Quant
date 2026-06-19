@@ -49,6 +49,169 @@ enum PostureVisualizationBinding {
     /// value — tune by eye during demo recording (design "Variable Mapping").
     static let metersPerPoint: Float = 0.001
 
+    /// Torso-lean gain: radians of base-pivot tilt per metre of the resolved
+    /// lean offset. With the loaded figure, "side lean" is no longer a head
+    /// translation — it rocks the torso about its ground-contact origin (which
+    /// carries the parented head). `resolve` still emits the offset in metres
+    /// resolved lean offset.
+    ///
+    /// NOTE the scale: `headTranslation.x = lateralLeanSigned × sideLeanPointsPerUnit
+    /// (100) × metersPerPoint (0.001)`, so this gain multiplies a value ≈
+    /// `lateralLeanSigned × 0.1`. A real torso lean shifts the shoulder midpoint
+    /// only ~0.05–0.10 of frame width, so the default is deliberately large to make
+    /// that small normalized signal a visible tilt (the old 2.0 assumed a
+    /// near-full-frame "unit lean" that never happens). The points→metres chain is
+    /// now vestigial (the head no longer translates); a future cleanup can fold it
+    /// into a single degrees-per-unit gain.
+    ///
+    /// **Signed & tunable.** A `#if DEBUG` slider overrides it live on device so
+    /// we can confirm direction (slide past 0 to flip the lean sign — net sign is
+    /// gain × `mirror()`'s `-headTranslation.x` flip) and dial intensity in one
+    /// gesture. Output is clamped to ±`leanCapRadians`. Release uses the default.
+    static var leanRadiansPerMeter: Float = leanRadiansPerMeterDefault
+    /// 20 ⇒ device-tuned by eye (2026-06-19): 70 over-tilted, 20 reads as a
+    /// natural lean. With the legacy ×0.1 chain a hard lean (latLean up to ~0.2)
+    /// renders ≈0.2 × 0.1 × 20 = 0.4 rad ≈ 23° (then capped at leanCapRadians).
+    static let leanRadiansPerMeterDefault: Float = 20.0
+
+    /// Forward-lean gain: radians of forward base-pivot pitch per metre of the
+    /// resolved forward offset (`headTranslation.z`). Separate knob so fore/aft
+    /// reads can differ from side lean. Signed & tunable like `leanRadiansPerMeter`
+    /// (not flipped by `mirror()` — fore/aft has no left/right sense).
+    static var forwardLeanRadiansPerMeter: Float = forwardLeanRadiansPerMeterDefault
+    static let forwardLeanRadiansPerMeterDefault: Float = 30.0
+
+    /// Clamp on the lean tilt (radians) so a high gain can't rotate the figure
+    /// past a believable lean (≈40°). Applied to both side roll and forward pitch.
+    static let leanCapRadians: Float = 0.7
+
+    /// How aggressively a head turn cancels side lean — disambiguating a true
+    /// lateral lean (you stay facing the camera) from a chair swivel (your face
+    /// turns, shifting the shoulder midpoint the same way). The lean roll is scaled
+    /// by `cos(headYaw) ^ this`:
+    ///   0 → off (no cancellation); 1 → plain `cos`; >1 → sharper (a small turn
+    ///   already kills the lean). At a 90° turn the lean is fully cancelled for any
+    ///   value > 0. Tunable via a DEBUG slider.
+    static var leanTurnAttenPower: Float = leanTurnAttenPowerDefault
+    static let leanTurnAttenPowerDefault: Float = 1.0
+
+    /// Head pitch/roll come from noisy, yaw-cross-coupled 2D pose estimation, so
+    /// the figure should *turn* (yaw) crisply and only nod/tilt on a clear,
+    /// deliberate movement. `headTiltDeadzoneRadians` drops jitter below the
+    /// threshold; `headTiltScale` gentles the remainder. Both compose with the
+    /// cos(yaw) fade in `apply` that removes the turn-induced phantom tilt. Yaw
+    /// itself is left at full strength — it's the reliable signal. (A residual
+    /// forward tilt while facing forward is a *calibration* baseline, not this
+    /// path: recapture neutral during calibration to clear it.)
+    ///
+    /// **Reduced 6°→2° on 2026-06-19** for a rounder head-circle: yaw has no
+    /// deadzone, so a 6° pitch/roll deadzone made a small circle start as a flat
+    /// horizontal line that popped vertical only past 6° (an oval, not a circle).
+    /// The temporal `orientationSmoothing` slerp now absorbs the per-frame jitter
+    /// the wide deadzone used to mask, so it can be tightened for symmetric onset.
+    static let headTiltDeadzoneRadians: Float = 2 * .pi / 180
+    static let headTiltScale: Float = 0.6
+
+    /// Head-yaw display gain. **Negative flips** the turn direction to match the
+    /// front-camera view (mirror is also on); **magnitude < 1** tames the
+    /// ViewModel's ×1.5 amplification, which otherwise pegs even a moderate head
+    /// turn at the ±90° cap and reads as "all or nothing" — at 0.6 a full turn
+    /// renders ~54° and the mid-range tracks proportionally. Signed & tunable
+    /// (DEBUG slider): flip the sign to reverse, raise/lower for sensitivity.
+    static var headYawGain: Float = headYawGainDefault
+    static let headYawGainDefault: Float = -0.6
+
+    /// Head-pitch (nod / forward-head) display gain, applied on top of
+    /// `shapeHeadTilt`. Signed so the sign flips nod direction and the magnitude
+    /// damps/boosts it. **−6.0** device-tuned (2026-06-19): the raw pitch read
+    /// the wrong way (chin-down rendered as chin-up), so the sign is negative; at
+    /// −3 the nod was still shallow (shaped angle is pre-scaled ×0.6 with a 6°
+    /// deadzone), so it was opened to −6 for a legible nod.
+    static var headPitchGain: Float = headPitchGainDefault
+    static let headPitchGainDefault: Float = -6.0
+
+    /// Asymmetric nod. A chin-DOWN (forward) nod is the posture that matters
+    /// (forward-head), so `apply` multiplies the nod by this **only on the forward
+    /// branch** — empirically the *negative* shaped-pitch sign here (the raw
+    /// `PoseSample` "chin-down → headPitch > 0" is inverted by the VM's rest-relative
+    /// subtraction and the negative base gain, so boosting the positive branch
+    /// amplified the backward nod by mistake). 1.0 = symmetric with `headPitchGain`;
+    /// >1 = the forward nod travels further while chin-up/back keeps the base gain.
+    ///
+    /// **Default reverted to 1.0 (symmetric) on 2026-06-19** at the user's request
+    /// for a geometrically round head-circle: an axis-asymmetric gain *cannot*
+    /// produce a round circle (the chin-down half stretches ~boost× past the
+    /// chin-up half), so a round trajectory and an emphasised forward nod are
+    /// mutually exclusive from one static gain. The earlier device-tuned 6.0
+    /// (≈ −36 effective forward) is still reachable on the `nod ↓` slider for
+    /// anyone who'd rather have the forward-head emphasis than the round circle.
+    static var headPitchDownBoost: Float = headPitchDownBoostDefault
+    static let headPitchDownBoostDefault: Float = 1.0
+
+    /// Head-roll (tilt) display gain, applied on top of `shapeHeadTilt`. As
+    /// `headPitchGain`: **−3.0** device-tuned (2026-06-19) — sign reversed so the
+    /// head tilts toward the real side, magnitude boosted for a legible tilt.
+    static var headRollGain: Float = headRollGainDefault
+    static let headRollGainDefault: Float = -3.0
+
+    /// Turn→nod decoupling — kills the "W" a pure left↔right head sweep traces.
+    /// 2D pose cross-couples a pure TURN into a phantom NOD (a pure left/right turn
+    /// reads as ~−20° pitch). The `cos(yaw)` tilt-fade only fully cancels that at
+    /// the turn *extremes*, so the residual peaks at MID-turn and a left↔right sweep
+    /// dips at mid-left and mid-right — a W instead of a flat line. This subtracts an
+    /// estimate of the phantom: a turn-correlated pitch bias (`∝ sin|yaw|`, even in
+    /// turn direction) is added to the *raw* pitch **before** `shapeHeadTilt`, so the
+    /// correction rides the very same deadzone/scale/fade pipeline as the phantom it
+    /// cancels. Crucially this is *additive* and keyed only off yaw — unlike
+    /// strengthening the fade it does **not** scale down a real, deliberate nod, so a
+    /// head-circle stays round while a pure turn flattens.
+    ///
+    /// **Signed** (the cross-coupling sign is empirical): dial on device until a pure
+    /// left↔right sweep is flat; flip the sign if the W gets *deeper*. 0 = off (raw
+    /// phantom shows through). Units: radians of correction at a full (90°) turn.
+    ///
+    /// **Defaulted OFF (0) on 2026-06-19**: on device this *additive* correction
+    /// couldn't flatten the W — its fixed `sin|yaw|` shape didn't match the device's
+    /// phantom, so raising it bulged the mid-turn instead of cancelling (an additive
+    /// term adds signal blind to what's there, so it overshoots). The robust knob is
+    /// the multiplicative `tiltTurnFadePower` below, which can only scale the phantom
+    /// toward zero and can't overshoot. Left here (off) in case a future, better
+    /// phantom model wants a feed-forward term.
+    static var turnTiltDecouple: Float = turnTiltDecoupleDefault
+    static let turnTiltDecoupleDefault: Float = 0.0
+
+    /// Exponent on the `cos(yaw)` tilt-fade (the `yawAtten` in `apply`). Pitch & roll
+    /// are multiplied by `cos(yaw)^this`, so a head TURN fades the (unreliable, often
+    /// phantom) nod/tilt: at 1.0 it's plain `cos`; **>1 fades harder**, killing the
+    /// phantom-nod "W" of a pure left↔right sweep. Multiplicative, so it can only
+    /// drive the phantom *toward* flat — it can't overshoot into a bulge the way the
+    /// additive `turnTiltDecouple` did.
+    ///
+    /// The honest trade: it also fades a *real* nod while the head is turned, so a
+    /// deliberate head-circle flattens slightly at its left/right extents. 1.0 keeps
+    /// the circle fully round (but shows the full W); higher trades roundness for a
+    /// flatter turn. **2.0** device-default 2026-06-19 as a middle ground — raise
+    /// toward ~4 for a flatter sweep, drop to 1.0 for a perfectly round circle.
+    static var tiltTurnFadePower: Float = tiltTurnFadePowerDefault
+    static let tiltTurnFadePowerDefault: Float = 2.0
+
+    /// Temporal smoothing for the head & torso orientation. Each frame the freshly
+    /// resolved pose is only a *target*; the rendered orientation `simd_slerp`s a
+    /// fraction of the way toward it, so noisy per-frame pose samples read as one
+    /// fluid arc instead of a jittery snap. Crucially this smooths the **combined**
+    /// quaternion, so a blended nod-and-turn (a head "circle") eases along the
+    /// shortest arc on the rotation manifold and actually traces a curve, rather
+    /// than each axis jerking independently.
+    ///
+    /// This is the per-frame blend weight toward the target: **1.0 = no smoothing**
+    /// (snap straight to the live pose, the old behaviour); smaller = smoother but
+    /// laggier. At 0.25 the rig follows with a ~60 ms time-constant at 60 fps.
+    /// Frame-rate dependent (no `dt` is threaded through `apply`), but the
+    /// `TimelineView` cadence is steady enough that a fixed weight reads cleanly.
+    /// Tunable live via a DEBUG slider.
+    static var orientationSmoothing: Float = orientationSmoothingDefault
+    static let orientationSmoothingDefault: Float = 0.25
+
     private static let degreesToRadians = Float.pi / 180
 
     // MARK: - Pure mapping (RealityKit-free; unit-tested)
@@ -157,10 +320,31 @@ enum PostureVisualizationBinding {
     /// first, pitch tucks the chin, roll tilts last — the natural read for a
     /// head, and the VM already caps each axis so no gimbal extreme is hit.
     static func headOrientation(_ euler: SIMD3<Float>) -> simd_quatf {
-        let yaw = simd_quatf(angle: euler.y, axis: SIMD3<Float>(0, 1, 0))
+        // AXES NOTE — the loaded figure's local frame is Blender **Z-up**: the
+        // USDZ's Y-up conversion sits on the `/root` prim, so every entity below
+        // it (torso, head) keeps a Z-up local frame (head's local "up toward the
+        // crown" is +Z, its front is +Y). So the head's anatomical axes are:
+        //   yaw (turn)  → up        = +Z
+        //   pitch (nod) → left-right = +X
+        //   roll (tilt) → front      = +Y
+        // NOT the Y-up RealityKit default. Yawing about +Y (the old assumption)
+        // rotated the head about a near-horizontal world axis — i.e. it *tilted*
+        // the head down instead of turning it (the reported bug).
+        let yaw = simd_quatf(angle: euler.y, axis: SIMD3<Float>(0, 0, 1))
         let pitch = simd_quatf(angle: euler.x, axis: SIMD3<Float>(1, 0, 0))
-        let roll = simd_quatf(angle: euler.z, axis: SIMD3<Float>(0, 0, 1))
+        let roll = simd_quatf(angle: euler.z, axis: SIMD3<Float>(0, 1, 0))
         return yaw * pitch * roll
+    }
+
+    /// Shapes a noisy head pitch/roll angle (radians) for display: a deadzone
+    /// drops jitter below ``headTiltDeadzoneRadians``, ``headTiltScale`` gentles
+    /// the remainder, and `yawAtten` (cos of the current yaw) fades it out as the
+    /// head turns — where 2D pose estimation can't be trusted for tilt. Pure, so
+    /// it could be unit-tested, but it's tuning so it lives with `apply`'s knobs.
+    static func shapeHeadTilt(_ angle: Float, yawAtten: Float) -> Float {
+        let beyond = max(abs(angle) - headTiltDeadzoneRadians, 0)
+        let signed: Float = angle < 0 ? -beyond : beyond
+        return signed * headTiltScale * yawAtten
     }
 
     // MARK: - DEBUG: per-channel isolation (tuning only)
@@ -183,11 +367,17 @@ enum PostureVisualizationBinding {
         /// Independent of `shoulderRotation`; use this to clear the disc out of
         /// frame so only the head is visible.
         var hideShoulderDisc = false
-        /// Skip adding the calibration-baseline ghost (faint disc + head) so it
-        /// doesn't sit behind an isolated head. Unlike the other hides this is
-        /// enforced in the scene `make` (the ghost is a separate root the
-        /// binding never looks up), so it only takes effect on scene rebuild.
-        var hideGhost = false
+        /// Skip adding the calibration-baseline ghost (faint rest-pose clone) so
+        /// it doesn't sit in front of / behind the live figure. Unlike the other
+        /// hides this is enforced in the scene `make` (the ghost is a separate
+        /// root the binding never looks up), so it only takes effect on scene
+        /// rebuild — dismiss and reopen the visualization to apply.
+        ///
+        /// Default **on** as a product decision (2026-06-14): with the stylized
+        /// USDZ figure the baseline clone obstructs the read more than it helps, so
+        /// the shipped visualization omits it. Flip to `false` only to bring the
+        /// calibration baseline back for debugging.
+        var hideGhost = true
         /// Disable the head's tone-divide band — the placeholder cylinder that
         /// z-fights the sphere (scene DEC-002). With it off, yaw reads cleanly
         /// off the bare sphere + nose tick, no striping.
@@ -223,6 +413,17 @@ enum PostureVisualizationBinding {
     /// to its default before shipping** (all `true`, `hideShoulderDisc` false).
     static var debug = DebugChannels()
 
+    #if DEBUG
+    /// Live torso telemetry for the tuning HUD — diagnostic only. Tells us, on
+    /// device, whether the `ShoulderDisc` entity actually resolved and the angles
+    /// (degrees) `apply` last wrote to it, so "the figure won't lean" can be
+    /// pinned to entity-missing vs. zero-signal vs. wrong-axis without guessing.
+    static var debugDiscResolved = false
+    static var debugTorsoRollDegrees: Float = 0
+    static var debugTorsoPitchDegrees: Float = 0
+    static var debugTorsoTwistDegrees: Float = 0
+    #endif
+
     // MARK: - Per-assembly runtime cache (entity lookups + last-applied tint)
 
     /// Runtime-only component stored on the assembly root. Caches the named
@@ -237,6 +438,22 @@ enum PostureVisualizationBinding {
         var head: Entity?
         var band: Entity?
         var lastTint: UIColor?
+        /// Previous frame's *rendered* (post-smoothing) orientations, so the next
+        /// frame can `simd_slerp` from where the rig actually is toward the new
+        /// target — the state that turns a per-frame snap into a fluid follow.
+        /// `nil` until the first frame writes them (then smoothing engages).
+        var smoothedHead: simd_quatf?
+        var smoothedTorso: simd_quatf?
+    }
+
+    /// Exponential per-frame slerp toward `target`. A `nil` previous (first frame,
+    /// or a freshly-built cache) snaps straight to the target so the rig doesn't
+    /// visibly swing in from identity on appear. `orientationSmoothing >= 1`
+    /// disables smoothing entirely (returns the target unchanged), so the slider's
+    /// top end reproduces the old direct-write behaviour exactly.
+    private static func smoothed(_ previous: simd_quatf?, toward target: simd_quatf) -> simd_quatf {
+        guard let previous, orientationSmoothing < 1 else { return target }
+        return simd_slerp(previous, target, orientationSmoothing)
     }
 
     /// One-time component registration, folded into a `static let` so the
@@ -278,29 +495,103 @@ enum PostureVisualizationBinding {
         assembly.scale = SIMD3<Float>(repeating: debug.assemblyScale ? t.assemblyScale : 1)
         assembly.components.set(OpacityComponent(opacity: debug.opacity ? t.opacity : 1))
 
-        // Shoulder disc rotates about Y with twist; the tick is its child, so
-        // one rotation carries the direction marker too. `hideShoulderDisc`
-        // disables the whole disc subtree so the head can be built in isolation.
-        if let disc = cache.disc {
-            disc.isEnabled = !debug.hideShoulderDisc
-            let discYaw = debug.shoulderRotation ? t.discYawRadians : 0
-            disc.orientation = simd_quatf(angle: discYaw, axis: SIMD3<Float>(0, 1, 0))
+        // Torso (named `ShoulderDisc`): twist about Y *and* lean about the
+        // ground contact. The figure's torso origin is authored at the base, so
+        // roll/pitch here rock the whole upper body about that contact point —
+        // and because the head is parented to the torso, torso motion carries
+        // the head (the propagation the rig is designed for). "Side lean" and
+        // "forward" are reinterpreted from the resolved translation into lean
+        // angles (see `leanRadiansPerMeter`). `hideShoulderDisc` disables the
+        // whole subtree so the head can be isolated while tuning.
+        #if DEBUG
+        debugDiscResolved = cache.disc != nil
+        #endif
+        if let torso = cache.disc {
+            torso.isEnabled = !debug.hideShoulderDisc
+            // Depth-gated channels: axial twist and forward-lean both need the
+            // third dimension (twist = shoulder *tilt* in 2D, not rotation; forward
+            // = depth-only headForwardOffset). Off in 2D so the figure doesn't
+            // misbehave on signals it can't see; they light up automatically under
+            // LiDAR. Side lean stays unconditional — it's a true 2D signal.
+            let depthOK = viewModel.depthActive
+            let twist = (debug.shoulderRotation && depthOK) ? t.discYawRadians : 0
+            let cap = leanCapRadians
+            // Side lean, faded out as the head turns away: a chair swivel shifts the
+            // shoulder midpoint just like a lean does, but it also turns the face
+            // (head yaw), so cos(headYaw) tells the two apart — facing the camera
+            // (yaw≈0) keeps the lean, turning away cancels it. `t.headEulerRadians.y`
+            // is the display yaw (≤ ±90° via yawCapDegrees); cos symmetric, so the
+            // mirror flip doesn't matter.
+            let yawCos = cos(min(abs(t.headEulerRadians.y), .pi / 2))   // 1 facing → 0 turned
+            let leanAtten = powf(yawCos, leanTurnAttenPower)
+            let roll  = (debug.sideLean ? max(-cap, min(cap, t.headTranslation.x * leanRadiansPerMeter)) : 0) * leanAtten
+            let pitch = (debug.headForward && depthOK) ? max(-cap, min(cap, t.headTranslation.z * forwardLeanRadiansPerMeter)) : 0
+            #if DEBUG
+            debugTorsoTwistDegrees = twist * 180 / .pi
+            debugTorsoRollDegrees = roll * 180 / .pi
+            debugTorsoPitchDegrees = pitch * 180 / .pi
+            #endif
+            // Z-up local frame (see headOrientation's AXES NOTE): twist about
+            // up (+Z), forward-lean pitch about left-right (+X), side-lean roll
+            // about front (+Y).
+            let yawQ   = simd_quatf(angle: twist, axis: SIMD3<Float>(0, 0, 1))
+            let pitchQ = simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
+            let rollQ  = simd_quatf(angle: roll,  axis: SIMD3<Float>(0, 1, 0))
+            let torsoTarget = yawQ * pitchQ * rollQ
+            let torsoSmoothed = smoothed(cache.smoothedTorso, toward: torsoTarget)
+            cache.smoothedTorso = torsoSmoothed
+            torso.orientation = torsoSmoothed
         }
 
-        // Head: side-lean / forward translation (rest Y always preserved) +
-        // combined yaw/pitch/roll. Each axis is independently gated so a single
-        // variable can be isolated while the rest stay frozen at rest pose.
+        // Head: look (yaw/pitch/roll) about its authored neck origin. Position
+        // is left exactly as the USDZ authored it (the neck atop the torso) —
+        // unlike the old primitive scaffold we no longer translate the head;
+        // lean is the torso's job above. This composes *on top of* the torso's
+        // orientation because the head is parented to it, so head-look reads as
+        // relative to the torso. Each axis stays independently gated for tuning.
         if let head = cache.head {
-            head.position = SIMD3<Float>(
-                debug.sideLean ? t.headTranslation.x : 0,
-                t.headTranslation.y,
-                debug.headForward ? t.headTranslation.z : 0
-            )
-            head.orientation = headOrientation(SIMD3<Float>(
-                debug.headPitch ? t.headEulerRadians.x : 0,
-                debug.headYaw   ? t.headEulerRadians.y : 0,
-                debug.headRoll  ? t.headEulerRadians.z : 0
+            // Head look — yaw-dominant. Yaw is the reliable signal and drives the
+            // head at full strength. Pitch/roll are noisy and yaw-cross-coupled
+            // (a pure left/right turn reads as ~−20° pitch + ~−15° roll), and
+            // since the neck pivot sits below the head's centre that phantom tilt
+            // swings the head *down*. So pitch/roll are shaped (deadzone + gentle
+            // scale + cos(yaw) fade — see `shapeHeadTilt`) so the head turns
+            // crisply and only nods/tilts on a clear, deliberate movement.
+            let rawYaw = debug.headYaw ? t.headEulerRadians.y : 0
+            // Damp pitch/roll by the *actual* turn amount (pre-gain), so the
+            // cross-coupling fade tracks how far the head really turned. The
+            // `tiltTurnFadePower` exponent sets how hard a turn fades the (phantom)
+            // nod/tilt — >1 flattens the pure-turn "W"; monotone, can't overshoot.
+            let yawAtten = powf(cos(min(abs(rawYaw), .pi / 2)), tiltTurnFadePower)
+            // Flip + tame the yaw for display: front-camera direction and a
+            // proportional turn instead of slamming to the ±90° cap.
+            let renderedYaw = rawYaw * headYawGain
+            // Cancel the yaw→pitch cross-coupling that makes a pure left↔right sweep
+            // trace a "W": add a turn-correlated bias to the raw pitch *before*
+            // shaping, so it rides the same deadzone/scale/fade as the phantom it
+            // cancels. sin(turn) is 0 facing forward (nothing to cancel) and grows
+            // with the turn; abs() makes it even so left and right correct alike.
+            // Additive + yaw-keyed, so a real nod is untouched (see turnTiltDecouple).
+            let turnMag = min(abs(rawYaw), .pi / 2)
+            let decoupledPitch = t.headEulerRadians.x + turnTiltDecouple * sin(turnMag)
+            // Nod is asymmetric: the forward (chin-DOWN) nod gets extra travel;
+            // chin-up/back keeps the base gain. Empirically the forward nod renders
+            // on the NEGATIVE shaped-pitch branch here (the VM's rest-relative
+            // subtraction + the negative base gain invert the raw PoseSample sign),
+            // so boost when shapedPitch < 0. Mirror leaves pitch unflipped.
+            let shapedPitch = shapeHeadTilt(decoupledPitch, yawAtten: yawAtten)
+            let pitchDownBoost: Float = shapedPitch < 0 ? headPitchDownBoost : 1
+            let headTarget = headOrientation(SIMD3<Float>(
+                debug.headPitch ? shapedPitch * headPitchGain * pitchDownBoost : 0,
+                renderedYaw,
+                debug.headRoll  ? shapeHeadTilt(t.headEulerRadians.z, yawAtten: yawAtten) * headRollGain : 0
             ))
+            // Slerp from the previous rendered pose toward this target so a
+            // combined nod+turn eases as one arc — the fluid follow that a
+            // per-axis snap can't give (see `orientationSmoothing`).
+            let headSmoothed = smoothed(cache.smoothedHead, toward: headTarget)
+            cache.smoothedHead = headSmoothed
+            head.orientation = headSmoothed
         }
 
         // Tone-divide band is a placeholder that z-fights the sphere (scene
@@ -329,11 +620,17 @@ enum PostureVisualizationBinding {
         retint(cache.head, to: tint)
     }
 
-    /// Replaces a model entity's fill with a flat, lighting-independent tint
-    /// (`UnlitMaterial` — matches the design's "no photorealistic materials").
+    /// Recursively replaces every mesh's fill with a flat, lighting-independent
+    /// tint (`UnlitMaterial` — matches the design's "no photorealistic
+    /// materials"). Must recurse: in the loaded USDZ the `ModelComponent` lives
+    /// on child mesh prims under the named `ShoulderDisc` / `Head` Xforms, so a
+    /// single top-level `as? ModelEntity` cast would tint nothing.
     @MainActor
     private static func retint(_ entity: Entity?, to color: UIColor) {
-        guard let model = entity as? ModelEntity else { return }
-        model.model?.materials = [UnlitMaterial(color: color)]
+        guard let entity else { return }
+        if let model = entity as? ModelEntity, model.model != nil {
+            model.model?.materials = [UnlitMaterial(color: color)]
+        }
+        for child in entity.children { retint(child, to: color) }
     }
 }

@@ -39,7 +39,20 @@ enum PostureVisualizationScene {
         /// Head centre height above the disc's top face. The binding sets the
         /// head's X (side lean) and Z (forward) each frame but must preserve
         /// this resting Y.
+        ///
+        /// Used by the *procedural fallback* scaffold and the `resolve` mapping
+        /// (unit-tested). The loaded USDZ figure authors its own head placement
+        /// (neck origin), so the live binding no longer writes head position.
         static let headCenterY: Float = 0.15
+
+        /// Uniform scale applied to the loaded USDZ figure. The Blender model is
+        /// authored at human scale (~3.73 m tall); the camera was tuned for the
+        /// old ~0.2 m primitive scaffold, so the figure is normalised down to
+        /// fit. Lives on a *dedicated layer* under the assembly root — the
+        /// binding overwrites the root's `scale` every frame for forward-creep,
+        /// so normalisation must sit below it to survive. Single knob for the
+        /// figure's on-screen size; tune by eye.
+        static let figureScale: Float = 0.08
     }
 
     // MARK: - Tunable scene constants (mirrored/extended by Step 4 mapping)
@@ -50,10 +63,12 @@ enum PostureVisualizationScene {
         static let headRadius: Float = 0.06
         static let bandRadius: Float = 0.064
         static let bandHeight: Float = 0.012
-        /// Camera elevation measured from the horizontal plane. ~80° keeps the
-        /// view nearly top-down while still revealing the head's tone divide.
-        static let cameraElevationDegrees: Float = 80
-        static let cameraDistance: Float = 0.85
+        /// Camera elevation measured from the horizontal plane. A low angle
+        /// gives a near eye-level *front* view of the standing figure (the old
+        /// ~80° near-top-down value suited the flat shoulder-disc scaffold, not
+        /// an upright 3D figure). Tune by eye alongside ``Layout/figureScale``.
+        static let cameraElevationDegrees: Float = 15
+        static let cameraDistance: Float = 0.70
     }
 
     // MARK: - Materials
@@ -132,6 +147,59 @@ enum PostureVisualizationScene {
         return assembly
     }
 
+    // MARK: - USDZ figure loader
+
+    /// Loads the stylized Blender figure (`quant_person.usdz`) and wraps it in a
+    /// container named ``EntityName/assembly`` for the binding to drive.
+    ///
+    /// Layering (top → bottom), each layer owned by a distinct concern:
+    /// * **container** (`PostureAssembly`) — the binding sets its `scale`
+    ///   (forward-creep) and `OpacityComponent` every frame.
+    /// * **figure** (the loaded USD root) — holds the constant
+    ///   ``Layout/figureScale`` normalisation, *below* the binding's per-frame
+    ///   root scale so it is never clobbered.
+    /// * `ShoulderDisc` (torso, origin at ground contact) → `Head` (origin at
+    ///   neck) — the named entities the binding rotates.
+    ///
+    /// Falls back to the procedural ``makeAssembly()`` scaffold if the asset is
+    /// missing or fails to decode, so the view always shows *something*. Stays a
+    /// static func on the value-type namespace — no class, no isolated `deinit`
+    /// (the SIGABRT hazard this whole file is shaped around).
+    @MainActor
+    static func loadAssembly() async -> Entity {
+        let container = Entity()
+        container.name = EntityName.assembly
+
+        guard let url = Bundle.main.url(forResource: "quant_person", withExtension: "usdz"),
+              let figure = try? await Entity(contentsOf: url) else {
+            return makeAssembly()   // graceful fallback to the primitive scaffold
+        }
+
+        figure.scale = SIMD3<Float>(repeating: Layout.figureScale)
+        // Flat, lighting-independent look (the asset ships no light), matching
+        // the design's "no photorealistic materials" anti-goal and guaranteeing
+        // the figure is visible regardless of scene lighting.
+        applyUnlit(to: figure, white: 0.85)
+        // The Blender root was renamed "PostureAssembly" too; rename the loaded
+        // copy so it can't collide with the container on `findEntity` /
+        // `first(where:)` lookups.
+        figure.findEntity(named: EntityName.assembly)?.name = "FigureRoot"
+        container.addChild(figure)
+        return container
+    }
+
+    /// Recursively replaces every mesh's materials with a flat ``UnlitMaterial``.
+    /// USD meshes sit on child prims *under* the named Xforms (`ShoulderDisc` /
+    /// `Head`), so a top-level `as? ModelEntity` would miss them — this walks the
+    /// whole subtree.
+    @MainActor
+    private static func applyUnlit(to entity: Entity, white: CGFloat) {
+        if let model = entity as? ModelEntity, model.model != nil {
+            model.model?.materials = [unlit(white: white)]
+        }
+        for child in entity.children { applyUnlit(to: child, white: white) }
+    }
+
     // MARK: - Ghost (calibrated-baseline silhouette)
 
     /// A faint, static duplicate of the disc + head at the *calibrated rest
@@ -141,24 +209,19 @@ enum PostureVisualizationScene {
     /// is never moved, scaled, or retinted: it stays put as the reference the
     /// live posture is judged against. Opacity is set on the root so it
     /// propagates to both children.
+    /// Clones the live assembly at its *rest pose* (creation time, before any
+    /// binding tick) into a faint, static baseline. The clone keeps the loaded
+    /// figure's geometry and unlit materials but is added as its own scene root
+    /// renamed ``EntityName/ghost`` — the binding only ever resolves entities
+    /// under ``EntityName/assembly``, so the ghost is never moved, scaled, or
+    /// retinted: it stays put as the reference the live posture is judged
+    /// against. Renaming the clone's root is essential — an un-renamed clone
+    /// would also answer to `PostureAssembly` and the view's `first(where:)`
+    /// could bind the *ghost* instead of the live figure.
     @MainActor
-    static func makeGhost() -> Entity {
-        let ghost = Entity()
+    static func makeGhost(from assembly: Entity) -> Entity {
+        let ghost = assembly.clone(recursive: true)
         ghost.name = EntityName.ghost
-
-        let disc = ModelEntity(
-            mesh: .generateCylinder(height: Metric.discHeight, radius: Metric.discRadius),
-            materials: [unlit(white: 0.5)]
-        )
-        ghost.addChild(disc)
-
-        let head = ModelEntity(
-            mesh: .generateSphere(radius: Metric.headRadius),
-            materials: [unlit(white: 0.5)]
-        )
-        head.position = SIMD3(0, Layout.headCenterY, 0)
-        ghost.addChild(head)
-
         // Faint so it reads as "where calibrated posture sits" behind the
         // fully-opaque live assembly, not as a competing solid object.
         ghost.components.set(OpacityComponent(opacity: 0.15))

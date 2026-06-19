@@ -194,6 +194,21 @@ final class MetricsEngineTests: XCTestCase {
                        "Lateral lean should be symmetric")
     }
 
+    func test_lateralLeanSigned_carriesDirection() {
+        var engine = MetricsEngine()
+        let baseline = makeBaseline(shoulderMidpoint: SIMD3(0, 0, 0))
+
+        let left = engine.compute(from: makeSample(shoulderMidpoint: SIMD3(-0.1, 0, 0)), baseline: baseline)
+        let right = engine.compute(from: makeSample(shoulderMidpoint: SIMD3(0.1, 0, 0)), baseline: baseline)
+
+        // Signed keeps left/right sense (image-x: right of baseline → positive)…
+        XCTAssertLessThan(left.lateralLeanSigned, 0)
+        XCTAssertGreaterThan(right.lateralLeanSigned, 0)
+        XCTAssertEqual(left.lateralLeanSigned, -right.lateralLeanSigned, accuracy: 0.001)
+        // …while its magnitude still matches the unsigned scoring metric.
+        XCTAssertEqual(abs(right.lateralLeanSigned), right.lateralLean, accuracy: 0.001)
+    }
+
     // MARK: - Twist
 
     func test_twist_positive() {
@@ -212,6 +227,20 @@ final class MetricsEngineTests: XCTestCase {
         let metrics = engine.compute(from: sample, baseline: baseline)
 
         XCTAssertEqual(metrics.twist, 10, accuracy: 0.001, "Twist should be absolute value")
+    }
+
+    func test_twistSigned_carriesDirection() {
+        var engine = MetricsEngine()
+        let baseline = makeBaseline(shoulderTwist: 0)
+
+        let pos = engine.compute(from: makeSample(shoulderTwist: 10), baseline: baseline)
+        let neg = engine.compute(from: makeSample(shoulderTwist: -10), baseline: baseline)
+
+        // Signed keeps the turn direction the unsigned scoring metric discards…
+        XCTAssertEqual(pos.twistSigned, 10, accuracy: 0.001)
+        XCTAssertEqual(neg.twistSigned, -10, accuracy: 0.001)
+        // …while its magnitude still matches the unsigned metric.
+        XCTAssertEqual(abs(neg.twistSigned), neg.twist, accuracy: 0.001)
     }
 
     func test_twist_baselineSubtracted() {

@@ -210,30 +210,39 @@ public class Pipeline {
             return
         }
 
-        // Compute FPS
+        // Compute FPS. Cheap (timestamp bookkeeping) and must run on every
+        // ARFrame so the readout reflects true input throughput, not the
+        // throttled pose cadence — so it stays above the gate.
         let currentFPS = computeFPS(timestamp: frame.timestamp)
 
-        // Compute depth confidence
+        // Throttle async Task creation to ~10 FPS to prevent ARFrame retention.
+        // CVPixelBuffers in InputFrame keep ARFrames alive until the Task completes;
+        // spawning at 60fps causes 10+ ARFrames to pile up in flight.
+        //
+        // Everything below the gate runs at the pose cadence (~10 FPS) instead of
+        // the 60 FPS frame rate. This is the thermal hot-path fix: depth-confidence
+        // reads a 400-point grid out of the depth pixel buffer (~24k reads/sec at
+        // 60fps vs ~4k at 10fps), and the per-frame @MainActor hop was invalidating
+        // every SwiftUI observer of fps/depthConfidence/currentMode 60×/sec.
+        guard frame.timestamp - lastPoseFrameTime >= poseFrameInterval else {
+            return
+        }
+        lastPoseFrameTime = frame.timestamp
+
+        // Compute depth confidence (heavy: 400-point depth-buffer grid read).
         let confidence = depthService.computeConfidence(from: frame)
 
-        // Update mode based on depth confidence
+        // Update mode based on depth confidence. Time-based decision, so the
+        // slower cadence does not affect its hysteresis.
         let mode = modeSwitcher.update(confidence: confidence, timestamp: frame.timestamp)
 
-        // Update published properties on main thread
+        // Update published properties on main thread (now at ~10 FPS).
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             self.fps = currentFPS
             self.depthConfidence = confidence
             self.currentMode = mode
         }
-
-        // Throttle async Task creation to ~10 FPS to prevent ARFrame retention.
-        // CVPixelBuffers in InputFrame keep ARFrames alive until the Task completes;
-        // spawning at 60fps causes 10+ ARFrames to pile up in flight.
-        guard frame.timestamp - lastPoseFrameTime >= poseFrameInterval else {
-            return
-        }
-        lastPoseFrameTime = frame.timestamp
 
         // Extract frame data to avoid retaining the entire InputFrame
         let hasPixelBuffer = frame.pixelBuffer != nil

@@ -36,6 +36,10 @@ struct PostureVisualizationView: View {
     /// Dev-notes panel (changelog + open actions) visibility — Debug only,
     /// stripped from Release so it never ships.
     @State private var showNotes = false
+
+    /// Head-yaw calibration slider visibility — Debug only. Lets us tune
+    /// `HeadYawTuning.oneEarCalibration` on device against known turn angles.
+    @State private var showCalibration = false
     #endif
 
     /// Calibration-pulse period (seconds) — a slow, organic "breathing" beat.
@@ -45,10 +49,16 @@ struct PostureVisualizationView: View {
         TimelineView(.animation) { timeline in
             let pulse = Self.pulse(at: timeline.date)
             RealityView { content in
+                // Async: the figure is loaded from `quant_person.usdz` (falls
+                // back to the procedural scaffold on failure). The ghost is a
+                // rest-pose clone of the live assembly, so it must be built
+                // *after* loading and added first stays the live one for the
+                // update lookup (the clone is renamed to PostureGhost).
+                let assembly = await PostureVisualizationScene.loadAssembly()
+                content.add(assembly)
                 if !PostureVisualizationBinding.debug.hideGhost {
-                    content.add(PostureVisualizationScene.makeGhost())
+                    content.add(PostureVisualizationScene.makeGhost(from: assembly))
                 }
-                content.add(PostureVisualizationScene.makeAssembly())
                 content.add(PostureVisualizationScene.makeCamera())
             } update: { content in
                 guard let assembly = content.entities.first(where: {
@@ -78,7 +88,7 @@ struct PostureVisualizationView: View {
                 }
                 Button {
                     withAnimation(.easeInOut(duration: 0.15)) { showValues.toggle() }
-                    viewModel.isTuningHUDActive = showValues
+                    refreshTuningHUDActive()
                 } label: {
                     Image(systemName: showValues ? "gauge.with.dots.needle.bottom.50percent" : "gauge.with.dots.needle.0percent")
                         .font(.title2)
@@ -108,10 +118,40 @@ struct PostureVisualizationView: View {
                 }
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            VStack(alignment: .trailing, spacing: 10) {
+                if showCalibration {
+                    PostureVisualizationCalibrationOverlay(viewModel: viewModel, appModel: appModel)
+                        .transition(.opacity)
+                }
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { showCalibration.toggle() }
+                    refreshTuningHUDActive()
+                } label: {
+                    Image(systemName: showCalibration ? "slider.horizontal.3" : "slider.horizontal.below.rectangle")
+                        .font(.title2)
+                        .foregroundStyle(.white.opacity(showCalibration ? 0.95 : 0.55))
+                        .padding()
+                }
+                .accessibilityLabel(showCalibration ? "Hide tuning panel" : "Show tuning panel")
+            }
+        }
         #endif
         .onAppear {
             viewModel.bind(to: appModel)   // idempotent — replaces, never stacks
         }
+    }
+
+    /// The ViewModel only recomputes the raw-input HUD mirrors while
+    /// `isTuningHUDActive` (an opt-in cost). Both the values gauge and — in Debug
+    /// — the calibration panel display those mirrors, so the flag must be on while
+    /// *either* is open, else the second panel shows stale zeros.
+    private func refreshTuningHUDActive() {
+        #if DEBUG
+        viewModel.isTuningHUDActive = showValues || showCalibration
+        #else
+        viewModel.isTuningHUDActive = showValues
+        #endif
     }
 
     /// Sine phase in 0…1 with period ``pulsePeriod``, derived purely from the

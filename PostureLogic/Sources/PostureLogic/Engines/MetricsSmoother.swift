@@ -75,7 +75,9 @@ struct MetricsSmoother: DebugDumpable {
                 lateralLean: current.lateralLean,
                 twist: current.twist,
                 movementLevel: movementLevel,
-                headMovementPattern: headPattern
+                headMovementPattern: headPattern,
+                lateralLeanSigned: current.lateralLeanSigned,
+                twistSigned: current.twistSigned
             )
             previous = result
             return result
@@ -89,7 +91,9 @@ struct MetricsSmoother: DebugDumpable {
             lateralLean: lerp(prev.lateralLean, current.lateralLean, alpha),
             twist: lerp(prev.twist, current.twist, alpha),
             movementLevel: movementLevel,
-            headMovementPattern: headPattern
+            headMovementPattern: headPattern,
+            lateralLeanSigned: lerp(prev.lateralLeanSigned, current.lateralLeanSigned, alpha),
+            twistSigned: lerp(prev.twistSigned, current.twistSigned, alpha)
         )
 
         previous = smoothed

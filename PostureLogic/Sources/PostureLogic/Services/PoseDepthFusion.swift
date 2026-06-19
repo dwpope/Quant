@@ -18,6 +18,40 @@ struct HeadAngles {
     static let neutral = HeadAngles(pitch: 0, yaw: 0, roll: 0)
 }
 
+/// Runtime-tunable head-orientation calibration, exposed `public` so a **DEBUG**
+/// build can dial it in on device without a rebuild (see the calibration slider in
+/// `PostureVisualizationView`). In Release nothing mutates it, so it behaves as the
+/// baked default constant.
+///
+/// Concurrency: a plain `static var` read on the pose-processing path and written
+/// from the main-thread tuning HUD. The unsynchronized cross-thread access is a
+/// benign race for a scalar debug knob — it is not a correctness-critical value and
+/// a torn `Float` read merely yields a slightly-off frame that the next one
+/// corrects. Do **not** promote this pattern to anything that gates real behavior.
+public enum HeadYawTuning {
+    /// Calibration factor for the one-ear proportional yaw: the ratio of frontal
+    /// eye separation to nose-tip protrusion in the image plane (`E₀ / d`).
+    ///
+    /// Derivation — under perspective projection a head yawed by `θ` foreshortens
+    /// its eye separation to `E₀·cos θ` while the nose tip swings sideways by
+    /// `d·sin θ`, so the eye-normalized nose offset is
+    /// `(nose.x − eyeMidX) / eyeSeparation = (d / E₀)·tan θ`. Inverting gives
+    /// `θ = atan(k · offset)` with `k = E₀ / d`. Anatomically (IPD ≈ 63 mm, nose
+    /// protrusion ≈ 23 mm) `k ≈ 2.7`, but the device value runs higher — Vision's
+    /// `nose` keypoint is not the nose *tip* and the eye keypoints sit at eye
+    /// *centers*, so the measured `offset/separation` is smaller than the ideal
+    /// geometry, inflating the `k` needed to recover the true angle. Larger `k` ⇒
+    /// a given offset reads as a bigger turn. TUNE ON DEVICE against known angles.
+    public static var oneEarCalibration: Float = oneEarCalibrationDefault
+
+    /// Device-tuned starting value for `oneEarCalibration` (the slider's reset
+    /// target and the Release-shipped constant). Single source of truth so the UI
+    /// never re-states the magic number. Dialled in on device 2026-06-14 to **8.0**
+    /// (mid-slider, not railed — a genuine optimum; the anatomical ideal is ≈2.7,
+    /// see `oneEarCalibration` for why the real value is higher).
+    public static let oneEarCalibrationDefault: Float = 8.0
+}
+
 /// Converts a 2D `PoseObservation` into a shoulder-width-normalized `PoseSample`.
 ///
 /// All positions are expressed relative to the shoulder midpoint and divided by
@@ -447,9 +481,15 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
         return Float(atan2(rise, run)) * (180.0 / .pi)
     }
 
-    /// Strong yaw emitted when a head turn fully occludes one ear (the one-ear
-    /// rule). A turn large enough to hide an ear is roughly 50–70°.
+    /// Fallback yaw when one ear is occluded *and* the eyes are also unavailable
+    /// to scale the turn — a strong-but-flat estimate (a turn large enough to hide
+    /// an ear is roughly 50–70°). When the eyes are present, `oneEarYaw(...)`
+    /// supersedes this with a proportional estimate.
     private static let oneEarMissingYawDegrees: Float = 60
+
+    /// Ceiling for the proportional one-ear estimate, in degrees. `atan` already
+    /// saturates at 90°; this only bounds noise at extreme foreshortening.
+    private static let oneEarMaxYawDegrees: Float = 90
 
     /// Yaw = horizontal offset of the nose from the ear midpoint, normalized by
     /// ear separation, in degrees. Centred nose → ~0°. Sign: nose toward
@@ -457,9 +497,12 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
     /// → negative.
     ///
     /// One-ear-missing rule: a strong turn occludes the far ear, so when exactly
-    /// one ear is present we can't measure an offset — instead we report a strong
-    /// yaw *toward the missing side* (missing `.rightEar` → +, missing `.leftEar`
-    /// → −). Falls back to neutral (0) when both ears or the nose are absent.
+    /// one ear is present we can't measure an ear-relative offset. Instead we hand
+    /// off to `oneEarYaw(...)`, which scales the turn off the still-visible eyes —
+    /// a *proportional* estimate that tracks the real angle and joins the two-ear
+    /// curve continuously (rather than snapping to a constant). The sign is locked
+    /// to the missing side (missing `.rightEar` → +, missing `.leftEar` → −).
+    /// Falls back to neutral (0) when both ears or the nose are absent.
     private func computeHeadYaw(from pose: PoseObservation) -> Float {
         let leftEar = keypoint(.leftEar, from: pose)
         let rightEar = keypoint(.rightEar, from: pose)
@@ -476,13 +519,42 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             return Float(asin(clamped)) * (180.0 / .pi)
         case (.some, .none):
             // Right ear occluded → strong turn toward the right.
-            return Self.oneEarMissingYawDegrees
+            return oneEarYaw(toward: 1, from: pose)
         case (.none, .some):
             // Left ear occluded → strong turn toward the left.
-            return -Self.oneEarMissingYawDegrees
+            return oneEarYaw(toward: -1, from: pose)
         case (.none, .none):
             return 0
         }
+    }
+
+    /// Proportional yaw for the one-ear-occluded regime, scaled off the eyes
+    /// (which stay visible well past the angle that hides an ear — the same reason
+    /// pitch/roll fall back to the eye line).
+    ///
+    /// Measures the nose's horizontal offset from the eye midpoint, normalized by
+    /// the (foreshortening) eye separation, and maps it to an angle via
+    /// `θ = atan(HeadYawTuning.oneEarCalibration · offset)` — see that knob for the
+    /// projection derivation. The result is monotonic in the true turn angle and
+    /// saturates smoothly toward 90°, so it continues the two-ear `asin` curve
+    /// instead of snapping to a constant. `sign` (+1 missing-right, −1
+    /// missing-left) carries the established one-ear direction; the eyes supply
+    /// only magnitude, so the locked sign rule is preserved even at large yaw
+    /// where the eye geometry is noisiest. Degrades to the flat
+    /// `oneEarMissingYawDegrees` when the eyes or a usable separation are absent.
+    private func oneEarYaw(toward sign: Float, from pose: PoseObservation) -> Float {
+        guard let nose = keypoint(.nose, from: pose),
+              let leftEye = keypoint(.leftEye, from: pose),
+              let rightEye = keypoint(.rightEye, from: pose)
+        else {
+            return sign * Self.oneEarMissingYawDegrees
+        }
+        let separation = abs(rightEye.position.x - leftEye.position.x)
+        guard separation > 1e-6 else { return sign * Self.oneEarMissingYawDegrees }
+        let midX = (leftEye.position.x + rightEye.position.x) / 2
+        let offset = abs(nose.position.x - midX) / separation
+        let magnitude = atan(HeadYawTuning.oneEarCalibration * Float(offset)) * (180.0 / .pi)
+        return sign * min(magnitude, Self.oneEarMaxYawDegrees)
     }
 
     /// Pitch (2D) = vertical offset of the nose relative to the eye/ear line,
