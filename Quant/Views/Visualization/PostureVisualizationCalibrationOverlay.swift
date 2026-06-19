@@ -36,6 +36,7 @@ struct PostureVisualizationCalibrationOverlay: View {
     @State private var headPitchGain: Float = Bind.headPitchGain
     @State private var headRollGain: Float = Bind.headRollGain
     @State private var scaleGain: Float = Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactor)
+    @State private var leanTurnAtten: Float = Bind.leanTurnAttenPower
 
     /// Head-yaw `k` (one-ear detection calibration) bounds — device-tuned to ≈8.0.
     private static let yawRange: ClosedRange<Float> = 1.0...12.0
@@ -53,6 +54,10 @@ struct PostureVisualizationCalibrationOverlay: View {
 
     /// Proximity (lean-in) zoom bounds — unsigned; 0 = no scale response.
     private static let scaleRange: ClosedRange<Float> = 0.0...2.0
+
+    /// Turn-cancels-lean aggressiveness (`cos(headYaw)^this`): 0 = off, 1 = cos,
+    /// >1 = a small turn already kills the lean.
+    private static let attenRange: ClosedRange<Float> = 0.0...3.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -110,12 +115,14 @@ struct PostureVisualizationCalibrationOverlay: View {
                               headPitchGain = Bind.headPitchGainDefault
                               headRollGain = Bind.headRollGainDefault
                               scaleGain = Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault)
+                              leanTurnAtten = Bind.leanTurnAttenPowerDefault
                           },
                           isDefault: sideLeanGain == Bind.leanRadiansPerMeterDefault
                                   && headYawGain == Bind.headYawGainDefault
                                   && headPitchGain == Bind.headPitchGainDefault
                                   && headRollGain == Bind.headRollGainDefault
-                                  && scaleGain == Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault))
+                                  && scaleGain == Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault)
+                                  && leanTurnAtten == Bind.leanTurnAttenPowerDefault)
 
             // Signed gains: slide past 0 to flip direction, away from 0 for intensity.
             gainRow("side lean", value: $sideLeanGain,  range: Self.leanRange,     step: 0.5,  decimals: 1)
@@ -123,6 +130,8 @@ struct PostureVisualizationCalibrationOverlay: View {
             gainRow("head nod",  value: $headPitchGain, range: Self.headGainRange, step: 0.05, decimals: 2)
             gainRow("head tilt", value: $headRollGain,  range: Self.headGainRange, step: 0.05, decimals: 2)
             gainRow("zoom",      value: $scaleGain,     range: Self.scaleRange,    step: 0.05, decimals: 2)
+            // How hard a chair-swivel (head turn) cancels the side lean.
+            gainRow("turn↓lean", value: $leanTurnAtten, range: Self.attenRange,    step: 0.1,  decimals: 1)
 
             // Live raw inputs (signed) for orientation while tuning.
             HStack(spacing: 10) {
@@ -170,6 +179,7 @@ struct PostureVisualizationCalibrationOverlay: View {
         .onChange(of: headPitchGain) { _, v in Bind.headPitchGain = v }
         .onChange(of: headRollGain)  { _, v in Bind.headRollGain = v }
         .onChange(of: scaleGain)     { _, v in PostureVisualizationViewModel.Mapping.forwardCreepScaleFactor = Double(v) }
+        .onChange(of: leanTurnAtten) { _, v in Bind.leanTurnAttenPower = v }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Visualization tuning")
     }

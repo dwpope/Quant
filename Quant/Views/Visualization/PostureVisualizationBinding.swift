@@ -84,6 +84,16 @@ enum PostureVisualizationBinding {
     /// past a believable lean (≈40°). Applied to both side roll and forward pitch.
     static let leanCapRadians: Float = 0.7
 
+    /// How aggressively a head turn cancels side lean — disambiguating a true
+    /// lateral lean (you stay facing the camera) from a chair swivel (your face
+    /// turns, shifting the shoulder midpoint the same way). The lean roll is scaled
+    /// by `cos(headYaw) ^ this`:
+    ///   0 → off (no cancellation); 1 → plain `cos`; >1 → sharper (a small turn
+    ///   already kills the lean). At a 90° turn the lean is fully cancelled for any
+    ///   value > 0. Tunable via a DEBUG slider.
+    static var leanTurnAttenPower: Float = leanTurnAttenPowerDefault
+    static let leanTurnAttenPowerDefault: Float = 1.0
+
     /// Head pitch/roll come from noisy, yaw-cross-coupled 2D pose estimation, so
     /// the figure should *turn* (yaw) crisply and only nod/tilt on a clear,
     /// deliberate movement. `headTiltDeadzoneRadians` drops jitter below ~6°;
@@ -403,7 +413,15 @@ enum PostureVisualizationBinding {
             let depthOK = viewModel.depthActive
             let twist = (debug.shoulderRotation && depthOK) ? t.discYawRadians : 0
             let cap = leanCapRadians
-            let roll  = debug.sideLean ? max(-cap, min(cap, t.headTranslation.x * leanRadiansPerMeter)) : 0
+            // Side lean, faded out as the head turns away: a chair swivel shifts the
+            // shoulder midpoint just like a lean does, but it also turns the face
+            // (head yaw), so cos(headYaw) tells the two apart — facing the camera
+            // (yaw≈0) keeps the lean, turning away cancels it. `t.headEulerRadians.y`
+            // is the display yaw (≤ ±90° via yawCapDegrees); cos symmetric, so the
+            // mirror flip doesn't matter.
+            let yawCos = cos(min(abs(t.headEulerRadians.y), .pi / 2))   // 1 facing → 0 turned
+            let leanAtten = powf(yawCos, leanTurnAttenPower)
+            let roll  = (debug.sideLean ? max(-cap, min(cap, t.headTranslation.x * leanRadiansPerMeter)) : 0) * leanAtten
             let pitch = (debug.headForward && depthOK) ? max(-cap, min(cap, t.headTranslation.z * forwardLeanRadiansPerMeter)) : 0
             #if DEBUG
             debugTorsoTwistDegrees = twist * 180 / .pi
