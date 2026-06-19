@@ -13,7 +13,7 @@ import SwiftUI
 /// `lastUpdated`. Keep entries terse — this is a scan target, not a doc.
 enum PostureVisualizationDevNotes {
 
-    static let lastUpdated = "2026-06-14"
+    static let lastUpdated = "2026-06-19"
 
     /// What this tuning session has already changed.
     static let changes: [String] = [
@@ -21,6 +21,7 @@ enum PostureVisualizationDevNotes {
         "Side lean is now DIRECTIONAL: added RawMetrics.lateralLeanSigned (no abs; abs metric kept for scoring) so the figure leans toward the real side. Confirmed good on device at gain 70 (latLean≈0.059 full lean). Twist also signed (twistSigned) BUT shoulderTwist is shoulder TILT not axial rotation, so it can't read a real twist in 2D.",
         "DEPTH-GATED CHANNELS: forward-lean pitch (headForwardOffset, depth-only) and axial twist are now gated on viewModel.depthActive (pose.depthMode==.depthFusion). Off in 2D so the figure doesn't misbehave on signals it can't see; auto-on under LiDAR. Side lean + head + scale are true 2D and stay live. NOTE: posture SCORING is fully 2D and does NOT use headForwardOffset — dropping these from the viz costs monitoring nothing (PostureEngine thresholds: forwardCreep/twist/lateralLean/headDrop/shoulderRounding).",
         "Tuning panel now focuses on the 2D-inferrable posture types: sliders for side lean, head turn (Bind.headYawGain), head nod (headPitchGain), head tilt (headRollGain), zoom (Mapping.forwardCreepScaleFactor) — all signed display gains, write-through to static vars. Depth-only fwd/twist sliders removed (channels remain in code, depth-gated). Each gain LABEL is a tap-to-toggle for its channel (green=on, dim=off) so a misbehaving gain can be isolated in place; plus mirror + all-on/all-off chips.",
+        "Per-posture SOLO: each 2D gain row has an 'iso' button (soloChannel) — one tap switches every other tunable channel off and leaves only this one on, to confirm a posture works in isolation. Depth-only channels (torso-turn/forward-lean) are intentionally NOT in the solo set and not shown on the panel (they need LiDAR; 'torso turning does nothing in 2D' is by design, not a bug). A channelTick @State now nudges the panel so label/iso colours refresh immediately when the non-observable static debug flags flip.",
         "Side lean is now faded by cos(headYaw)^leanTurnAttenPower (default 1.0, slider 'turn↓lean') so a CHAIR SWIVEL — which shifts the shoulder midpoint like a lean but also turns the face — cancels the lean instead of faking one. Facing camera (yaw≈0) keeps full lean; turned away cancels it. Viz-only; the same false-positive still exists in PostureEngine.lateralLean scoring (separate task).",
         "Per-channel isolation switches added (PostureVisualizationBinding.debug / DebugChannels) — freeze any channel, tune one at a time.",
         "Current debug config: shoulder disc hidden, only HEAD YAW live; every other channel frozen at rest.",

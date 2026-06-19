@@ -38,6 +38,11 @@ struct PostureVisualizationCalibrationOverlay: View {
     @State private var scaleGain: Float = Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactor)
     @State private var leanTurnAtten: Float = Bind.leanTurnAttenPower
 
+    /// Bumped on every channel toggle / solo / all-off so the panel's label &
+    /// `iso` states refresh — the underlying `debug` flags are a non-observable
+    /// `static`, so without a published nudge the row colours would lag a frame.
+    @State private var channelTick = 0
+
     /// Head-yaw `k` (one-ear detection calibration) bounds — device-tuned to ≈8.0.
     private static let yawRange: ClosedRange<Float> = 1.0...12.0
 
@@ -61,6 +66,9 @@ struct PostureVisualizationCalibrationOverlay: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // Touch channelTick so the body re-renders when a toggle/solo/all-off
+            // mutates the non-observable static debug flags (see its declaration).
+            let _ = channelTick
 
             // ── Calibration ───────────────────────────────────────────
             // Lean/twist/creep are measured relative to a calibration baseline;
@@ -108,7 +116,7 @@ struct PostureVisualizationCalibrationOverlay: View {
             // ── 2D posture display gains ──────────────────────────────
             // One slider per posture type the 2D image can infer. Depth-only
             // channels (forward-lean, axial twist) are intentionally absent.
-            sectionHeader("2D POSTURE GAINS",
+            sectionHeader("2D POSTURE · isolate",
                           reset: {
                               sideLeanGain = Bind.leanRadiansPerMeterDefault
                               headYawGain = Bind.headYawGainDefault
@@ -124,14 +132,17 @@ struct PostureVisualizationCalibrationOverlay: View {
                                   && scaleGain == Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault)
                                   && leanTurnAtten == Bind.leanTurnAttenPowerDefault)
 
+            Text("2D only — torso-turn & forward-lean need LiDAR, hidden here")
+                .font(.caption2).foregroundStyle(.secondary)
+
             // Signed gains: slide past 0 to flip direction, away from 0 for
-            // intensity. Tap a label to toggle that channel off — isolate a
-            // misbehaving gain by switching others off until the issue clears.
-            gainRow("side lean", value: $sideLeanGain,  range: Self.leanRange,     step: 0.5,  decimals: 1, enabled: debugBinding(\.sideLean))
-            gainRow("head turn", value: $headYawGain,   range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headYaw))
-            gainRow("head nod",  value: $headPitchGain, range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headPitch))
-            gainRow("head tilt", value: $headRollGain,  range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headRoll))
-            gainRow("zoom",      value: $scaleGain,     range: Self.scaleRange,    step: 0.05, decimals: 2, enabled: debugBinding(\.assemblyScale))
+            // intensity. Tap a label to toggle that channel off; tap "iso" to
+            // SOLO it (all others off) and confirm that one posture works alone.
+            gainRow("side lean", value: $sideLeanGain,  range: Self.leanRange,     step: 0.5,  decimals: 1, enabled: debugBinding(\.sideLean),     solo: { soloChannel(\.sideLean) })
+            gainRow("head turn", value: $headYawGain,   range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headYaw),      solo: { soloChannel(\.headYaw) })
+            gainRow("head nod",  value: $headPitchGain, range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headPitch),    solo: { soloChannel(\.headPitch) })
+            gainRow("head tilt", value: $headRollGain,  range: Self.headGainRange, step: 0.05, decimals: 2, enabled: debugBinding(\.headRoll),     solo: { soloChannel(\.headRoll) })
+            gainRow("zoom",      value: $scaleGain,     range: Self.scaleRange,    step: 0.05, decimals: 2, enabled: debugBinding(\.assemblyScale), solo: { soloChannel(\.assemblyScale) })
             // How hard a chair-swivel (head turn) cancels the side lean (no channel
             // toggle — set to 0 to disable).
             gainRow("turn↓lean", value: $leanTurnAtten, range: Self.attenRange,    step: 0.1,  decimals: 1)
@@ -225,6 +236,17 @@ struct PostureVisualizationCalibrationOverlay: View {
         PostureVisualizationBinding.debug.headPitch = on
         PostureVisualizationBinding.debug.headRoll = on
         PostureVisualizationBinding.debug.assemblyScale = on
+        channelTick += 1
+    }
+
+    /// SOLO one 2D-posture channel: every tunable channel off, then this one on —
+    /// one tap to answer "does this posture work on its own?". The depth-only
+    /// channels (torso-turn / forward-lean) aren't in the set, so a 2D solo can't
+    /// accidentally leave a LiDAR channel live.
+    private func soloChannel(_ keyPath: WritableKeyPath<PostureVisualizationBinding.DebugChannels, Bool>) {
+        setAllChannels(false)
+        PostureVisualizationBinding.debug[keyPath: keyPath] = true
+        channelTick += 1
     }
 
     /// Short coloured label for the live calibration state.
@@ -263,24 +285,34 @@ struct PostureVisualizationCalibrationOverlay: View {
                          range: ClosedRange<Float>,
                          step: Float,
                          decimals: Int,
-                         enabled: Binding<Bool>? = nil) -> some View {
+                         enabled: Binding<Bool>? = nil,
+                         solo: (() -> Void)? = nil) -> some View {
         let isOn = enabled?.wrappedValue ?? true
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             if let enabled {
-                Button { enabled.wrappedValue.toggle() } label: {
+                Button { enabled.wrappedValue.toggle(); channelTick += 1 } label: {
                     Text(label)
                         .foregroundStyle(isOn ? .green : .secondary)
-                        .frame(width: 62, alignment: .leading)
+                        .frame(width: 54, alignment: .leading)
                 }
                 .buttonStyle(.plain)
             } else {
-                Text(label).foregroundStyle(.secondary).frame(width: 62, alignment: .leading)
+                Text(label).foregroundStyle(.secondary).frame(width: 54, alignment: .leading)
             }
             Slider(value: value, in: range, step: step)
                 .tint(isOn ? .green : .gray)
                 .disabled(!isOn)
             Text(String(format: "%+.\(decimals)f", value.wrappedValue))
-                .frame(width: 46, alignment: .trailing)
+                .frame(width: 40, alignment: .trailing)
+            if let solo {
+                Button(action: solo) {
+                    Text("iso")
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(Color.white.opacity(0.12), in: Capsule())
+                        .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .opacity(isOn ? 1 : 0.45)
     }
