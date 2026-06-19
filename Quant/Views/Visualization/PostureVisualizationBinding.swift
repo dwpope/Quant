@@ -69,9 +69,10 @@ enum PostureVisualizationBinding {
     /// gain × `mirror()`'s `-headTranslation.x` flip) and dial intensity in one
     /// gesture. Output is clamped to ±`leanCapRadians`. Release uses the default.
     static var leanRadiansPerMeter: Float = leanRadiansPerMeterDefault
-    /// 70 ⇒ a full side lean (measured latLean ≈ 0.059 on device) reads as
-    /// ≈0.059 × 0.1 × 70 ≈ 0.41 rad ≈ 24° of tilt (then capped at leanCapRadians).
-    static let leanRadiansPerMeterDefault: Float = 70.0
+    /// 20 ⇒ device-tuned by eye (2026-06-19): 70 over-tilted, 20 reads as a
+    /// natural lean. With the legacy ×0.1 chain a hard lean (latLean up to ~0.2)
+    /// renders ≈0.2 × 0.1 × 20 = 0.4 rad ≈ 23° (then capped at leanCapRadians).
+    static let leanRadiansPerMeterDefault: Float = 20.0
 
     /// Forward-lean gain: radians of forward base-pivot pitch per metre of the
     /// resolved forward offset (`headTranslation.z`). Separate knob so fore/aft
@@ -115,15 +116,18 @@ enum PostureVisualizationBinding {
     static let headYawGainDefault: Float = -0.6
 
     /// Head-pitch (nod / forward-head) display gain, applied on top of
-    /// `shapeHeadTilt`. 1.0 = the shaped angle as-is; signed so a DEBUG slider can
-    /// flip nod direction or damp/boost the forward-head cue.
+    /// `shapeHeadTilt`. Signed so the sign flips nod direction and the magnitude
+    /// damps/boosts it. **−3.0** device-tuned (2026-06-19): the raw pitch read
+    /// the wrong way (chin-down rendered as chin-up), so the sign is negative, and
+    /// the shaped angle (×0.6 + deadzone) needed boosting to a visible nod.
     static var headPitchGain: Float = headPitchGainDefault
-    static let headPitchGainDefault: Float = 1.0
+    static let headPitchGainDefault: Float = -3.0
 
     /// Head-roll (tilt) display gain, applied on top of `shapeHeadTilt`. As
-    /// `headPitchGain`, for the head's side-tilt.
+    /// `headPitchGain`: **−3.0** device-tuned (2026-06-19) — sign reversed so the
+    /// head tilts toward the real side, magnitude boosted for a legible tilt.
     static var headRollGain: Float = headRollGainDefault
-    static let headRollGainDefault: Float = 1.0
+    static let headRollGainDefault: Float = -3.0
 
     private static let degreesToRadians = Float.pi / 180
 
