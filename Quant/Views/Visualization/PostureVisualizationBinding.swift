@@ -2,6 +2,7 @@ import RealityKit
 import SwiftUI
 import UIKit
 import simd
+import PostureLogic   // CriticallyDampedScalar — the pure, headlessly-tested follower
 
 /// Step 4 — drives the static scaffold's named entities from
 /// `PostureVisualizationViewModel`'s published display values.
@@ -107,7 +108,7 @@ enum PostureVisualizationBinding {
     /// **Reduced 6°→2° on 2026-06-19** for a rounder head-circle: yaw has no
     /// deadzone, so a 6° pitch/roll deadzone made a small circle start as a flat
     /// horizontal line that popped vertical only past 6° (an oval, not a circle).
-    /// The temporal `orientationSmoothing` slerp now absorbs the per-frame jitter
+    /// The temporal `orientationSmoothTime` follower now absorbs the per-frame jitter
     /// the wide deadzone used to mask, so it can be tightened for symmetric onset.
     static let headTiltDeadzoneRadians: Float = 2 * .pi / 180
     static let headTiltScale: Float = 0.6
@@ -226,21 +227,28 @@ enum PostureVisualizationBinding {
     }
 
     /// Temporal smoothing for the head & torso orientation. Each frame the freshly
-    /// resolved pose is only a *target*; the rendered orientation `simd_slerp`s a
-    /// fraction of the way toward it, so noisy per-frame pose samples read as one
-    /// fluid arc instead of a jittery snap. Crucially this smooths the **combined**
-    /// quaternion, so a blended nod-and-turn (a head "circle") eases along the
-    /// shortest arc on the rotation manifold and actually traces a curve, rather
-    /// than each axis jerking independently.
+    /// resolved pose is only a *target*; the rendered orientation eases toward it with a
+    /// **critically-damped, dt-aware follower** (``CriticallyDampedScalar`` applied per
+    /// quaternion component), so a stepwise pose source reads as one fluid arc instead of
+    /// a jittery snap. Crucially all four components chase the **combined** target
+    /// together, so a blended nod-and-turn (a head "circle") eases along the shortest arc
+    /// on the rotation manifold and traces a curve, rather than each axis jerking.
     ///
-    /// This is the per-frame blend weight toward the target: **1.0 = no smoothing**
-    /// (snap straight to the live pose, the old behaviour); smaller = smoother but
-    /// laggier. At 0.25 the rig follows with a ~60 ms time-constant at 60 fps.
-    /// Frame-rate dependent (no `dt` is threaded through `apply`), but the
-    /// `TimelineView` cadence is steady enough that a fixed weight reads cleanly.
+    /// Why a damped follower and not the old fixed-weight slerp: the head-angle source is
+    /// republished at the pipeline's ~10 Hz while the renderer ticks at 60–120 Hz, so the
+    /// target is a *staircase*. A first-order slerp chasing a staircase lunges on every
+    /// step then decays — a ~10 Hz pulse (the "tracking still isn't smooth" report). A
+    /// second-order critically-damped follower carries velocity, so velocity stays
+    /// continuous across a step (no pulse), and being **dt-aware** its feel is invariant
+    /// to frame rate (ProMotion 120, thermal throttle) — the old fixed weight was not.
+    ///
+    /// Units are **seconds** (≈ time to converge), NOT a per-frame weight. **0 = no
+    /// smoothing** (snap straight to the live pose, the old top-of-slider behaviour);
+    /// larger = smoother but laggier. 0.09 s ≈ one 10 Hz sample interval — enough to
+    /// bridge the staircase without visible lag. Head and torso share the one value.
     /// Tunable live via a DEBUG slider.
-    static var orientationSmoothing: Float = orientationSmoothingDefault
-    static let orientationSmoothingDefault: Float = 0.25
+    static var orientationSmoothTime: Float = orientationSmoothTimeDefault
+    static let orientationSmoothTimeDefault: Float = 0.09
 
     private static let degreesToRadians = Float.pi / 180
 
@@ -468,22 +476,17 @@ enum PostureVisualizationBinding {
         var head: Entity?
         var band: Entity?
         var lastTint: UIColor?
-        /// Previous frame's *rendered* (post-smoothing) orientations, so the next
-        /// frame can `simd_slerp` from where the rig actually is toward the new
-        /// target — the state that turns a per-frame snap into a fluid follow.
-        /// `nil` until the first frame writes them (then smoothing engages).
-        var smoothedHead: simd_quatf?
-        var smoothedTorso: simd_quatf?
-    }
-
-    /// Exponential per-frame slerp toward `target`. A `nil` previous (first frame,
-    /// or a freshly-built cache) snaps straight to the target so the rig doesn't
-    /// visibly swing in from identity on appear. `orientationSmoothing >= 1`
-    /// disables smoothing entirely (returns the target unchanged), so the slider's
-    /// top end reproduces the old direct-write behaviour exactly.
-    private static func smoothed(_ previous: simd_quatf?, toward target: simd_quatf) -> simd_quatf {
-        guard let previous, orientationSmoothing < 1 else { return target }
-        return simd_slerp(previous, target, orientationSmoothing)
+        /// Per-component critically-damped followers carrying the *rendered* head and
+        /// torso orientation plus their angular velocity across frames — the state that
+        /// turns a stepwise target into a fluid, pulse-free follow. They self-seed on
+        /// their first `update` (snap to the first target, no swing-in from identity).
+        var headDamp = DampedOrientation()
+        var torsoDamp = DampedOrientation()
+        /// Wall-clock timestamp (`timeIntervalSinceReferenceDate`) of the previous
+        /// `apply`, so the next call can derive a real `dt` for the dt-aware followers.
+        /// `nil` until the first animated call; a non-clock caller (tests) leaves it nil
+        /// and the followers snap.
+        var lastApplyTime: TimeInterval?
     }
 
     /// One-time component registration, folded into a `static let` so the
@@ -505,7 +508,8 @@ enum PostureVisualizationBinding {
     static func apply(
         _ viewModel: PostureVisualizationViewModel,
         to assembly: Entity,
-        pulse: Double = 0
+        pulse: Double = 0,
+        now: TimeInterval = 0
     ) {
         _ = registerRuntimeCache
         var cache = assembly.components[RuntimeCache.self] ?? RuntimeCache(
@@ -514,6 +518,23 @@ enum PostureVisualizationBinding {
             band: assembly.findEntity(named: PostureVisualizationScene.EntityName.headBand)
         )
         defer { assembly.components.set(cache) }
+
+        // Real elapsed time for the dt-aware orientation followers. The view passes
+        // `now` = wall clock (`timeIntervalSinceReferenceDate`); the first animated frame
+        // (no prior timestamp) and any non-clock caller (tests, with the default 0) get
+        // dt = 0 so the followers snap to the live pose instead of swinging in from a
+        // stale one. Clamp to [1/1000, 1/15] s: the ceiling stops a stall or a background
+        // resume from spiking the step; the tiny floor only guards a duplicate/zero-delta
+        // timestamp (keeps dt > 0) and sits far below any real refresh rate (even 240 Hz),
+        // so every reachable frame rate integrates its true dt — the followers stay
+        // frame-rate honest.
+        let dt: Float
+        if now > 0, let last = cache.lastApplyTime {
+            dt = Float(min(max(now - last, 1.0 / 1000.0), 1.0 / 15.0))
+        } else {
+            dt = 0
+        }
+        if now > 0 { cache.lastApplyTime = now }
 
         var t = resolve(from: viewModel)
         if debug.mirrored { t = mirror(t) }
@@ -568,9 +589,11 @@ enum PostureVisualizationBinding {
             let pitchQ = simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
             let rollQ  = simd_quatf(angle: roll,  axis: SIMD3<Float>(0, 1, 0))
             let torsoTarget = yawQ * pitchQ * rollQ
-            let torsoSmoothed = smoothed(cache.smoothedTorso, toward: torsoTarget)
-            cache.smoothedTorso = torsoSmoothed
-            torso.orientation = torsoSmoothed
+            // dt-aware critically-damped follow (see `orientationSmoothTime`); the
+            // follower carries the rendered pose + velocity inside the cache.
+            torso.orientation = cache.torsoDamp.update(
+                toward: torsoTarget, smoothTime: orientationSmoothTime, dt: dt
+            )
         }
 
         // Head: look (yaw/pitch/roll) about its authored neck origin. Position
@@ -616,12 +639,12 @@ enum PostureVisualizationBinding {
                 renderedYaw,
                 debug.headRoll  ? shapeHeadTilt(t.headEulerRadians.z, yawAtten: yawAtten) * headRollGain : 0
             ))
-            // Slerp from the previous rendered pose toward this target so a
-            // combined nod+turn eases as one arc — the fluid follow that a
-            // per-axis snap can't give (see `orientationSmoothing`).
-            let headSmoothed = smoothed(cache.smoothedHead, toward: headTarget)
-            cache.smoothedHead = headSmoothed
-            head.orientation = headSmoothed
+            // Critically-damped follow from the previous rendered pose toward this
+            // target so a combined nod+turn eases as one arc — the fluid, pulse-free
+            // follow that a per-axis snap can't give (see `orientationSmoothTime`).
+            head.orientation = cache.headDamp.update(
+                toward: headTarget, smoothTime: orientationSmoothTime, dt: dt
+            )
         }
 
         // Tone-divide band is a placeholder that z-fights the sphere (scene

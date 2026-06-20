@@ -64,7 +64,10 @@ struct PostureVisualizationView: View {
                 guard let assembly = content.entities.first(where: {
                     $0.name == PostureVisualizationScene.EntityName.assembly
                 }) else { return }
-                PostureVisualizationBinding.apply(viewModel, to: assembly, pulse: pulse)
+                PostureVisualizationBinding.apply(
+                    viewModel, to: assembly, pulse: pulse,
+                    now: timeline.date.timeIntervalSinceReferenceDate
+                )
             }
         }
         .background(Color(white: 0.06))

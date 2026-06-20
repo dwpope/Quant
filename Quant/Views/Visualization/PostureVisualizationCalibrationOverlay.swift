@@ -40,7 +40,9 @@ struct PostureVisualizationCalibrationOverlay: View {
     @State private var leanTurnAtten: Float = Bind.leanTurnAttenPower
     @State private var turnDecouple: Float = Bind.turnTiltDecouple
     @State private var tiltFade: Float = Bind.activeTiltTurnFadePower
-    @State private var smoothing: Float = Bind.orientationSmoothing
+    @State private var smoothing: Float = Bind.orientationSmoothTime
+    @State private var jitterFloor: Float = HeadAngleFilterTuning.minCutoff
+    @State private var jitterCatchup: Float = HeadAngleFilterTuning.beta
 
     /// Bumped on every channel toggle / solo / all-off so the panel's label &
     /// `iso` states refresh — the underlying `debug` flags are a non-observable
@@ -87,10 +89,22 @@ struct PostureVisualizationCalibrationOverlay: View {
     /// 2). Overshoot-proof (only fades toward flat).
     private static let tiltFadeRange: ClosedRange<Float> = 0.0...6.0
 
-    /// Orientation smoothing bounds (`orientationSmoothing`): the per-frame slerp
-    /// weight toward the live pose. 1.0 = no smoothing (snap); lower = smoother but
-    /// laggier. Floor at 0.05 so it can't stall into never reaching the target.
-    private static let smoothRange: ClosedRange<Float> = 0.05...1.0
+    /// Orientation smoothing bounds (`orientationSmoothTime`, **seconds** — the dt-aware
+    /// critically-damped follower's convergence time, NOT a slerp weight). 0 = no
+    /// smoothing (snap to the live pose); higher = smoother but laggier. Top at 0.30 s
+    /// (clearly over-damped) so the slider spans snap → sluggish; ~0.09 s is the default.
+    private static let smoothRange: ClosedRange<Float> = 0.0...0.30
+
+    /// Head-angle One Euro **steady** floor (`HeadAngleFilterTuning.minCutoff`, Hz):
+    /// the smoothing applied while the head is still. **Lower = steadier** (kills more
+    /// jitter, a touch more hold-lag); higher lets the raw signal through. The fix for
+    /// "the pitch won't sit still" lives here. ~1.0 is the gentle default.
+    private static let jitterFloorRange: ClosedRange<Float> = 0.2...4.0
+
+    /// Head-angle One Euro **catch-up** (`HeadAngleFilterTuning.beta`): how fast the
+    /// cutoff opens up with motion. **Higher = snappier** on a real nod (less lag),
+    /// lower = more smoothing even while moving. 0 makes it a plain fixed low-pass.
+    private static let jitterCatchupRange: ClosedRange<Float> = 0.0...0.30
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -155,7 +169,9 @@ struct PostureVisualizationCalibrationOverlay: View {
                               leanTurnAtten = Bind.leanTurnAttenPowerDefault
                               turnDecouple = Bind.turnTiltDecoupleDefault
                               tiltFade = Bind.activeTiltTurnFadePowerDefault
-                              smoothing = Bind.orientationSmoothingDefault
+                              smoothing = Bind.orientationSmoothTimeDefault
+                              jitterFloor = HeadAngleFilterTuning.minCutoffDefault
+                              jitterCatchup = HeadAngleFilterTuning.betaDefault
                           },
                           isDefault: sideLeanGain == Bind.leanRadiansPerMeterDefault
                                   && headYawGain == Bind.headYawGainDefault
@@ -166,7 +182,9 @@ struct PostureVisualizationCalibrationOverlay: View {
                                   && leanTurnAtten == Bind.leanTurnAttenPowerDefault
                                   && turnDecouple == Bind.turnTiltDecoupleDefault
                                   && tiltFade == Bind.activeTiltTurnFadePowerDefault
-                                  && smoothing == Bind.orientationSmoothingDefault)
+                                  && smoothing == Bind.orientationSmoothTimeDefault
+                                  && jitterFloor == HeadAngleFilterTuning.minCutoffDefault
+                                  && jitterCatchup == HeadAngleFilterTuning.betaDefault)
 
             Text("2D only — torso-turn & forward-lean need LiDAR, hidden here")
                 .font(.caption2).foregroundStyle(.secondary)
@@ -191,10 +209,16 @@ struct PostureVisualizationCalibrationOverlay: View {
             // Additive turn→nod decouple — defaulted OFF (the fade above is the live
             // knob); kept for a future, shape-matched phantom model.
             gainRow("turn→nod",  value: $turnDecouple,  range: Self.decoupleRange, step: 0.05, decimals: 2)
-            // Motion smoothing (head + torso): lower = more fluid/laggy follow,
-            // 1.0 = instant snap. Smooths the combined pose so a nod+turn eases as
-            // one arc (no channel toggle — global feel).
-            gainRow("smooth",    value: $smoothing,     range: Self.smoothRange,   step: 0.05, decimals: 2)
+            // Motion smoothing (head + torso), in SECONDS: 0 = instant snap, higher =
+            // more fluid/laggy. dt-aware critically-damped follower over the combined
+            // pose, so a nod+turn eases as one pulse-free arc (no channel toggle).
+            gainRow("smooth",    value: $smoothing,     range: Self.smoothRange,   step: 0.01, decimals: 2)
+            // Source denoise (One Euro on the raw head angles, before gain): "steady"
+            // is the still-state smoothing floor (lower = steadier), "catch-up" is how
+            // fast it opens up for a real move (higher = snappier). Fixes pitch jitter
+            // without the lag a fixed low-pass would add. No channel toggle.
+            gainRow("steady",    value: $jitterFloor,   range: Self.jitterFloorRange,   step: 0.1,  decimals: 1)
+            gainRow("catch-up",  value: $jitterCatchup, range: Self.jitterCatchupRange, step: 0.01, decimals: 2)
 
             // Live raw inputs (signed) for orientation while tuning.
             HStack(spacing: 10) {
@@ -241,7 +265,9 @@ struct PostureVisualizationCalibrationOverlay: View {
         .onChange(of: leanTurnAtten) { _, v in Bind.leanTurnAttenPower = v }
         .onChange(of: turnDecouple)  { _, v in Bind.turnTiltDecouple = v }
         .onChange(of: tiltFade)      { _, v in Bind.activeTiltTurnFadePower = v }
-        .onChange(of: smoothing)     { _, v in Bind.orientationSmoothing = v }
+        .onChange(of: smoothing)     { _, v in Bind.orientationSmoothTime = v }
+        .onChange(of: jitterFloor)   { _, v in HeadAngleFilterTuning.minCutoff = v }
+        .onChange(of: jitterCatchup) { _, v in HeadAngleFilterTuning.beta = v }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Visualization tuning")
     }

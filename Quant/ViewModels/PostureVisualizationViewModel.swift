@@ -126,6 +126,18 @@ final class PostureVisualizationViewModel: ObservableObject {
     /// torso movement while the upstream stage still removes per-frame jitter.
     static let leanSmoothingAlpha: Double = 0.5
 
+    /// Head yaw/pitch/roll are **pass-through here (α = 1.0)** on purpose. The render
+    /// binding now smooths the head with a single dt-aware critically-damped follower
+    /// (`PostureVisualizationBinding.orientationSmoothTime`). Keeping the old α=0.2 EMA
+    /// here too cascaded two filters — a ~0.45 s VM stage *plus* the render stage — which
+    /// stacked ~0.5 s of lag AND still pulsed at the 10 Hz sample rate (worst of both).
+    /// Publishing the raw, clamped 10 Hz head target makes the render follower the sole
+    /// head temporal filter: it removes the cascade lag and is where the (correct,
+    /// frame-rate-independent, pulse-free) smoothing actually happens. Tune feel via
+    /// `orientationSmoothTime`, not here. (Rotation/scale/opacity keep `smoothingAlpha`;
+    /// lean keeps `leanSmoothingAlpha` — only the head channels go pass-through.)
+    static let headSmoothingAlpha: Double = 1.0
+
     /// All scaling/clamping constants in one place so the renderer and the
     /// ViewModel stay in sync and remain tunable during demo recording
     /// (design "Variable Mapping" reference table).
@@ -162,10 +174,35 @@ final class PostureVisualizationViewModel: ObservableObject {
     private var sideLeanFilter = LowPassFilter(alpha: leanSmoothingAlpha)
     private var forwardFilter = LowPassFilter(alpha: leanSmoothingAlpha)
     private var scaleFilter = LowPassFilter(alpha: smoothingAlpha)
-    private var yawFilter = LowPassFilter(alpha: smoothingAlpha)
-    private var pitchFilter = LowPassFilter(alpha: smoothingAlpha)
-    private var rollFilter = LowPassFilter(alpha: smoothingAlpha)
+    // Head channels pass through (α = 1.0); the render binding's dt-aware follower is
+    // the sole head temporal filter now — see `headSmoothingAlpha`.
+    private var yawFilter = LowPassFilter(alpha: headSmoothingAlpha)
+    private var pitchFilter = LowPassFilter(alpha: headSmoothingAlpha)
+    private var rollFilter = LowPassFilter(alpha: headSmoothingAlpha)
     private var opacityFilter = LowPassFilter(alpha: smoothingAlpha)
+
+    // MARK: Head-angle source denoise (One Euro)
+    //
+    // The render follower (`orientationSmoothTime`) de-staircases the ~10 Hz pose
+    // into fluid motion, but it is a *tracker, not a denoiser* — it faithfully
+    // reproduces whatever jitter is in the measurement, which the ~5× pitch display
+    // gain then magnifies into visible nod shimmer ("the pitch fluctuates"). These
+    // adaptive low-passes remove that jitter at the *source*, before any gain: hard
+    // smoothing while the head is still, near-zero lag on a real nod (the cutoff
+    // rises with speed). Identity when timestamps don't advance (see `OneEuroFilter`),
+    // so the camera-free `ingest` test seam — every sample stamped 0 — is unaffected.
+    // Tuned live via `HeadAngleFilterTuning` (DEBUG sliders).
+    //
+    // Deliberately NOT reset on tracking loss / mode switch / recalibration: the filter
+    // is dt-aware, so it already degrades gracefully across every discontinuity — a
+    // brief drop is a moderate-dt ease, a long gap is a large-dt snap to the fresh value
+    // (never a drag toward the stale one — `xHat` is overwritten), and a backward
+    // timestamp is an identity pass-through. A hard `reset()` would instead expose one
+    // raw, unsmoothed frame on each brief drop — strictly worse. Locked by
+    // `test_headPitch_trackingLossThenResume_tracksFreshValue_noStaleDrag`.
+    private var yawEuro = OneEuroFilter()
+    private var pitchEuro = OneEuroFilter()
+    private var rollEuro = OneEuroFilter()
 
     // MARK: Calibration-relative reference (pitch & roll)
     //
@@ -260,20 +297,35 @@ final class PostureVisualizationViewModel: ObservableObject {
         if let p = pose {
             forwardTarget = Double(p.headForwardOffset) * Mapping.headForwardPointsPerUnit
 
+            // Adaptive source denoise (One Euro) on the raw head angles, BEFORE any
+            // amplification, so sensor jitter never reaches the ~5× pitch gain or the
+            // render follower. Params are read live so the DEBUG tuning sliders apply
+            // without a rebuild. In the unit tests every PoseSample shares timestamp 0,
+            // so each filter is the identity and the existing head-angle assertions hold.
+            yawEuro.minCutoff = HeadAngleFilterTuning.minCutoff
+            yawEuro.beta = HeadAngleFilterTuning.beta
+            pitchEuro.minCutoff = HeadAngleFilterTuning.minCutoff
+            pitchEuro.beta = HeadAngleFilterTuning.beta
+            rollEuro.minCutoff = HeadAngleFilterTuning.minCutoff
+            rollEuro.beta = HeadAngleFilterTuning.beta
+            let headYawF = yawEuro.update(p.headYaw, timestamp: p.timestamp)
+            let headPitchF = pitchEuro.update(p.headPitch, timestamp: p.timestamp)
+            let headRollF = rollEuro.update(p.headRoll, timestamp: p.timestamp)
+
             // Yaw ← real head yaw (PoseSample.headYaw, degrees). Absolute: a
             // forward-facing head already reads ~0°, so no rest reference is
             // needed (unlike pitch/roll, whose raw zero is geometric).
-            let yawRaw = Double(p.headYaw) * Mapping.headRotationAmplification
+            let yawRaw = Double(headYawF) * Mapping.headRotationAmplification
             yawTarget = Self.clamp(yawRaw, -Mapping.yawCapDegrees, Mapping.yawCapDegrees)
 
             // Pitch ← real head pitch (degrees). Absolute geometry, re-zeroed to
             // the calibrated rest pose below (the raw zero is the on-the-line /
             // ear-plane case, not a physiological neutral — see
             // PoseDepthFusion.computeHeadPitch / computeHeadPitch3D).
-            let pitchAbs = Double(p.headPitch) * Mapping.headRotationAmplification
+            let pitchAbs = Double(headPitchF) * Mapping.headRotationAmplification
 
             // Roll ← real head roll (PoseSample.headRoll, degrees).
-            let rollAbs = Double(p.headRoll) * Mapping.headRotationAmplification
+            let rollAbs = Double(headRollF) * Mapping.headRotationAmplification
 
             // On the calibrating→judged transition, start capturing the rest
             // reference so neutral reads ~0° (fixes the permanently-tilted
