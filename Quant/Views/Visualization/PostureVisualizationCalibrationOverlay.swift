@@ -39,7 +39,7 @@ struct PostureVisualizationCalibrationOverlay: View {
     @State private var scaleGain: Float = Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactor)
     @State private var leanTurnAtten: Float = Bind.leanTurnAttenPower
     @State private var turnDecouple: Float = Bind.turnTiltDecouple
-    @State private var tiltFade: Float = Bind.tiltTurnFadePower
+    @State private var tiltFade: Float = Bind.activeTiltTurnFadePower
     @State private var smoothing: Float = Bind.orientationSmoothing
 
     /// Bumped on every channel toggle / solo / all-off so the panel's label &
@@ -80,10 +80,12 @@ struct PostureVisualizationCalibrationOverlay: View {
     /// phantom (it bulged instead of flattening); `turn↓tilt` fade is the live knob.
     private static let decoupleRange: ClosedRange<Float> = -2.0...2.0
 
-    /// Turn-fades-tilt exponent (`tiltTurnFadePower`, `cos(yaw)^this` on pitch/roll):
-    /// 1 = plain cos (full W, fully round circle), higher = flatter pure turn at the
-    /// cost of a slightly flatter circle. Overshoot-proof (only fades toward flat).
-    private static let tiltFadeRange: ClosedRange<Float> = 1.0...6.0
+    /// Turn-fades-tilt exponent (`cos(yaw)^this` on pitch/roll), editing whichever
+    /// head source is live: **0 = fade off, perfectly round** (the `.frontFace`
+    /// ARKit default — decoupled source, no phantom to cancel); 1 = plain cos; higher
+    /// = flatter pure turn at the cost of a flatter circle (the legacy 2D default is
+    /// 2). Overshoot-proof (only fades toward flat).
+    private static let tiltFadeRange: ClosedRange<Float> = 0.0...6.0
 
     /// Orientation smoothing bounds (`orientationSmoothing`): the per-frame slerp
     /// weight toward the live pose. 1.0 = no smoothing (snap); lower = smoother but
@@ -152,7 +154,7 @@ struct PostureVisualizationCalibrationOverlay: View {
                               scaleGain = Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault)
                               leanTurnAtten = Bind.leanTurnAttenPowerDefault
                               turnDecouple = Bind.turnTiltDecoupleDefault
-                              tiltFade = Bind.tiltTurnFadePowerDefault
+                              tiltFade = Bind.activeTiltTurnFadePowerDefault
                               smoothing = Bind.orientationSmoothingDefault
                           },
                           isDefault: sideLeanGain == Bind.leanRadiansPerMeterDefault
@@ -163,7 +165,7 @@ struct PostureVisualizationCalibrationOverlay: View {
                                   && scaleGain == Float(PostureVisualizationViewModel.Mapping.forwardCreepScaleFactorDefault)
                                   && leanTurnAtten == Bind.leanTurnAttenPowerDefault
                                   && turnDecouple == Bind.turnTiltDecoupleDefault
-                                  && tiltFade == Bind.tiltTurnFadePowerDefault
+                                  && tiltFade == Bind.activeTiltTurnFadePowerDefault
                                   && smoothing == Bind.orientationSmoothingDefault)
 
             Text("2D only — torso-turn & forward-lean need LiDAR, hidden here")
@@ -239,7 +241,7 @@ struct PostureVisualizationCalibrationOverlay: View {
         .onChange(of: scaleGain)     { _, v in PostureVisualizationViewModel.Mapping.forwardCreepScaleFactor = Double(v) }
         .onChange(of: leanTurnAtten) { _, v in Bind.leanTurnAttenPower = v }
         .onChange(of: turnDecouple)  { _, v in Bind.turnTiltDecouple = v }
-        .onChange(of: tiltFade)      { _, v in Bind.tiltTurnFadePower = v }
+        .onChange(of: tiltFade)      { _, v in Bind.activeTiltTurnFadePower = v }
         .onChange(of: smoothing)     { _, v in Bind.orientationSmoothing = v }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Visualization tuning")

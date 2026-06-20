@@ -195,6 +195,36 @@ enum PostureVisualizationBinding {
     static var tiltTurnFadePower: Float = tiltTurnFadePowerDefault
     static let tiltTurnFadePowerDefault: Float = 2.0
 
+    /// True while the head source is ARKit's decoupled `ARFaceAnchor` (camera mode
+    /// `.frontFace`); set by `AppModel` on every mode change. The whole point of the
+    /// `tiltTurnFadePower` fade is to cancel a *phantom* nod that the old coupled 2D
+    /// estimate leaked on a pure turn — but the ARFaceAnchor decomposition is
+    /// decoupled by construction (a pure yaw gives pitch = 0 exactly), so there is no
+    /// phantom to cancel and the fade would only flatten a *real* head-circle at its
+    /// left/right extents. While this is set, `apply` reads `faceTiltTurnFadePower`
+    /// (default **0 = fade off = perfectly round**) instead. The legacy 2D path's
+    /// `tiltTurnFadePower` (2.0) and its slider are left exactly as tuned.
+    static var faceTrackingActive: Bool = false
+
+    static var faceTiltTurnFadePower: Float = faceTiltTurnFadePowerDefault
+    static let faceTiltTurnFadePowerDefault: Float = 0.0
+
+    /// The fade exponent in force for the active head source — what `apply` actually
+    /// uses, and what the `turn↓tilt` slider reads/writes, so one slider tunes
+    /// whichever mode is live.
+    static var activeTiltTurnFadePower: Float {
+        get { faceTrackingActive ? faceTiltTurnFadePower : tiltTurnFadePower }
+        set {
+            if faceTrackingActive { faceTiltTurnFadePower = newValue }
+            else { tiltTurnFadePower = newValue }
+        }
+    }
+
+    /// The reset/is-default target for the active head source's fade.
+    static var activeTiltTurnFadePowerDefault: Float {
+        faceTrackingActive ? faceTiltTurnFadePowerDefault : tiltTurnFadePowerDefault
+    }
+
     /// Temporal smoothing for the head & torso orientation. Each frame the freshly
     /// resolved pose is only a *target*; the rendered orientation `simd_slerp`s a
     /// fraction of the way toward it, so noisy per-frame pose samples read as one
@@ -562,7 +592,7 @@ enum PostureVisualizationBinding {
             // cross-coupling fade tracks how far the head really turned. The
             // `tiltTurnFadePower` exponent sets how hard a turn fades the (phantom)
             // nod/tilt — >1 flattens the pure-turn "W"; monotone, can't overshoot.
-            let yawAtten = powf(cos(min(abs(rawYaw), .pi / 2)), tiltTurnFadePower)
+            let yawAtten = powf(cos(min(abs(rawYaw), .pi / 2)), activeTiltTurnFadePower)
             // Flip + tame the yaw for display: front-camera direction and a
             // proportional turn instead of slamming to the ±90° cap.
             let renderedYaw = rawYaw * headYawGain

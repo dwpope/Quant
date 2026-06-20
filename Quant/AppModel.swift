@@ -310,6 +310,11 @@ class AppModel: ObservableObject {
         }
         self.cameraMode = initialMode
 
+        // In .frontFace the head source is ARKit's decoupled ARFaceAnchor, so the
+        // viz turn↓tilt fade (which only existed to cancel the old 2D phantom nod)
+        // is switched off — otherwise it flattens a real head-circle into an oval.
+        PostureVisualizationBinding.faceTrackingActive = (initialMode == .frontFace)
+
         let posVar = defaults.object(forKey: Keys.maxPositionVariance) as? Float ?? Self.defaultMaxPositionVariance
         let angVar = defaults.object(forKey: Keys.maxAngleVariance) as? Float ?? Self.defaultMaxAngleVariance
         let sampDur = defaults.object(forKey: Keys.samplingDuration) as? Double ?? Self.defaultSamplingDuration
@@ -604,6 +609,10 @@ class AppModel: ObservableObject {
         // Update mode and persist immediately so the UI reflects the change right away
         cameraMode = mode
         UserDefaults.standard.set(mode.rawValue, forKey: Keys.cameraMode)
+
+        // Gate the viz turn↓tilt fade on the head source: off for ARKit-decoupled
+        // .frontFace (round circle), the device-tuned legacy value otherwise.
+        PostureVisualizationBinding.faceTrackingActive = (mode == .frontFace)
 
         // Yield so SwiftUI can update the picker before heavy camera work begins
         await Task.yield()
