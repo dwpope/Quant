@@ -461,38 +461,25 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
     ///
     /// Head orientation in the `PoseSample` degree convention.
     ///
-    /// The legacy estimate computes pitch/yaw/roll as three INDEPENDENT 2D formulas
-    /// off the same nose/eye/ear keypoints, each assuming the other two axes are zero
-    /// — so a turn foreshortens the ear line and tips the projected nose, leaking a
-    /// phantom nod/tilt (the "W"). When `FaceAngleTuning.useFaceAngles` is on and
-    /// Vision supplied a *jointly-fit* angle for an axis, that axis is taken from the
-    /// face fit instead (decoupled by construction), with a transparent per-axis
-    /// fallback to the legacy value wherever Vision didn't fit (e.g. a strong turn
-    /// that hides the face still tracks via the body-pose one-ear path).
+    /// Two tiers. **Tier 1** — an ARKit `ARFaceAnchor` head pose threaded through as
+    /// `pose.externalHeadAngles`: a true metric 6-DOF rotation, decoupled by
+    /// construction and authoritative whenever present (TrueDepth `.frontFace`),
+    /// all-or-nothing (the anchor yields a whole rotation, not per-axis optionals).
+    /// **Tier 2** — the legacy 2D estimate: pitch/yaw/roll as three INDEPENDENT
+    /// formulas off the same nose/eye/ear keypoints, each assuming the other two axes
+    /// are zero, so a turn foreshortens the ear line and tips the projected nose into
+    /// a phantom nod/tilt (the "W"). It is the fallback floor for non-TrueDepth
+    /// devices and for ARFace dropouts.
     func computeHeadAngles(from pose: PoseObservation) -> HeadAngles {
-        let legacy = HeadAngles(
-            pitch: computeHeadPitch(from: pose),
-            yaw: computeHeadYaw(from: pose),
-            roll: computeHeadRoll(from: pose)
-        )
-
-        // Tier 1 — ARKit ARFaceAnchor (Layer 1): a true metric 6-DOF head pose,
-        // already decoupled by construction. Authoritative when present, and
-        // deliberately NOT gated by `useFaceAngles` (that flag is the *Vision*
-        // monocular opt-in; its default-off must never silently disable the
-        // gold-standard sensor signal). All-or-nothing — the anchor yields a whole
-        // rotation, not per-axis optionals.
+        // Tier 1 — ARKit ARFaceAnchor (Layer 1): authoritative when present.
         if let external = pose.externalHeadAngles {
             return external
         }
-
-        // Tier 2 — Vision rev-3 joint face-fit (Layer 0): per-axis, gated, with a
-        // transparent fallback to the legacy formula for any axis Vision didn't fit.
-        guard FaceAngleTuning.useFaceAngles else { return legacy }
+        // Tier 2 — legacy 2D formulas (fallback floor).
         return HeadAngles(
-            pitch: pose.facePitch ?? legacy.pitch,
-            yaw: pose.faceYaw ?? legacy.yaw,
-            roll: pose.faceRoll ?? legacy.roll
+            pitch: computeHeadPitch(from: pose),
+            yaw: computeHeadYaw(from: pose),
+            roll: computeHeadRoll(from: pose)
         )
     }
 

@@ -2,10 +2,9 @@ import Foundation
 import simd
 
 /// Pure, ARKit-free decomposition of a 3D head-pose rotation into yaw/pitch/roll
-/// degrees. This is the Layer-1 counterpart to `FaceAngleConversion`: an app-side
-/// provider extracts the two `simd_float4x4` transforms from `ARFaceAnchor` /
-/// `ARFrame.camera` (the only ARKit-touching code) and hands plain matrices here,
-/// so every line of trig is unit-tested headlessly in the package.
+/// degrees. An app-side provider extracts the two `simd_float4x4` transforms from
+/// `ARFaceAnchor` / `ARFrame.camera` (the only ARKit-touching code) and hands plain
+/// matrices here, so every line of trig is unit-tested headlessly in the package.
 ///
 /// Why this beats the monocular 2D estimate it supersedes: those three formulas
 /// each measured one axis off the *appearance* of a 2D face and assumed the other
@@ -47,10 +46,8 @@ public enum HeadOrientationDecomposition {
             rollRad = 0
         }
 
-        let d = FaceAngleConversion.degrees(
-            yawRadians: yawRad, pitchRadians: pitchRad, rollRadians: rollRad
-        )
-        return (d.yaw!, d.pitch!, d.roll!)
+        let k = Float(180.0 / .pi)
+        return (yawRad * k, pitchRad * k, rollRad * k)
     }
 
     /// Convenience: decompose the rotation embedded in a 4x4 transform, ignoring

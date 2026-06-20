@@ -938,11 +938,11 @@ final class PoseDepthFusionTests: XCTestCase {
         XCTAssertEqual(result.shoulderWidthRaw, 0.2, accuracy: 0.001)
     }
 
-    // MARK: - Face-sourced head angles (Vision rev-3 joint fit)
+    // MARK: - Shared turn geometry (used by the external/legacy head-angle tests)
 
     /// Keypoints that encode a left/right TURN: the nose sits offset toward one ear
     /// and below the ear line, so the legacy 2D pitch formula couples the turn into a
-    /// phantom nod (this is the "W"). Reused to prove the face path removes it.
+    /// phantom nod (this is the "W"). The external/legacy tests reuse it.
     private func turnGeometry() -> [Keypoint] {
         [
             makeKeypoint(.leftShoulder, x: 0.4, y: 0.3),
@@ -953,114 +953,21 @@ final class PoseDepthFusionTests: XCTestCase {
         ]
     }
 
-    private func makeFacePose(
-        yaw: Float?, pitch: Float?, roll: Float?, keypoints: [Keypoint]
-    ) -> PoseObservation {
-        PoseObservation(
-            timestamp: 1.0, keypoints: keypoints, confidence: 0.9,
-            faceYaw: yaw, facePitch: pitch, faceRoll: roll
-        )
-    }
-
-    /// THE W TEST. Same turn geometry, two sources: the legacy 2D path injects a
-    /// phantom nod/tilt that grows with the turn; the face path (Vision reports the
-    /// real decoupled pose, pitch/roll = 0) renders the turn FLAT. This is the bug
-    /// being fixed, proven at the source.
-    func test_faceAngles_eliminateLegacyPhantomNodOnPureTurn() {
-        var fusion = PoseDepthFusion()
-        let kps = turnGeometry()
-
-        FaceAngleTuning.useFaceAngles = false
-        let legacy = fuse(makePose(keypoints: kps), fusion: &fusion)!
-        XCTAssertGreaterThan(abs(legacy.headPitch), 10,
-            "legacy 2D path couples a turn into a phantom nod (the W)")
-
-        FaceAngleTuning.useFaceAngles = true
-        defer { FaceAngleTuning.useFaceAngles = false }
-        let face = fuse(makeFacePose(yaw: 25, pitch: 0, roll: 0, keypoints: kps), fusion: &fusion)!
-        XCTAssertEqual(face.headPitch, 0, accuracy: 0.001, "pure turn must read FLAT — no phantom nod")
-        XCTAssertEqual(face.headRoll, 0, accuracy: 0.001, "pure turn must read FLAT — no phantom tilt")
-        XCTAssertEqual(face.headYaw, 25, accuracy: 0.001, "yaw comes straight from the joint fit")
-    }
-
-    /// A pure-yaw sweep stays flat at every angle — the round-circle / no-W invariant
-    /// the legacy path cannot satisfy (its phantom inflates with yaw).
-    func test_faceAngles_pureYawSweep_staysFlat() {
-        FaceAngleTuning.useFaceAngles = true
-        defer { FaceAngleTuning.useFaceAngles = false }
-        var fusion = PoseDepthFusion()
-        for yaw: Float in [0, 15, 30, 45, 60] {
-            let pose = makeFacePose(yaw: yaw, pitch: 0, roll: 0, keypoints: turnGeometry())
-            let s = fuse(pose, fusion: &fusion)!
-            XCTAssertEqual(s.headPitch, 0, accuracy: 1.0, "phantom pitch at yaw \(yaw)")
-            XCTAssertEqual(s.headRoll, 0, accuracy: 1.0, "phantom roll at yaw \(yaw)")
-            XCTAssertEqual(s.headYaw, yaw, accuracy: 0.001)
-        }
-    }
-
-    /// With the toggle ON but no face fit (all face fields nil), output is EXACTLY
-    /// the legacy estimate — so every existing head test stays green via the fallback
-    /// and a strong turn that hides the face keeps tracking.
-    func test_faceAngles_nilFieldsFallBackToLegacyExactly() {
-        var fusion = PoseDepthFusion()
-        let kps = turnGeometry()
-
-        FaceAngleTuning.useFaceAngles = false
-        let legacy = fuse(makePose(keypoints: kps), fusion: &fusion)!
-
-        FaceAngleTuning.useFaceAngles = true
-        defer { FaceAngleTuning.useFaceAngles = false }
-        let fallback = fuse(makePose(keypoints: kps), fusion: &fusion)!  // face fields all nil
-
-        XCTAssertEqual(fallback.headPitch, legacy.headPitch, accuracy: 1e-6)
-        XCTAssertEqual(fallback.headYaw, legacy.headYaw, accuracy: 1e-6)
-        XCTAssertEqual(fallback.headRoll, legacy.headRoll, accuracy: 1e-6)
-    }
-
-    /// Per-axis mixing: a face yaw present but pitch/roll nil ⇒ yaw from the fit,
-    /// pitch/roll from the legacy formula.
-    func test_faceAngles_partialFit_mixesPerAxis() {
-        FaceAngleTuning.useFaceAngles = true
-        defer { FaceAngleTuning.useFaceAngles = false }
-        var fusion = PoseDepthFusion()
-        let kps = turnGeometry()
-        let s = fuse(makeFacePose(yaw: 33, pitch: nil, roll: nil, keypoints: kps), fusion: &fusion)!
-        XCTAssertEqual(s.headYaw, 33, accuracy: 0.001, "yaw from the face fit")
-        XCTAssertGreaterThan(abs(s.headPitch), 10, "pitch falls back to the legacy formula for the nil axis")
-    }
-
-    /// The default ships OFF, so a fresh fusion behaves exactly like the legacy path
-    /// even when face fields are populated — guards against an accidental flip.
-    func test_faceAngles_defaultOff_ignoresFaceFields() {
-        XCTAssertFalse(FaceAngleTuning.useFaceAnglesDefault)
-        FaceAngleTuning.useFaceAngles = FaceAngleTuning.useFaceAnglesDefault
-        var fusion = PoseDepthFusion()
-        let kps = turnGeometry()
-        let withFace = fuse(makeFacePose(yaw: 90, pitch: 90, roll: 90, keypoints: kps), fusion: &fusion)!
-        let legacy = fuse(makePose(keypoints: kps), fusion: &fusion)!
-        XCTAssertEqual(withFace.headPitch, legacy.headPitch, accuracy: 1e-6)
-        XCTAssertEqual(withFace.headYaw, legacy.headYaw, accuracy: 1e-6)
-        XCTAssertEqual(withFace.headRoll, legacy.headRoll, accuracy: 1e-6)
-    }
-
     // MARK: - External (ARKit ARFaceAnchor) head angles — Layer 1, Tier 1
 
     private func makeExternalPose(
         _ angles: HeadAngles,
-        face: (yaw: Float, pitch: Float, roll: Float)? = nil,
         keypoints: [Keypoint]? = nil
     ) -> PoseObservation {
         PoseObservation(
             timestamp: 1.0, keypoints: keypoints ?? turnGeometry(), confidence: 0.9,
-            faceYaw: face?.yaw, facePitch: face?.pitch, faceRoll: face?.roll,
             externalHeadAngles: angles
         )
     }
 
-    /// ARKit angles are authoritative even with the Vision flag OFF (its default) —
-    /// the gold-standard sensor must never be silenced by the monocular opt-in flag.
-    func test_external_winsVerbatim_evenWithFaceFlagOff() {
-        FaceAngleTuning.useFaceAngles = false
+    /// ARKit angles are authoritative and pass through verbatim — the legacy 2D
+    /// estimate is never consulted when an external head pose is present.
+    func test_external_winsVerbatim() {
         var fusion = PoseDepthFusion()
         let ext = HeadAngles(pitch: 7, yaw: -23, roll: 4)
         let s = fuse(makeExternalPose(ext), fusion: &fusion)!
@@ -1069,22 +976,8 @@ final class PoseDepthFusionTests: XCTestCase {
         XCTAssertEqual(s.headRoll, 4, accuracy: 1e-4)
     }
 
-    /// External beats the Vision face fit even when the flag is ON and the two
-    /// disagree (Tier 1 over Tier 2).
-    func test_external_beatsFaceFit_whenBothPresent() {
-        FaceAngleTuning.useFaceAngles = true
-        defer { FaceAngleTuning.useFaceAngles = false }
-        var fusion = PoseDepthFusion()
-        let ext = HeadAngles(pitch: 1, yaw: 2, roll: 3)
-        let s = fuse(makeExternalPose(ext, face: (yaw: 40, pitch: 40, roll: 40)), fusion: &fusion)!
-        XCTAssertEqual(s.headPitch, 1, accuracy: 1e-4)
-        XCTAssertEqual(s.headYaw, 2, accuracy: 1e-4)
-        XCTAssertEqual(s.headRoll, 3, accuracy: 1e-4)
-    }
-
     /// External nil → byte-identical to the pre-Layer-1 legacy path (regression pin).
     func test_external_nil_isLegacyExactly() {
-        FaceAngleTuning.useFaceAngles = false
         var fusion = PoseDepthFusion()
         let kps = turnGeometry()
         let legacy = fuse(makePose(keypoints: kps), fusion: &fusion)!

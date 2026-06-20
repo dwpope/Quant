@@ -221,7 +221,6 @@ struct PostureVisualizationCalibrationOverlay: View {
             // Per-channel on/off lives on each gain label above; these are the
             // mirror flip and quick all-on/all-off for fast soloing.
             HStack(spacing: 6) {
-                chip("face", faceAnglesBinding)
                 chip("mirror", debugBinding(\.mirrored))
                 actionChip("all on")  { setAllChannels(true) }
                 actionChip("all off") { setAllChannels(false) }
@@ -245,19 +244,6 @@ struct PostureVisualizationCalibrationOverlay: View {
         .onChange(of: smoothing)     { _, v in Bind.orientationSmoothing = v }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Visualization tuning")
-    }
-
-    /// Live toggle for sourcing head yaw/pitch/roll from the Vision joint face-fit
-    /// (decoupled — kills the turn→nod "W") vs. the legacy three-independent-2D
-    /// formulas. Non-observable static, so bump `channelTick` to refresh the chip.
-    /// NOTE: with this ON the head signal's sign/magnitude change — retune the head
-    /// gains and drop `turn↓tilt` toward 1 (a decoupled source no longer needs the
-    /// phantom-cancelling fade, which would otherwise suppress a real nod-while-turned).
-    private var faceAnglesBinding: Binding<Bool> {
-        Binding(
-            get: { FaceAngleTuning.useFaceAngles },
-            set: { FaceAngleTuning.useFaceAngles = $0; channelTick += 1 }
-        )
     }
 
     /// Two-way binding onto a `DebugChannels` flag (a mutable static struct, so we
