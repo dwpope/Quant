@@ -295,15 +295,19 @@ class AppModel: ObservableObject {
     init() {
         let defaults = UserDefaults.standard
 
-        // Load persisted camera mode (default: .rearDepth). Compute into a local so
-        // the unsupported-device coercion runs before `self.cameraMode` is assigned
-        // (Swift forbids reading a stored property mid-init). A persisted .frontFace
-        // on a device without TrueDepth face tracking would crash session.run, so
-        // fall back to the 2D front path.
-        var initialMode: CameraMode = .rearDepth
+        // Load persisted camera mode. Compute into a local so the unsupported-device
+        // coercion runs before `self.cameraMode` is assigned (Swift forbids reading a
+        // stored property mid-init). An explicit persisted choice always wins; with
+        // none saved, default to .frontFace on TrueDepth-capable devices (the
+        // decoupled ARFaceAnchor head source is the figure's most accurate path),
+        // else .rearDepth. A persisted .frontFace on a device without TrueDepth face
+        // tracking would crash session.run, so coerce it to the 2D front path.
+        var initialMode: CameraMode
         if let raw = defaults.string(forKey: Keys.cameraMode),
            let saved = CameraMode(rawValue: raw) {
             initialMode = saved
+        } else {
+            initialMode = ARFaceTrackingService.isFaceTrackingSupported ? .frontFace : .rearDepth
         }
         if initialMode == .frontFace && !ARFaceTrackingService.isFaceTrackingSupported {
             initialMode = .front2D
