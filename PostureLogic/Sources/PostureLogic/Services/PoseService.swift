@@ -86,7 +86,10 @@ final class PoseService: PoseServiceProtocol {
                 confidence: observation.confidence,
                 faceYaw: faceAngles.yaw,
                 facePitch: faceAngles.pitch,
-                faceRoll: faceAngles.roll
+                faceRoll: faceAngles.roll,
+                // Layer 1: pass through any ARKit head pose the frame source
+                // supplied (nil for the Vision-only front/rear paths).
+                externalHeadAngles: frame.externalHeadAngles
             ))
         } catch {
             visionErrorCount += 1

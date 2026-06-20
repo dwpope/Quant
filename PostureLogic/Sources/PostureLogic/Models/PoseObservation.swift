@@ -25,13 +25,22 @@ public struct PoseObservation {
     public let facePitch: Float?
     public let faceRoll: Float?
 
+    /// An authoritative, fully-decoupled head pose from an ARKit `ARFaceAnchor`
+    /// (Layer 1), threaded through from `InputFrame.externalHeadAngles`. Distinct
+    /// from the per-axis Vision monocular channel above: this is all-or-nothing (a
+    /// whole rotation) and, when present, wins in `computeHeadAngles` regardless of
+    /// the Vision `useFaceAngles` flag. `nil` on every non-ARKit-face path. Never
+    /// serialized.
+    public let externalHeadAngles: HeadAngles?
+
     public init(
         timestamp: TimeInterval,
         keypoints: [Keypoint],
         confidence: Float,
         faceYaw: Float? = nil,
         facePitch: Float? = nil,
-        faceRoll: Float? = nil
+        faceRoll: Float? = nil,
+        externalHeadAngles: HeadAngles? = nil
     ) {
         self.timestamp = timestamp
         self.keypoints = keypoints
@@ -39,6 +48,7 @@ public struct PoseObservation {
         self.faceYaw = faceYaw
         self.facePitch = facePitch
         self.faceRoll = faceRoll
+        self.externalHeadAngles = externalHeadAngles
     }
 }
 

@@ -20,12 +20,15 @@ struct CalibrationSettingsView: View {
                     )) {
                         Text("Rear (Depth)").tag(CameraMode.rearDepth)
                         Text("Front (2D)").tag(CameraMode.front2D)
+                        if ARFaceTrackingService.isFaceTrackingSupported {
+                            Text("Front (Face)").tag(CameraMode.frontFace)
+                        }
                     }
                     .pickerStyle(.segmented)
                 } header: {
                     Text("Camera")
                 } footer: {
-                    Text("Rear uses LiDAR depth when available. Front uses 2D pose only. Switching requires recalibration.")
+                    Text("Rear uses LiDAR depth when available. Front (2D) uses pose only. Front (Face) uses TrueDepth for an accurate head pose. Switching requires recalibration.")
                 }
 
                 Section {

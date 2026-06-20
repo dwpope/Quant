@@ -10,12 +10,21 @@ import simd
 /// - `roll`:  tilt of the ear line from horizontal; right ear lower → negative.
 /// - `pitch`: chin-down nod angle (computed in a later sub-stage).
 /// - `yaw`:   left/right head turn (computed in a later sub-stage).
-struct HeadAngles {
-    var pitch: Float
-    var yaw: Float
-    var roll: Float
+/// Public so it can type `InputFrame.externalHeadAngles` — the channel an app-side
+/// ARKit provider uses to inject a fully-decoupled `ARFaceAnchor` head pose (Layer
+/// 1) ahead of both the Vision monocular fit and the legacy 2D formulas.
+public struct HeadAngles {
+    public var pitch: Float
+    public var yaw: Float
+    public var roll: Float
 
-    static let neutral = HeadAngles(pitch: 0, yaw: 0, roll: 0)
+    public init(pitch: Float, yaw: Float, roll: Float) {
+        self.pitch = pitch
+        self.yaw = yaw
+        self.roll = roll
+    }
+
+    public static let neutral = HeadAngles(pitch: 0, yaw: 0, roll: 0)
 }
 
 /// Runtime-tunable head-orientation calibration, exposed `public` so a **DEBUG**
@@ -284,7 +293,11 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
         // is upgraded to a true depth-based elevation angle when LiDAR depth exists
         // at the nose + ear plane, falling back to the 2D pitch otherwise.
         var headAngles = computeHeadAngles(from: pose)
-        if let pitch3D = computeHeadPitch3D(
+        // The LiDAR elevation pitch refines the *2D* estimate; it must not override
+        // an authoritative ARKit (`externalHeadAngles`) pitch, which is already a
+        // true metric angle.
+        if pose.externalHeadAngles == nil,
+           let pitch3D = computeHeadPitch3D(
             from: pose,
             depthSamples: depthSamples,
             intrinsics: intrinsics
@@ -462,6 +475,19 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             yaw: computeHeadYaw(from: pose),
             roll: computeHeadRoll(from: pose)
         )
+
+        // Tier 1 — ARKit ARFaceAnchor (Layer 1): a true metric 6-DOF head pose,
+        // already decoupled by construction. Authoritative when present, and
+        // deliberately NOT gated by `useFaceAngles` (that flag is the *Vision*
+        // monocular opt-in; its default-off must never silently disable the
+        // gold-standard sensor signal). All-or-nothing — the anchor yields a whole
+        // rotation, not per-axis optionals.
+        if let external = pose.externalHeadAngles {
+            return external
+        }
+
+        // Tier 2 — Vision rev-3 joint face-fit (Layer 0): per-axis, gated, with a
+        // transparent fallback to the legacy formula for any axis Vision didn't fit.
         guard FaceAngleTuning.useFaceAngles else { return legacy }
         return HeadAngles(
             pitch: pose.facePitch ?? legacy.pitch,

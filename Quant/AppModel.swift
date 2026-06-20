@@ -235,6 +235,7 @@ class AppModel: ObservableObject {
 
     let arService = ARSessionService()
     let frontService = FrontCameraSessionService()
+    let arFaceService = ARFaceTrackingService()
     private let switchableProvider = SwitchablePoseProvider()
     private let thermalMonitor = ThermalMonitor()
     private lazy var pipeline: Pipeline = {
@@ -250,6 +251,11 @@ class AppModel: ObservableObject {
     private var countdownCompleted: Bool = false
 
     private static let baselineKey = "com.quant.savedBaseline"
+
+    /// Delay between tearing down one camera session and starting the next, so the
+    /// hardware is released first (see `switchCameraMode`). Device-tunable starting
+    /// value; raise if a mode switch ever stalls the incoming session.
+    private let cameraReleaseSettleMs = 250
 
     private enum Keys {
         static let cameraMode = "com.quant.cameraMode"
@@ -289,13 +295,20 @@ class AppModel: ObservableObject {
     init() {
         let defaults = UserDefaults.standard
 
-        // Load persisted camera mode (default: .rearDepth)
+        // Load persisted camera mode (default: .rearDepth). Compute into a local so
+        // the unsupported-device coercion runs before `self.cameraMode` is assigned
+        // (Swift forbids reading a stored property mid-init). A persisted .frontFace
+        // on a device without TrueDepth face tracking would crash session.run, so
+        // fall back to the 2D front path.
+        var initialMode: CameraMode = .rearDepth
         if let raw = defaults.string(forKey: Keys.cameraMode),
            let saved = CameraMode(rawValue: raw) {
-            self.cameraMode = saved
-        } else {
-            self.cameraMode = .rearDepth
+            initialMode = saved
         }
+        if initialMode == .frontFace && !ARFaceTrackingService.isFaceTrackingSupported {
+            initialMode = .front2D
+        }
+        self.cameraMode = initialMode
 
         let posVar = defaults.object(forKey: Keys.maxPositionVariance) as? Float ?? Self.defaultMaxPositionVariance
         let angVar = defaults.object(forKey: Keys.maxAngleVariance) as? Float ?? Self.defaultMaxAngleVariance
@@ -579,6 +592,12 @@ class AppModel: ObservableObject {
     func switchCameraMode(to mode: CameraMode) async {
         guard mode != cameraMode else { return }
 
+        // Never switch into face tracking on hardware that can't run it.
+        guard mode != .frontFace || ARFaceTrackingService.isFaceTrackingSupported else {
+            print("Ignoring switch to .frontFace — device lacks TrueDepth face tracking")
+            return
+        }
+
         // Capture the previous service before changing the mode
         let previousService = activeService
 
@@ -592,6 +611,13 @@ class AppModel: ObservableObject {
         // Stop and detach previous source
         previousService.stop()
         switchableProvider.detach()
+
+        // Let the outgoing capture session actually release the camera before the new
+        // one runs. ARKit/AVCapture `pause()`/`stopRunning()` return before the
+        // hardware is freed, and .frontFace, .front2D and .rearDepth all contend for a
+        // shared camera — starting the next session too eagerly stalls it (the
+        // mode-switch camera war). This settle is timing-based; tune on device.
+        try? await Task.sleep(for: .milliseconds(cameraReleaseSettleMs))
 
         // Attach and start new source
         switchableProvider.attach(source: providerForMode(mode))
@@ -811,6 +837,7 @@ class AppModel: ObservableObject {
         switch mode {
         case .rearDepth: return arService
         case .front2D: return frontService
+        case .frontFace: return arFaceService
         }
     }
 

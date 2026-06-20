@@ -1042,4 +1042,81 @@ final class PoseDepthFusionTests: XCTestCase {
         XCTAssertEqual(withFace.headYaw, legacy.headYaw, accuracy: 1e-6)
         XCTAssertEqual(withFace.headRoll, legacy.headRoll, accuracy: 1e-6)
     }
+
+    // MARK: - External (ARKit ARFaceAnchor) head angles — Layer 1, Tier 1
+
+    private func makeExternalPose(
+        _ angles: HeadAngles,
+        face: (yaw: Float, pitch: Float, roll: Float)? = nil,
+        keypoints: [Keypoint]? = nil
+    ) -> PoseObservation {
+        PoseObservation(
+            timestamp: 1.0, keypoints: keypoints ?? turnGeometry(), confidence: 0.9,
+            faceYaw: face?.yaw, facePitch: face?.pitch, faceRoll: face?.roll,
+            externalHeadAngles: angles
+        )
+    }
+
+    /// ARKit angles are authoritative even with the Vision flag OFF (its default) —
+    /// the gold-standard sensor must never be silenced by the monocular opt-in flag.
+    func test_external_winsVerbatim_evenWithFaceFlagOff() {
+        FaceAngleTuning.useFaceAngles = false
+        var fusion = PoseDepthFusion()
+        let ext = HeadAngles(pitch: 7, yaw: -23, roll: 4)
+        let s = fuse(makeExternalPose(ext), fusion: &fusion)!
+        XCTAssertEqual(s.headPitch, 7, accuracy: 1e-4)
+        XCTAssertEqual(s.headYaw, -23, accuracy: 1e-4)
+        XCTAssertEqual(s.headRoll, 4, accuracy: 1e-4)
+    }
+
+    /// External beats the Vision face fit even when the flag is ON and the two
+    /// disagree (Tier 1 over Tier 2).
+    func test_external_beatsFaceFit_whenBothPresent() {
+        FaceAngleTuning.useFaceAngles = true
+        defer { FaceAngleTuning.useFaceAngles = false }
+        var fusion = PoseDepthFusion()
+        let ext = HeadAngles(pitch: 1, yaw: 2, roll: 3)
+        let s = fuse(makeExternalPose(ext, face: (yaw: 40, pitch: 40, roll: 40)), fusion: &fusion)!
+        XCTAssertEqual(s.headPitch, 1, accuracy: 1e-4)
+        XCTAssertEqual(s.headYaw, 2, accuracy: 1e-4)
+        XCTAssertEqual(s.headRoll, 3, accuracy: 1e-4)
+    }
+
+    /// External nil → byte-identical to the pre-Layer-1 legacy path (regression pin).
+    func test_external_nil_isLegacyExactly() {
+        FaceAngleTuning.useFaceAngles = false
+        var fusion = PoseDepthFusion()
+        let kps = turnGeometry()
+        let legacy = fuse(makePose(keypoints: kps), fusion: &fusion)!
+        let viaNil = fuse(
+            PoseObservation(timestamp: 1.0, keypoints: kps, confidence: 0.9, externalHeadAngles: nil),
+            fusion: &fusion
+        )!
+        XCTAssertEqual(viaNil.headPitch, legacy.headPitch, accuracy: 1e-6)
+        XCTAssertEqual(viaNil.headYaw, legacy.headYaw, accuracy: 1e-6)
+        XCTAssertEqual(viaNil.headRoll, legacy.headRoll, accuracy: 1e-6)
+    }
+
+    /// In depth mode, the LiDAR elevation pitch must NOT clobber an authoritative
+    /// ARKit pitch (the fuse3D guard).
+    func test_external_pitchSurvivesLiDAROverrideInDepthMode() {
+        var fusion = PoseDepthFusion()
+        let ext = HeadAngles(pitch: 12, yaw: 0, roll: 0)
+        // Upright depth pose with the external head angles attached.
+        let kps = [
+            makeKeypoint(.leftShoulder, x: 0.4, y: 0.5),
+            makeKeypoint(.rightShoulder, x: 0.6, y: 0.5),
+            makeKeypoint(.nose, x: 0.5, y: 0.7),
+            makeKeypoint(.leftEar, x: 0.45, y: 0.72),
+            makeKeypoint(.rightEar, x: 0.55, y: 0.72),
+        ]
+        let pose = PoseObservation(timestamp: 1.0, keypoints: kps, confidence: 0.9, externalHeadAngles: ext)
+        let samples = makeDepthSamples(for: pose.keypoints, depth: 0.6)
+        let result = fusion.fuse(
+            pose: pose, depthSamples: samples, confidence: .high,
+            intrinsics: makeIntrinsics(), trackingQuality: .good
+        )!
+        XCTAssertEqual(result.depthMode, .depthFusion)
+        XCTAssertEqual(result.headPitch, 12, accuracy: 1e-4, "ARKit pitch must survive the LiDAR pitch3D override")
+    }
 }

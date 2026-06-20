@@ -13,11 +13,20 @@ public struct InputFrame {
     /// (metrics, posture engine, nudge engine) as live camera input.
     public let precomputedSample: PoseSample?
 
-    public init(timestamp: TimeInterval, pixelBuffer: CVPixelBuffer?, depthMap: CVPixelBuffer?, cameraIntrinsics: simd_float3x3?, precomputedSample: PoseSample? = nil) {
+    /// An authoritative head orientation supplied by the frame source (Layer 1: an
+    /// app-side ARKit `ARFaceAnchor` provider). Unlike `precomputedSample` this does
+    /// NOT bypass pose detection — Vision still runs to recover shoulders (so the
+    /// device-confirmed side-lean survives); only the head angles are overridden,
+    /// downstream in `PoseDepthFusion.computeHeadAngles`. `nil` for the Vision-only
+    /// and replay providers. Not serialized (this struct is never `Codable`).
+    public let externalHeadAngles: HeadAngles?
+
+    public init(timestamp: TimeInterval, pixelBuffer: CVPixelBuffer?, depthMap: CVPixelBuffer?, cameraIntrinsics: simd_float3x3?, precomputedSample: PoseSample? = nil, externalHeadAngles: HeadAngles? = nil) {
         self.timestamp = timestamp
         self.pixelBuffer = pixelBuffer
         self.depthMap = depthMap
         self.cameraIntrinsics = cameraIntrinsics
         self.precomputedSample = precomputedSample
+        self.externalHeadAngles = externalHeadAngles
     }
 }
