@@ -156,7 +156,11 @@ final class MetricsSmootherTests: XCTestCase {
                              "Higher alpha should be more responsive to changes")
     }
 
-    func test_ema_allFiveMetricsSmoothed() {
+    func test_ema_fourMetricsSmoothedByAlpha() {
+        // The four non-headDrop fields share the fixed-weight EMA. `headDrop` is
+        // deliberately excluded here: it now rides its own adaptive One Euro filter
+        // (see `test_headDrop_isHeavierThanAlpha_onSlowRamp`), so on an advancing-
+        // timestamp step it does NOT land on the EMA's alpha-blend value.
         var smoother = MetricsSmoother(alpha: 0.5)
 
         let m1 = makeMetrics(forwardCreep: 0, headDrop: 0, shoulderRounding: 0, lateralLean: 0, twist: 0, timestamp: 0)
@@ -165,12 +169,117 @@ final class MetricsSmootherTests: XCTestCase {
         let m2 = makeMetrics(forwardCreep: 1, headDrop: 1, shoulderRounding: 1, lateralLean: 1, twist: 1, timestamp: 0.1)
         let result = smoother.smooth(m2, sample: makeSample(timestamp: 0.1))
 
-        // With alpha=0.5: each should be 0.5
+        // With alpha=0.5: each of the four EMA-smoothed fields should be 0.5.
         XCTAssertEqual(result.forwardCreep, 0.5, accuracy: 0.001)
-        XCTAssertEqual(result.headDrop, 0.5, accuracy: 0.001)
         XCTAssertEqual(result.shoulderRounding, 0.5, accuracy: 0.001)
         XCTAssertEqual(result.lateralLean, 0.5, accuracy: 0.001)
         XCTAssertEqual(result.twist, 0.5, accuracy: 0.001)
+    }
+
+    // MARK: - headDrop dedicated One Euro filter
+
+    /// `headDrop` rides its own One Euro filter, tuned heavier than the shared EMA.
+    /// On a *posture-realistic slow ramp* (a real slouch developing over a few
+    /// seconds — the regime where the `minCutoff` floor dominates), the One Euro
+    /// `headDrop` must trail a reference `alpha` EMA fed the exact same field, i.e.
+    /// it is genuinely more damped than the responsive metrics. (A single instantaneous
+    /// jump would instead read as huge speed and snap through, which is why this uses a
+    /// gradual change, not a step.)
+    func test_headDrop_isHeavierThanAlpha_onSlowRamp() {
+        // The smoother whose headDrop is One-Euro filtered.
+        var smoother = MetricsSmoother(alpha: 0.3)
+        // A plain reference EMA at the same alpha, fed the identical headDrop values.
+        var referenceEMA: Float = 0
+        let refAlpha: Float = 0.3
+
+        // Seed both at 0.
+        _ = smoother.smooth(makeMetrics(headDrop: 0, timestamp: 0), sample: makeSample(timestamp: 0))
+
+        // Gradual ramp 0 → 0.03 over 3 s at 10 Hz (posture-speed drift).
+        var oneEuro: Float = 0
+        var t = 0.0
+        for i in 1...30 {
+            t += 0.1
+            let x = Float(i) / 30.0 * 0.03
+            oneEuro = smoother.smooth(makeMetrics(headDrop: x, timestamp: t), sample: makeSample(timestamp: t)).headDrop
+            referenceEMA += refAlpha * (x - referenceEMA)
+        }
+
+        XCTAssertGreaterThan(oneEuro, 0, "Filtered headDrop must track a sustained ramp")
+        XCTAssertLessThan(oneEuro, referenceEMA,
+                          "On a slow posture-speed ramp the One Euro headDrop must lag the equally-weighted EMA (heavier smoothing)")
+    }
+
+    /// The identity contract that keeps the exact numeric assertions elsewhere valid:
+    /// with a NON-advancing timestamp the One Euro stage is a pass-through, so a
+    /// changing `headDrop` at constant time is reported raw (never EMA-blended either,
+    /// since the alpha path also needs a prior value only through `previous`). The
+    /// first sample seeds; each subsequent constant-timestamp sample returns raw.
+    func test_headDrop_identityWhenTimestampDoesNotAdvance() {
+        var smoother = MetricsSmoother(alpha: 0.5)
+
+        // All samples stamped at the SAME time. The first seeds the filter (raw),
+        // and every later one passes through raw because dt == 0.
+        let inputs: [Float] = [0.02, 0.05, 0.01, 0.09, 0.03]
+        for x in inputs {
+            let result = smoother.smooth(
+                makeMetrics(headDrop: x, timestamp: 5.0),
+                sample: makeSample(timestamp: 5.0)
+            )
+            XCTAssertEqual(result.headDrop, x, accuracy: 1e-6,
+                           "With a non-advancing timestamp, headDrop must pass through raw")
+        }
+    }
+
+    /// A sustained step must eventually converge to the input — the heavy filter adds
+    /// lag, not a permanent offset. A stuck-low filter would keep a real slouch from
+    /// ever crossing `headDropThreshold`.
+    func test_headDrop_sustainedStep_convergesToInput() {
+        var smoother = MetricsSmoother(alpha: 0.5)
+
+        // Seed at 0, then hold a bad-carriage headDrop of 0.03 for a few seconds at
+        // 10 Hz. It must climb to ~0.03 despite the heavy stationary smoothing.
+        _ = smoother.smooth(makeMetrics(headDrop: 0, timestamp: 0), sample: makeSample(timestamp: 0))
+
+        var last: Float = 0
+        var t = 0.0
+        for _ in 0..<80 {                      // 8 s at 10 Hz
+            t += 0.1
+            last = smoother.smooth(
+                makeMetrics(headDrop: 0.03, timestamp: t),
+                sample: makeSample(timestamp: t)
+            ).headDrop
+        }
+        XCTAssertEqual(last, 0.03, accuracy: 0.002, "A sustained step must converge to the held input")
+    }
+
+    /// A noisy, stationary `headDrop` (the on-device failure mode: ~±0.01 flicker at a
+    /// fixed pose) must come out attenuated toward its mean — the reason the dedicated
+    /// filter exists. Compares the settled output swing against the input swing.
+    func test_headDrop_noisyStationaryInput_isAttenuated() {
+        var smoother = MetricsSmoother(alpha: 0.5)
+
+        let mean: Float = 0.02
+        let noise: Float = 0.01               // ±0.01 measured jitter
+        var t = 0.0
+        var outs: [Float] = []
+        for i in 0..<160 {
+            t += 0.1
+            let x = mean + (i % 2 == 0 ? noise : -noise)
+            outs.append(smoother.smooth(
+                makeMetrics(headDrop: x, timestamp: t),
+                sample: makeSample(timestamp: t)
+            ).headDrop)
+        }
+        // Settled tail only (skip the seeding transient).
+        let tail = Array(outs.suffix(60))
+        let outSwing = (tail.max() ?? 0) - (tail.min() ?? 0)
+        let inSwing = 2 * noise               // 0.02 peak-to-peak input
+        XCTAssertLessThan(outSwing, inSwing * 0.5,
+                          "Stationary headDrop jitter must be attenuated to <50% of the input swing")
+        // And it must stay centred on the mean (no steady-state bias).
+        let tailMean = tail.reduce(0, +) / Float(tail.count)
+        XCTAssertEqual(tailMean, mean, accuracy: 0.002, "Attenuated output must stay centred on the input mean")
     }
 
     // MARK: - Movement Level

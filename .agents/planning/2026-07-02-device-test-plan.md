@@ -39,10 +39,10 @@ Stay in **Front (Face)** mode with the **dev values HUD open** the whole time.
 1. Face forward. Confirm `gap  since:0  max:` is low (~0).
 2. Turn your head **left → right → center** a few times, at your **natural desk turn range** (as if glancing at a second monitor).
 3. Face forward again and read **`gap max:`**.
-   → **RECORD: `max` = ______**
+   → **RECORD: `max` = 87**
 4. During the turns, note:
-   - Did `src` flip to **`2D`**?  → **______**
-   - Did the head figure **follow** your yaw, or **snap**?  → **______**
+   - Did `src` flip to **`2D`**?  → **No**
+   - Did the head figure **follow** your yaw, or **snap**?  → **It was leaning instead of moving left to right**
 
 ---
 
@@ -53,7 +53,7 @@ Stay in **Front (Face)** mode with the **dev values HUD open** the whole time.
 1. Sit **tall, in good posture** (this becomes your neutral reference).
 2. Run a **fresh calibration** (however you normally trigger it).
 3. At neutral, read the `neck` row **mapped** value.
-   → should be **~0**.  → **RECORD: neutral mapped = ______**
+   → should be **~0**.  → **RECORD: neutral mapped = 0**
    - ⚠️ If it's a big negative (e.g. `−0.4`), calibration didn't take — retry. If it persists, report it.
 
 ---
@@ -63,29 +63,30 @@ Stay in **Front (Face)** mode with the **dev values HUD open** the whole time.
 **Goal:** find the right trip point. `0.06` is probably too high now — the ear travels less than the nose for the same head-drop.
 
 1. At neutral: `neck mapped ≈ 0`, not orange. ✔
-2. **Mild slouch** (slightly forward/down): read mapped.  → **RECORD: mild = ______**
-3. **Clearly bad** carriage (head craned down/forward toward the screen): read mapped.  → **RECORD: bad = ______**
-4. Does the row go **orange** (crosses `0.06`) at bad posture?  → **______**
+2. **Mild slouch** (slightly forward/down): read mapped.  → **RECORD: mild = 0.012**
+3. **Clearly bad** carriage (head craned down/forward toward the screen): read mapped.  → **RECORD: bad = 0.025**
+4. Does the row go **orange** (crosses `0.06`) at bad posture?  → **No, it doesn't reach that number, the max is around 0.025**
    - If it **never** goes orange even when clearly bad, `0.06` is too high — that's the signal to lower it.
+   **Note: The values fluctuate alot, at mild it flickers to 0.006 or up to 0.025 and at bad it flickers around +- 0.01, the measurement does not appear to be smooth** 
 
 ---
 
 ## TEST 4 — Quick regression (30 sec — confirm nothing else broke)
 
-- Lean side to side → `latLean` moves? **______**
-- Twist shoulders → `twist` moves? **______**
-- Lean toward camera → `fwdCreep` moves? **______**
-- Any row stuck / dead? **______**
+- Lean side to side → `latLean` moves? **it moves but only appears to work when I lean from centred to my right as opposed to my left**
+- Twist shoulders → `twist` moves? **twist moves, it goes positive whether I twist to the left or the right**
+- Lean toward camera → `fwdCreep` moves? **It works**
+- Any row stuck / dead? **The mapped values for rawYaw, raw-Pitch and Pitch raw-roll have a raw value but not a mapped value**
 
 ---
 
 ## 📋 REPORT BACK (fill the blanks)
 
 ```
-TEST 1  max = ____   src dropped to 2D? ____   followed / snapped? ____
-TEST 2  neck neutral mapped = ____
-TEST 3  mild = ____   bad = ____   orange at bad? ____
-TEST 4  latLean ok? ____  twist ok? ____  fwdCreep ok? ____  anything dead? ____
+TEST 1  max = 87   src dropped to 2D? never   followed / snapped? Snaps but now the head tilts back and to the side
+TEST 2  neck neutral mapped = 0
+TEST 3  mild = 0.012   bad = 0.025   orange at bad? No
+TEST 4  latLean ok? it moves but only appears to work when I lean from centred to my right as opposed to my left  twist ok? twist moves, it goes positive whether I twist to the left or the right  fwdCreep ok? It works  anything dead? The mapped values for rawYaw, raw-Pitch and Pitch raw-roll have a raw value but not a mapped value
 ```
 
 **What I do with it:**

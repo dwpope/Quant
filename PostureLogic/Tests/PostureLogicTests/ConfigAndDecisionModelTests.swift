@@ -93,7 +93,7 @@ final class ConfigAndDecisionModelTests: XCTestCase {
         XCTAssertEqual(t.forwardCreepThreshold, 0.03)
         XCTAssertEqual(t.twistThreshold, 15.0)
         XCTAssertEqual(t.sideLeanThreshold, 0.08)
-        XCTAssertEqual(t.headDropThreshold, 0.06)
+        XCTAssertEqual(t.headDropThreshold, 0.018)   // lowered from 0.06 for ear-sourced carriage
         XCTAssertEqual(t.shoulderRoundingThreshold, 10.0)
 
         // Confidence gates

@@ -77,6 +77,23 @@ public enum HeadOrientationDecomposition {
         return taitBryanZYXDegrees(screen)
     }
 
+    /// The head origin expressed in CAMERA space, in meters — the translation part
+    /// of `inverse(camera) · head`, which the orientation paths above discard.
+    /// This is the metric lean-in / viewing-distance signal (TrueDepth-accurate):
+    /// independent of where the head/camera pair sits in ARKit's world frame, and
+    /// of head rotation. ARKit's camera looks down its −Z, so a face in front of
+    /// the lens has negative z; `simd_length` of the result is the head-to-camera
+    /// distance. No `portraitFixUp` parameter: distance is rotation-invariant, and
+    /// consumers of the raw vector re-base axes themselves if they ever need to.
+    public static func cameraSpaceHeadPosition(
+        headTransform: simd_float4x4,
+        cameraTransform: simd_float4x4
+    ) -> SIMD3<Float> {
+        let relative = simd_inverse(cameraTransform) * headTransform
+        let t = relative.columns.3
+        return SIMD3(t.x, t.y, t.z)
+    }
+
     // MARK: - Quaternion siblings (viz-only passthrough)
 
     /// The orthonormalized screen-frame head rotation as a `simd_quatf`, built from

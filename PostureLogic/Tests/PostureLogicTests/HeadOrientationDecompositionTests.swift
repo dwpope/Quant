@@ -220,3 +220,70 @@ final class HeadOrientationDecompositionTests: XCTestCase {
         XCTAssertEqual(a.roll, b.roll, accuracy: 1e-2, "device tilt leaked into roll")
     }
 }
+
+/// Camera-space head POSITION (the translation the orientation path discards).
+/// This is the metric lean-in/viewing-distance signal: where the head origin sits
+/// relative to the lens, in meters, independent of where the pair sits in ARKit's
+/// world frame and of how either is rotated.
+extension HeadOrientationDecompositionTests {
+
+    private func xform(_ r: simd_float3x3, _ t: SIMD3<Float>) -> simd_float4x4 {
+        simd_float4x4(columns: (
+            SIMD4(r.columns.0, 0),
+            SIMD4(r.columns.1, 0),
+            SIMD4(r.columns.2, 0),
+            SIMD4(t, 1)
+        ))
+    }
+    private func identityAt(_ t: SIMD3<Float>) -> simd_float4x4 {
+        xform(matrix_identity_float3x3, t)
+    }
+
+    func test_headPosition_halfMeterInFrontOfIdentityCamera() {
+        // ARKit camera looks down its -Z: a face 0.5 m in front sits at z = -0.5.
+        let pos = HeadOrientationDecomposition.cameraSpaceHeadPosition(
+            headTransform: identityAt(SIMD3(0, 0, -0.5)),
+            cameraTransform: matrix_identity_float4x4)
+        XCTAssertEqual(pos.x, 0, accuracy: 1e-5)
+        XCTAssertEqual(pos.y, 0, accuracy: 1e-5)
+        XCTAssertEqual(pos.z, -0.5, accuracy: 1e-5)
+        XCTAssertEqual(simd_length(pos), 0.5, accuracy: 1e-5)
+    }
+
+    func test_headPosition_invariantToCameraWorldPose() {
+        // Same head-relative-to-lens offset, but the camera is somewhere else in the
+        // world and rotated: the recovered camera-space position must be the offset,
+        // exactly — world placement must cancel (this is what makes the distance
+        // signal immune to ARKit world-tracking drift).
+        let offset = SIMD3<Float>(0.1, -0.2, -0.6)
+        let camRot = rz(37) * ry(-20) * rx(11)
+        let camPos = SIMD3<Float>(2, 1, 3)
+        let camera = xform(camRot, camPos)
+        let head = identityAt(camRot * offset + camPos)
+        let pos = HeadOrientationDecomposition.cameraSpaceHeadPosition(
+            headTransform: head, cameraTransform: camera)
+        XCTAssertEqual(pos.x, offset.x, accuracy: 1e-4)
+        XCTAssertEqual(pos.y, offset.y, accuracy: 1e-4)
+        XCTAssertEqual(pos.z, offset.z, accuracy: 1e-4)
+    }
+
+    func test_headPosition_unaffectedByHeadRotation() {
+        // Turning the head must not move the measured position: distance is a
+        // translation-only signal (a head turn at fixed distance reads constant).
+        let t = SIMD3<Float>(0.05, -0.1, -0.55)
+        let still = HeadOrientationDecomposition.cameraSpaceHeadPosition(
+            headTransform: identityAt(t), cameraTransform: matrix_identity_float4x4)
+        let turned = HeadOrientationDecomposition.cameraSpaceHeadPosition(
+            headTransform: xform(rz(40) * rx(-15), t), cameraTransform: matrix_identity_float4x4)
+        XCTAssertEqual(still.x, turned.x, accuracy: 1e-5)
+        XCTAssertEqual(still.y, turned.y, accuracy: 1e-5)
+        XCTAssertEqual(still.z, turned.z, accuracy: 1e-5)
+    }
+
+    func test_headPosition_coincidentTransforms_isZero() {
+        let m = xform(ry(25), SIMD3(1, 2, 3))
+        let pos = HeadOrientationDecomposition.cameraSpaceHeadPosition(
+            headTransform: m, cameraTransform: m)
+        XCTAssertEqual(simd_length(pos), 0, accuracy: 1e-5)
+    }
+}

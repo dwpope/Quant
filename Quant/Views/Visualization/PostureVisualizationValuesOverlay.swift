@@ -130,6 +130,20 @@ struct PostureVisualizationValuesOverlay: View {
                         .gridCellColumns(3)
                         .gridColumnAlignment(.leading)
                 }
+                // Spike S1 (lean-in SNR): metric head-to-camera distance from the
+                // ARFace translation the orientation path discards. Read it at
+                // neutral / mild / bad and note the flicker at a held pose — this
+                // decides whether distance becomes a scored lean-in signal.
+                GridRow {
+                    Text("dist").gridColumnAlignment(.leading)
+                    Text(ARFaceTrackingService.diagHeadDistanceMeters.isNaN
+                        ? "--"
+                        : String(format: "%.1f cm", ARFaceTrackingService.diagHeadDistanceMeters * 100))
+                        .foregroundStyle(ARFaceTrackingService.diagHeadDistanceMeters.isNaN
+                            ? AnyShapeStyle(.orange) : AnyShapeStyle(.green))
+                        .gridCellColumns(3)
+                        .gridColumnAlignment(.leading)
+                }
                 row("latLean",   raw: viewModel.rawLateralLean,      map: viewModel.sideLeanOffsetPoints,    mapUnit: "pt",
                     active: debug.sideLean)
                 row("headFwd",   raw: viewModel.rawHeadForwardOffset, map: viewModel.headForwardOffsetPoints, mapUnit: "pt",

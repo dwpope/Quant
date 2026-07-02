@@ -52,6 +52,11 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
     /// independent of the window (it keeps counting past the cap until a face returns).
     static var diagFramesSinceTracked = 0
     static var diagMaxSinceTracked = 0
+    /// Head-to-camera distance in meters from the last *tracked* face (Spike S1:
+    /// lean-in SNR measurement — read by the dev HUD `dist` row). `nan` until the
+    /// first tracked face; holds the last tracked value across dropouts (the `gap`
+    /// row already conveys staleness).
+    static var diagHeadDistanceMeters = Float.nan
 
     var framePublisher: AnyPublisher<InputFrame, Never> {
         frameSubject.eraseToAnyPublisher()
@@ -86,13 +91,14 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
     private var framesSinceTrackedFace = 0
     /// Grace window: how many consecutive untracked ARFrames to hold the last good
     /// head pose before releasing to nil (which flips the figure to the 2D fallback).
-    /// ARFrames arrive at 60 FPS, so 90 ≈ 1.5 s. Widened from 30 (~0.5 s): a head TURN
-    /// makes `ARFaceAnchor.isTracked` flicker — the face is tracked *sparsely*, not
-    /// lost — and 0.5 s was too short to bridge those gaps, collapsing yaw to 2D mid-turn
-    /// (the visible snap). Sized from `diagMaxSinceTracked` measured on device; raise if
-    /// the peak gap on a normal turn still exceeds it. Trade-off: too long and a *held*
-    /// (genuinely lost) turn freezes the figure on the stale forward pose for the window.
-    private static let maxStaleFrames = 90
+    /// ARFrames arrive at 60 FPS, so 130 ≈ 2.2 s. On device, `diagMaxSinceTracked` peaked
+    /// at 87 on a normal desk turn under the earlier 90 window — it held, but with only
+    /// ~3 frames of margin, so a slightly faster/wider turn would overflow and snap to 2D.
+    /// 130 gives ~1.5× headroom over that measured peak. A head TURN makes
+    /// `ARFaceAnchor.isTracked` flicker (the face is tracked *sparsely*, not lost); this
+    /// bridges those gaps. Trade-off: too long and a *held* (genuinely lost) turn freezes
+    /// the figure on the stale forward pose for the full window.
+    private static let maxStaleFrames = 130
 
     /// Re-bases ARKit's landscape-referenced camera axes onto the portrait screen so
     /// a head turn reads as yaw, a nod as pitch, a tilt as roll. A +90° rotation about
@@ -136,6 +142,7 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
         framesSinceTrackedFace = 0
         Self.diagFramesSinceTracked = 0
         Self.diagMaxSinceTracked = 0
+        Self.diagHeadDistanceMeters = .nan
         startFrameTimeoutMonitoring()
     }
 
@@ -218,6 +225,13 @@ extension ARFaceTrackingService: ARSessionDelegate {
                 cameraTransform: frame.camera.transform,
                 portraitFixUp: portraitFixUp
             )
+            // Spike S1: the translation the orientation path discards — metric
+            // head-to-camera distance for the HUD `dist` row (diagnostic only).
+            Self.diagHeadDistanceMeters = simd_length(
+                HeadOrientationDecomposition.cameraSpaceHeadPosition(
+                    headTransform: face.transform,
+                    cameraTransform: frame.camera.transform
+                ))
             lastGoodAngles = angles
             lastGoodOrientation = q
             framesSinceTrackedFace = 0
