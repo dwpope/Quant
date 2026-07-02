@@ -10,6 +10,11 @@ public struct PostureThresholds: Codable {
     public var forwardCreepThreshold: Float = 0.03
     public var twistThreshold: Float = 15.0
     public var sideLeanThreshold: Float = 0.08
+    /// Head-drop trip point, in shoulder-widths of carriage loss. `headDrop` is now
+    /// **ear-sourced** (ear-midpoint carriage above the shoulders) rather than
+    /// nose-relative — the number is unchanged, but note the ear moves less than the
+    /// nose for the same look-down, so this may need **lowering on device** to keep
+    /// the same real-world sensitivity. TUNE ON DEVICE.
     public var headDropThreshold: Float = 0.06
     public var shoulderRoundingThreshold: Float = 10.0
 

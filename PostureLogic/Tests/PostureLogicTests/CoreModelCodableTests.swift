@@ -218,6 +218,185 @@ final class CoreModelCodableTests: XCTestCase {
         XCTAssertEqual(decoded.headPosition, .zero)
     }
 
+    func testPoseSample_headOrientation_codableRoundTrip_nonNil() throws {
+        let quat = SIMD4<Float>(0.1, -0.2, 0.3, 0.927)
+        let original = PoseSample(
+            timestamp: 7.0,
+            depthMode: .depthFusion,
+            headPosition: .zero,
+            shoulderMidpoint: .zero,
+            leftShoulder: .zero,
+            rightShoulder: .zero,
+            torsoAngle: 0,
+            headForwardOffset: 0,
+            shoulderTwist: 0,
+            shoulderWidthRaw: 0,
+            trackingQuality: .good,
+            headOrientation: quat
+        )
+        let data = try encoder.encode(original)
+        let decoded = try decoder.decode(PoseSample.self, from: data)
+        XCTAssertEqual(decoded.headOrientation, quat)
+    }
+
+    func testPoseSample_headOrientation_defaultsNil() {
+        let sample = PoseSample(
+            timestamp: 0,
+            depthMode: .twoDOnly,
+            headPosition: .zero,
+            shoulderMidpoint: .zero,
+            leftShoulder: .zero,
+            rightShoulder: .zero,
+            torsoAngle: 0,
+            headForwardOffset: 0,
+            shoulderTwist: 0,
+            shoulderWidthRaw: 0,
+            trackingQuality: .lost
+        )
+        XCTAssertNil(sample.headOrientation)
+    }
+
+    /// Backward-compat: a `PoseSample` encoded without `headOrientation` (an old
+    /// recording) decodes with the field `nil`. Encoding a nil-headOrientation
+    /// sample and decoding must round-trip to nil.
+    func testPoseSample_headOrientation_nilRoundTrip() throws {
+        let original = PoseSample(
+            timestamp: 3.0,
+            depthMode: .depthFusion,
+            headPosition: .zero,
+            shoulderMidpoint: .zero,
+            leftShoulder: .zero,
+            rightShoulder: .zero,
+            torsoAngle: 0,
+            headForwardOffset: 0,
+            shoulderTwist: 0,
+            shoulderWidthRaw: 0,
+            trackingQuality: .good
+        )
+        let data = try encoder.encode(original)
+        let decoded = try decoder.decode(PoseSample.self, from: data)
+        XCTAssertNil(decoded.headOrientation)
+    }
+
+    func testPoseSample_neckHeight_codableRoundTrip() throws {
+        let original = PoseSample(
+            timestamp: 5.0,
+            depthMode: .twoDOnly,
+            headPosition: .zero,
+            shoulderMidpoint: .zero,
+            leftShoulder: .zero,
+            rightShoulder: .zero,
+            torsoAngle: 0,
+            headForwardOffset: 0,
+            shoulderTwist: 0,
+            shoulderWidthRaw: 0,
+            trackingQuality: .good,
+            neckHeight: 0.73
+        )
+        let data = try encoder.encode(original)
+        let decoded = try decoder.decode(PoseSample.self, from: data)
+        XCTAssertEqual(decoded.neckHeight, 0.73, accuracy: 0.0001)
+    }
+
+    /// Backward-compat: JSON for a `PoseSample` written before `neckHeight` existed
+    /// (no such key) must decode with `neckHeight == 0` so old recordings still load.
+    func testPoseSample_neckHeight_missingKey_decodesToZero() throws {
+        let sample = PoseSample(
+            timestamp: 5.0,
+            depthMode: .twoDOnly,
+            headPosition: SIMD3<Float>(0.1, 0.2, 0),
+            shoulderMidpoint: SIMD3<Float>(0.1, 0.1, 0),
+            leftShoulder: .zero,
+            rightShoulder: .zero,
+            torsoAngle: 3,
+            headForwardOffset: 0,
+            shoulderTwist: 1,
+            shoulderWidthRaw: 0.2,
+            trackingQuality: .good,
+            neckHeight: 0.9
+        )
+        // Encode, then strip the `neckHeight` key to simulate an old recording.
+        let data = try encoder.encode(sample)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertNotNil(object["neckHeight"], "Precondition: current encoding writes the key")
+        object.removeValue(forKey: "neckHeight")
+        let stripped = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try decoder.decode(PoseSample.self, from: stripped)
+        XCTAssertEqual(decoded.neckHeight, 0, "Missing neckHeight must default to 0")
+        // The rest of the record still decodes intact.
+        XCTAssertEqual(decoded.torsoAngle, 3, accuracy: 0.0001)
+        XCTAssertEqual(decoded.shoulderWidthRaw, 0.2, accuracy: 0.0001)
+    }
+
+    // MARK: - Baseline
+
+    func testBaseline_codableRoundTrip_withNeckHeight() throws {
+        let original = Baseline(
+            timestamp: Date(timeIntervalSince1970: 1_700_000_000),
+            shoulderMidpoint: SIMD3<Float>(0.5, 0.4, 0),
+            headPosition: SIMD3<Float>(0.5, 0.25, 0),
+            torsoAngle: 2,
+            shoulderTwist: 1.5,
+            shoulderWidth: 0.3,
+            depthAvailable: true,
+            neckHeight: 0.42
+        )
+        let data = try encoder.encode(original)
+        let decoded = try decoder.decode(Baseline.self, from: data)
+        XCTAssertEqual(decoded.torsoAngle, 2, accuracy: 0.0001)
+        XCTAssertEqual(decoded.shoulderTwist, 1.5, accuracy: 0.0001)
+        XCTAssertEqual(decoded.shoulderWidth, 0.3, accuracy: 0.0001)
+        XCTAssertTrue(decoded.depthAvailable)
+        XCTAssertEqual(decoded.neckHeight, 0.42, accuracy: 0.0001)
+    }
+
+    /// Backward-compat: a persisted `Baseline` without `neckHeight` decodes with the
+    /// field defaulting to 0.
+    func testBaseline_neckHeight_missingKey_decodesToZero() throws {
+        let baseline = Baseline(
+            timestamp: Date(timeIntervalSince1970: 1_700_000_000),
+            shoulderMidpoint: SIMD3<Float>(0.5, 0.4, 0),
+            headPosition: SIMD3<Float>(0.5, 0.25, 0),
+            torsoAngle: 2,
+            shoulderTwist: 1.5,
+            shoulderWidth: 0.3,
+            depthAvailable: false,
+            neckHeight: 0.42
+        )
+        let data = try encoder.encode(baseline)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "neckHeight")
+        let stripped = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try decoder.decode(Baseline.self, from: stripped)
+        XCTAssertEqual(decoded.neckHeight, 0, "Missing neckHeight must default to 0")
+        XCTAssertEqual(decoded.shoulderWidth, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(decoded.shoulderTwist, 1.5, accuracy: 0.0001)
+    }
+
+    /// Backward-compat: a `Baseline` also predating `shoulderTwist` (neither key)
+    /// still decodes, both additive fields defaulting to 0.
+    func testBaseline_missingShoulderTwistAndNeckHeight_decodeToZero() throws {
+        let baseline = Baseline(
+            timestamp: Date(timeIntervalSince1970: 1_700_000_000),
+            shoulderMidpoint: .zero,
+            headPosition: .zero,
+            torsoAngle: 0,
+            shoulderWidth: 0.3,
+            depthAvailable: false
+        )
+        let data = try encoder.encode(baseline)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "shoulderTwist")
+        object.removeValue(forKey: "neckHeight")
+        let stripped = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try decoder.decode(Baseline.self, from: stripped)
+        XCTAssertEqual(decoded.shoulderTwist, 0)
+        XCTAssertEqual(decoded.neckHeight, 0)
+    }
+
     // MARK: - ThermalLevel
 
     func testThermalLevel_codableRoundTrip_allCases() throws {

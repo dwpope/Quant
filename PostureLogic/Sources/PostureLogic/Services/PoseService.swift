@@ -78,7 +78,9 @@ final class PoseService: PoseServiceProtocol {
                 confidence: observation.confidence,
                 // Layer 1: pass through any ARKit head pose the frame source
                 // supplied (nil for the Vision-only front/rear paths).
-                externalHeadAngles: frame.externalHeadAngles
+                externalHeadAngles: frame.externalHeadAngles,
+                // Viz-only quaternion sibling, threaded in lockstep with the angles.
+                externalHeadOrientation: frame.externalHeadOrientation
             ))
         } catch {
             visionErrorCount += 1

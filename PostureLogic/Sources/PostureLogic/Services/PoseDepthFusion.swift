@@ -199,6 +199,14 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             shoulderWidth: shoulderWidth
         )
         let headAngles = computeHeadAngles(from: pose)
+        // Ear-based head-carriage height (image space) — sources the refined
+        // `headDrop`. `midY`/`shoulderWidth` are already image-space here.
+        let neckHeight = computeNeckHeight(
+            pose: pose,
+            fallbackHeadY: headPos.y,
+            shoulderMidY: midY,
+            shoulderWidth: shoulderWidth
+        )
 
         return PoseSample(
             timestamp: pose.timestamp,
@@ -214,7 +222,11 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             trackingQuality: trackingQuality,
             headPitch: headAngles.pitch,
             headYaw: headAngles.yaw,
-            headRoll: headAngles.roll
+            headRoll: headAngles.roll,
+            // Viz-only quaternion: non-nil only on the ARFaceAnchor/Tier-1 path,
+            // nil for 2D/dropout. Parallel to the Euler fields, never gates scoring.
+            headOrientation: pose.externalHeadOrientation?.vector,
+            neckHeight: neckHeight
         )
     }
 
@@ -305,6 +317,19 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             headAngles.pitch = pitch3D
         }
 
+        // Ear-based head-carriage height, computed in **image space** exactly as
+        // the 2D path does (NOT from the unprojected 3D coordinates) so `headDrop`
+        // stays comparable across camera modes. `shoulderWidth` here is already the
+        // 2D image-space width; derive the matching 2D shoulder-mid Y from the same
+        // shoulder keypoints, and use the image-space `headPos.y` as fallback.
+        let shoulderMidY2D = (leftShoulder.position.y + rightShoulder.position.y) / 2
+        let neckHeight = computeNeckHeight(
+            pose: pose,
+            fallbackHeadY: headPos.y,
+            shoulderMidY: shoulderMidY2D,
+            shoulderWidth: shoulderWidth
+        )
+
         return PoseSample(
             timestamp: pose.timestamp,
             depthMode: .depthFusion,
@@ -319,7 +344,11 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             trackingQuality: trackingQuality,
             headPitch: headAngles.pitch,
             headYaw: headAngles.yaw,
-            headRoll: headAngles.roll
+            headRoll: headAngles.roll,
+            // Viz-only quaternion: non-nil only on the ARFaceAnchor/Tier-1 path,
+            // nil for 2D/dropout. Parallel to the Euler fields, never gates scoring.
+            headOrientation: pose.externalHeadOrientation?.vector,
+            neckHeight: neckHeight
         )
     }
 
@@ -399,6 +428,47 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
         }
 
         return nil
+    }
+
+    // MARK: - Neck Height (ear-based head carriage)
+
+    /// Ear-based head-carriage height in **image space** (Vision y-up),
+    /// shoulder-normalized: `(earMidY − shoulderMidY) / shoulderWidth`. This is the
+    /// source for the refined `RawMetrics.headDrop` — it tracks where the head is
+    /// *carried* relative to the shoulders, so a stable head reading down at the
+    /// nose (a transient look-down / chin-drop) does not register as a drop the way
+    /// nose-relative `headPosition.y` does. It is deliberately a **2D body-pose**
+    /// quantity (ear + shoulder image keypoints, same domain as `torsoAngle`); it
+    /// must NOT be derived from head-orientation angles.
+    ///
+    /// Both the 2D and 3D fusion paths call this with the **same image-space**
+    /// keypoints (never 3D/unprojected coordinates), so `headDrop` stays directly
+    /// comparable across camera modes.
+    ///
+    /// Ear source: both `.leftEar` and `.rightEar` must pass the shared
+    /// `keypoint(_:from:)` confidence gate; then `earY = (le.y + re.y) / 2`.
+    /// Otherwise falls back to `fallbackHeadY` — the already-resolved nose-first
+    /// head Y — so a turned/occluded-ear frame still yields a sane carriage value
+    /// instead of collapsing. Guards a degenerate `shoulderWidth` (returns 0),
+    /// mirroring the caller's existing width guards.
+    private func computeNeckHeight(
+        pose: PoseObservation,
+        fallbackHeadY: CGFloat,
+        shoulderMidY: CGFloat,
+        shoulderWidth: CGFloat
+    ) -> Float {
+        guard shoulderWidth > Self.minShoulderWidth else { return 0 }
+
+        let earY: CGFloat
+        if let le = keypoint(.leftEar, from: pose),
+           let re = keypoint(.rightEar, from: pose) {
+            earY = (le.position.y + re.position.y) / 2
+        } else {
+            earY = fallbackHeadY
+        }
+
+        // Vision y-up: ears above shoulders ⇒ positive.
+        return Float((earY - shoulderMidY) / shoulderWidth)
     }
 
     // MARK: - Angle Computation

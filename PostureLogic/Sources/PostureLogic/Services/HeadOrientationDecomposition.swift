@@ -77,6 +77,32 @@ public enum HeadOrientationDecomposition {
         return taitBryanZYXDegrees(screen)
     }
 
+    // MARK: - Quaternion siblings (viz-only passthrough)
+
+    /// The orthonormalized screen-frame head rotation as a `simd_quatf`, built from
+    /// the SAME upper-left 3x3 the Euler `taitBryanZYXDegrees(_:)` decomposes. Lets a
+    /// later viz stage drive the figure head from the quaternion directly instead of
+    /// re-amplifying decomposed Euler axes — by construction it agrees with the Euler
+    /// path (its matrix re-decomposes to the same yaw/pitch/roll). Viz-only: this
+    /// never feeds scoring.
+    public static func screenRotationQuat(_ transform: simd_float4x4) -> simd_quatf {
+        simd_quatf(orthonormalUpperLeft(transform))
+    }
+
+    /// Camera-relative quaternion sibling of
+    /// `taitBryanZYXDegrees(headTransform:cameraTransform:portraitFixUp:)`: the same
+    /// `portraitFixUp · orthonormalUpperLeft(inverse(camera) · head)` screen-frame
+    /// rotation, returned as a `simd_quatf` rather than decomposed Euler degrees.
+    public static func screenRotationQuat(
+        headTransform: simd_float4x4,
+        cameraTransform: simd_float4x4,
+        portraitFixUp: simd_float3x3 = matrix_identity_float3x3
+    ) -> simd_quatf {
+        let relative = simd_inverse(cameraTransform) * headTransform
+        let screen = portraitFixUp * orthonormalUpperLeft(relative)
+        return simd_quatf(screen)
+    }
+
     /// Extracts the upper-left 3x3 and re-orthonormalizes via Gram-Schmidt,
     /// producing a proper right-handed rotation (`c2 = c0 × c1`) even if the input
     /// carried float drift.

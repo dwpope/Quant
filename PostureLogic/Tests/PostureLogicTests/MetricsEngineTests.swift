@@ -12,6 +12,7 @@ final class MetricsEngineTests: XCTestCase {
         torsoAngle: Float = 5,
         shoulderTwist: Float = 0,
         shoulderWidthRaw: Float = 0.2,
+        neckHeight: Float = 1.0,
         timestamp: TimeInterval = 1.0
     ) -> PoseSample {
         PoseSample(
@@ -25,7 +26,8 @@ final class MetricsEngineTests: XCTestCase {
             headForwardOffset: 0,
             shoulderTwist: shoulderTwist,
             shoulderWidthRaw: shoulderWidthRaw,
-            trackingQuality: .good
+            trackingQuality: .good,
+            neckHeight: neckHeight
         )
     }
 
@@ -34,7 +36,8 @@ final class MetricsEngineTests: XCTestCase {
         shoulderMidpoint: SIMD3<Float> = SIMD3(0, 0, 0),
         torsoAngle: Float = 5,
         shoulderTwist: Float = 0,
-        shoulderWidth: Float = 0.2
+        shoulderWidth: Float = 0.2,
+        neckHeight: Float = 1.0
     ) -> Baseline {
         Baseline(
             timestamp: Date(),
@@ -43,7 +46,8 @@ final class MetricsEngineTests: XCTestCase {
             torsoAngle: torsoAngle,
             shoulderTwist: shoulderTwist,
             shoulderWidth: shoulderWidth,
-            depthAvailable: false
+            depthAvailable: false,
+            neckHeight: neckHeight
         )
     }
 
@@ -91,16 +95,16 @@ final class MetricsEngineTests: XCTestCase {
         var engine = MetricsEngine()
         let baseline = makeBaseline()
 
-        // Slouching: closer to camera (wider shoulders), head drops, more lean
+        // Slouching: closer to camera (wider shoulders), head carriage drops, more lean
         let sample = makeSample(
-            headPosition: SIMD3(0, 0.7, 0),     // head dropped
             torsoAngle: 20,                       // more forward lean
-            shoulderWidthRaw: 0.25                // closer to camera
+            shoulderWidthRaw: 0.25,               // closer to camera
+            neckHeight: 0.7                        // head carried lower (ear-based)
         )
         let metrics = engine.compute(from: sample, baseline: baseline)
 
         XCTAssertGreaterThan(metrics.forwardCreep, 0, "Closer to camera should increase forwardCreep")
-        XCTAssertGreaterThan(metrics.headDrop, 0, "Lower head should increase headDrop")
+        XCTAssertGreaterThan(metrics.headDrop, 0, "Lower head carriage should increase headDrop")
         XCTAssertGreaterThan(metrics.shoulderRounding, 0, "More lean should increase shoulderRounding")
     }
 
@@ -128,8 +132,9 @@ final class MetricsEngineTests: XCTestCase {
 
     func test_headDrop_headLower() {
         var engine = MetricsEngine()
-        let baseline = makeBaseline(headPosition: SIMD3(0, 1.0, 0))
-        let sample = makeSample(headPosition: SIMD3(0, 0.7, 0))
+        // headDrop = baseline.neckHeight - sample.neckHeight = 1.0 - 0.7 = 0.3
+        let baseline = makeBaseline(neckHeight: 1.0)
+        let sample = makeSample(neckHeight: 0.7)
         let metrics = engine.compute(from: sample, baseline: baseline)
 
         XCTAssertEqual(metrics.headDrop, 0.3, accuracy: 0.001)
@@ -137,18 +142,19 @@ final class MetricsEngineTests: XCTestCase {
 
     func test_headDrop_headHigher() {
         var engine = MetricsEngine()
-        let baseline = makeBaseline(headPosition: SIMD3(0, 1.0, 0))
-        let sample = makeSample(headPosition: SIMD3(0, 1.2, 0))
+        // Sample carried higher than the calibrated neutral ⇒ negative headDrop.
+        let baseline = makeBaseline(neckHeight: 1.0)
+        let sample = makeSample(neckHeight: 1.2)
         let metrics = engine.compute(from: sample, baseline: baseline)
 
-        XCTAssertLessThan(metrics.headDrop, 0, "Head higher than baseline should be negative headDrop")
+        XCTAssertLessThan(metrics.headDrop, 0, "Head carriage higher than baseline should be negative headDrop")
     }
 
     func test_headDropOnly_othersNearZero() {
         var engine = MetricsEngine()
         let baseline = makeBaseline()
-        // Only change head position, keep everything else the same
-        let sample = makeSample(headPosition: SIMD3(0, 0.8, 0))
+        // Only lower the head carriage (neckHeight), keep everything else the same.
+        let sample = makeSample(neckHeight: 0.8)
         let metrics = engine.compute(from: sample, baseline: baseline)
 
         XCTAssertGreaterThan(metrics.headDrop, 0, "Head drop should be positive")
@@ -156,6 +162,25 @@ final class MetricsEngineTests: XCTestCase {
         XCTAssertEqual(metrics.shoulderRounding, 0, accuracy: 0.001, "shoulderRounding should be ~0")
         XCTAssertEqual(metrics.lateralLean, 0, accuracy: 0.001, "lateralLean should be ~0")
         XCTAssertEqual(metrics.twist, 0, accuracy: 0.001, "twist should be ~0")
+    }
+
+    /// The refined (ear-sourced) headDrop still crosses `headDropThreshold` exactly
+    /// as the metric did before: a carriage deficit larger than the threshold trips
+    /// it, a smaller one does not. The threshold's meaning is unchanged (both are in
+    /// shoulder-widths of carriage/height); only the underlying signal moved from
+    /// `headPosition.y` to `neckHeight`.
+    func test_headDrop_crossesThresholdFromNeckHeight() {
+        var engine = MetricsEngine()
+        let threshold = PostureThresholds().headDropThreshold   // 0.06
+        let baseline = makeBaseline(neckHeight: 1.0)
+
+        // Just under the threshold: neckHeight deficit 0.05 ⇒ headDrop 0.05 < 0.06.
+        let under = engine.compute(from: makeSample(neckHeight: 1.0 - 0.05), baseline: baseline)
+        XCTAssertLessThan(under.headDrop, threshold, "Deficit below threshold must not trip")
+
+        // Just over the threshold: neckHeight deficit 0.07 ⇒ headDrop 0.07 > 0.06.
+        let over = engine.compute(from: makeSample(neckHeight: 1.0 - 0.07), baseline: baseline)
+        XCTAssertGreaterThan(over.headDrop, threshold, "Deficit above threshold must trip")
     }
 
     // MARK: - Shoulder Rounding

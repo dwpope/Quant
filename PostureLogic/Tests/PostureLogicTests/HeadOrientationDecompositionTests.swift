@@ -144,6 +144,56 @@ final class HeadOrientationDecompositionTests: XCTestCase {
     /// world frame. Same relative pose embedded at two different world placements
     /// (here, a tilted device carrying both) → identical decomposed angles, because
     /// `inverse(camera)·head` cancels the shared world transform.
+    // MARK: - quaternion sibling agrees with the Euler path
+
+    /// Builds a 4x4 from a rotation 3x3 (no translation).
+    private func xform(_ r: simd_float3x3) -> simd_float4x4 {
+        var m = matrix_identity_float4x4
+        m.columns.0 = SIMD4(r.columns.0, 0)
+        m.columns.1 = SIMD4(r.columns.1, 0)
+        m.columns.2 = SIMD4(r.columns.2, 0)
+        return m
+    }
+
+    /// The decisive R1 proof: `screenRotationQuat` carries the SAME screen-frame
+    /// rotation the Euler path decomposes. Re-decompose the quaternion's matrix and
+    /// it must match the yaw/pitch/roll obtained by decomposing the original matrix
+    /// directly — pure yaw, pure pitch, and a combined rotation.
+    func test_screenRotationQuat_agreesWithEulerPath() {
+        let mats: [(name: String, m: simd_float3x3)] = [
+            ("pureYaw", rz(35)),
+            ("purePitch", ry(-22)),
+            ("pureRoll", rx(18)),
+            ("combined", rz(15) * ry(-10) * rx(8)),
+            ("identity", matrix_identity_float3x3),
+        ]
+        for (name, m) in mats {
+            let euler = HeadOrientationDecomposition.taitBryanZYXDegrees(m)
+            let quat = HeadOrientationDecomposition.screenRotationQuat(xform(m))
+            // Decompose the quaternion's own rotation matrix back to Euler.
+            let viaQuat = HeadOrientationDecomposition.taitBryanZYXDegrees(simd_float3x3(quat))
+            XCTAssertEqual(viaQuat.yaw, euler.yaw, accuracy: 1e-3, "\(name) yaw")
+            XCTAssertEqual(viaQuat.pitch, euler.pitch, accuracy: 1e-3, "\(name) pitch")
+            XCTAssertEqual(viaQuat.roll, euler.roll, accuracy: 1e-3, "\(name) roll")
+        }
+    }
+
+    /// The camera-relative quaternion sibling matches its Euler counterpart for the
+    /// full `inverse(camera)·head` + `portraitFixUp` path.
+    func test_screenRotationQuat_cameraRelative_agreesWithEulerPath() {
+        let head = xform(rz(20) * ry(-12) * rx(6))
+        let camera = xform(rx(9) * ry(4))
+        let fixUp = rz(90)   // a non-identity portrait re-base
+        let euler = HeadOrientationDecomposition.taitBryanZYXDegrees(
+            headTransform: head, cameraTransform: camera, portraitFixUp: fixUp)
+        let quat = HeadOrientationDecomposition.screenRotationQuat(
+            headTransform: head, cameraTransform: camera, portraitFixUp: fixUp)
+        let viaQuat = HeadOrientationDecomposition.taitBryanZYXDegrees(simd_float3x3(quat))
+        XCTAssertEqual(viaQuat.yaw, euler.yaw, accuracy: 1e-3, "yaw")
+        XCTAssertEqual(viaQuat.pitch, euler.pitch, accuracy: 1e-3, "pitch")
+        XCTAssertEqual(viaQuat.roll, euler.roll, accuracy: 1e-3, "roll")
+    }
+
     func test_cameraRelative_cancelsDeviceTilt() {
         let head = rz(15) * ry(10)          // some fixed head pose in world
         var headXform = matrix_identity_float4x4

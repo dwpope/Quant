@@ -589,6 +589,49 @@ final class PoseDepthFusionTests: XCTestCase {
         XCTAssertEqual(sample.headRoll,  0, accuracy: 0.001)
     }
 
+    // MARK: - Head Orientation Quaternion Passthrough (viz-only)
+    //
+    // The quaternion sibling of `externalHeadAngles` rides the SAME path: when the
+    // ARFaceAnchor source supplies `externalHeadOrientation`, `fuse` must stamp it
+    // verbatim onto `PoseSample.headOrientation` (as xyzw `SIMD4`); when absent the
+    // field stays `nil` (2D/dropout → Euler fallback). It never gates scoring.
+
+    func test_fuse_stampsHeadOrientationWhenExternalQuaternionPresent() {
+        var fusion = PoseDepthFusion()
+        // A non-trivial rotation so xyzw are all distinguishable.
+        let quat = simd_quatf(angle: .pi / 3, axis: simd_normalize(SIMD3<Float>(0.2, 0.7, 0.5)))
+        let pose = PoseObservation(
+            timestamp: 1.0,
+            keypoints: [
+                makeKeypoint(.leftShoulder,  x: 0.40, y: 0.50),
+                makeKeypoint(.rightShoulder, x: 0.60, y: 0.50),
+                makeKeypoint(.nose,          x: 0.50, y: 0.70),
+            ],
+            confidence: 0.9,
+            externalHeadAngles: HeadAngles(pitch: 5, yaw: -3, roll: 2),
+            externalHeadOrientation: quat
+        )
+        guard let sample = fuse(pose, fusion: &fusion) else {
+            return XCTFail("fuse should produce a sample for a keypointed pose")
+        }
+        guard let stamped = sample.headOrientation else {
+            return XCTFail("headOrientation must be non-nil when externalHeadOrientation is present")
+        }
+        XCTAssertEqual(stamped, quat.vector, "stamped quaternion must equal the source xyzw verbatim")
+        // And the reconstructed rotation matches within tight tolerance.
+        let reconstructedAngle = simd_quatf(vector: stamped).angle
+        XCTAssertEqual(reconstructedAngle, quat.angle, accuracy: 1e-5)
+    }
+
+    func test_fuse_headOrientationNilWhenNoExternalQuaternion() {
+        var fusion = PoseDepthFusion()
+        // Same keypoints, but no externalHeadOrientation (the 2D/dropout case).
+        guard let sample = fuse(uprightPose(), fusion: &fusion) else {
+            return XCTFail("fuse should produce a sample for shoulders + nose")
+        }
+        XCTAssertNil(sample.headOrientation, "headOrientation must be nil on the 2D/Euler fallback path")
+    }
+
     // MARK: - Head Fallback Chain
 
     func test_headFallback_nose() {

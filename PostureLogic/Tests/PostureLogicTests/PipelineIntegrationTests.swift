@@ -27,7 +27,8 @@ final class PipelineIntegrationTests: XCTestCase {
             torsoAngle: 0,
             shoulderTwist: 0,
             shoulderWidth: 0.3,
-            depthAvailable: false
+            depthAvailable: false,
+            neckHeight: 0.25    // calibrated neutral head carriage (ear-based)
         )
     }
 
@@ -44,7 +45,8 @@ final class PipelineIntegrationTests: XCTestCase {
             headForwardOffset: 0,
             shoulderTwist: 0,
             shoulderWidthRaw: 0.3,
-            trackingQuality: .good
+            trackingQuality: .good,
+            neckHeight: 0.25    // matches baseline neutral ⇒ headDrop ≈ 0
         )
     }
 
@@ -53,7 +55,7 @@ final class PipelineIntegrationTests: XCTestCase {
         PoseSample(
             timestamp: timestamp,
             depthMode: .twoDOnly,
-            headPosition: SIMD3<Float>(0.5, 0.35, 0),   // head dropped 0.10 below baseline
+            headPosition: SIMD3<Float>(0.5, 0.35, 0),
             shoulderMidpoint: SIMD3<Float>(0.5, 0.4, 0),
             leftShoulder: SIMD3<Float>(0.32, 0.4, 0),
             rightShoulder: SIMD3<Float>(0.68, 0.4, 0),
@@ -61,7 +63,8 @@ final class PipelineIntegrationTests: XCTestCase {
             headForwardOffset: 0.1,
             shoulderTwist: 0,
             shoulderWidthRaw: 0.36,                       // 20% wider = forward creep
-            trackingQuality: .good
+            trackingQuality: .good,
+            neckHeight: 0.35    // headDrop = 0.25 - 0.35 = -0.10 (see test_metricsValues)
         )
     }
 
@@ -272,7 +275,7 @@ final class PipelineIntegrationTests: XCTestCase {
 
         // Forward creep = (0.36 - 0.3) / 0.3 = 0.2
         XCTAssertEqual(metrics.forwardCreep, 0.2, accuracy: 0.01, "Forward creep should be ~0.2 (20% wider shoulders)")
-        // Head drop = baseline.headY - sample.headY = 0.25 - 0.35 = -0.10
+        // Head drop = baseline.neckHeight - sample.neckHeight = 0.25 - 0.35 = -0.10
         XCTAssertEqual(metrics.headDrop, -0.10, accuracy: 0.01, "Head drop should be ~-0.10")
         // Shoulder rounding = sample.torsoAngle - baseline.torsoAngle = 12 - 0 = 12
         XCTAssertEqual(metrics.shoulderRounding, 12, accuracy: 0.1, "Shoulder rounding should be ~12 degrees")

@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import simd
 
 public struct PoseObservation {
     public let timestamp: TimeInterval
@@ -14,16 +15,26 @@ public struct PoseObservation {
     /// path. Never serialized (derived fresh each frame, so recordings are unchanged).
     public let externalHeadAngles: HeadAngles?
 
+    /// The same Layer-1 head orientation as `externalHeadAngles`, carried as a raw
+    /// quaternion (screen-frame rotation) threaded through from
+    /// `InputFrame.externalHeadOrientation`. Runs parallel to the decomposed Euler
+    /// angles so a later stage can drive the figure head from the quaternion
+    /// directly. **Viz-only** — never feeds scoring. `nil` on every non-ARKit-face
+    /// path. Never serialized (derived fresh each frame).
+    public let externalHeadOrientation: simd_quatf?
+
     public init(
         timestamp: TimeInterval,
         keypoints: [Keypoint],
         confidence: Float,
-        externalHeadAngles: HeadAngles? = nil
+        externalHeadAngles: HeadAngles? = nil,
+        externalHeadOrientation: simd_quatf? = nil
     ) {
         self.timestamp = timestamp
         self.keypoints = keypoints
         self.confidence = confidence
         self.externalHeadAngles = externalHeadAngles
+        self.externalHeadOrientation = externalHeadOrientation
     }
 }
 

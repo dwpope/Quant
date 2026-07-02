@@ -23,6 +23,12 @@ struct PostureVisualizationValuesOverlay: View {
 
     private typealias Map = PostureVisualizationViewModel.Mapping
 
+    /// The scored head-drop trip point, mirrored here so the `neck` row can flag
+    /// (orange) when the carriage metric is currently tripping. Matches
+    /// `PostureThresholds().headDropThreshold`'s default — a debug HUD may
+    /// reference the default rather than the user's live (possibly retuned) value.
+    private let headDropThreshold = 0.06
+
     /// Live snapshot of the binding's per-channel isolation switches. Set once
     /// (Debug-only) in `PostureVisualizationView`'s scene `make`, so it is
     /// constant for the run — reading it in `body` needs no observation. In
@@ -74,10 +80,68 @@ struct PostureVisualizationValuesOverlay: View {
 
                 // HEAD — everything that translates/rotates the head sphere.
                 section("HEAD")
+                // LIVE head source this frame: GREEN "QUAT" = the decoupled ARFaceAnchor
+                // quaternion (figure on the new passthrough); ORANGE "2D" = the legacy
+                // Euler fallback (ARFace dropped / non-TrueDepth). If this flips to 2D
+                // mid-turn, the snap/dip is the SOURCE HANDOFF, not the render math.
+                GridRow {
+                    Text("src").gridColumnAlignment(.leading)
+                    Text(viewModel.headOrientationQuat != nil ? "QUAT" : "2D")
+                        .fontWeight(.bold)
+                        .foregroundStyle(viewModel.headOrientationQuat != nil
+                            ? AnyShapeStyle(.green) : AnyShapeStyle(.orange))
+                        .gridCellColumns(3)
+                        .gridColumnAlignment(.leading)
+                }
+                // ARFace pipeline diagnostics (why src is 2D): is the app in .frontFace
+                // (faceTrackingActive), did the ARFace session start, are its frames
+                // arriving, and is a face ever tracked. All-zero ARFace counters with
+                // mode=frontFace ⇒ the provider isn't running / not attached.
+                GridRow {
+                    Text("mode").gridColumnAlignment(.leading)
+                    Text(PostureVisualizationBinding.faceTrackingActive ? "frontFace" : "OTHER")
+                        .fontWeight(.bold)
+                        .foregroundStyle(PostureVisualizationBinding.faceTrackingActive
+                            ? AnyShapeStyle(.green) : AnyShapeStyle(.orange))
+                        .gridCellColumns(3)
+                        .gridColumnAlignment(.leading)
+                }
+                GridRow {
+                    Text("ARFace").gridColumnAlignment(.leading)
+                    Text("run:\(ARFaceTrackingService.diagSessionStarted ? "Y" : "N") "
+                        + "f:\(ARFaceTrackingService.diagFramesSeen) "
+                        + "trk:\(ARFaceTrackingService.diagTrackedSeen)")
+                        .foregroundStyle(ARFaceTrackingService.diagTrackedSeen > 0
+                            ? AnyShapeStyle(.green) : AnyShapeStyle(.orange))
+                        .gridCellColumns(3)
+                        .gridColumnAlignment(.leading)
+                }
+                // Grace counter: `since` = frames since the last tracked face (live);
+                // `max` = worst gap this session. When `since` climbs orange the head
+                // pose is being held from the grace window; if it exceeds the window
+                // (90), src flips to 2D. Turn your head, then read `max` — that is the
+                // true worst gap, which sizes the window.
+                GridRow {
+                    Text("gap").gridColumnAlignment(.leading)
+                    Text("since:\(ARFaceTrackingService.diagFramesSinceTracked) "
+                        + "max:\(ARFaceTrackingService.diagMaxSinceTracked)")
+                        .foregroundStyle(ARFaceTrackingService.diagFramesSinceTracked > 0
+                            ? AnyShapeStyle(.orange) : AnyShapeStyle(.green))
+                        .gridCellColumns(3)
+                        .gridColumnAlignment(.leading)
+                }
                 row("latLean",   raw: viewModel.rawLateralLean,      map: viewModel.sideLeanOffsetPoints,    mapUnit: "pt",
                     active: debug.sideLean)
                 row("headFwd",   raw: viewModel.rawHeadForwardOffset, map: viewModel.headForwardOffsetPoints, mapUnit: "pt",
                     active: debug.headForward)
+                // Neck carriage → scored head-drop. raw = ear-height off the sample
+                // (PoseSample.neckHeight); mapped = the baseline-relative deviation the
+                // engine scores (RawMetrics.headDrop). Orange when it exceeds the
+                // headDropThreshold — i.e. the neck metric is tripping *now*. This is a
+                // scored 2D metric mirror, not an isolatable viz channel, so it stays
+                // `active` (never dimmed) and reuses the standard clipped→orange cue.
+                row("neck",      raw: viewModel.rawNeckHeight,        map: viewModel.neckDropScored,          mapUnit: "",
+                    clipped: viewModel.neckDropScored > headDropThreshold)
 
                 // Capped angles: raw column is the *pre-clamp* amplified value;
                 // a gap vs. the mapped column means the cap is clipping now.

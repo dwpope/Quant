@@ -149,6 +149,11 @@ public final class CalibrationEngine {
             .map { $0.shoulderWidthRaw }
             .reduce(Float(0), +) / count
 
+        // Calibrated neutral head carriage — sources the refined `headDrop`.
+        let avgNeckHeight = collectedSamples
+            .map { $0.neckHeight }
+            .reduce(Float(0), +) / count
+
         let hasDepth = collectedSamples.contains { $0.depthMode == .depthFusion }
 
         return Baseline(
@@ -158,7 +163,8 @@ public final class CalibrationEngine {
             torsoAngle: avgTorsoAngle,
             shoulderTwist: avgShoulderTwist,
             shoulderWidth: avgShoulderWidth,
-            depthAvailable: hasDepth
+            depthAvailable: hasDepth,
+            neckHeight: avgNeckHeight
         )
     }
 

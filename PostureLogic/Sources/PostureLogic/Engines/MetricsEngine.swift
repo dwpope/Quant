@@ -35,8 +35,11 @@ struct MetricsEngine: MetricsEngineProtocol {
             forwardCreep = 0
         }
 
-        // Head drop: baseline head higher than sample head = positive
-        let headDrop = baseline.headPosition.y - sample.headPosition.y
+        // Head drop: ear-based head carriage below the calibrated neutral = positive.
+        // Sourced from `neckHeight` (ear-midpoint height above the shoulders,
+        // shoulder-normalized) rather than the nose-relative `headPosition.y`, so it
+        // tracks true neck/head carriage and ignores transient look-down/chin-drops.
+        let headDrop = baseline.neckHeight - sample.neckHeight
 
         // Shoulder rounding: more torso angle = more forward lean
         let shoulderRounding = sample.torsoAngle - baseline.torsoAngle
