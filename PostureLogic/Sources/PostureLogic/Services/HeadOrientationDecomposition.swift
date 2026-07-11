@@ -94,6 +94,114 @@ public enum HeadOrientationDecomposition {
         return SIMD3(t.x, t.y, t.z)
     }
 
+    // MARK: - Gravity-levelled decomposition (the tilted-camera fix)
+
+    /// Head angles against a **levelled** reference frame instead of the raw
+    /// camera frame. The camera-frame path above inherits the phone's physical
+    /// tilt: on a propped device, a level head turn is a rotation about an axis
+    /// that is *oblique* in camera coordinates, so it decomposes into mixed
+    /// yaw+pitch+roll (measured on device: a level turn swung "pitch" by −14°,
+    /// and no discrete axis remap could fix it — the mix is continuous).
+    ///
+    /// The levelled frame (right-handed): X = horizontal camera-right,
+    /// Y = `worldUp` (gravity; ARKit `.gravity` world alignment makes this
+    /// `(0,1,0)`), Z = horizontal, pointing from the subject toward the camera.
+    /// Neutral — subject facing the camera squarely, head upright — is the
+    /// levelled frame itself, so all angles read zero regardless of device tilt.
+    ///
+    /// Decomposition order `R = Ry(turn)·Rx(nod)·Rz(tilt)`, right-hand rule
+    /// about the levelled axes: a world-vertical head turn is pure `turn` by
+    /// construction, a nod about the horizontal right-axis is pure `nod`, an
+    /// ear-to-shoulder tilt about the toward-camera axis is pure `tilt`.
+    public static func gravityLevelledHeadAngles(
+        headTransform: simd_float4x4,
+        cameraTransform: simd_float4x4,
+        worldUp: SIMD3<Float> = SIMD3(0, 1, 0)
+    ) -> (turn: Float, nod: Float, tilt: Float) {
+        let rel = gravityLevelledRelativeRotation(
+            headTransform: headTransform, cameraTransform: cameraTransform, worldUp: worldUp)
+        return turnNodTilt(rel)
+    }
+
+    /// Quaternion sibling of ``gravityLevelledHeadAngles``: the SAME
+    /// levelled-relative rotation, undecomposed, for the render path — by
+    /// construction it re-decomposes to the same turn/nod/tilt, so the HUD
+    /// numbers and the figure can never disagree.
+    public static func gravityLevelledRotationQuat(
+        headTransform: simd_float4x4,
+        cameraTransform: simd_float4x4,
+        worldUp: SIMD3<Float> = SIMD3(0, 1, 0)
+    ) -> simd_quatf {
+        simd_quatf(gravityLevelledRelativeRotation(
+            headTransform: headTransform, cameraTransform: cameraTransform, worldUp: worldUp))
+    }
+
+    /// `Lᵀ · H`: the head rotation expressed in the levelled camera frame.
+    private static func gravityLevelledRelativeRotation(
+        headTransform: simd_float4x4,
+        cameraTransform: simd_float4x4,
+        worldUp: SIMD3<Float>
+    ) -> simd_float3x3 {
+        let levelled = levelledCameraRotation(cameraTransform, worldUp: worldUp)
+        return levelled.transpose * orthonormalUpperLeft(headTransform)
+    }
+
+    /// Builds the levelled frame from the camera pose. The camera boresight
+    /// (−Z) projected onto the horizontal plane supplies the heading; if the
+    /// camera points (near-)straight along gravity that projection collapses,
+    /// and the camera's +Y axis — necessarily (near-)horizontal then, since the
+    /// frame is orthonormal — supplies it instead.
+    ///
+    /// CONDITIONING: the heading azimuth's noise sensitivity grows as
+    /// ~1/sin(boresight-from-vertical), so a phone lying near-FLAT (boresight
+    /// within a few degrees of gravity) turns small IMU wobble into visible turn
+    /// jitter. That pose is outside this app's supported setup — face tracking
+    /// needs the propped range (boresight ≳30° from vertical), where the frame
+    /// is well-conditioned — so it is documented rather than special-cased.
+    private static func levelledCameraRotation(
+        _ cameraTransform: simd_float4x4,
+        worldUp: SIMD3<Float>
+    ) -> simd_float3x3 {
+        let r = orthonormalUpperLeft(cameraTransform)
+        let up = simd_normalize(worldUp)
+        var heading = horizontalPart(-r.columns.2, up: up)
+        if simd_length(heading) < 1e-4 {
+            heading = horizontalPart(r.columns.1, up: up)
+        }
+        let fh = simd_normalize(heading)
+        let x = simd_normalize(simd_cross(fh, up))
+        return simd_float3x3(columns: (x, up, -fh))
+    }
+
+    private static func horizontalPart(_ v: SIMD3<Float>, up: SIMD3<Float>) -> SIMD3<Float> {
+        v - simd_dot(v, up) * up
+    }
+
+    /// Decomposes `R = Ry(turn)·Rx(nod)·Rz(tilt)` (degrees). Gimbal-safe: at
+    /// nod = ±90° (head aimed straight along gravity — not a posture) tilt is
+    /// pinned to 0 and turn resolved from the still-stable elements.
+    private static func turnNodTilt(_ m: simd_float3x3) -> (turn: Float, nod: Float, tilt: Float) {
+        // Element M[row][col] = m.columns.col[row] (simd is column-major).
+        let sinNod = -m.columns.2.y                                   // −M[1][2]
+        let cosNod = (m.columns.0.y * m.columns.0.y
+                    + m.columns.1.y * m.columns.1.y).squareRoot()     // √(M[1][0]² + M[1][1]²)
+        let nodRad = atan2(sinNod, cosNod)
+
+        let turnRad: Float
+        let tiltRad: Float
+        if cosNod > 1e-6 {
+            turnRad = atan2(m.columns.2.x, m.columns.2.z)             // M[0][2], M[2][2]
+            tiltRad = atan2(m.columns.0.y, m.columns.1.y)             // M[1][0], M[1][1]
+        } else {
+            let sp: Float = sinNod > 0 ? 1 : -1
+            turnRad = atan2(sp * m.columns.1.x, m.columns.0.x)        // sp·M[0][1], M[0][0]
+            tiltRad = 0
+        }
+
+        let k = Float(180.0 / .pi)
+        return (turnRad * k, nodRad * k, tiltRad * k)
+    }
+
     // MARK: - Quaternion siblings (viz-only passthrough)
 
     /// The orthonormalized screen-frame head rotation as a `simd_quatf`, built from

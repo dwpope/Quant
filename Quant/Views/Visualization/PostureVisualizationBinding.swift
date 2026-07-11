@@ -244,11 +244,28 @@ enum PostureVisualizationBinding {
     }
 
     /// Index into ``headRenderBasisCandidates`` selecting the live basis-remap `B`.
-    /// **DEVICE-CONFIRM in R5** — the `axis map` stepper in the calibration overlay
-    /// walks this so a human can nail the screen→figure axis map in one sitting. R6
-    /// bakes the chosen index as the default. Default 0 = identity (no remap).
+    /// The `axis map` stepper in the calibration overlay still walks this for
+    /// device confirmation, but the default is no longer a guess: the source
+    /// quaternion is now GRAVITY-LEVELLED (turn about +Y up, nod about +X right,
+    /// tilt about +Z toward-camera), so the remap into the figure's Z-up frame
+    /// (yaw=+Z, pitch=+X, roll=+Y) is derivable a priori — see
+    /// ``headRenderBasisIndexDefault``. Per-axis DIRECTIONS may still need the
+    /// mirror flag on device; the axis ROUTING should not.
     static var headRenderBasisIndex: Int = headRenderBasisIndexDefault
-    static let headRenderBasisIndexDefault: Int = 0
+
+    /// The candidate index of the derived levelled→figure remap: X→X (nod→pitch),
+    /// Y→Z (turn→yaw), Z→−Y (tilt→roll, direction confirmed on device). Located
+    /// by value so the enumeration order can never silently invalidate it; falls
+    /// back to identity (0) if absent, which cannot happen for a proper signed
+    /// permutation but keeps the lookup total.
+    static let headRenderBasisIndexDefault: Int = {
+        let derived = simd_quatf(simd_float3x3(columns: (
+            SIMD3<Float>(1, 0, 0),    // levelled X (right)          → figure X (pitch axis)
+            SIMD3<Float>(0, 0, 1),    // levelled Y (world up)       → figure Z (yaw axis)
+            SIMD3<Float>(0, -1, 0)    // levelled Z (toward camera)  → figure −Y (roll axis)
+        )))
+        return headRenderBasisCandidates.firstIndex(where: { quaternionsEqual($0, derived) }) ?? 0
+    }()
 
     /// The FIXED basis-remap `B` (`HeadOrientationRender.basis`) into the figure's
     /// Z-up frame (yaw=+Z, pitch=+X, roll=+Y), resolved from the live

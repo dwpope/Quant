@@ -83,10 +83,12 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
     /// back to the coupled legacy fallback (the dropout seam). Released to `nil` after
     /// the window so a truly-absent face hands off cleanly to tracking-quality loss.
     private var lastGoodAngles: HeadAngles?
-    /// The quaternion sibling of `lastGoodAngles`: the raw screen-frame head rotation
-    /// held across the SAME grace window so the viz-only quaternion channel is present
-    /// exactly when the Euler angles are (and released to `nil` at the same frame).
-    /// Keeping them in lockstep keeps any downstream presence-gating consistent.
+    /// The quaternion sibling of `lastGoodAngles`: the gravity-levelled relative head
+    /// rotation (turn about world-up, nod about horizontal-right, tilt about the
+    /// toward-camera axis — NOT the Euler-contract signs, which are applied only to
+    /// `HeadAngles`), held across the SAME grace window so the viz-only quaternion
+    /// channel is present exactly when the Euler angles are (and released to `nil`
+    /// at the same frame). Keeping them in lockstep keeps presence-gating consistent.
     private var lastGoodOrientation: simd_quatf?
     private var framesSinceTrackedFace = 0
     /// Grace window: how many consecutive untracked ARFrames to hold the last good
@@ -100,23 +102,12 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
     /// the figure on the stale forward pose for the full window.
     private static let maxStaleFrames = 130
 
-    /// Re-bases ARKit's landscape-referenced camera axes onto the portrait screen so
-    /// a head turn reads as yaw, a nod as pitch, a tilt as roll. A +90° rotation about
-    /// the camera view (Z) axis is the expected portrait remap.
-    ///
-    /// DEVICE-CONFIRM KNOB: the exact remap (and the three per-axis signs) can only be
-    /// verified against a real head pose. If turn/nod/tilt come out swapped on device,
-    /// change this rotation (e.g. -90°); if merely inverted, flip the corresponding
-    /// `headYaw/Pitch/RollGain` sign in the binding (do NOT pre-invert here).
-    private let portraitFixUp: simd_float3x3 = {
-        let a = Float.pi / 2  // +90° about Z
-        let c = cos(a), s = sin(a)
-        return simd_float3x3(columns: (
-            SIMD3(c, s, 0),
-            SIMD3(-s, c, 0),
-            SIMD3(0, 0, 1)
-        ))
-    }()
+    // The old `portraitFixUp` remap is gone: head angles now come from the
+    // GRAVITY-LEVELLED decomposition, whose reference frame is built from world-up
+    // and the camera's horizontal heading — screen orientation and device tilt
+    // never enter it, so there is nothing to re-base (and nothing to dial). The
+    // camera-frame path it replaced mixed a level head turn into pitch/roll by
+    // exactly the phone's prop angle (measured −14° pitch on a level turn).
 
     // MARK: - PoseProvider
 
@@ -212,18 +203,23 @@ extension ARFaceTrackingService: ARSessionDelegate {
         // no-escape rule holds — no ARFrame/anchor leaves this scope).
         let headOrientation: simd_quatf?
         if let face = trackedFace {
-            let (yaw, pitch, roll) = HeadOrientationDecomposition.taitBryanZYXDegrees(
+            // Gravity-levelled: turn/nod/tilt about world-referenced axes, immune
+            // to the phone's prop angle. Signs are flipped onto the DOCUMENTED
+            // HeadAngles contract (PoseSample: yaw + = turn toward the subject's
+            // RIGHT, roll + = LEFT ear lower, pitch + = chin down) so this source
+            // agrees with the legacy 2D fallback at the grace-window handoff seam:
+            // +turn is subject-LEFT (right-hand rule about world up) → yaw = −turn;
+            // +tilt is right-ear-lower → roll = −tilt; +nod is chin-down → pitch = nod.
+            let (turn, nod, tilt) = HeadOrientationDecomposition.gravityLevelledHeadAngles(
                 headTransform: face.transform,
-                cameraTransform: frame.camera.transform,
-                portraitFixUp: portraitFixUp
+                cameraTransform: frame.camera.transform
             )
-            let angles = HeadAngles(pitch: pitch, yaw: yaw, roll: roll)
-            // Same orthonormalized screen-frame matrix the Euler decomposition reads,
-            // carried straight through as a quaternion (no per-axis re-amplification).
-            let q = HeadOrientationDecomposition.screenRotationQuat(
+            let angles = HeadAngles(pitch: nod, yaw: -turn, roll: -tilt)
+            // The SAME levelled-relative rotation as a quaternion (it re-decomposes
+            // to the angles above, so HUD numbers and the figure cannot disagree).
+            let q = HeadOrientationDecomposition.gravityLevelledRotationQuat(
                 headTransform: face.transform,
-                cameraTransform: frame.camera.transform,
-                portraitFixUp: portraitFixUp
+                cameraTransform: frame.camera.transform
             )
             // Spike S1: the translation the orientation path discards — metric
             // head-to-camera distance for the HUD `dist` row (diagnostic only).
