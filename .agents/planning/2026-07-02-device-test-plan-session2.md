@@ -33,20 +33,20 @@ Stay in **Front (Face)** with the **dev values HUD open** throughout. (Supersede
 **What changed:** the neck signal now runs through a One-Euro filter, so it should read **steady** at a fixed pose (it flickered ±0.01 before). Threshold is now `0.018`.
 
 - **A1 — Steady check (validates the fix).** Hold a fixed head/neck pose for ~5 s and watch `neck` **mapped**.
-  → Is it now **steady** (barely moving), or still flickering?  → **______**
+  → Is it now **steady** (barely moving), or still flickering?  → **raw moving, mapped not moving**
 
 - **A2 — Neutral.** Sit tall in good posture. Read `neck` **mapped**. Should be **~0**.
-  → **RECORD: neutral = ______**
+  → **RECORD: neutral = -0.0**
   - If it's noticeably off zero (e.g. ±0.02+), your saved baseline drifted — run a fresh calibration sitting tall, then re-read.
 
 - **A3 — Mild slouch** (slightly forward/down), let it settle, read mapped.
-  → **RECORD: mild = ______**   · goes orange?  **______**
+  → **RECORD: mild = 0.0 (for mapped column value)**   · goes orange?  **No**
 
 - **A4 — Clearly bad** carriage (head craned down/forward), let it settle, read mapped.
-  → **RECORD: bad = ______**   · goes orange (crosses `0.018`)?  **______**
+  → **RECORD: bad = 0.0 (for mapped column value)**   · goes orange (crosses `0.018`)?  **No**
 
 - **A5 — Verdict.** Does `0.018` cleanly **trip at bad but stay quiet at neutral/mild**?
-  → **______**  (If not: what value would sit between your mild and bad readings? **______**)
+  → **No**  (If not: what value would sit between your mild and bad readings? **______**)
 
 ---
 
@@ -63,21 +63,23 @@ Stay in **Front (Face)** with the **dev values HUD open** throughout. (Supersede
   | leans / tilts / nods | **wrong — next index** |
   | **turns left-right (yaw)** | **candidate — note the index** |
 
+  **The head continues to face front-on but shift to the left or right following the curve of the body looking like a lean rather than a turn. If I turn my face to look at something on my left, the head visualisation moves to the right on a lean following the curve of the body, face-forward**
+
 - **B2 — Confirm a candidate.** At each candidate index, also check:
-  - Nod up/down → figure **pitches**?  **______**
-  - Tilt ear-to-shoulder → figure **rolls**?  **______**
+  - Nod up/down → figure **pitches**?  **Yes**
+  - Tilt ear-to-shoulder → figure **rolls**?  **No**
 
 - **B3 — Mirror.** If turn→yaw but **inverted** (turn left → figure turns right), toggle **`mirror`** on.
 
 - **B4 — Residual.** At your best index, do a **level** left-right turn. Does the head still **dip/tilt** slightly as it turns?
-  → **RECORD: residual dip = ______** (none / small ~__°  / large)
+  → **RECORD: residual dip = small** (none / small ~__°  / large)
 
 ---
 
 ## (Optional) TEST C — Lean direction (to inform a decision)
 
 Lean your upper body **left**, then **right**, from center. Does the figure respond **both** ways, or mostly one way?
-→ **______**  *(This decides whether I disable the "swivel-rejection" lean fade for symmetric lean — your call.)*
+→ **Neither way**  *(This decides whether I disable the "swivel-rejection" lean fade for symmetric lean — your call.)*
 
 ---
 
