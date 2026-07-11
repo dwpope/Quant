@@ -106,7 +106,7 @@ struct PostureVisualizationView: View {
             VStack(alignment: .leading, spacing: 10) {
                 if showValues {
                     ScrollableHUD(maxHeight: availableHeight * 0.72) {
-                        PostureVisualizationValuesOverlay(viewModel: viewModel)
+                        PostureVisualizationValuesOverlay(viewModel: viewModel, appModel: appModel)
                     }
                     .transition(.opacity)
                 }

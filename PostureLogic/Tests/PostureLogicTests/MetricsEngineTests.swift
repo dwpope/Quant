@@ -171,17 +171,18 @@ final class MetricsEngineTests: XCTestCase {
     /// `headPosition.y` to `neckHeight`.
     func test_headDrop_crossesThresholdFromNeckHeight() {
         var engine = MetricsEngine()
-        let threshold = PostureThresholds().headDropThreshold   // 0.018 (ear-sourced)
+        let threshold = PostureThresholds().headDropThreshold   // 0.15 (ear-sourced)
         let baseline = makeBaseline(neckHeight: 1.0)
 
-        // Just under the threshold: neckHeight deficit 0.012 ⇒ headDrop 0.012 < 0.018.
-        // (0.012 is the device "mild" carriage deficit the new threshold sits above.)
-        let under = engine.compute(from: makeSample(neckHeight: 1.0 - 0.012), baseline: baseline)
+        // Just under the threshold: neckHeight deficit 0.10 ⇒ headDrop 0.10 < 0.15.
+        // (0.10 is the device "mild slouch" deficit the threshold sits above —
+        //  2026-07-03 post-One-Euro readings.)
+        let under = engine.compute(from: makeSample(neckHeight: 1.0 - 0.10), baseline: baseline)
         XCTAssertLessThan(under.headDrop, threshold, "Deficit below threshold must not trip")
 
-        // Just over the threshold: neckHeight deficit 0.025 ⇒ headDrop 0.025 > 0.018.
-        // (0.025 is the device "bad" carriage deficit the new threshold sits below.)
-        let over = engine.compute(from: makeSample(neckHeight: 1.0 - 0.025), baseline: baseline)
+        // Just over the threshold: neckHeight deficit 0.22 ⇒ headDrop 0.22 > 0.15.
+        // (0.22 is the device "clearly bad" deficit the threshold sits below.)
+        let over = engine.compute(from: makeSample(neckHeight: 1.0 - 0.22), baseline: baseline)
         XCTAssertGreaterThan(over.headDrop, threshold, "Deficit above threshold must trip")
     }
 

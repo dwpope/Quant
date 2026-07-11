@@ -1,3 +1,4 @@
+import PostureLogic
 import SwiftUI
 
 /// Developer-only tuning HUD for the RealityKit posture visualization.
@@ -21,13 +22,20 @@ struct PostureVisualizationValuesOverlay: View {
 
     @ObservedObject var viewModel: PostureVisualizationViewModel
 
+    /// Source of baseline truth for the `bl` row and the neck row's "--" state.
+    /// Every baseline-relative channel reads EXACTLY 0 with no baseline — which is
+    /// also what perfect posture looks like, so the HUD must distinguish the two
+    /// (the 2026-07-02 session-2 device test ran entirely on a silently-nil
+    /// baseline and its Test A/C readings had to be discarded).
+    @ObservedObject var appModel: AppModel
+
     private typealias Map = PostureVisualizationViewModel.Mapping
 
     /// The scored head-drop trip point, mirrored here so the `neck` row can flag
-    /// (orange) when the carriage metric is currently tripping. Matches
-    /// `PostureThresholds().headDropThreshold`'s default — a debug HUD may
-    /// reference the default rather than the user's live (possibly retuned) value.
-    private let headDropThreshold = 0.06
+    /// (orange) when the carriage metric is currently tripping. Reads the package
+    /// default so it cannot drift from the engine (a previous hardcoded mirror
+    /// sat at 0.06 after the engine moved to 0.018).
+    private let headDropThreshold = Double(PostureThresholds().headDropThreshold)
 
     /// Live snapshot of the binding's per-channel isolation switches. Set once
     /// (Debug-only) in `PostureVisualizationView`'s scene `make`, so it is
@@ -36,6 +44,13 @@ struct PostureVisualizationValuesOverlay: View {
     /// panel looks exactly as before (no change to the shipped HUD).
     private var debug: PostureVisualizationBinding.DebugChannels {
         PostureVisualizationBinding.debug
+    }
+
+    /// `bl` row text: baseline age in minutes, or the no-baseline warning.
+    private var baselineLabel: String {
+        guard let baseline = appModel.baseline else { return "NONE — deltas read 0" }
+        let minutes = Int(Date().timeIntervalSince(baseline.timestamp) / 60)
+        return "age \(minutes)m"
     }
 
     /// True only when at least one channel is frozen. Gates the mute/highlight
@@ -144,6 +159,20 @@ struct PostureVisualizationValuesOverlay: View {
                         .gridCellColumns(3)
                         .gridColumnAlignment(.leading)
                 }
+                // Baseline presence + age. ORANGE "NONE" means every baseline-
+                // relative reading below (neck mapped, latLean, twist, creep) is a
+                // hard 0 no matter how you sit — recalibrate before reading them.
+                // A relaunch silently drops a saved baseline older than 1h
+                // (AppModel.loadBaseline), so this row is the gate that catches it.
+                GridRow {
+                    Text("bl").gridColumnAlignment(.leading)
+                    Text(baselineLabel)
+                        .fontWeight(appModel.baseline == nil ? .bold : .regular)
+                        .foregroundStyle(appModel.baseline == nil
+                            ? AnyShapeStyle(.orange) : AnyShapeStyle(.green))
+                        .gridCellColumns(3)
+                        .gridColumnAlignment(.leading)
+                }
                 row("latLean",   raw: viewModel.rawLateralLean,      map: viewModel.sideLeanOffsetPoints,    mapUnit: "pt",
                     active: debug.sideLean)
                 row("headFwd",   raw: viewModel.rawHeadForwardOffset, map: viewModel.headForwardOffsetPoints, mapUnit: "pt",
@@ -154,8 +183,15 @@ struct PostureVisualizationValuesOverlay: View {
                 // headDropThreshold — i.e. the neck metric is tripping *now*. This is a
                 // scored 2D metric mirror, not an isolatable viz channel, so it stays
                 // `active` (never dimmed) and reuses the standard clipped→orange cue.
-                row("neck",      raw: viewModel.rawNeckHeight,        map: viewModel.neckDropScored,          mapUnit: "",
-                    clipped: viewModel.neckDropScored > headDropThreshold)
+                // Mapped cell reads "--" with no baseline: a 0.0 there would be
+                // indistinguishable from a genuine perfect-carriage measurement.
+                // mapDecimals MUST stay 3: this metric's whole range (threshold
+                // 0.018, bad ≈ 0.03) rounds to "±0.0" at the 1-decimal default —
+                // which made a live signal read as dead through two device sessions.
+                row("neck",      raw: viewModel.rawNeckHeight,
+                    map: appModel.baseline == nil ? nil : viewModel.neckDropScored, mapUnit: "",
+                    mapDecimals: 3,
+                    clipped: appModel.baseline != nil && viewModel.neckDropScored > headDropThreshold)
 
                 // Capped angles: raw column is the *pre-clamp* amplified value;
                 // a gap vs. the mapped column means the cap is clipping now.
@@ -270,17 +306,23 @@ struct PostureVisualizationValuesOverlay: View {
         clipped: Bool = false,
         active: Bool = true
     ) -> some View {
+        // The clipped (orange) cue is applied to the value Texts directly, not the
+        // GridRow: row-level foregroundStyle demonstrably did not render on device
+        // (2026-07-03: neck mapped 0.22 vs threshold, no orange), while cell-level
+        // styles (the dist/bl rows) do.
         GridRow {
             nameCell(name, active: active)
             Text(fmt(raw, decimals: rawDecimals) + rawUnit)
+                .foregroundStyle(clipped ? AnyShapeStyle(.orange) : AnyShapeStyle(.primary))
             Text("→").foregroundStyle(.secondary)
             if let map {
                 Text(fmt(map, decimals: mapDecimals) + mapUnit)
+                    .foregroundStyle(clipped ? AnyShapeStyle(.orange) : AnyShapeStyle(.primary))
+                    .fontWeight(clipped ? .bold : nil)
             } else {
                 Text("—").foregroundStyle(.secondary)
             }
         }
-        .foregroundStyle(clipped ? AnyShapeStyle(.orange) : AnyShapeStyle(.primary))
         .opacity(isIsolating && !active ? 0.4 : 1)
         .fontWeight(isIsolating && active ? .semibold : .regular)
     }
@@ -292,7 +334,7 @@ struct PostureVisualizationValuesOverlay: View {
 }
 
 #Preview {
-    PostureVisualizationValuesOverlay(viewModel: PostureVisualizationViewModel())
+    PostureVisualizationValuesOverlay(viewModel: PostureVisualizationViewModel(), appModel: AppModel())
         .padding()
         .background(Color(white: 0.06))
 }

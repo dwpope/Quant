@@ -772,9 +772,9 @@ final class NudgeEngineTests: XCTestCase {
         let engine = makeEngine(slouchDuration: 10)
 
         // forwardCreep = 0.15 / 0.03 threshold = 5.0 ratio
-        // headDrop     = 0.03 / 0.018 threshold ≈ 1.67 ratio
+        // headDrop     = 0.25 / 0.15 threshold ≈ 1.67 ratio
         // → forwardCreep dominates (both exceed 1.0, but forwardCreep's ratio is higher)
-        let metrics = makeMetrics(forwardCreep: 0.15, headDrop: 0.03)
+        let metrics = makeMetrics(forwardCreep: 0.15, headDrop: 0.25)
 
         let decision = evaluate(
             engine, state: .bad(since: 0), currentTime: 15, metrics: metrics
@@ -791,10 +791,10 @@ final class NudgeEngineTests: XCTestCase {
     func test_fireReason_isHeadDrop_whenHeadDropDominates() {
         let engine = makeEngine(slouchDuration: 10)
 
-        // forwardCreep = 0.05 / 0.03 threshold  ≈ 1.67 ratio
-        // headDrop     = 0.12 / 0.018 threshold ≈ 6.67 ratio
+        // forwardCreep = 0.05 / 0.03 threshold ≈ 1.67 ratio
+        // headDrop     = 0.45 / 0.15 threshold = 3.0 ratio
         // → headDrop dominates
-        let metrics = makeMetrics(forwardCreep: 0.05, headDrop: 0.12)
+        let metrics = makeMetrics(forwardCreep: 0.05, headDrop: 0.45)
 
         let decision = evaluate(
             engine, state: .bad(since: 0), currentTime: 15, metrics: metrics
@@ -828,8 +828,8 @@ final class NudgeEngineTests: XCTestCase {
         let engine = makeEngine(slouchDuration: 10)
 
         // Both metrics below threshold
-        // forwardCreep = 0.015 / 0.03  = 0.5 ratio (below 1.0)
-        // headDrop     = 0.01  / 0.018 ≈ 0.56 ratio (below 1.0)
+        // forwardCreep = 0.015 / 0.03 = 0.5 ratio (below 1.0)
+        // headDrop     = 0.01  / 0.15 ≈ 0.07 ratio (below 1.0)
         // → general sustained slouch (other metrics like twist/lean triggered the bad state)
         let metrics = makeMetrics(forwardCreep: 0.015, headDrop: 0.01, twist: 20.0)
 
@@ -849,9 +849,9 @@ final class NudgeEngineTests: XCTestCase {
         let engine = makeEngine(slouchDuration: 10)
 
         // Pending (only 5s of bad posture, need 10s) with forward creep dominant.
-        // forwardCreep = 0.20 / 0.03  ≈ 6.67 ratio; headDrop = 0.02 / 0.018 ≈ 1.11.
+        // forwardCreep = 0.20 / 0.03 ≈ 6.67 ratio; headDrop = 0.17 / 0.15 ≈ 1.13.
         // Both exceed 1.0, but forwardCreep's ratio is far higher → it dominates.
-        let metrics = makeMetrics(forwardCreep: 0.20, headDrop: 0.02)
+        let metrics = makeMetrics(forwardCreep: 0.20, headDrop: 0.17)
 
         let decision = evaluate(
             engine, state: .bad(since: 0), currentTime: 5, metrics: metrics
@@ -870,10 +870,10 @@ final class NudgeEngineTests: XCTestCase {
         let engine = makeEngine(slouchDuration: 10)
 
         // Both at exactly the same ratio above threshold
-        // forwardCreep = 0.06  / 0.03  = 2.0
-        // headDrop     = 0.036 / 0.018 = 2.0
+        // forwardCreep = 0.06 / 0.03 = 2.0
+        // headDrop     = 0.30 / 0.15 = 2.0
         // Equal → falls back to .sustainedSlouch
-        let metrics = makeMetrics(forwardCreep: 0.06, headDrop: 0.036)
+        let metrics = makeMetrics(forwardCreep: 0.06, headDrop: 0.30)
 
         let decision = evaluate(
             engine, state: .bad(since: 0), currentTime: 15, metrics: metrics
@@ -890,8 +890,9 @@ final class NudgeEngineTests: XCTestCase {
     func test_headDrop_notAffectedByTaskMode() {
         let engine = makeEngine(slouchDuration: 10)
 
-        // headDrop dominant, reading mode — reason should still be headDrop
-        let metrics = makeMetrics(forwardCreep: 0.05, headDrop: 0.12)
+        // headDrop dominant (0.45/0.15 = 3.0 vs creep 0.05/0.03 ≈ 1.67),
+        // reading mode — reason should still be headDrop
+        let metrics = makeMetrics(forwardCreep: 0.05, headDrop: 0.45)
 
         let decision = evaluate(
             engine, state: .bad(since: 0), currentTime: 15,

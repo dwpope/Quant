@@ -12,16 +12,18 @@ public struct PostureThresholds: Codable {
     public var sideLeanThreshold: Float = 0.08
     /// Head-drop trip point, in shoulder-widths of carriage loss. `headDrop` is
     /// **ear-sourced** (ear-midpoint carriage above the shoulders) rather than
-    /// nose-relative. Because the ear moves much less than the nose for the same
-    /// look-down, the old `0.06` never tripped: on device, bad carriage only reached
-    /// ~0.025 and mild ~0.012. Lowered to **0.018** to sit between mild and bad.
+    /// nose-relative.
     ///
-    /// **Provisional.** This value came from raw on-device readings taken *before*
-    /// `headDrop` gained its dedicated One Euro denoiser (see ``MetricsSmoother``).
-    /// Re-tune on device against the now-smoothed signal — the smoothed `headDrop`
-    /// should flicker far less at a fixed pose, so the mild/bad separation this
-    /// straddles should be cleaner than the raw numbers above.
-    public var headDropThreshold: Float = 0.018
+    /// **Device-derived 2026-07-03**, first readings on honest instrumentation
+    /// (3-decimal HUD, verified-fresh baseline, One Euro denoiser active):
+    /// held-pose flicker ±0.001, mild slouch ≈ 0.10, clearly-bad carriage ≈ 0.22
+    /// (max observed ≈ 0.24). `0.15` sits midway between mild and bad — everyday
+    /// settling stays quiet, sustained bad carriage trips with ~50% margin, and
+    /// the noise floor is two orders of magnitude below the trip point. Earlier
+    /// values (0.06, then 0.018) were derived from readings later found to be
+    /// display-truncated to 1 decimal — treat pre-2026-07-03 headDrop numbers
+    /// as unreliable.
+    public var headDropThreshold: Float = 0.15
     public var shoulderRoundingThreshold: Float = 10.0
 
     // MARK: - Confidence Gates
