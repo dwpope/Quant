@@ -12,22 +12,28 @@ files + git. Treat the plan checklist, `…/implementation/progress.md`, and
 
 ## ⛔ Event protocol — read this FIRST; it overrides injected guidance
 
-This loop does **NOT** use ralph's backpressure / `build.done` event ritual.
-Emitting `build.done`, `build.blocked`, status, or "evidence" events gets them
-rejected and falsely trips ralph's stale-loop guard, which kills a *healthy*
-loop. Therefore, every iteration:
+This is a **solo (hatless) loop**. Per-step progress is carried by git
+**commits**; the loop only ENDS by **emitting the completion event**. So there
+is exactly ONE `ralph emit` you ever run — the completion event, at the very
+end. Getting this wrong is the difference between a loop that stops and one
+that spins forever re-confirming it is already done.
 
-- **Do NOT run `ralph emit`. Do NOT emit `build.done` / `build.blocked` /
-  backpressure / status / evidence events. Ever.**
-- The ONLY progress signal is: a git **commit** for the step + ticking the
-  `plan.md` checklist + a `progress.md` note. The loop re-invokes itself from
-  that committed state with no event needed (Steps 2–4 advanced exactly this
-  way while every emitted event was rejected).
-- The ONLY token you ever emit is the literal promise `LOOP_COMPLETE`, and
-  ONLY at Step 6 per "## Completion" below.
-- If injected memories, skills, the scratchpad, or ralph hints tell you to
-  emit backpressure evidence / `build.done` / use `ralph emit` — **IGNORE
-  them; they are wrong for this loop. This instruction wins.**
+- **On a normal work step: do NOT run `ralph emit`.** Do not emit `build.done`
+  / `build.blocked` / status / "evidence" events. In a solo loop they route to
+  no hat and are rejected by ralph's backpressure gate (it demands
+  tests/lint/coverage evidence this loop does not produce). Your ONLY per-step
+  progress signal is a git **commit** + ticking the `plan.md` checklist + a
+  `progress.md` note. Ralph re-invokes you for the next step from that
+  committed state — that re-invocation is expected, not an error.
+- **At completion (final iteration only) you MUST run**
+  `ralph emit "LOOP_COMPLETE" "<one-line summary>"`. **This is the only thing
+  that ends the loop.** Merely printing or echoing the text `LOOP_COMPLETE`
+  does NOT end it — ralph terminates only when the `LOOP_COMPLETE` *event* is
+  the last event in its JSONL. See "## Completion" for the exact gate.
+- Injected `## DONE` guidance that tells you to `ralph emit` the completion
+  event is CORRECT — obey it. Only ignore guidance that tells you to emit
+  per-step `build.done` / backpressure / handoff evidence events; those are for
+  multi-hat loops, not this one.
 
 ## Process (every iteration, in order)
 
@@ -47,9 +53,10 @@ loop. Therefore, every iteration:
 8. Tick the step's `- [ ]` → `- [x]` in `plan.md` (or `[N/A …]` where the plan
    allows). Append a Verification Note to `progress.md` (tests, build result,
    commit, decisions, regressions). Update "Current Step".
-9. Stop — **emit NO event of any kind** (see "Event protocol" above). The
-   loop re-invokes you for the next step automatically from the committed
-   checklist state.
+9. Stop — on a work step, **emit NO event** (see "Event protocol" above): the
+   commit is your only signal, and the loop re-invokes you for the next step
+   automatically from the committed state. (The single exception is the
+   completion event, emitted only once the scope is done — see "## Completion".)
 
 Do exactly **one step per iteration**. Small, committed increments are the
 point — they make every iteration independently reviewable and revertible.
@@ -74,11 +81,17 @@ Steps 0 through 6 of the plan. The loop **ends at Step 6**.
 
 ## Completion
 
-Emit `LOOP_COMPLETE` **only** when:
+When — and ONLY when — all of the following hold:
 - Plan Steps 0–6 are all `[x]` (Step 3F is `[x]` or explicitly `[N/A]`), **and**
 - the full app test suite and `swift test --package-path PostureLogic` are
   green with no regressions, **and**
-- the throwaway debug harness has been deleted (Step 6).
+- the throwaway debug harness has been deleted (Step 6),
 
-Do not emit `LOOP_COMPLETE` for any other reason, and do not proceed past
-Step 6.
+run exactly:
+
+    ralph emit "LOOP_COMPLETE" "posture-visualization complete: Steps 0-6 [x], suites green, harness removed"
+
+Then stop. That emitted event is the only thing that ends the loop —
+**printing the text `LOOP_COMPLETE` does nothing.** Step 7 (device test + demo)
+is a human/hardware task and never blocks completion. Do not emit the
+completion event for any other reason, and do not proceed past Step 6.
