@@ -25,10 +25,11 @@ final class PostureVisualizationViewModelTests: XCTestCase {
         headX: Float = 0,
         headPitch: Float = 0,
         headYaw: Float = 0,
-        headRoll: Float = 0
+        headRoll: Float = 0,
+        timestamp: TimeInterval = 0
     ) -> PoseSample {
         PoseSample(
-            timestamp: 0,
+            timestamp: timestamp,
             depthMode: .twoDOnly,
             headPosition: SIMD3<Float>(headX, 0.8, 0),
             shoulderMidpoint: SIMD3<Float>(0, 0, 1),
@@ -48,8 +49,16 @@ final class PostureVisualizationViewModelTests: XCTestCase {
     private func metrics(
         forwardCreep: Float = 0,
         lateralLean: Float = 0,
-        twist: Float = 0
+        twist: Float = 0,
+        lateralLeanSigned: Float? = nil,
+        twistSigned: Float? = nil
     ) -> RawMetrics {
+        // The ViewModel maps the *signed* channels (`twistSigned`/`lateralLeanSigned`)
+        // to the disc rotation and side-lean — the unsigned `twist`/`lateralLean` are
+        // scoring magnitudes only. So the fixture must populate the signed fields, or
+        // the rotation/lean assertions read 0 (the `RawMetrics` init defaults them to
+        // 0). Default each signed value to its magnitude; callers may override to test
+        // a specific direction.
         RawMetrics(
             timestamp: 0,
             forwardCreep: forwardCreep,
@@ -58,7 +67,9 @@ final class PostureVisualizationViewModelTests: XCTestCase {
             lateralLean: lateralLean,
             twist: twist,
             movementLevel: 0,
-            headMovementPattern: .still
+            headMovementPattern: .still,
+            lateralLeanSigned: lateralLeanSigned ?? lateralLean,
+            twistSigned: twistSigned ?? twist
         )
     }
 
@@ -170,6 +181,75 @@ final class PostureVisualizationViewModelTests: XCTestCase {
         vm2.ingest(metrics: metrics(), pose: makeSample(headPitch: -100),
                    state: .good, quality: .good)
         XCTAssertEqual(vm2.headPitchDegrees, -60, accuracy: 0.0001)
+    }
+
+    func test_headPitch_jitterDenoised_withAdvancingTimestamps() {
+        // The other head tests stamp every frame `timestamp: 0`, where the One Euro
+        // source filter is the identity (no rate to measure) — which is exactly why
+        // those exact-value assertions still hold. This one proves the *production*
+        // path: with real advancing timestamps the filter engages, so a still head
+        // with sensor jitter renders far steadier than the raw ±swing × gain.
+        HeadAngleFilterTuning.minCutoff = HeadAngleFilterTuning.minCutoffDefault
+        HeadAngleFilterTuning.beta = HeadAngleFilterTuning.betaDefault
+        defer {   // leave the shared static as found for any later test
+            HeadAngleFilterTuning.minCutoff = HeadAngleFilterTuning.minCutoffDefault
+            HeadAngleFilterTuning.beta = HeadAngleFilterTuning.betaDefault
+        }
+
+        let vm = PostureVisualizationViewModel()
+        var t: TimeInterval = 0
+        var outs: [Double] = []
+        for i in 0..<80 {
+            t += 0.1   // ~10 Hz pose cadence ⇒ dt > 0 ⇒ filter active
+            let jittered: Float = 10 + (i.isMultiple(of: 2) ? 2 : -2)   // ±2° sensor jitter
+            vm.ingest(metrics: metrics(),
+                      pose: makeSample(headPitch: jittered, timestamp: t),
+                      state: .good, quality: .good)
+            outs.append(vm.headPitchDegrees)
+        }
+        // Raw, the ±2° jitter × 1.5 gain would render a 6° peak-to-peak shimmer.
+        let tail = Array(outs.suffix(40))
+        let swing = (tail.max() ?? 0) - (tail.min() ?? 0)
+        XCTAssertLessThan(swing, 3.0,
+                          "advancing timestamps must engage the One Euro denoise (well under the 6° raw swing)")
+    }
+
+    func test_headPitch_trackingLossThenResume_tracksFreshValue_noStaleDrag() {
+        // The One Euro filters are deliberately NOT reset on tracking loss. When pose
+        // goes nil the head eases to neutral and the filters simply aren't updated;
+        // on resume the dt-aware filter sees a large dt and converges decisively to the
+        // FRESH value rather than dragging toward the stale pre-loss angle. This locks
+        // the adversarial review's "reset on discontinuity" concern as a non-issue — a
+        // hard reset would instead expose one raw, unsmoothed frame on every brief drop.
+        HeadAngleFilterTuning.minCutoff = HeadAngleFilterTuning.minCutoffDefault
+        HeadAngleFilterTuning.beta = HeadAngleFilterTuning.betaDefault
+        defer {
+            HeadAngleFilterTuning.minCutoff = HeadAngleFilterTuning.minCutoffDefault
+            HeadAngleFilterTuning.beta = HeadAngleFilterTuning.betaDefault
+        }
+
+        let vm = PostureVisualizationViewModel()
+        var t: TimeInterval = 0
+        for _ in 0..<30 {   // settle on a held pose at pitch 10
+            t += 0.1
+            vm.ingest(metrics: metrics(), pose: makeSample(headPitch: 10, timestamp: t),
+                      state: .good, quality: .good)
+        }
+        XCTAssertEqual(vm.headPitchDegrees, 10 * 1.5, accuracy: 1.0, "should track the held pose")
+
+        for _ in 0..<6 {    // lose tracking ~0.6 s (pose nil; clock keeps advancing)
+            t += 0.1
+            vm.ingest(metrics: metrics(), pose: nil, state: .good, quality: .degraded)
+        }
+        XCTAssertEqual(vm.headPitchDegrees, 0, accuracy: 0.0001, "no pose ⇒ head eases to neutral")
+
+        t += 0.1            // resume at a genuinely different pose
+        vm.ingest(metrics: metrics(), pose: makeSample(headPitch: 30, timestamp: t),
+                  state: .good, quality: .good)
+        // Fresh target is 30×1.5=45, stale would be 10×1.5=15; must land decisively on fresh.
+        XCTAssertGreaterThan(vm.headPitchDegrees, 30,
+                             "resume must snap toward the fresh pose (45), not the stale (15)")
+        XCTAssertLessThanOrEqual(vm.headPitchDegrees, 45 + 0.01, "never overshoots the fresh target")
     }
 
     // MARK: - Head roll (← PoseSample.headRoll, ×1.5, cap ±45°)

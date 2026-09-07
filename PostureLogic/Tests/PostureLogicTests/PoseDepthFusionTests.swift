@@ -589,6 +589,49 @@ final class PoseDepthFusionTests: XCTestCase {
         XCTAssertEqual(sample.headRoll,  0, accuracy: 0.001)
     }
 
+    // MARK: - Head Orientation Quaternion Passthrough (viz-only)
+    //
+    // The quaternion sibling of `externalHeadAngles` rides the SAME path: when the
+    // ARFaceAnchor source supplies `externalHeadOrientation`, `fuse` must stamp it
+    // verbatim onto `PoseSample.headOrientation` (as xyzw `SIMD4`); when absent the
+    // field stays `nil` (2D/dropout → Euler fallback). It never gates scoring.
+
+    func test_fuse_stampsHeadOrientationWhenExternalQuaternionPresent() {
+        var fusion = PoseDepthFusion()
+        // A non-trivial rotation so xyzw are all distinguishable.
+        let quat = simd_quatf(angle: .pi / 3, axis: simd_normalize(SIMD3<Float>(0.2, 0.7, 0.5)))
+        let pose = PoseObservation(
+            timestamp: 1.0,
+            keypoints: [
+                makeKeypoint(.leftShoulder,  x: 0.40, y: 0.50),
+                makeKeypoint(.rightShoulder, x: 0.60, y: 0.50),
+                makeKeypoint(.nose,          x: 0.50, y: 0.70),
+            ],
+            confidence: 0.9,
+            externalHeadAngles: HeadAngles(pitch: 5, yaw: -3, roll: 2),
+            externalHeadOrientation: quat
+        )
+        guard let sample = fuse(pose, fusion: &fusion) else {
+            return XCTFail("fuse should produce a sample for a keypointed pose")
+        }
+        guard let stamped = sample.headOrientation else {
+            return XCTFail("headOrientation must be non-nil when externalHeadOrientation is present")
+        }
+        XCTAssertEqual(stamped, quat.vector, "stamped quaternion must equal the source xyzw verbatim")
+        // And the reconstructed rotation matches within tight tolerance.
+        let reconstructedAngle = simd_quatf(vector: stamped).angle
+        XCTAssertEqual(reconstructedAngle, quat.angle, accuracy: 1e-5)
+    }
+
+    func test_fuse_headOrientationNilWhenNoExternalQuaternion() {
+        var fusion = PoseDepthFusion()
+        // Same keypoints, but no externalHeadOrientation (the 2D/dropout case).
+        guard let sample = fuse(uprightPose(), fusion: &fusion) else {
+            return XCTFail("fuse should produce a sample for shoulders + nose")
+        }
+        XCTAssertNil(sample.headOrientation, "headOrientation must be nil on the 2D/Euler fallback path")
+    }
+
     // MARK: - Head Fallback Chain
 
     func test_headFallback_nose() {
@@ -936,5 +979,80 @@ final class PoseDepthFusionTests: XCTestCase {
         )!
         // shoulderWidthRaw should still be the 2D image-space width (0.2)
         XCTAssertEqual(result.shoulderWidthRaw, 0.2, accuracy: 0.001)
+    }
+
+    // MARK: - Shared turn geometry (used by the external/legacy head-angle tests)
+
+    /// Keypoints that encode a left/right TURN: the nose sits offset toward one ear
+    /// and below the ear line, so the legacy 2D pitch formula couples the turn into a
+    /// phantom nod (this is the "W"). The external/legacy tests reuse it.
+    private func turnGeometry() -> [Keypoint] {
+        [
+            makeKeypoint(.leftShoulder, x: 0.4, y: 0.3),
+            makeKeypoint(.rightShoulder, x: 0.6, y: 0.3),
+            makeKeypoint(.leftEar, x: 0.40, y: 0.60),
+            makeKeypoint(.rightEar, x: 0.60, y: 0.60),
+            makeKeypoint(.nose, x: 0.55, y: 0.50),   // offset right + below line ⇒ legacy phantom pitch
+        ]
+    }
+
+    // MARK: - External (ARKit ARFaceAnchor) head angles — Layer 1, Tier 1
+
+    private func makeExternalPose(
+        _ angles: HeadAngles,
+        keypoints: [Keypoint]? = nil
+    ) -> PoseObservation {
+        PoseObservation(
+            timestamp: 1.0, keypoints: keypoints ?? turnGeometry(), confidence: 0.9,
+            externalHeadAngles: angles
+        )
+    }
+
+    /// ARKit angles are authoritative and pass through verbatim — the legacy 2D
+    /// estimate is never consulted when an external head pose is present.
+    func test_external_winsVerbatim() {
+        var fusion = PoseDepthFusion()
+        let ext = HeadAngles(pitch: 7, yaw: -23, roll: 4)
+        let s = fuse(makeExternalPose(ext), fusion: &fusion)!
+        XCTAssertEqual(s.headPitch, 7, accuracy: 1e-4)
+        XCTAssertEqual(s.headYaw, -23, accuracy: 1e-4)
+        XCTAssertEqual(s.headRoll, 4, accuracy: 1e-4)
+    }
+
+    /// External nil → byte-identical to the pre-Layer-1 legacy path (regression pin).
+    func test_external_nil_isLegacyExactly() {
+        var fusion = PoseDepthFusion()
+        let kps = turnGeometry()
+        let legacy = fuse(makePose(keypoints: kps), fusion: &fusion)!
+        let viaNil = fuse(
+            PoseObservation(timestamp: 1.0, keypoints: kps, confidence: 0.9, externalHeadAngles: nil),
+            fusion: &fusion
+        )!
+        XCTAssertEqual(viaNil.headPitch, legacy.headPitch, accuracy: 1e-6)
+        XCTAssertEqual(viaNil.headYaw, legacy.headYaw, accuracy: 1e-6)
+        XCTAssertEqual(viaNil.headRoll, legacy.headRoll, accuracy: 1e-6)
+    }
+
+    /// In depth mode, the LiDAR elevation pitch must NOT clobber an authoritative
+    /// ARKit pitch (the fuse3D guard).
+    func test_external_pitchSurvivesLiDAROverrideInDepthMode() {
+        var fusion = PoseDepthFusion()
+        let ext = HeadAngles(pitch: 12, yaw: 0, roll: 0)
+        // Upright depth pose with the external head angles attached.
+        let kps = [
+            makeKeypoint(.leftShoulder, x: 0.4, y: 0.5),
+            makeKeypoint(.rightShoulder, x: 0.6, y: 0.5),
+            makeKeypoint(.nose, x: 0.5, y: 0.7),
+            makeKeypoint(.leftEar, x: 0.45, y: 0.72),
+            makeKeypoint(.rightEar, x: 0.55, y: 0.72),
+        ]
+        let pose = PoseObservation(timestamp: 1.0, keypoints: kps, confidence: 0.9, externalHeadAngles: ext)
+        let samples = makeDepthSamples(for: pose.keypoints, depth: 0.6)
+        let result = fusion.fuse(
+            pose: pose, depthSamples: samples, confidence: .high,
+            intrinsics: makeIntrinsics(), trackingQuality: .good
+        )!
+        XCTAssertEqual(result.depthMode, .depthFusion)
+        XCTAssertEqual(result.headPitch, 12, accuracy: 1e-4, "ARKit pitch must survive the LiDAR pitch3D override")
     }
 }

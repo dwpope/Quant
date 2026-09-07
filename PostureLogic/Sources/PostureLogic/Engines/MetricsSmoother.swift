@@ -4,18 +4,68 @@ import simd
 /// Applies exponential moving average (EMA) smoothing to posture metrics
 /// and computes temporal metrics (movementLevel, headMovementPattern)
 /// that require a history of recent samples.
+///
+/// ## Why `headDrop` gets its own filter
+/// Every field except `headDrop` shares the fixed-weight `alpha` EMA (~0.33 s at
+/// 10 Hz) — responsive enough for the larger-amplitude creep/lean/twist/rounding
+/// signals. `headDrop` is the exception: it is now **ear-sourced carriage**
+/// (`baseline.neckHeight − sample.neckHeight`), and the ear barely moves from a
+/// front camera, so the real mild→bad separation (~0.013 shoulder-widths) is small
+/// relative to keypoint jitter (~±0.01 even after the shared EMA). A heavier fixed
+/// EMA would fix the jitter but lag every signal equally. Instead `headDrop` runs
+/// through a dedicated ``OneEuroFilter`` — an adaptive low-pass that smooths hard
+/// while the head is still (killing the flicker) yet raises its cutoff when the
+/// head actually sinks (so a genuine slouch still converges). This leaves `alpha`
+/// untouched for the four responsive metrics.
+///
+/// The One Euro stage is keyed on `sample.timestamp` and is the identity whenever
+/// `dt <= 0` (its documented seed / non-advancing-timestamp contract). The camera-
+/// free unit tests stamp constant timestamps, so there the `headDrop` filter is a
+/// pass-through and the pre-existing exact assertions still hold.
 struct MetricsSmoother: DebugDumpable {
 
     // MARK: - Configuration
 
     /// EMA blending factor. Higher = more responsive but jittery; lower = smoother but laggy.
+    /// Applies to every posture field **except** `headDrop`, which has its own
+    /// dedicated adaptive filter (see ``headDropFilter``).
     var alpha: Float
+
+    /// Adaptive denoiser for the ear-sourced `headDrop` signal only.
+    ///
+    /// Tuned for the ~10 Hz pose cadence against a small-amplitude, jitter-dominated
+    /// input. `minCutoff = 0.15 Hz` sets the stationary smoothing floor at
+    /// `tau = 1 / (2π·fc) ≈ 1.06 s`, i.e. roughly a 1-second time constant while the
+    /// head is held still — deliberately heavy, since posture is slow and ~1 s of lag
+    /// on the neck signal is acceptable in exchange for a steady reading. `beta = 6.0`
+    /// is large because posture speeds are tiny in these normalized units: a real
+    /// slouch moves `headDrop` on the order of a few hundredths per second, and only
+    /// a large `beta` lets that speed lift the cutoff enough to cut the lag on a
+    /// genuine change while a still head stays pinned at `minCutoff`.
+    ///
+    /// **Provisional — tune on device** against the now-smoothed live signal, in
+    /// concert with `PostureThresholds.headDropThreshold`.
+    private var headDropFilter = OneEuroFilter(
+        minCutoff: headDropMinCutoff,
+        beta: headDropBeta
+    )
+
+    /// Stationary-cutoff floor (Hz) for the `headDrop` One Euro filter. See
+    /// ``headDropFilter`` for the time-constant derivation. Provisional.
+    static let headDropMinCutoff: Float = 0.15
+
+    /// Speed coefficient for the `headDrop` One Euro filter. See ``headDropFilter``.
+    /// Provisional.
+    static let headDropBeta: Float = 6.0
 
     // MARK: - Debug State
 
     var debugState: [String: Any] {
         [
             "alpha": alpha,
+            "headDropMinCutoff": Self.headDropMinCutoff,
+            "headDropBeta": Self.headDropBeta,
+            "headDropFiltered": headDropFilter.value,
             "sampleCount": sampleCount,
             "headWindowCount": recentHeadPositions.count,
             "lastMovementLevel": lastMovementLevel,
@@ -65,12 +115,18 @@ struct MetricsSmoother: DebugDumpable {
             previousSample = sample
         }
 
+        // `headDrop` bypasses the shared EMA and rides its own adaptive filter,
+        // keyed on the sample's timestamp. The filter seeds on the first sample
+        // (returns it raw) and is the identity whenever `dt <= 0`, so the first-
+        // sample passthrough and the constant-timestamp unit tests are unaffected.
+        let filteredHeadDrop = headDropFilter.update(current.headDrop, timestamp: sample.timestamp)
+
         guard let prev = previous else {
             // First sample: pass through posture metrics unsmoothed
             let result = RawMetrics(
                 timestamp: current.timestamp,
                 forwardCreep: current.forwardCreep,
-                headDrop: current.headDrop,
+                headDrop: filteredHeadDrop,
                 shoulderRounding: current.shoulderRounding,
                 lateralLean: current.lateralLean,
                 twist: current.twist,
@@ -86,7 +142,7 @@ struct MetricsSmoother: DebugDumpable {
         let smoothed = RawMetrics(
             timestamp: current.timestamp,
             forwardCreep: lerp(prev.forwardCreep, current.forwardCreep, alpha),
-            headDrop: lerp(prev.headDrop, current.headDrop, alpha),
+            headDrop: filteredHeadDrop,
             shoulderRounding: lerp(prev.shoulderRounding, current.shoulderRounding, alpha),
             lateralLean: lerp(prev.lateralLean, current.lateralLean, alpha),
             twist: lerp(prev.twist, current.twist, alpha),
@@ -108,6 +164,7 @@ struct MetricsSmoother: DebugDumpable {
         sampleCount = 0
         lastMovementLevel = 0
         lastHeadPattern = .still
+        headDropFilter.reset()   // re-seed the neck signal on the next sample
     }
 
     // MARK: - Movement Level

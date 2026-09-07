@@ -16,6 +16,9 @@ struct SettingsSheetView: View {
                     )) {
                         Text("Rear (Depth)").tag(CameraMode.rearDepth)
                         Text("Front (2D)").tag(CameraMode.front2D)
+                        if ARFaceTrackingService.isFaceTrackingSupported {
+                            Text("Front (Face)").tag(CameraMode.frontFace)
+                        }
                     }
                     .pickerStyle(.segmented)
                 } header: {

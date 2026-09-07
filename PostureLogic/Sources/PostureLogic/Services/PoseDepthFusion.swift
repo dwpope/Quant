@@ -10,12 +10,21 @@ import simd
 /// - `roll`:  tilt of the ear line from horizontal; right ear lower → negative.
 /// - `pitch`: chin-down nod angle (computed in a later sub-stage).
 /// - `yaw`:   left/right head turn (computed in a later sub-stage).
-struct HeadAngles {
-    var pitch: Float
-    var yaw: Float
-    var roll: Float
+/// Public so it can type `InputFrame.externalHeadAngles` — the channel an app-side
+/// ARKit provider uses to inject a fully-decoupled `ARFaceAnchor` head pose (Layer
+/// 1) ahead of both the Vision monocular fit and the legacy 2D formulas.
+public struct HeadAngles {
+    public var pitch: Float
+    public var yaw: Float
+    public var roll: Float
 
-    static let neutral = HeadAngles(pitch: 0, yaw: 0, roll: 0)
+    public init(pitch: Float, yaw: Float, roll: Float) {
+        self.pitch = pitch
+        self.yaw = yaw
+        self.roll = roll
+    }
+
+    public static let neutral = HeadAngles(pitch: 0, yaw: 0, roll: 0)
 }
 
 /// Runtime-tunable head-orientation calibration, exposed `public` so a **DEBUG**
@@ -190,6 +199,14 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             shoulderWidth: shoulderWidth
         )
         let headAngles = computeHeadAngles(from: pose)
+        // Ear-based head-carriage height (image space) — sources the refined
+        // `headDrop`. `midY`/`shoulderWidth` are already image-space here.
+        let neckHeight = computeNeckHeight(
+            pose: pose,
+            fallbackHeadY: headPos.y,
+            shoulderMidY: midY,
+            shoulderWidth: shoulderWidth
+        )
 
         return PoseSample(
             timestamp: pose.timestamp,
@@ -205,7 +222,11 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             trackingQuality: trackingQuality,
             headPitch: headAngles.pitch,
             headYaw: headAngles.yaw,
-            headRoll: headAngles.roll
+            headRoll: headAngles.roll,
+            // Viz-only quaternion: non-nil only on the ARFaceAnchor/Tier-1 path,
+            // nil for 2D/dropout. Parallel to the Euler fields, never gates scoring.
+            headOrientation: pose.externalHeadOrientation?.vector,
+            neckHeight: neckHeight
         )
     }
 
@@ -284,13 +305,30 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
         // is upgraded to a true depth-based elevation angle when LiDAR depth exists
         // at the nose + ear plane, falling back to the 2D pitch otherwise.
         var headAngles = computeHeadAngles(from: pose)
-        if let pitch3D = computeHeadPitch3D(
+        // The LiDAR elevation pitch refines the *2D* estimate; it must not override
+        // an authoritative ARKit (`externalHeadAngles`) pitch, which is already a
+        // true metric angle.
+        if pose.externalHeadAngles == nil,
+           let pitch3D = computeHeadPitch3D(
             from: pose,
             depthSamples: depthSamples,
             intrinsics: intrinsics
         ) {
             headAngles.pitch = pitch3D
         }
+
+        // Ear-based head-carriage height, computed in **image space** exactly as
+        // the 2D path does (NOT from the unprojected 3D coordinates) so `headDrop`
+        // stays comparable across camera modes. `shoulderWidth` here is already the
+        // 2D image-space width; derive the matching 2D shoulder-mid Y from the same
+        // shoulder keypoints, and use the image-space `headPos.y` as fallback.
+        let shoulderMidY2D = (leftShoulder.position.y + rightShoulder.position.y) / 2
+        let neckHeight = computeNeckHeight(
+            pose: pose,
+            fallbackHeadY: headPos.y,
+            shoulderMidY: shoulderMidY2D,
+            shoulderWidth: shoulderWidth
+        )
 
         return PoseSample(
             timestamp: pose.timestamp,
@@ -306,7 +344,11 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             trackingQuality: trackingQuality,
             headPitch: headAngles.pitch,
             headYaw: headAngles.yaw,
-            headRoll: headAngles.roll
+            headRoll: headAngles.roll,
+            // Viz-only quaternion: non-nil only on the ARFaceAnchor/Tier-1 path,
+            // nil for 2D/dropout. Parallel to the Euler fields, never gates scoring.
+            headOrientation: pose.externalHeadOrientation?.vector,
+            neckHeight: neckHeight
         )
     }
 
@@ -388,6 +430,47 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
         return nil
     }
 
+    // MARK: - Neck Height (ear-based head carriage)
+
+    /// Ear-based head-carriage height in **image space** (Vision y-up),
+    /// shoulder-normalized: `(earMidY − shoulderMidY) / shoulderWidth`. This is the
+    /// source for the refined `RawMetrics.headDrop` — it tracks where the head is
+    /// *carried* relative to the shoulders, so a stable head reading down at the
+    /// nose (a transient look-down / chin-drop) does not register as a drop the way
+    /// nose-relative `headPosition.y` does. It is deliberately a **2D body-pose**
+    /// quantity (ear + shoulder image keypoints, same domain as `torsoAngle`); it
+    /// must NOT be derived from head-orientation angles.
+    ///
+    /// Both the 2D and 3D fusion paths call this with the **same image-space**
+    /// keypoints (never 3D/unprojected coordinates), so `headDrop` stays directly
+    /// comparable across camera modes.
+    ///
+    /// Ear source: both `.leftEar` and `.rightEar` must pass the shared
+    /// `keypoint(_:from:)` confidence gate; then `earY = (le.y + re.y) / 2`.
+    /// Otherwise falls back to `fallbackHeadY` — the already-resolved nose-first
+    /// head Y — so a turned/occluded-ear frame still yields a sane carriage value
+    /// instead of collapsing. Guards a degenerate `shoulderWidth` (returns 0),
+    /// mirroring the caller's existing width guards.
+    private func computeNeckHeight(
+        pose: PoseObservation,
+        fallbackHeadY: CGFloat,
+        shoulderMidY: CGFloat,
+        shoulderWidth: CGFloat
+    ) -> Float {
+        guard shoulderWidth > Self.minShoulderWidth else { return 0 }
+
+        let earY: CGFloat
+        if let le = keypoint(.leftEar, from: pose),
+           let re = keypoint(.rightEar, from: pose) {
+            earY = (le.position.y + re.position.y) / 2
+        } else {
+            earY = fallbackHeadY
+        }
+
+        // Vision y-up: ears above shoulders ⇒ positive.
+        return Float((earY - shoulderMidY) / shoulderWidth)
+    }
+
     // MARK: - Angle Computation
 
     /// Computes torso forward lean angle in degrees.
@@ -446,8 +529,24 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
     /// degrades gracefully (neutral 0) when the required keypoints are absent —
     /// mirroring `resolveHeadPosition`'s tolerance.
     ///
+    /// Head orientation in the `PoseSample` degree convention.
+    ///
+    /// Two tiers. **Tier 1** — an ARKit `ARFaceAnchor` head pose threaded through as
+    /// `pose.externalHeadAngles`: a true metric 6-DOF rotation, decoupled by
+    /// construction and authoritative whenever present (TrueDepth `.frontFace`),
+    /// all-or-nothing (the anchor yields a whole rotation, not per-axis optionals).
+    /// **Tier 2** — the legacy 2D estimate: pitch/yaw/roll as three INDEPENDENT
+    /// formulas off the same nose/eye/ear keypoints, each assuming the other two axes
+    /// are zero, so a turn foreshortens the ear line and tips the projected nose into
+    /// a phantom nod/tilt (the "W"). It is the fallback floor for non-TrueDepth
+    /// devices and for ARFace dropouts.
     func computeHeadAngles(from pose: PoseObservation) -> HeadAngles {
-        HeadAngles(
+        // Tier 1 — ARKit ARFaceAnchor (Layer 1): authoritative when present.
+        if let external = pose.externalHeadAngles {
+            return external
+        }
+        // Tier 2 — legacy 2D formulas (fallback floor).
+        return HeadAngles(
             pitch: computeHeadPitch(from: pose),
             yaw: computeHeadYaw(from: pose),
             roll: computeHeadRoll(from: pose)

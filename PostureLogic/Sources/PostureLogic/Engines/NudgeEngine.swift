@@ -398,3 +398,25 @@ final class NudgeEngine: NudgeEngineProtocol {
         nudgeTimestamps.removeAll { $0 <= oneHourAgo }
     }
 }
+
+// MARK: - User-Facing Copy
+
+extension NudgeReason {
+
+    /// A short, actionable coaching line for the dominant violation — the
+    /// user-facing guidance a nudge carries (audio caption / watch text).
+    ///
+    /// Keyed off the same `NudgeReason` the engine already picks in
+    /// `dominantReason(from:)`, so the specific correction matches the specific
+    /// slouch: forward creep asks the user to sit back, head/neck carriage asks
+    /// them to lift, and the general slouch gets the neutral "sit up" line.
+    /// Kept to one imperative clause each so it fits a glanceable prompt (same
+    /// tone as the analytics copy in `NudgeInsights.dominantReasonDescription`).
+    public var coachingMessage: String {
+        switch self {
+        case .sustainedSlouch: return "Sit up — reset your posture"
+        case .forwardCreep:    return "Sit back — you're leaning in"
+        case .headDrop:        return "Lift your head — ease your neck back"
+        }
+    }
+}

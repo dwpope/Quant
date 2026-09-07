@@ -33,6 +33,9 @@ struct ContentView: View {
                 case .front2D:
                     FrontCameraPreviewView(session: appModel.frontService.captureSession)
                         .ignoresSafeArea()
+                case .frontFace:
+                    CameraPreviewView(session: appModel.arFaceService.session)
+                        .ignoresSafeArea()
                 }
             }
 

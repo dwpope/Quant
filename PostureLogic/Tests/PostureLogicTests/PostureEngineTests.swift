@@ -64,9 +64,10 @@ final class PostureEngineTests: XCTestCase {
         makeMetrics(timestamp: timestamp, forwardCreep: 0.02, lateralLean: 0.12, twist: 3.0)
     }
 
-    /// Creates metrics with excessive head drop — exceeds the 0.06 threshold.
+    /// Creates metrics with excessive head drop — exceeds the 0.15 threshold
+    /// (0.22 = the 2026-07-03 device "clearly bad" carriage reading).
     private func headDropMetrics(timestamp: TimeInterval) -> RawMetrics {
-        makeMetrics(timestamp: timestamp, headDrop: 0.10)
+        makeMetrics(timestamp: timestamp, headDrop: 0.22)
     }
 
     /// Creates metrics with excessive shoulder rounding — exceeds the 10.0° threshold.
@@ -755,8 +756,8 @@ final class PostureEngineTests: XCTestCase {
             let engine = PostureEngine()
             _ = engine.update(metrics: goodMetrics(timestamp: 0), taskMode: .unknown, trackingQuality: .good)
 
-            // headDrop 0.10 exceeds the 0.06 threshold regardless of mode
-            let metrics = makeMetrics(timestamp: 1.0, headDrop: 0.10)
+            // headDrop 0.22 exceeds the 0.15 threshold regardless of mode
+            let metrics = makeMetrics(timestamp: 1.0, headDrop: 0.22)
             let state = engine.update(metrics: metrics, taskMode: mode, trackingQuality: .good)
 
             if case .drifting = state {

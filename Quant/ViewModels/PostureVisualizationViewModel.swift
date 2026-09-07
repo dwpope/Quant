@@ -66,6 +66,24 @@ final class PostureVisualizationViewModel: ObservableObject {
     @Published private(set) var headYawDegrees: Double = 0             // ← PoseSample.headYaw
     @Published private(set) var headPitchDegrees: Double = 0           // ← PoseSample.headPitch
     @Published private(set) var headRollDegrees: Double = 0            // ← PoseSample.headRoll
+
+    /// The measured ARFaceAnchor head orientation (screen-frame quaternion),
+    /// reconstructed from `PoseSample.headOrientation` (xyzw). **nil** for the 2D /
+    /// rear / dropout path (the sample carries no quaternion) — that nil is the gate
+    /// the render binding uses to fall back to the Euler path. Viz-only; NEVER feeds
+    /// scoring. Published raw: no One Euro, no amplification — the quaternion render
+    /// path relies on the binding's `DampedOrientation` follower for temporal
+    /// smoothing, while the One Euro filters stay on the Euler scalars above.
+    @Published private(set) var headOrientationQuat: simd_quatf?
+
+    /// The captured neutral head quaternion — a single clean snapshot of the first
+    /// judged frame's `headOrientationQuat` on each calibrating→judged transition
+    /// (mirrors the Euler `restPitchDegrees`/`restRollDegrees` re-arm below). ARFace
+    /// is sub-degree, so a single snapshot, NOT an N-frame average — averaging
+    /// quaternions is wrong. **nil** until the snapshot is taken; re-armed (back to
+    /// nil) on every recalibration. The binding renders `headOrientationQuat`
+    /// rest-relative to this.
+    @Published private(set) var restOrientationQuat: simd_quatf?
     @Published private(set) var opacity: Double = 1                    // ← trackingQuality
     @Published private(set) var stateColor: Color = .gray             // ← postureState
     @Published private(set) var isCalibrating: Bool = false           // ← postureState
@@ -110,6 +128,17 @@ final class PostureVisualizationViewModel: ObservableObject {
     @Published private(set) var rawHeadPitch: Double = 0              // PoseSample.headPitch
     @Published private(set) var rawHeadRoll: Double = 0               // PoseSample.headRoll
 
+    /// Neck-carriage metric for the dev HUD's `neck` row — the ear-based head
+    /// carriage that now sources the *scored* `headDrop`, surfaced so the
+    /// `headDropThreshold` can be tuned by eye on device. `rawNeckHeight` is the
+    /// unmapped carriage height (`PoseSample.neckHeight`); `neckDropScored` is the
+    /// baseline-relative deviation the engine actually scores (`RawMetrics.headDrop`,
+    /// positive = head/neck dropped). Mirror only — NEVER feeds scoring or the scene;
+    /// head-orientation angles are deliberately *not* routed here (this is the 2D
+    /// carriage metric, not head pose).
+    @Published private(set) var rawNeckHeight: Double = 0            // PoseSample.neckHeight
+    @Published private(set) var neckDropScored: Double = 0          // RawMetrics.headDrop
+
     /// Amplified yaw/pitch/roll *before* the per-axis cap. Compared against the
     /// clamped `head*Degrees` outputs, a divergence here means the cap is
     /// currently clipping — the single clearest cue for tuning `*CapDegrees`.
@@ -125,6 +154,18 @@ final class PostureVisualizationViewModel: ObservableObject {
     /// into a sluggish ~1.5–2 s settle; a higher α keeps lean responsive to a real
     /// torso movement while the upstream stage still removes per-frame jitter.
     static let leanSmoothingAlpha: Double = 0.5
+
+    /// Head yaw/pitch/roll are **pass-through here (α = 1.0)** on purpose. The render
+    /// binding now smooths the head with a single dt-aware critically-damped follower
+    /// (`PostureVisualizationBinding.orientationSmoothTime`). Keeping the old α=0.2 EMA
+    /// here too cascaded two filters — a ~0.45 s VM stage *plus* the render stage — which
+    /// stacked ~0.5 s of lag AND still pulsed at the 10 Hz sample rate (worst of both).
+    /// Publishing the raw, clamped 10 Hz head target makes the render follower the sole
+    /// head temporal filter: it removes the cascade lag and is where the (correct,
+    /// frame-rate-independent, pulse-free) smoothing actually happens. Tune feel via
+    /// `orientationSmoothTime`, not here. (Rotation/scale/opacity keep `smoothingAlpha`;
+    /// lean keeps `leanSmoothingAlpha` — only the head channels go pass-through.)
+    static let headSmoothingAlpha: Double = 1.0
 
     /// All scaling/clamping constants in one place so the renderer and the
     /// ViewModel stay in sync and remain tunable during demo recording
@@ -162,10 +203,35 @@ final class PostureVisualizationViewModel: ObservableObject {
     private var sideLeanFilter = LowPassFilter(alpha: leanSmoothingAlpha)
     private var forwardFilter = LowPassFilter(alpha: leanSmoothingAlpha)
     private var scaleFilter = LowPassFilter(alpha: smoothingAlpha)
-    private var yawFilter = LowPassFilter(alpha: smoothingAlpha)
-    private var pitchFilter = LowPassFilter(alpha: smoothingAlpha)
-    private var rollFilter = LowPassFilter(alpha: smoothingAlpha)
+    // Head channels pass through (α = 1.0); the render binding's dt-aware follower is
+    // the sole head temporal filter now — see `headSmoothingAlpha`.
+    private var yawFilter = LowPassFilter(alpha: headSmoothingAlpha)
+    private var pitchFilter = LowPassFilter(alpha: headSmoothingAlpha)
+    private var rollFilter = LowPassFilter(alpha: headSmoothingAlpha)
     private var opacityFilter = LowPassFilter(alpha: smoothingAlpha)
+
+    // MARK: Head-angle source denoise (One Euro)
+    //
+    // The render follower (`orientationSmoothTime`) de-staircases the ~10 Hz pose
+    // into fluid motion, but it is a *tracker, not a denoiser* — it faithfully
+    // reproduces whatever jitter is in the measurement, which the ~5× pitch display
+    // gain then magnifies into visible nod shimmer ("the pitch fluctuates"). These
+    // adaptive low-passes remove that jitter at the *source*, before any gain: hard
+    // smoothing while the head is still, near-zero lag on a real nod (the cutoff
+    // rises with speed). Identity when timestamps don't advance (see `OneEuroFilter`),
+    // so the camera-free `ingest` test seam — every sample stamped 0 — is unaffected.
+    // Tuned live via `HeadAngleFilterTuning` (DEBUG sliders).
+    //
+    // Deliberately NOT reset on tracking loss / mode switch / recalibration: the filter
+    // is dt-aware, so it already degrades gracefully across every discontinuity — a
+    // brief drop is a moderate-dt ease, a long gap is a large-dt snap to the fresh value
+    // (never a drag toward the stale one — `xHat` is overwritten), and a backward
+    // timestamp is an identity pass-through. A hard `reset()` would instead expose one
+    // raw, unsmoothed frame on each brief drop — strictly worse. Locked by
+    // `test_headPitch_trackingLossThenResume_tracksFreshValue_noStaleDrag`.
+    private var yawEuro = OneEuroFilter()
+    private var pitchEuro = OneEuroFilter()
+    private var rollEuro = OneEuroFilter()
 
     // MARK: Calibration-relative reference (pitch & roll)
     //
@@ -185,6 +251,14 @@ final class PostureVisualizationViewModel: ObservableObject {
     private var restCaptureRemaining = 0
     private var restPitchSum: Double = 0
     private var restRollSum: Double = 0
+
+    /// Whether the quaternion neutral (`restOrientationQuat`) has been snapshotted
+    /// for the current armed window. The quaternion rest is a SINGLE clean snapshot
+    /// of the first judged frame (ARFace is sub-degree — no averaging), so unlike the
+    /// Euler N-frame mean it just needs a "captured yet?" latch. Re-armed (set false,
+    /// `restOrientationQuat = nil`) on the same calibrating→judged transition that
+    /// re-arms the Euler refs.
+    private var restQuatCaptured = false
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -260,20 +334,43 @@ final class PostureVisualizationViewModel: ObservableObject {
         if let p = pose {
             forwardTarget = Double(p.headForwardOffset) * Mapping.headForwardPointsPerUnit
 
+            // Measured ARFaceAnchor head quaternion (xyzw → simd_quatf). nil for the
+            // 2D / rear / dropout path (the sample carries no quaternion); that nil
+            // gates the binding onto the Euler fallback. Published raw — NOT run
+            // through the One Euro filters (those stay on the Euler scalars) and never
+            // fed to scoring. In the camera-free unit tests samples don't set
+            // `headOrientation`, so this stays nil and the Euler path/assertions hold.
+            headOrientationQuat = p.headOrientation.map { simd_quatf(vector: $0) }
+
+            // Adaptive source denoise (One Euro) on the raw head angles, BEFORE any
+            // amplification, so sensor jitter never reaches the ~5× pitch gain or the
+            // render follower. Params are read live so the DEBUG tuning sliders apply
+            // without a rebuild. In the unit tests every PoseSample shares timestamp 0,
+            // so each filter is the identity and the existing head-angle assertions hold.
+            yawEuro.minCutoff = HeadAngleFilterTuning.minCutoff
+            yawEuro.beta = HeadAngleFilterTuning.beta
+            pitchEuro.minCutoff = HeadAngleFilterTuning.minCutoff
+            pitchEuro.beta = HeadAngleFilterTuning.beta
+            rollEuro.minCutoff = HeadAngleFilterTuning.minCutoff
+            rollEuro.beta = HeadAngleFilterTuning.beta
+            let headYawF = yawEuro.update(p.headYaw, timestamp: p.timestamp)
+            let headPitchF = pitchEuro.update(p.headPitch, timestamp: p.timestamp)
+            let headRollF = rollEuro.update(p.headRoll, timestamp: p.timestamp)
+
             // Yaw ← real head yaw (PoseSample.headYaw, degrees). Absolute: a
             // forward-facing head already reads ~0°, so no rest reference is
             // needed (unlike pitch/roll, whose raw zero is geometric).
-            let yawRaw = Double(p.headYaw) * Mapping.headRotationAmplification
+            let yawRaw = Double(headYawF) * Mapping.headRotationAmplification
             yawTarget = Self.clamp(yawRaw, -Mapping.yawCapDegrees, Mapping.yawCapDegrees)
 
             // Pitch ← real head pitch (degrees). Absolute geometry, re-zeroed to
             // the calibrated rest pose below (the raw zero is the on-the-line /
             // ear-plane case, not a physiological neutral — see
             // PoseDepthFusion.computeHeadPitch / computeHeadPitch3D).
-            let pitchAbs = Double(p.headPitch) * Mapping.headRotationAmplification
+            let pitchAbs = Double(headPitchF) * Mapping.headRotationAmplification
 
             // Roll ← real head roll (PoseSample.headRoll, degrees).
-            let rollAbs = Double(p.headRoll) * Mapping.headRotationAmplification
+            let rollAbs = Double(headRollF) * Mapping.headRotationAmplification
 
             // On the calibrating→judged transition, start capturing the rest
             // reference so neutral reads ~0° (fixes the permanently-tilted
@@ -283,6 +380,21 @@ final class PostureVisualizationViewModel: ObservableObject {
                 restPitchSum = 0
                 restRollSum = 0
                 wasCalibrating = false
+                // Re-arm the quaternion neutral on the SAME transition as the Euler
+                // refs: clear it and un-latch so the snapshot below re-takes a fresh
+                // neutral from this judged window's first frame.
+                restOrientationQuat = nil
+                restQuatCaptured = false
+            }
+
+            // Capture the quaternion neutral as a SINGLE clean snapshot of the first
+            // judged frame's measured orientation (ARFace is sub-degree — no N-frame
+            // averaging; averaging quaternions is wrong). Mirrors the Euler capture
+            // window but as a one-shot latch. Skipped when the sample carries no
+            // quaternion (2D/dropout) so a Face neutral isn't seeded from a nil frame.
+            if !restQuatCaptured && judged, let q = headOrientationQuat {
+                restOrientationQuat = q
+                restQuatCaptured = true
             }
 
             // While capturing, the reference is the running mean of the judged
@@ -318,6 +430,10 @@ final class PostureVisualizationViewModel: ObservableObject {
             yawTarget = 0
             pitchTarget = 0
             rollTarget = 0
+            // Gate exactly like the other head channels: no pose ⇒ no quaternion, so
+            // the binding falls back to the Euler path. The captured neutral persists
+            // (re-armed only on recalibration), matching the Euler rest refs.
+            headOrientationQuat = nil
             if isTuningHUDActive {
                 unclampedYawDegrees = 0
                 unclampedPitchDegrees = 0
@@ -357,6 +473,11 @@ final class PostureVisualizationViewModel: ObservableObject {
             rawHeadYaw = pose.map { Double($0.headYaw) } ?? 0
             rawHeadPitch = pose.map { Double($0.headPitch) } ?? 0
             rawHeadRoll = pose.map { Double($0.headRoll) } ?? 0
+            // Neck carriage: raw ear-height off the sample, scored deviation off
+            // the metrics (`m` already folds the nil case to `.zero`, matching the
+            // other `m.*` reads above). The 2D carriage metric — not head pose.
+            rawNeckHeight = pose.map { Double($0.neckHeight) } ?? 0
+            neckDropScored = Double(m.headDrop)
         }
     }
 
