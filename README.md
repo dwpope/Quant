@@ -41,7 +41,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~41,000 lines of Swift** across 246 files, with **746 tests** across 65 test files.
+**~47,000 lines of Swift** across 232 files. The `PostureLogic` package carries **571 tests**, all passing — reproduce with `cd PostureLogic && swift test`.
 
 ## Technical Decisions
 
@@ -77,6 +77,12 @@ A 3-frame majority-vote window with hysteresis thresholds prevents single-frame 
 
 Open `Quant.xcodeproj` in Xcode 16+ and run on a physical device. The PostureLogic package resolves automatically.
 
+**Xcode 26 prerequisite:** Xcode 26 ships without the Metal toolchain, so the shaders in `Quant/Views/Showcase/Shaders/` fail to compile before any Swift is built. Install it once with:
+
+```bash
+xcodebuild -downloadComponent MetalToolchain
+```
+
 ### Tests
 
 ```bash
@@ -102,4 +108,4 @@ PostureLogic tests run automatically on every push and PR to `main` via GitHub A
 
 ## License
 
-Private repository.
+All rights reserved. This repository is publicly visible for reading, but no licence to use, copy, modify, or distribute the code is granted.
