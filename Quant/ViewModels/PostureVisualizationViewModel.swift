@@ -181,10 +181,33 @@ final class PostureVisualizationViewModel: ObservableObject {
         /// lean-in/proximity zoom can be dialled; Release uses the default.
         static var forwardCreepScaleFactor: Double = forwardCreepScaleFactorDefault
         static let forwardCreepScaleFactorDefault: Double = 0.5
-        static let headRotationAmplification = 1.5     // yaw/pitch/roll amplify
+        /// Shared yaw/pitch/roll display gain. Tunable (DEBUG slider "head amp")
+        /// so the exaggeration can be dialled on device against a known pose;
+        /// Release uses the default. One scalar for all three axes — raising it
+        /// per-axis would reintroduce the anisotropic stretch that made a real
+        /// head-circle render as an oval.
+        static var headRotationAmplification: Double = headRotationAmplificationDefault
+        static let headRotationAmplificationDefault: Double = 1.5
+        /// Slider bounds. Lower bound is strictly positive: a 0 gain would flatten
+        /// every head movement and read on device as "tracking is broken".
+        static let headRotationAmplificationRange: ClosedRange<Double> = 0.5...4.0
+
         static let yawCapDegrees = 90.0
-        static let pitchCapDegrees = 60.0
-        static let rollCapDegrees = 45.0
+
+        /// Rendered pitch ceiling (degrees), applied to the calibration-relative
+        /// angle. Tunable (DEBUG slider "pitch°") — the shipped 60° was picked
+        /// before the gravity-levelled decomposition landed and is a device-dial.
+        static var pitchCapDegrees: Double = pitchCapDegreesDefault
+        static let pitchCapDegreesDefault: Double = 60.0
+        /// Slider bounds; strictly positive so the axis can never be dialled dead.
+        static let pitchCapDegreesRange: ClosedRange<Double> = 10.0...120.0
+
+        /// Rendered roll ceiling (degrees), applied to the calibration-relative
+        /// angle. Tunable (DEBUG slider "roll°"), same rationale as the pitch cap.
+        static var rollCapDegrees: Double = rollCapDegreesDefault
+        static let rollCapDegreesDefault: Double = 45.0
+        /// Slider bounds; strictly positive so the axis can never be dialled dead.
+        static let rollCapDegreesRange: ClosedRange<Double> = 10.0...120.0
         /// Reference depth (metres) the head sits forward of the shoulders;
         /// mirrors the design's ~0.15 head-above-disc offset and turns the
         /// unbounded `headForwardOffset` into a bounded pitch angle.

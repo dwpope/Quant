@@ -24,6 +24,7 @@ struct PostureVisualizationCalibrationOverlay: View {
     @ObservedObject var appModel: AppModel
 
     private typealias Bind = PostureVisualizationBinding
+    private typealias Map = PostureVisualizationViewModel.Mapping
 
     /// Sources of truth for the sliders. Each backing knob is a plain `static var`
     /// (not observable), so we drive it from `@State` and write through on change
@@ -49,6 +50,13 @@ struct PostureVisualizationCalibrationOverlay: View {
     @State private var headRotationGain: Float = Bind.headRotationGain
     @State private var headRotationMaxAngle: Float = Bind.headRotationMaxAngleDegrees
     @State private var basisIndex: Int = Bind.headRenderBasisIndex
+
+    // Euler head-mapping knobs (shared amplification + the pitch/roll ceilings the
+    // dev HUD's "clipped" highlight tests against). Live-dialled on device so the
+    // winning values can be read off the row and hard-coded later.
+    @State private var headAmp: Float = Float(Map.headRotationAmplification)
+    @State private var pitchCap: Float = Float(Map.pitchCapDegrees)
+    @State private var rollCap: Float = Float(Map.rollCapDegrees)
 
     /// Bumped on every channel toggle / solo / all-off so the panel's label &
     /// `iso` states refresh — the underlying `debug` flags are a non-observable
@@ -121,6 +129,16 @@ struct PostureVisualizationCalibrationOverlay: View {
     /// Quaternion-head total-angle **clamp** (`headRotationMaxAngleDegrees`): the
     /// single rendered-angle ceiling replacing the three Euler caps.
     private static let headRotMaxRange: ClosedRange<Float> = 20.0...120.0
+
+    // Euler head-mapping bounds. Derived from the `Mapping` ranges rather than
+    // re-stated, so the slider can never drift from the values the tests pin (and
+    // can always reach its own default). `gainRow` takes Float; `Mapping` is Double.
+    private static let headAmpRange: ClosedRange<Float> =
+        Float(Map.headRotationAmplificationRange.lowerBound)...Float(Map.headRotationAmplificationRange.upperBound)
+    private static let pitchCapRange: ClosedRange<Float> =
+        Float(Map.pitchCapDegreesRange.lowerBound)...Float(Map.pitchCapDegreesRange.upperBound)
+    private static let rollCapRange: ClosedRange<Float> =
+        Float(Map.rollCapDegreesRange.lowerBound)...Float(Map.rollCapDegreesRange.upperBound)
 
     // The body is split into these `@ViewBuilder` sections deliberately: as one
     // ~140-line `VStack` the Swift type-checker timed out ("unable to type-check
@@ -327,6 +345,32 @@ struct PostureVisualizationCalibrationOverlay: View {
         basisIndex = ((basisIndex + delta) % count + count) % count
     }
 
+    /// Euler head-mapping knobs: the shared yaw/pitch/roll amplification and the
+    /// pitch/roll ceilings it clips against. Separate from the QUAT block above —
+    /// these scale `PoseSample.headYaw/Pitch/Roll` into the published display
+    /// angles, so they bite on both head sources. The numeric column on each row
+    /// is the value to write down once a setting reads right on device.
+    @ViewBuilder
+    private var headMappingSection: some View {
+        sectionHeader("HEAD MAP · amp & caps",
+                      reset: {
+                          headAmp = Float(Map.headRotationAmplificationDefault)
+                          pitchCap = Float(Map.pitchCapDegreesDefault)
+                          rollCap = Float(Map.rollCapDegreesDefault)
+                      },
+                      isDefault: headAmp == Float(Map.headRotationAmplificationDefault)
+                              && pitchCap == Float(Map.pitchCapDegreesDefault)
+                              && rollCap == Float(Map.rollCapDegreesDefault))
+
+        // One gain for all three axes — a per-axis split here is what turned a real
+        // head-circle into an oval, so it stays a single scalar on purpose.
+        gainRow("head amp", value: $headAmp,  range: Self.headAmpRange,  step: 0.05, decimals: 2)
+        // Ceilings on the calibration-relative angle; the values HUD flags a row
+        // orange once the unclamped angle crosses one of these.
+        gainRow("pitch°",   value: $pitchCap, range: Self.pitchCapRange, step: 1,    decimals: 0)
+        gainRow("roll°",    value: $rollCap,  range: Self.rollCapRange,  step: 1,    decimals: 0)
+    }
+
     var body: some View {
         let styled = VStack(alignment: .leading, spacing: 10) {
             // Touch channelTick so the body re-renders when a toggle/solo/all-off
@@ -345,6 +389,11 @@ struct PostureVisualizationCalibrationOverlay: View {
             postureGainsHeader
             postureGainSliders
             postureDiagnostics
+
+            Divider().overlay(Color.white.opacity(0.2))
+
+            // ── Euler head mapping: amplification + pitch/roll caps ───
+            headMappingSection
 
             Divider().overlay(Color.white.opacity(0.2))
 
@@ -380,10 +429,14 @@ struct PostureVisualizationCalibrationOverlay: View {
             .onChange(of: smoothing)     { _, v in Bind.orientationSmoothTime = v }
             .onChange(of: jitterFloor)   { _, v in HeadAngleFilterTuning.minCutoff = v }
             .onChange(of: jitterCatchup) { _, v in HeadAngleFilterTuning.beta = v }
-        return most
+        let nearlyAll = most
             .onChange(of: headRotationGain)     { _, v in Bind.headRotationGain = v }
             .onChange(of: headRotationMaxAngle) { _, v in Bind.headRotationMaxAngleDegrees = v }
             .onChange(of: basisIndex)           { _, v in Bind.headRenderBasisIndex = v }
+        return nearlyAll
+            .onChange(of: headAmp)   { _, v in Map.headRotationAmplification = Double(v) }
+            .onChange(of: pitchCap)  { _, v in Map.pitchCapDegrees = Double(v) }
+            .onChange(of: rollCap)   { _, v in Map.rollCapDegrees = Double(v) }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Visualization tuning")
     }

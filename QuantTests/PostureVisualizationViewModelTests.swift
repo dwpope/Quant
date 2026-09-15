@@ -486,6 +486,95 @@ final class PostureVisualizationViewModelTests: XCTestCase {
         XCTAssertEqual(PostureVisualizationViewModel.smoothingAlpha, 0.2, accuracy: 1e-12)
     }
 
+    // MARK: - Live-tunable head mapping (device tuning HUD)
+
+    /// Making these three adjustable must not move the shipped behaviour: each
+    /// default is exactly the compile-time constant it replaces.
+    func test_headMappingTuning_defaultsAreUnchanged() {
+        typealias Map = PostureVisualizationViewModel.Mapping
+        XCTAssertEqual(Map.headRotationAmplificationDefault, 1.5, accuracy: 1e-12)
+        XCTAssertEqual(Map.pitchCapDegreesDefault, 60.0, accuracy: 1e-12)
+        XCTAssertEqual(Map.rollCapDegreesDefault, 45.0, accuracy: 1e-12)
+    }
+
+    /// A fresh process must start on the defaults — Release never mutates them,
+    /// so the live var and its default have to agree at rest.
+    func test_headMappingTuning_liveValuesStartAtTheirDefaults() {
+        typealias Map = PostureVisualizationViewModel.Mapping
+        XCTAssertEqual(Map.headRotationAmplification, Map.headRotationAmplificationDefault, accuracy: 1e-12)
+        XCTAssertEqual(Map.pitchCapDegrees, Map.pitchCapDegreesDefault, accuracy: 1e-12)
+        XCTAssertEqual(Map.rollCapDegrees, Map.rollCapDegreesDefault, accuracy: 1e-12)
+    }
+
+    /// A slider whose range excludes its own default can never be returned to the
+    /// shipped value from the device — the reset button would jump it elsewhere.
+    func test_headMappingTuning_rangesContainTheirDefaults() {
+        typealias Map = PostureVisualizationViewModel.Mapping
+        XCTAssertTrue(Map.headRotationAmplificationRange.contains(Map.headRotationAmplificationDefault))
+        XCTAssertTrue(Map.pitchCapDegreesRange.contains(Map.pitchCapDegreesDefault))
+        XCTAssertTrue(Map.rollCapDegreesRange.contains(Map.rollCapDegreesDefault))
+    }
+
+    /// A zero or negative cap would collapse the rendered head to a dead axis, and
+    /// a zero amplification would flatten every head movement — the HUD must not be
+    /// able to dial in a value that silently kills the channel.
+    func test_headMappingTuning_rangeLowerBoundsAreStrictlyPositive() {
+        typealias Map = PostureVisualizationViewModel.Mapping
+        XCTAssertGreaterThan(Map.headRotationAmplificationRange.lowerBound, 0)
+        XCTAssertGreaterThan(Map.pitchCapDegreesRange.lowerBound, 0)
+        XCTAssertGreaterThan(Map.rollCapDegreesRange.lowerBound, 0)
+    }
+
+    func test_headRotationAmplification_tuned_scalesRenderedYaw() {
+        typealias Map = PostureVisualizationViewModel.Mapping
+        defer { Map.headRotationAmplification = Map.headRotationAmplificationDefault }
+        Map.headRotationAmplification = 3.0
+
+        let vm = PostureVisualizationViewModel()
+        vm.ingest(metrics: metrics(), pose: makeSample(headYaw: 20),
+                  state: .good, quality: .good)
+        XCTAssertEqual(vm.headYawDegrees, 60, accuracy: 0.01,
+                       "20° of real yaw at a tuned ×3 amplification must render 60°")
+    }
+
+    func test_headRotationAmplification_tuned_scalesRenderedPitch() {
+        typealias Map = PostureVisualizationViewModel.Mapping
+        defer { Map.headRotationAmplification = Map.headRotationAmplificationDefault }
+        Map.headRotationAmplification = 1.0
+
+        let vm = PostureVisualizationViewModel()
+        vm.ingest(metrics: metrics(), pose: makeSample(headPitch: 18),
+                  state: .good, quality: .good)
+        XCTAssertEqual(vm.headPitchDegrees, 18, accuracy: 0.01,
+                       "the amplification is shared across axes — ×1 must render pitch 1:1")
+    }
+
+    func test_pitchCapDegrees_tuned_clampsAtTheTunedCap() {
+        typealias Map = PostureVisualizationViewModel.Mapping
+        defer { Map.pitchCapDegrees = Map.pitchCapDegreesDefault }
+        Map.pitchCapDegrees = 20.0
+
+        let vm = PostureVisualizationViewModel()
+        // 30° × 1.5 = 45° raw, well past the tuned 20° ceiling.
+        vm.ingest(metrics: metrics(), pose: makeSample(headPitch: 30),
+                  state: .good, quality: .good)
+        XCTAssertEqual(vm.headPitchDegrees, 20, accuracy: 0.01,
+                       "pitch must clamp at the tuned cap, not the shipped 60°")
+    }
+
+    func test_rollCapDegrees_tuned_clampsAtTheTunedCap() {
+        typealias Map = PostureVisualizationViewModel.Mapping
+        defer { Map.rollCapDegrees = Map.rollCapDegreesDefault }
+        Map.rollCapDegrees = 15.0
+
+        let vm = PostureVisualizationViewModel()
+        // 30° × 1.5 = 45° raw, well past the tuned 15° ceiling.
+        vm.ingest(metrics: metrics(), pose: makeSample(headRoll: 30),
+                  state: .good, quality: .good)
+        XCTAssertEqual(vm.headRollDegrees, 15, accuracy: 0.01,
+                       "roll must clamp at the tuned cap, not the shipped 45°")
+    }
+
     // MARK: - Helpers
 
     /// Repo convention (PostureVisualStyleTests) compares colours via UIColor
