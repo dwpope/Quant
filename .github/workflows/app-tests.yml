@@ -32,7 +32,12 @@ concurrency:
 jobs:
   test:
     name: QuantNoWatchTests (iOS Simulator)
-    runs-on: macos-15
+    # macos-26 (Xcode 26.x, Swift >= 6.2) is required, not preference: ten
+    # classes use `nonisolated deinit` to keep the MainActor isolated-deinit
+    # back-deploy shim out of XCTest's dealloc path. On macos-15's Xcode 16.4
+    # that is still gated behind -enable-experimental-feature IsolatedDeinit and
+    # the build fails at LivePostureDataSource.swift:11.
+    runs-on: macos-26
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +56,11 @@ jobs:
             echo "metal compiler present: $(xcrun -f metal)"
           else
             echo "metal compiler missing - downloading MetalToolchain"
-            xcodebuild -downloadComponent MetalToolchain
+            xcodebuild -downloadComponent MetalToolchain \
+              || sudo xcodebuild -downloadComponent MetalToolchain
+            # Fail here with a clear signal rather than later inside an opaque
+            # shader-compile error.
+            xcrun -f metal
           fi
 
       - name: Pick a simulator

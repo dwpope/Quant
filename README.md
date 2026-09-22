@@ -76,7 +76,9 @@ A 3-frame majority-vote window with hysteresis thresholds prevents single-frame 
 
 ## Running
 
-Open `Quant.xcodeproj` in Xcode 16+ and run on a physical device. The PostureLogic package resolves automatically.
+Open `Quant.xcodeproj` in **Xcode 26 or newer** and run on a physical device. The PostureLogic package resolves automatically.
+
+Xcode 26 is a hard floor, not a recommendation: ten classes declare `nonisolated deinit` (which keeps Swift's MainActor isolated-deinit back-deploy shim out of XCTest's dealloc path, where it corrupts the heap). That needs Swift 6.2. On Xcode 16 the build stops at `LivePostureDataSource.swift:11` with `'isolated' deinit requires frontend flag -enable-experimental-feature IsolatedDeinit`.
 
 **Xcode 26 prerequisite:** Xcode 26 ships without the Metal toolchain, so the shaders in `Quant/Views/Showcase/Shaders/` fail to compile before any Swift is built. Install it once with:
 

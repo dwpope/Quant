@@ -94,12 +94,8 @@ about the app. `app-tests.yml` now runs the full `QuantNoWatchTests` suite on a
 simulator, filtered on `Quant/**`, `QuantTests/**`, `Quant.xcodeproj/**` and
 `PostureLogic/**`.
 
-**This has not yet had a successful run.** The runner-image question is the open
-risk: the job pins `macos-15` (the image the package job has been using), which
-brings Xcode 16 and the iOS 18 SDK — enough for a deployment target of 18.0, and it
-bundles the Metal toolchain that `PostureShaders.metal` needs. If GitHub bumps that
-image's default Xcode to 26+, the guard step fetches `MetalToolchain` instead.
-Confirm the first run before trusting the badge.
+The first run (`macos-15`) failed in 2m10s, and usefully so — see *Toolchain floor*
+below. The job now runs on `macos-26`; confirm a green run before trusting the badge.
 
 Note that this would *not* have caught the 2026-09-21 build break: those `Icon\r`
 files were never tracked, and CI builds from a clean checkout, so no remote job can
@@ -119,6 +115,30 @@ at scheme `Quant` / iOS in App Store Connect. The newly tracked `manifest.json`
 names target `Quant`, which is consistent with this having been addressed, but the
 workflow configuration lives in App Store Connect and **cannot be confirmed from
 this repo**. Verify there before the next release attempt.
+
+## Toolchain floor: Xcode 26 / Swift 6.2
+
+Ten classes declare `nonisolated deinit` — `AppModel`, `ARSessionService`,
+`ARFaceTrackingService`, `FrontCameraSessionService`, `WatchConnectivityService`,
+`LivePostureDataSource`, `PostureVisualizationViewModel`, `SipStore`,
+`SipLabelQueue`, `SipTrainingStore`. It is a deliberate workaround, documented at
+each site: teardown touches no main-actor state, and marking it `nonisolated` keeps
+Swift's MainActor isolated-deinit back-deploy shim out of XCTest's
+NSInvocation-driven dealloc path, which otherwise corrupts the heap and aborts under
+Xcode 26 / iOS 26.
+
+That syntax is part of SE-0371 and needs **Swift 6.2**. On Xcode 16.4 the build stops
+immediately:
+
+```
+LivePostureDataSource.swift:11:5: error: 'isolated' deinit requires frontend flag
+  -enable-experimental-feature IsolatedDeinit to enable the usage of this feature
+```
+
+`IPHONEOS_DEPLOYMENT_TARGET = 18.0` is therefore misleading as a proxy for the build
+toolchain: the constraint is a *language feature*, not an SDK or an API, so grepping
+for `#available(iOS 19+)` will not find it. The README said "Xcode 16+" until
+2026-09-22; corrected.
 
 ## Environment hazards
 
