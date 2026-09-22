@@ -86,7 +86,7 @@ several `@MainActor`-isolated `Equatable` conformances used from nonisolated tes
 contexts. Incremental builds do not recompile unchanged files and so report only a
 handful; use a clean build before judging progress.
 
-### 4. CI app-target coverage — added 2026-09-22, first run unproven
+### 4. CI app-target coverage — added and green 2026-09-22
 Until today `.github/workflows/tests.yml` was the only workflow, path-filtered to
 `PostureLogic/**`, so CI ran `swift test` on the package and nothing else: commits
 touching only app code triggered no runs at all, and a green badge said nothing
@@ -94,45 +94,42 @@ about the app. `app-tests.yml` now runs the full `QuantNoWatchTests` suite on a
 simulator, filtered on `Quant/**`, `QuantTests/**`, `Quant.xcodeproj/**` and
 `PostureLogic/**`.
 
-**Not yet green.** Two runs so far, each of which taught something:
+**Green.** `396 passed, 0 failed, 0 skipped, of 396` on `macos-26` in 9m11s — the
+same count as local. Three runs were needed, each of which taught something worth
+keeping:
 
 1. `macos-15` failed in 2m10s at compile — see *Toolchain floor* below. Moved to
    `macos-26` (Xcode 26.6, Swift 6.3.3).
-2. `macos-26` built everything successfully (app, watch app, test bundle; the image
-   already carries the Metal toolchain, so the guard's download branch never fired),
-   then **sat silent for 43m46s with zero test output** and hit the job timeout. The
-   build's last line was `Touch …/Quant.app` at 11:39:25; cancellation at 12:23:11.
-   No `Test Suite` or `Test case` line was ever emitted, so the test harness never
-   started — this is a simulator-boot / runner-launch hang, not a slow or hanging
-   test.
+2. `macos-26` built everything (app, watch app, test bundle) and then **sat silent
+   for 43m46s with zero test output** before its own timeout cancelled it. Last build
+   line `Touch …/Quant.app` at 11:39:25, cancellation at 12:23:11, and not one
+   `Test Suite` or `Test case` line between: the harness never started, so it was a
+   destination problem rather than a slow or hanging test.
+3. Booting the device explicitly fixed it.
 
-The third attempt boots the simulator explicitly (`simctl boot` +
-`simctl bootstatus -b`) with its own 10-minute step timeout, disables parallel
-testing (locally xcodebuild clones the device — "Clone 1 of iPhone 17" — and clone
-creation is a plausible culprit), enables per-test timeouts, and uploads the result
-bundle on `always()` rather than `failure()`, since a job cancelled by its own
-timeout is not a failure and the bundle went unsaved from the run that most needed
-it. If it hangs again, the boot step will localise it rather than leaving an
-unattributed silence inside `xcodebuild`.
+The workflow now boots the simulator itself rather than letting `xcodebuild` do it
+implicitly:
 
-Note that this would *not* have caught the 2026-09-21 build break: those `Icon\r`
-files were never tracked, and CI builds from a clean checkout, so no remote job can
-see a purely local file. It would have caught the two stale visualization tests.
+```bash
+xcrun simctl boot "$udid" || true     # already-booted is not an error
+xcrun simctl bootstatus "$udid" -b    # wait for a terminal boot state
+```
 
-### 5. A camera failure logs forever with no user-facing surface
-On a device where the rear-depth session never starts, `[ARSession] ⚠️ No frames
-received yet` is logged at error level every 2 seconds indefinitely, with no
-escalation or terminal state. The `CameraPermissionView` recovery path only covers
-`cameraMode == .front2D && frontCameraBlocked`, so a `rearDepth` failure shows the
-user nothing but a permanent "Absent".
+On the green run that boot took about 2.5 minutes from `(Shutdown)` to `(Booted)` —
+long enough that whatever `xcodebuild` does implicitly was evidently not waiting for
+it correctly. The same commit also passed `-parallel-testing-enabled NO`, and the
+green run created **no clones** (locally xcodebuild runs on "Clone 1 of iPhone 17").
+Both changes shipped together, so which one was strictly necessary is not
+established — only that the pair works.
 
-### 6. Xcode Cloud archive scheme — unverifiable from the repo
-The known failure is that the Xcode Cloud workflow's Archive action targets
-`QuantWatch Watch App` / watchOS, producing `EXPORT FAILED`; the fix is to point it
-at scheme `Quant` / iOS in App Store Connect. The newly tracked `manifest.json`
-names target `Quant`, which is consistent with this having been addressed, but the
-workflow configuration lives in App Store Connect and **cannot be confirmed from
-this repo**. Verify there before the next release attempt.
+Also worth keeping: the artifact step was `if: failure()`, and a job cancelled by its
+own timeout is **not** a failure, so the result bundle went unsaved from exactly the
+run that most needed it. It is `if: always()` now. Per-step timeouts (10m boot, 25m
+test) mean a future hang names the step it hung in.
+
+The Metal guard's download branch has still never been exercised: the `macos-26`
+image already carries the toolchain (`MetalToolchain-v17.6.109.0`), so the step takes
+the "present" path. The `sudo` fallback is untested.
 
 ## Toolchain floor: Xcode 26 / Swift 6.2
 
