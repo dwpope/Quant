@@ -85,7 +85,6 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "B425EA112F3FB05D007AA86A"
             BuildableName = "QuantWatch Watch App.app"
-            BlueprintName = "QuantWatch Watch App"
             ReferencedContainer = "container:Quant.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -102,7 +101,6 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "B425EA112F3FB05D007AA86A"
             BuildableName = "QuantWatch Watch App.app"
-            BlueprintName = "QuantWatch Watch App"
             ReferencedContainer = "container:Quant.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
