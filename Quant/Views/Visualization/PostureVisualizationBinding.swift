@@ -582,7 +582,10 @@ enum PostureVisualizationBinding {
 
     /// Mutable so a tuning session can flip channels without threading a new
     /// parameter through the `RealityView` update closure. **Reset every flag
-    /// to its default before shipping** (all `true`, `hideShoulderDisc` false).
+    /// to its default before shipping** — all `true` except `hideShoulderDisc`
+    /// and `hideHeadBand`, which are false. `hideGhost` defaults **true** on
+    /// purpose (the 2026-06-14 product decision above), not as a leftover
+    /// override; `test_debugChannels_defaultsMatchProduction` pins all of it.
     static var debug = DebugChannels()
 
     #if DEBUG

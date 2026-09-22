@@ -109,10 +109,14 @@ final class PostureVisualizationBindingTests: XCTestCase {
                 timestamp: 0,
                 forwardCreep: 0.4,      // → assemblyScale 1 + 0.4·0.5 = 1.2
                 headDrop: 0, shoulderRounding: 0,
-                lateralLean: 0.5,       // → sideLean 0.5·100 = 50 pt
-                twist: 0.2,             // → shoulderRotation 0.2·1.5 = 0.3°
+                lateralLean: 0.5,       // unsigned magnitudes — scoring only
+                twist: 0.2,
                 movementLevel: 0,
-                headMovementPattern: .still
+                headMovementPattern: .still,
+                // The viz reads the SIGNED channels (it needs the sense, not
+                // the magnitude), so these are the fields that drive it.
+                lateralLeanSigned: 0.5, // → sideLean 0.5·100 = 50 pt
+                twistSigned: 0.2        // → shoulderRotation 0.2·1.5 = 0.3°
             ),
             pose: PoseSample(
                 timestamp: 0,
@@ -185,14 +189,15 @@ final class PostureVisualizationBindingTests: XCTestCase {
     // MARK: - DebugChannels defaults ARE the production behaviour
 
     /// The `DebugChannels` contract: an untouched `debug` reproduces the
-    /// shipped behaviour exactly. Every channel live, nothing hidden, and the
-    /// front-camera mirror on. If a tuning session changes a default (or a
+    /// shipped behaviour exactly — every drive channel live, the front-camera
+    /// mirror on, and only the calibration ghost hidden (a product decision,
+    /// not a debug override). If a tuning session changes a default (or a
     /// leftover tuning override is committed), this test fails the build.
     func test_debugChannels_defaultsMatchProduction() {
         let d = Binding.DebugChannels()
         XCTAssertTrue(d.shoulderRotation)
         XCTAssertFalse(d.hideShoulderDisc)
-        XCTAssertFalse(d.hideGhost)
+        XCTAssertTrue(d.hideGhost, "the shipped visualization omits the calibration-baseline ghost (2026-06-14)")
         XCTAssertFalse(d.hideHeadBand)
         XCTAssertTrue(d.sideLean)
         XCTAssertTrue(d.headForward)
