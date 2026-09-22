@@ -20,6 +20,14 @@ public final class RecorderService: RecorderServiceProtocol {
 
     public var sampleCount: Int { samples.count }
 
+    /// Timestamp of the most recently recorded sample, on the same clock the samples carry
+    /// (the camera frame clock, not wall-clock). `nil` before the first sample of a session.
+    ///
+    /// Exists so a manual `Tag` can be aligned to the sample stream by construction: stamping a
+    /// tag with `Date()` would put it on a different clock entirely and make it uncomparable to
+    /// the samples it annotates.
+    public var lastSampleTimestamp: TimeInterval? { samples.last?.timestamp }
+
     // MARK: - DebugDumpable
 
     public var debugState: [String: Any] {

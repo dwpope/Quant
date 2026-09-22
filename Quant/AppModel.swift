@@ -697,11 +697,32 @@ class AppModel: ObservableObject {
         let metadata = SessionMetadata(
             deviceModel: Self.deviceModelName(),
             depthAvailable: currentMode != .twoDOnly,
-            thresholds: pipeline.thresholds
+            thresholds: pipeline.thresholds,
+            // Captured here or never: RawMetrics are all baseline-relative deltas, so without
+            // the baseline that was live at record time the session cannot be replayed against
+            // the threshold engine. The live baseline is cleared on recalibration and goes
+            // stale after an hour, so it is unrecoverable after the fact.
+            baseline: baseline
         )
         recorderService.startRecording(metadata: metadata)
         pipeline.recorder = recorderService
         isRecording = true
+    }
+
+    /// Attaches a human posture label to the session in progress.
+    ///
+    /// Stamped with the most recent recorded sample's timestamp, so the tag sits on the same
+    /// clock as the samples it annotates (the camera frame clock). Stamping with `Date()`
+    /// would put it on wall-clock and make it uncomparable to the sample stream.
+    ///
+    /// No-op when not recording, matching `RecorderService.addTag`.
+    func tagCurrentSession(_ label: TagLabel) {
+        guard isRecording else { return }
+        recorderService.addTag(Tag(
+            timestamp: recorderService.lastSampleTimestamp ?? 0,
+            label: label,
+            source: .manual
+        ))
     }
 
     @discardableResult

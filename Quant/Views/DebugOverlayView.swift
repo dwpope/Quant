@@ -11,6 +11,10 @@ import PostureLogic
 struct DebugOverlayView: View {
     @ObservedObject var appModel: AppModel
 
+    /// Filename of the most recently exported session, shown after a recording stops so it is
+    /// clear something was actually written and retrievable.
+    @State private var lastExport: URL?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             // Camera mode
@@ -119,6 +123,65 @@ struct DebugOverlayView: View {
             if appModel.isTrainingModeEnabled {
                 Text("Training buffer: \(appModel.sipTrainingBuffer.frames.count)f")
                 Text("Pending labels: \(appModel.activeSipLabelItem == nil ? 0 : 1)")
+            }
+
+            Divider()
+
+            // MARK: - Posture session recording (Jev Step 3a)
+            //
+            // `AppModel.startRecording()`/`stopRecording()` and `RecorderService.addTag` were
+            // written, tested, and then never called from anywhere in the app — so no posture
+            // session had ever been recorded and no posture label had ever been captured. This
+            // is the missing trigger. All logic lives in AppModel, which is unit-tested in
+            // QuantTests/RecordingWiringTests; this view only calls it.
+            HStack(spacing: 6) {
+                Button(appModel.isRecording ? "Stop rec" : "Record") {
+                    if appModel.isRecording {
+                        lastExport = appModel.stopRecording()
+                    } else {
+                        lastExport = nil
+                        appModel.startRecording()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+                .tint(appModel.isRecording ? .red : .accentColor)
+
+                if appModel.isRecording {
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 6, height: 6)
+                    Text("REC")
+                }
+            }
+
+            if appModel.isRecording {
+                // Surfaced while it can still be acted on: a session recorded without a
+                // baseline can never be replayed against the threshold engine, and the
+                // baseline cannot be reconstructed after the fact. If this warns, recalibrate
+                // before recording anything worth keeping.
+                if appModel.baseline == nil {
+                    Text("no baseline - not replayable")
+                        .foregroundStyle(.orange)
+                } else {
+                    Text("baseline captured")
+                        .foregroundStyle(.secondary)
+                }
+
+                // A Menu rather than a row of six buttons: the HUD column is narrow, and a
+                // crowded HStack compresses text controls to one character wide (see the
+                // haptic picker in ContentView for what that looks like).
+                Menu("Tag posture...") {
+                    ForEach(TagLabel.allCases, id: \.self) { label in
+                        Button(label.rawValue) { appModel.tagCurrentSession(label) }
+                    }
+                }
+                .menuStyle(.borderlessButton)
+            }
+
+            if let lastExport {
+                Text("saved \(lastExport.lastPathComponent)")
+                    .foregroundStyle(.green)
             }
 
             Divider()
