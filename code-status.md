@@ -94,8 +94,26 @@ about the app. `app-tests.yml` now runs the full `QuantNoWatchTests` suite on a
 simulator, filtered on `Quant/**`, `QuantTests/**`, `Quant.xcodeproj/**` and
 `PostureLogic/**`.
 
-The first run (`macos-15`) failed in 2m10s, and usefully so — see *Toolchain floor*
-below. The job now runs on `macos-26`; confirm a green run before trusting the badge.
+**Not yet green.** Two runs so far, each of which taught something:
+
+1. `macos-15` failed in 2m10s at compile — see *Toolchain floor* below. Moved to
+   `macos-26` (Xcode 26.6, Swift 6.3.3).
+2. `macos-26` built everything successfully (app, watch app, test bundle; the image
+   already carries the Metal toolchain, so the guard's download branch never fired),
+   then **sat silent for 43m46s with zero test output** and hit the job timeout. The
+   build's last line was `Touch …/Quant.app` at 11:39:25; cancellation at 12:23:11.
+   No `Test Suite` or `Test case` line was ever emitted, so the test harness never
+   started — this is a simulator-boot / runner-launch hang, not a slow or hanging
+   test.
+
+The third attempt boots the simulator explicitly (`simctl boot` +
+`simctl bootstatus -b`) with its own 10-minute step timeout, disables parallel
+testing (locally xcodebuild clones the device — "Clone 1 of iPhone 17" — and clone
+creation is a plausible culprit), enables per-test timeouts, and uploads the result
+bundle on `always()` rather than `failure()`, since a job cancelled by its own
+timeout is not a failure and the bundle went unsaved from the run that most needed
+it. If it hangs again, the boot step will localise it rather than leaving an
+unattributed silence inside `xcodebuild`.
 
 Note that this would *not* have caught the 2026-09-21 build break: those `Icon\r`
 files were never tracked, and CI builds from a clean checkout, so no remote job can

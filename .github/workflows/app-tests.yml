@@ -38,7 +38,7 @@ jobs:
     # that is still gated behind -enable-experimental-feature IsolatedDeinit and
     # the build fails at LivePostureDataSource.swift:11.
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -63,11 +63,19 @@ jobs:
             xcrun -f metal
           fi
 
-      - name: Pick a simulator
+      - name: Pick and boot a simulator
         id: sim
+        timeout-minutes: 10
         # Resolve a UDID rather than hardcoding a device name: which iPhones
         # exist depends on the runner image's Xcode, and a stale name fails the
         # job with an unhelpful destination error.
+        #
+        # Boot it here rather than letting `xcodebuild test` do it implicitly.
+        # Run 35722518127 built the app successfully and then sat silent for
+        # 43m46s with zero test output before hitting the job timeout — the test
+        # harness never started. An explicit boot both avoids that and localises
+        # it: if the boot is what hangs, this step times out and says so instead
+        # of disappearing into an unattributed silence inside xcodebuild.
         run: |
           udid=$(xcrun simctl list devices available \
             | sed -n 's/.*iPhone[^(]*(\([0-9A-Fa-f-]\{36\}\)).*/\1/p' | head -1)
@@ -77,16 +85,27 @@ jobs:
             exit 1
           fi
           xcrun simctl list devices available | grep -F "$udid"
+          xcrun simctl boot "$udid" || true      # already-booted is not an error
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl list devices | grep -F "$udid"
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
       - name: Test
+        timeout-minutes: 25
+        env:
+          # Stream xcodebuild's output instead of buffering it, so a stall shows
+          # where it stalled.
+          NSUnbufferedIO: YES
         run: |
           set -o pipefail
           xcodebuild test \
             -project Quant.xcodeproj \
             -scheme QuantNoWatchTests \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
-            -resultBundlePath TestResults.xcresult
+            -resultBundlePath TestResults.xcresult \
+            -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES \
+            -maximum-test-execution-time-allowance 120
 
       - name: Summarise results
         if: always()
@@ -105,8 +124,10 @@ jobs:
           PY
           cat "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload result bundle on failure
-        if: failure()
+      - name: Upload result bundle
+        # `failure()` is false when a job is cancelled by its own timeout, which
+        # is exactly the case where the bundle is most wanted.
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: TestResults.xcresult
