@@ -86,12 +86,24 @@ several `@MainActor`-isolated `Equatable` conformances used from nonisolated tes
 contexts. Incremental builds do not recompile unchanged files and so report only a
 handful; use a clean build before judging progress.
 
-### 4. CI never builds the app target
-`.github/workflows/tests.yml` is path-filtered to `PostureLogic/**`, so GitHub
-Actions only runs `swift test` on the package. An app-target build failure cannot be
-caught by CI — as happened on 2026-09-21 (see *Environment hazards* below). Commits
-that touch only app code trigger no runs at all, which is correct per the filter but
-means a green badge says nothing about the app.
+### 4. CI app-target coverage — added 2026-09-22, first run unproven
+Until today `.github/workflows/tests.yml` was the only workflow, path-filtered to
+`PostureLogic/**`, so CI ran `swift test` on the package and nothing else: commits
+touching only app code triggered no runs at all, and a green badge said nothing
+about the app. `app-tests.yml` now runs the full `QuantNoWatchTests` suite on a
+simulator, filtered on `Quant/**`, `QuantTests/**`, `Quant.xcodeproj/**` and
+`PostureLogic/**`.
+
+**This has not yet had a successful run.** The runner-image question is the open
+risk: the job pins `macos-15` (the image the package job has been using), which
+brings Xcode 16 and the iOS 18 SDK — enough for a deployment target of 18.0, and it
+bundles the Metal toolchain that `PostureShaders.metal` needs. If GitHub bumps that
+image's default Xcode to 26+, the guard step fetches `MetalToolchain` instead.
+Confirm the first run before trusting the badge.
+
+Note that this would *not* have caught the 2026-09-21 build break: those `Icon\r`
+files were never tracked, and CI builds from a clean checkout, so no remote job can
+see a purely local file. It would have caught the two stale visualization tests.
 
 ### 5. A camera failure logs forever with no user-facing surface
 On a device where the rear-depth session never starts, `[ARSession] ⚠️ No frames

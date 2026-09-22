@@ -1,0 +1,105 @@
+name: App Tests
+
+# The PostureLogic workflow only ever builds the Swift package, so an app-target
+# break — or an app test invalidated by a package change — reaches main unseen.
+# This job closes that gap by running the real Xcode test suite on a simulator.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Quant/**'
+      - 'QuantTests/**'
+      - 'Quant.xcodeproj/**'
+      # A package change can compile cleanly yet invalidate an app test (adding
+      # defaulted init parameters, for instance), so watch it here too.
+      - 'PostureLogic/**'
+      - '.github/workflows/app-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Quant/**'
+      - 'QuantTests/**'
+      - 'Quant.xcodeproj/**'
+      # A package change can compile cleanly yet invalidate an app test (adding
+      # defaulted init parameters, for instance), so watch it here too.
+      - 'PostureLogic/**'
+      - '.github/workflows/app-tests.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: QuantNoWatchTests (iOS Simulator)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Ensure Metal toolchain
+        # Quant/Views/Showcase/Shaders/PostureShaders.metal must compile before
+        # any Swift is built. Xcode 16 bundles the Metal toolchain; Xcode 26+
+        # ships without it, so fetch it only when `metal` is not on the path.
+        run: |
+          if xcrun -f metal >/dev/null 2>&1; then
+            echo "metal compiler present: $(xcrun -f metal)"
+          else
+            echo "metal compiler missing - downloading MetalToolchain"
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+
+      - name: Pick a simulator
+        id: sim
+        # Resolve a UDID rather than hardcoding a device name: which iPhones
+        # exist depends on the runner image's Xcode, and a stale name fails the
+        # job with an unhelpful destination error.
+        run: |
+          udid=$(xcrun simctl list devices available \
+            | sed -n 's/.*iPhone[^(]*(\([0-9A-Fa-f-]\{36\}\)).*/\1/p' | head -1)
+          if [ -z "$udid" ]; then
+            echo "::error::no available iPhone simulator on this runner"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          xcrun simctl list devices available | grep -F "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Quant.xcodeproj \
+            -scheme QuantNoWatchTests \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath TestResults.xcresult
+
+      - name: Summarise results
+        if: always()
+        # Read counts from the result bundle, not stdout: xcodebuild's concurrent
+        # stdout writes interleave and mangle occasional "Test case" lines.
+        run: |
+          [ -d TestResults.xcresult ] || exit 0
+          xcrun xcresulttool get test-results summary \
+            --path TestResults.xcresult > summary.json
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d = json.load(open("summary.json"))
+          print(f'**{d.get("result")}** - {d.get("passedTests")} passed, '
+                f'{d.get("failedTests")} failed, {d.get("skippedTests")} skipped, '
+                f'of {d.get("totalTestCount")} tests')
+          PY
+          cat "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload result bundle on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults.xcresult
+          path: TestResults.xcresult
+          retention-days: 7
