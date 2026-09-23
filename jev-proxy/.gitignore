@@ -1,0 +1,6 @@
+node_modules/
+.wrangler/
+# Wrangler's local secrets file — the .dev.vars equivalent of the old xcconfig.
+# Also covered by the repo-root .gitignore; duplicated here so it survives a move.
+.dev.vars
+.dev.vars.*

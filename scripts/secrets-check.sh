@@ -40,10 +40,15 @@ if [ -n "$paths" ]; then bad "credential-shaped file is tracked:"; echo "$paths"
 else ok "no credential-shaped file is tracked"; fi
 
 # 3. A .gitignore below the root can NEGATE the root rules (`!Secrets.xcconfig`
-#    re-includes, because Config/ itself is not excluded). Proven attack.
-nested=$(git ls-files '*/.gitignore' || true)
-if [ -n "$nested" ]; then bad "nested .gitignore can negate the root rules:"; echo "$nested" | sed 's/^/        /'; \
-else ok "no nested .gitignore"; fi
+#    re-includes, because the parent directory is not itself excluded). Proven attack.
+#    Only negations are rejected: a subproject carrying ordinary ignore rules is fine, and
+#    rejecting those made the check fire on jev-proxy/.gitignore, which is legitimate.
+negating=""
+for f in $(git ls-files '*/.gitignore'); do
+  if git show "HEAD:$f" 2>/dev/null | grep -qE '^[[:space:]]*!'; then negating="$negating $f"; fi
+done
+if [ -n "$negating" ]; then bad "nested .gitignore with a negation can re-include a secret:$negating"; \
+else ok "no nested .gitignore re-includes anything"; fi
 
 # 4. The credential block must still be in .gitignore. Without this, a future edit
 #    silently re-arms the leak for the next `git add -A`.

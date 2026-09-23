@@ -1,0 +1,14 @@
+# The TypeSafe key is NEVER in this file. It is set once, out of band:
+#
+#     wrangler secret put TYPESAFE_KEY
+#
+# and reaches the Worker as env.TYPESAFE_KEY at runtime. `.dev.vars` holds it for
+# local `wrangler dev` and is gitignored.
+name = "jev-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# Observability without logging payloads: posture features are personal data, so the
+# Worker logs status codes and request ids, never request or response bodies.
+[observability]
+enabled = true

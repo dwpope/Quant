@@ -124,7 +124,9 @@ Temporary Items
 # thousands of these; they are zero-byte and must never be committed. NOTE: this
 # only quiets git — it does NOT stop them breaking the app build, because Xcode
 # synced folders pick up anything on disk regardless of git. Deletion is the fix.
-Icon
+# NOTE the doubled CR: git strips one trailing CR per line, so matching a name that really
+# ends in CR needs two. Written with one, the rule silently becomes plain "Icon".
+Icon
 
 # --- Credentials ------------------------------------------------------------
 # Deny by CLASS, not by one filename. This repo is PUBLIC and a nightly agent
