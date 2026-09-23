@@ -119,3 +119,42 @@ Network Trash Folder
 Temporary Items
 .apdisk
 .worktrees/
+
+# macOS Finder custom-folder icons. Something on this machine regenerates
+# thousands of these; they are zero-byte and must never be committed. NOTE: this
+# only quiets git — it does NOT stop them breaking the app build, because Xcode
+# synced folders pick up anything on disk regardless of git. Deletion is the fix.
+Icon
+
+# --- Credentials ------------------------------------------------------------
+# Deny by CLASS, not by one filename. This repo is PUBLIC and a nightly agent
+# commits and pushes unattended, so anything credential-shaped must be unaddable
+# by default rather than by anyone remembering. Secret scanning and push
+# protection are now enabled on the repo as the receive-side backstop.
+#
+# The Jev/TypeSafe key deliberately lives in the Cloudflare Worker's environment
+# and NEVER in this repo or in the app bundle — see jev-integration-plan.md. These
+# rules exist so that decision cannot be quietly undone.
+#
+# Verify a path is covered, do not assume:  git check-ignore -v <path>
+*.xcconfig
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+Secrets.*
+secrets.*
+*.secret
+*.secrets
+*.pem
+*.p8
+*.p12
+*.key
+*.keystore
+*.mobileprovision
+
+# Build/test dumps: `xcodebuild -showBuildSettings` and .xcresult bundles can
+# contain resolved secrets in plaintext, so keep them unaddable too.
+*.xcresult/
+*.log

@@ -1,0 +1,8 @@
+#!/bin/bash
+# Blocks BEFORE anything leaves the machine. The Actions workflow is only a
+# backstop: by the time it runs, a pushed key is already world-readable on a
+# public repo and a force-push does not unpublish it.
+#
+# Enabled with:  git config core.hooksPath .githooks
+# Bypassable with --no-verify, which is why GitHub push protection is also on.
+exec "$(git rev-parse --show-toplevel)/scripts/secrets-check.sh"
