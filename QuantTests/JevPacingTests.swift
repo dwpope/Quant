@@ -22,8 +22,30 @@ final class JevPacingTests: XCTestCase {
 
     private let baselineKey = "com.quant.savedBaseline"
 
-    override func setUpWithError() throws { UserDefaults.standard.removeObject(forKey: baselineKey) }
-    override func tearDownWithError() throws { UserDefaults.standard.removeObject(forKey: baselineKey) }
+    /// `JevComparisonStore` loads today's per-day file on `init`, and every `AppModel()` here
+    /// makes one — so without clearing that file a test inherits records written by an earlier
+    /// test in this class. That is exactly how CI caught this: locally the async `persist()`
+    /// had not landed before the next test read, so the pollution was invisible; on a slower
+    /// runner it was not. Shared on-disk state plus load-on-init means independence has to be
+    /// constructed, not assumed.
+    private var comparisonsFile: URL {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        let key = String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+        return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("jev-comparisons-\(key).json")
+    }
+
+    override func setUpWithError() throws {
+        UserDefaults.standard.removeObject(forKey: baselineKey)
+        JevComparisonStore.flushPendingWrites()
+        try? FileManager.default.removeItem(at: comparisonsFile)
+    }
+
+    override func tearDownWithError() throws {
+        UserDefaults.standard.removeObject(forKey: baselineKey)
+        JevComparisonStore.flushPendingWrites()
+        try? FileManager.default.removeItem(at: comparisonsFile)
+    }
 
     private func makeSample() -> PoseSample {
         PoseSample(
