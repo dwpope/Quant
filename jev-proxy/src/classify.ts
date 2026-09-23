@@ -8,7 +8,9 @@
 /** The question id Jev answers under. Stable, because the app keys off it. */
 export const QUESTION_ID = "posture" as const;
 
-export const TRACKING_QUALITY = ["good", "degraded", "poor", "lost"] as const;
+// Exactly PostureLogic's TrackingQuality cases (TrackingQuality.swift:1-4). "poor" was in the
+// first draft and is unreachable from Swift; an accepted-but-impossible value is a lie.
+export const TRACKING_QUALITY = ["good", "degraded", "lost"] as const;
 export type TrackingQuality = (typeof TRACKING_QUALITY)[number];
 
 /**
@@ -24,15 +26,15 @@ export type TrackingQuality = (typeof TRACKING_QUALITY)[number];
  */
 export const POSTURE_CRITERIA: Record<string, string> = {
   good_posture:
-    "Sitting upright, close to the calibration baseline. Forward creep and head drop are near zero, shoulder rounding is small, and there is no sustained lean or twist.",
+    "Sitting upright, close to the calibration baseline. forward_creep, head_drop and torso_lean_delta are all near zero and lateral lean is small.",
   slouch:
-    "Collapsed forward or downward relative to baseline: positive forward creep and/or head drop, usually with increased shoulder rounding. The torso sags toward the screen rather than tipping to one side.",
+    "Collapsed toward the screen or downward. forward_creep is clearly POSITIVE (the shoulders appear wider because the torso moved closer to the camera) and/or head_drop is positive, usually with a positive torso_lean_delta. Lateral lean is not the story.",
   lean:
-    "The torso is displaced to one side while otherwise upright: lateral lean is clearly non-zero and holds its sign, without the forward collapse that marks a slouch.",
+    "The torso has translated sideways while staying square to the camera. lateral_lean_in_shoulder_widths is clearly non-zero and holds its sign, while forward_creep stays near zero — a sideways shift barely changes apparent shoulder width.",
   chair_swivel:
-    "The whole body has rotated in the chair rather than the posture degrading. Twist is large and lateral lean follows it, while forward creep and head drop stay near baseline. This is a comfortable, neutral posture seen off-axis — not bad posture. Choose this over 'lean' when the lean is explained by the rotation.",
+    "The whole body has ROTATED in the chair rather than the posture degrading. The tell is a NEGATIVE forward_creep together with a non-zero lateral lean: rotating about the vertical axis foreshortens the shoulders, so they appear NARROWER than baseline, while the midpoint shifts sideways. head_drop stays near zero. This is a comfortable neutral posture seen off-axis, not bad posture — prefer it over 'lean' whenever forward_creep is negative rather than near zero.",
   ambiguous:
-    "The signals disagree with each other, or tracking quality is degraded enough that the options above cannot be told apart. Prefer this over guessing; the caller gates on confidence and will fall back to its own thresholds.",
+    "The signals disagree with each other, or tracking_quality is 'degraded' or 'lost' so the values cannot be trusted. Prefer this over guessing; the caller gates on confidence and falls back to its own thresholds.",
 };
 
 /**
@@ -40,8 +42,16 @@ export const POSTURE_CRITERIA: Record<string, string> = {
  * on their own. Stating that in the payload is not decoration: without a frame of reference a
  * prose rubric has nothing to bind the numbers to.
  */
-export const BASELINE_NOTE =
-  "All *_relative values are deltas from a calibration baseline captured while the user sat upright; 0 means exactly at baseline. Angles are degrees. Signed values carry direction: positive lateral lean is one side, negative the other.";
+export const BASELINE_NOTE = [
+  "All values except the head angles and torso_angle are deltas from a calibration snapshot taken while the user sat upright; 0 means exactly at baseline.",
+  "forward_creep is the fractional change in APPARENT shoulder width: positive means the shoulders look wider (torso closer to the camera), negative means narrower (torso rotated away from square).",
+  "head_drop is in shoulder-widths; positive means the head is carried lower than baseline.",
+  "lateral_lean_in_shoulder_widths is the sideways shift of the shoulder midpoint, divided by baseline shoulder width so it is dimensionless in both camera modes.",
+  "shoulder_tilt_signed_degrees is one shoulder higher than the other, not axial rotation.",
+  "torso_lean_delta_degrees is the change in torso lean angle, not shoulder protraction.",
+  "torso_angle_degrees is camera-absolute, not a delta, and when the hips are out of frame it is a clamped proxy derived from head-to-shoulder height rather than a measured angle. Weigh it lightly.",
+  "Head angles are camera-absolute degrees and read 0 both when centred and when unavailable.",
+].join(" ");
 
 const NUMERIC_FIELDS = [
   "head_yaw_degrees",
@@ -49,9 +59,9 @@ const NUMERIC_FIELDS = [
   "head_roll_degrees",
   "forward_creep_fraction_of_baseline_shoulder_width",
   "head_drop_in_shoulder_widths",
-  "shoulder_rounding_degrees",
-  "lateral_lean_signed_normalised",
-  "twist_signed_degrees",
+  "torso_lean_delta_degrees",
+  "lateral_lean_in_shoulder_widths",
+  "shoulder_tilt_signed_degrees",
   "torso_angle_degrees",
 ] as const;
 

@@ -13,9 +13,9 @@ const valid = {
   head_roll_degrees: 1,
   forward_creep_fraction_of_baseline_shoulder_width: 0.12,
   head_drop_in_shoulder_widths: 0.04,
-  shoulder_rounding_degrees: 6,
-  lateral_lean_signed_normalised: 0.08,
-  twist_signed_degrees: 12,
+  torso_lean_delta_degrees: 6,
+  lateral_lean_in_shoulder_widths: 0.08,
+  shoulder_tilt_signed_degrees: 12,
   torso_angle_degrees: 4,
   tracking_quality: "good",
 };

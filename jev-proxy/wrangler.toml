@@ -8,7 +8,25 @@ name = "jev-proxy"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 
-# Observability without logging payloads: posture features are personal data, so the
-# Worker logs status codes and request ids, never request or response bodies.
+# Both of these were defaulted-on at the first deploy and warned about. They are set
+# explicitly because for an UNAUTHENTICATED endpoint the number of public URLs IS the
+# attack surface.
+#
+# NOTE ON PLACEMENT: these must stay above [observability]. In TOML, keys written after a
+# table header belong to that table — put them below and they become
+# observability.workers_dev / observability.preview_urls, which wrangler ignores in silence,
+# leaving Preview URLs enabled. That mistake was made and caught here by parsing the file
+# rather than trusting the edit.
+
+# One stable URL for the app to talk to.
+workers_dev = true
+
+# OFF. Left enabled, Cloudflare publishes an extra public URL for every deployed version —
+# each a fully working proxy that spends Jev credits, none of which the app needs. One
+# endpoint to rate-limit and reason about beats per-version convenience.
+preview_urls = false
+
+# Observability without logging payloads: posture features are personal data, so the Worker
+# logs status codes and request ids, never request or response bodies.
 [observability]
 enabled = true
