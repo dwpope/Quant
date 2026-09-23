@@ -15,6 +15,12 @@ struct DebugOverlayView: View {
     /// clear something was actually written and retrievable.
     @State private var lastExport: URL?
 
+#if DEBUG
+    /// True while a Jev call is in flight, so the button cannot be double-tapped into two
+    /// concurrent requests against a paid API.
+    @State private var jevBusy = false
+#endif
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             // Camera mode
@@ -183,6 +189,111 @@ struct DebugOverlayView: View {
                 Text("saved \(lastExport.lastPathComponent)")
                     .foregroundStyle(.green)
             }
+
+#if DEBUG
+            Divider()
+
+            // MARK: - Jev classifier (step 3b, debug-only)
+            //
+            // `#if DEBUG` is load-bearing, not tidiness. This view has no compile gate of its own
+            // and ContentView mounts it unconditionally, so anything here would otherwise ship to
+            // TestFlight — and a Jev call sends camera-derived posture data to a US-hosted
+            // service, which contradicts the app's "all processed on-device" claim.
+            //
+            // Precisely: the call site, this UI and the comparison store are all absent from a
+            // Release build, so no classification can occur. JevFeatures/JevClient DO compile
+            // into Release — PostureLogic defines no DEBUG condition — but nothing references
+            // them there, and they carry no credential, because the Worker owns the token.
+            //
+            // Manual trigger rather than a timer: Dave is present and IS the ground truth, so a
+            // classification is most useful the moment he has deliberately assumed a posture.
+            // An auto-interval can come later; it is not what makes the first experiment useful.
+            Toggle("Jev classifier", isOn: $appModel.useJevClassifier)
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+
+            if appModel.useJevClassifier {
+                HStack(spacing: 6) {
+                    Button(jevBusy ? "..." : "Classify now") {
+                        jevBusy = true
+                        Task {
+                            await appModel.classifyWithJevIfDue()
+                            jevBusy = false
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .disabled(jevBusy)
+
+                    Text("thr: \(thresholdSummary)")
+                        .foregroundStyle(.secondary)
+                }
+
+                // Deliberately labelled as two different kinds of answer. The threshold engine
+                // reports a temporal STATE (good/drifting/bad); Jev reports a morphological
+                // CLASS (slouch/lean/chair_swivel). Rendering them as a like-for-like comparison
+                // would be a category error, so the row says which is which and the adjudication
+                // is left to the human.
+                if let verdict = appModel.latestJevVerdict {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(jevClassColor(verdict.posture))
+                            .frame(width: 6, height: 6)
+                        Text("jev: \(verdict.posture) \(Int((verdict.confidence * 100).rounded()))%")
+                        if let at = appModel.latestJevVerdictAt {
+                            // Surfaced because the call is interval-driven and takes 130-475ms,
+                            // so this verdict is always from an older frame than the threshold
+                            // state beside it.
+                            Text(String(format: "%.0fs old", Date().timeIntervalSince(at)))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    ForEach(topProbabilities(verdict), id: \.key) { entry in
+                        HStack(spacing: 0) {
+                            Text(entry.key)
+                                .frame(width: 90, alignment: .leading)
+                            Text(String(format: "%.2f", entry.value))
+                                .frame(width: 45, alignment: .trailing)
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+
+                    // The one-tap adjudication. This IS step 3c's labelling affordance, not a
+                    // throwaway debug control, which is why the record it writes carries the
+                    // payload and the baseline rather than just a preference.
+                    if let id = appModel.jevComparisonStore.comparisons.last?.id {
+                        HStack(spacing: 4) {
+                            Button("jev ok") {
+                                appModel.jevComparisonStore.setUserVerdict(
+                                    id: id, verdict: .jevWasRight, trueClass: nil)
+                            }
+                            Button("thr ok") {
+                                appModel.jevComparisonStore.setUserVerdict(
+                                    id: id, verdict: .thresholdsWereRight, trueClass: nil)
+                            }
+                            Menu("both wrong") {
+                                ForEach(TagLabel.allCases, id: \.self) { label in
+                                    Button(label.rawValue) {
+                                        appModel.jevComparisonStore.setUserVerdict(
+                                            id: id, verdict: .bothWrong, trueClass: label)
+                                    }
+                                }
+                            }
+                            .menuStyle(.borderlessButton)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+
+                    Text("judged \(appModel.jevComparisonStore.adjudicatedCount)/\(appModel.jevComparisonStore.comparisons.count)")
+                        .foregroundStyle(.secondary)
+                } else if let error = appModel.latestJevError {
+                    Text("jev: \(error)")
+                        .foregroundStyle(.orange)
+                }
+            }
+#endif
 
             Divider()
 
@@ -485,6 +596,37 @@ struct DebugOverlayView: View {
         }
         .font(.system(size: 10))
     }
+
+#if DEBUG
+    /// The threshold side, compressed to one token. Not a class — a temporal state.
+    private var thresholdSummary: String {
+        switch appModel.postureState {
+        case .absent:              return "absent"
+        case .calibrating:         return "calib"
+        case .good:                return "good"
+        case .drifting(let since): return String(format: "drift %.0fs", Date().timeIntervalSince1970 - since)
+        case .bad(let since):      return String(format: "bad %.0fs", Date().timeIntervalSince1970 - since)
+        }
+    }
+
+    /// Green for the two classes that mean "not bad posture" — including chair_swivel, which is
+    /// the whole point of the experiment: the lean metric is documented as flagging a swivel as
+    /// bad, so seeing it come back green here is the single most informative observation.
+    private func jevClassColor(_ posture: String) -> Color {
+        switch posture {
+        case "good_posture", "chair_swivel": return .green
+        case "slouch", "lean":               return .red
+        default:                             return .yellow
+        }
+    }
+
+    private func topProbabilities(_ verdict: JevVerdict) -> [(key: String, value: Double)] {
+        verdict.probabilities
+            .sorted { $0.value > $1.value }
+            .prefix(3)
+            .map { (key: $0.key, value: $0.value) }
+    }
+#endif
 
     private func sipStateColor(_ state: String?) -> Color {
         switch state {

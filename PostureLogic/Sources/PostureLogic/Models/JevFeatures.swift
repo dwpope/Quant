@@ -19,7 +19,9 @@ import Foundation
 /// - `torso_angle_degrees` is camera-absolute rather than a delta, and when the hips are out of
 ///   frame — the normal case at a desk — it is a clamped proxy from head-to-shoulder height
 ///   rather than a measured angle. The rubric is told to weigh it lightly.
-public struct JevFeatures: Encodable, Equatable {
+// `Codable`, not merely `Encodable`: the comparison record persists the exact payload that
+// was sent, and step 3c has to read it back to know what Jev was actually asked.
+public struct JevFeatures: Codable, Equatable {
     public let headYawDegrees: Float
     public let headPitchDegrees: Float
     public let headRollDegrees: Float
@@ -94,7 +96,9 @@ public struct JevFeatures: Encodable, Equatable {
 /// The proxy's 200 response. `posture` is deliberately a `String` rather than an enum: the class
 /// list lives in the Worker's rubric so it can be revised without an app release, and a new class
 /// must not fail to decode on an older build.
-public struct JevVerdict: Decodable, Equatable {
+// `Codable` for the same reason as `JevFeatures`: the comparison record keeps the verdict it
+// is comparing against, so 3c never has to re-ask.
+public struct JevVerdict: Codable, Equatable {
     public let posture: String
     public let confidence: Double
     public let probabilities: [String: Double]

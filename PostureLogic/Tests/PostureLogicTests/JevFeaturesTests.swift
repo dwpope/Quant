@@ -181,4 +181,16 @@ final class JevFeaturesTests: XCTestCase {
         XCTAssertEqual(v.probabilities["lean"], 0.12)
         XCTAssertEqual(v.model, "jev-1.13.0")
     }
+
+    /// The comparison record persists the exact payload that was sent, so it must decode as
+    /// well as encode — otherwise step 3c cannot read back what Jev was actually asked.
+    func test_featuresRoundTripThroughCodable() throws {
+        let original = try XCTUnwrap(JevFeatures.make(
+            sample: makeSample(), metrics: makeMetrics(), baseline: makeBaseline()))
+
+        let decoded = try JSONDecoder().decode(
+            JevFeatures.self, from: try JSONEncoder().encode(original))
+
+        XCTAssertEqual(decoded, original)
+    }
 }

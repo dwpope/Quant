@@ -725,6 +725,99 @@ class AppModel: ObservableObject {
         ))
     }
 
+#if DEBUG
+    // MARK: - Jev classification (debug-only experiment, step 3b)
+    //
+    // Wrapped in `#if DEBUG` on purpose. DebugOverlayView has no compile gate and is mounted
+    // unconditionally, so anything here that were not gated would ship to TestFlight — and this
+    // sends camera-derived posture data to a US-hosted service, which contradicts the app's own
+    // "all processed on-device" claim. The claim stays true precisely because none of this exists
+    // in a Release build. The threshold engine remains the shipping classifier.
+    //
+    // The app holds no credential: the Cloudflare Worker adds the TypeSafe bearer token. That is
+    // why there is no key, no keychain and no xcconfig anywhere in this file.
+
+    /// Opt-in from the debug HUD. Ships false, and in Release does not exist at all.
+    @Published var useJevClassifier = false
+
+    @Published private(set) var latestJevVerdict: JevVerdict?
+    @Published private(set) var latestJevError: String?
+
+    /// When the verdict above was produced. Surfaced because a call takes 130-475ms and runs on
+    /// an interval, so the HUD is always showing a Jev verdict computed from an older frame than
+    /// the threshold verdict beside it. Without this the two look simultaneous and are not.
+    @Published private(set) var latestJevVerdictAt: Date?
+
+    /// Step 3c's dataset.
+    let jevComparisonStore = JevComparisonStore()
+
+    /// Minimum seconds between calls. Never per frame: 130ms p50 near the provider, 475ms p50
+    /// and 715ms p99 from Europe via a gateway.
+    var jevMinInterval: TimeInterval = 5
+
+    private var lastJevAttemptAt: Date?
+
+    static let jevProxyEndpoint = URL(string: "https://jev-proxy.quantaware.workers.dev/classify")!
+
+    private lazy var jevClient = JevClient(
+        endpoint: Self.jevProxyEndpoint,
+        transport: URLSessionJevTransport()
+    )
+
+    /// The payload to send now, or `nil` if a classification should not happen.
+    ///
+    /// Marks the attempt when it returns a payload, so the interval holds even if the call
+    /// itself fails. Four refusals, each for a reason established from the pipeline:
+    /// the flag is off; there is no baseline (metrics are all-zero rather than nil before
+    /// calibration, so optionality cannot be the gate); the sample is nil while metrics keep a
+    /// stale value, which would pair fresh numbers with an old pose; or the interval has not
+    /// elapsed.
+    func jevPayloadIfDue(now: Date = Date()) -> JevFeatures? {
+        guard useJevClassifier,
+              let sample = latestSample,
+              let metrics = latestMetrics,
+              let baseline = baseline,
+              now.timeIntervalSince(lastJevAttemptAt ?? .distantPast) >= jevMinInterval,
+              let features = JevFeatures.make(sample: sample, metrics: metrics, baseline: baseline)
+        else { return nil }
+
+        lastJevAttemptAt = now
+        return features
+    }
+
+    /// Classifies once, if due, and records the result either way.
+    func classifyWithJevIfDue(now: Date = Date()) async {
+        guard let features = jevPayloadIfDue(now: now) else { return }
+        do {
+            let verdict = try await jevClient.classify(features)
+            recordJevComparison(features: features, verdict: verdict, error: nil)
+        } catch {
+            recordJevComparison(features: features, verdict: nil, error: String(describing: error))
+        }
+    }
+
+    /// Stores the comparison and publishes the latest verdict.
+    ///
+    /// A failure is recorded too: that Jev was unavailable at a moment the thresholds had an
+    /// opinion is itself a data point about whether this is worth shipping.
+    func recordJevComparison(features: JevFeatures, verdict: JevVerdict?, error: String?) {
+        latestJevVerdict = verdict
+        latestJevError = error
+        latestJevVerdictAt = Date()
+        jevComparisonStore.add(JevComparisonRecord(
+            id: UUID(),
+            capturedAt: Date(),
+            features: features,
+            baseline: baseline ?? Baseline(
+                timestamp: Date(), shoulderMidpoint: .zero, headPosition: .zero,
+                torsoAngle: 0, shoulderWidth: 0, depthAvailable: false),
+            thresholdState: postureState,
+            jev: verdict,
+            jevError: error
+        ))
+    }
+#endif
+
     @discardableResult
     func stopRecording() -> URL? {
         pipeline.recorder = nil
