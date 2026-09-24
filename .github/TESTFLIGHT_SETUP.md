@@ -46,11 +46,25 @@ targets (Debug + Release). Without it every uploaded build sits in TestFlight at
 **"Missing Compliance"** and can't be distributed to anyone until someone answers
 the questionnaire by hand — every build, forever.
 
-`NO` is the truthful answer: the app has no `URLSession`, `CryptoKit`,
-`CommonCrypto`, `SecKey`, `CloudKit` or `WKWebView` usage, no `http(s)://`
-endpoints in any Swift source, and no external SPM dependencies. The only
-network-adjacent framework is `WatchConnectivity`, whose transport encryption is
-Apple-provided and exempt.
+`NO` is still the truthful answer, but **the original reasoning for it expired on
+2026-09-23** and is recorded here so nobody "corrects" the key on stale grounds.
+
+It used to say the app has no `URLSession` usage and no `http(s)://` endpoint in
+any Swift source. Both are now false: `URLSessionJevTransport`
+(`PostureLogic/Sources/PostureLogic/Services/JevClient.swift`) uses `URLSession`,
+and `Quant/AppModel.swift` contains the Jev proxy's `https://` endpoint. The app
+makes real network requests when the opt-in Jev classifier is enabled.
+
+`NO` remains correct for a different reason: the app performs **no encryption of
+its own**. It calls no `CryptoKit`, `CommonCrypto` or `SecKey` API, and ships no
+cryptographic implementation. Its only encryption is the TLS that `URLSession`
+and `WatchConnectivity` provide, which is Apple-supplied and exempt under
+category 5, part 2 — exactly what `ITSAppUsesNonExemptEncryption = NO` asserts.
+Using HTTPS does not make an app's encryption non-exempt.
+
+**Do not change this key to `YES` on the grounds that the app now uses the
+network.** Doing so parks every subsequent build at "Missing Compliance" until
+someone answers the questionnaire by hand, every build, forever.
 
 If that key is ever removed, the manual workaround is
 TestFlight → build row → **Manage** beside "Missing Compliance".

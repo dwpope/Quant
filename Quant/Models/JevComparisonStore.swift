@@ -3,9 +3,14 @@ import Foundation
 import PostureLogic
 import SwiftUI
 
-// Debug-only, like every other part of the Jev experiment in this target. Gated so a Release
-// build of the app contains no Jev storage, no Jev call site and no Jev UI.
-#if DEBUG
+// This ships. A Release build DOES contain this store, the call site and the Jev UI — the
+// `#if DEBUG` gate was removed on 2026-09-24 so the experiment can be run from TestFlight.
+//
+// Consequence worth knowing before reading further: on any device where a tester enables the
+// classifier, this writes camera-derived posture records — the exact payload sent, plus the
+// calibration baseline — to the app's Documents directory as `jev-comparisons-YYYY-MM-DD.json`.
+// That container is sandbox-private and has no file-sharing key, but it is included in device
+// backups, and nothing prunes old files.
 
 /// One moment where Jev and the threshold engine both had an opinion, plus what Dave said.
 ///
@@ -155,4 +160,3 @@ final class JevComparisonStore: ObservableObject {
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 }
-#endif

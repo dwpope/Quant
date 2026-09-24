@@ -147,4 +147,18 @@ final class JevPacingTests: XCTestCase {
         XCTAssertEqual(model.latestJevError, "busy(afterAttempts: 4)")
         XCTAssertEqual(model.jevComparisonStore.comparisons.count, 1)
     }
+
+    /// **This is the privacy boundary, so it is pinned.**
+    ///
+    /// The Jev path used to be `#if DEBUG`, which made off-device processing structurally
+    /// impossible in a shipped build. That gate was removed on 2026-09-24 so the experiment could
+    /// be run from TestFlight, and this default is now the only thing standing between a tester
+    /// and camera-derived posture data leaving their device. Until this test existed, a doc
+    /// comment asserted "ships false" and nothing enforced it.
+    ///
+    /// If this fails, the README's privacy section is also wrong and must change in the same
+    /// commit.
+    func test_useJevClassifier_shipsOff() {
+        XCTAssertFalse(AppModel().useJevClassifier)
+    }
 }

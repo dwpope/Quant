@@ -15,11 +15,9 @@ struct DebugOverlayView: View {
     /// clear something was actually written and retrievable.
     @State private var lastExport: URL?
 
-#if DEBUG
     /// True while a Jev call is in flight, so the button cannot be double-tapped into two
     /// concurrent requests against a paid API.
     @State private var jevBusy = false
-#endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -190,20 +188,21 @@ struct DebugOverlayView: View {
                     .foregroundStyle(.green)
             }
 
-#if DEBUG
             Divider()
 
-            // MARK: - Jev classifier (step 3b, debug-only)
+            // MARK: - Jev classifier (step 3b, opt-in, off by default)
             //
-            // `#if DEBUG` is load-bearing, not tidiness. This view has no compile gate of its own
-            // and ContentView mounts it unconditionally, so anything here would otherwise ship to
-            // TestFlight — and a Jev call sends camera-derived posture data to a US-hosted
-            // service, which contradicts the app's "all processed on-device" claim.
+            // This SHIPS to TestFlight. The `#if DEBUG` gate around it was removed on 2026-09-24
+            // so the experiment can be run on a device remotely — so a tester can reach this
+            // control, and enabling it sends camera-derived numbers to a US-hosted service.
             //
-            // Precisely: the call site, this UI and the comparison store are all absent from a
-            // Release build, so no classification can occur. JevFeatures/JevClient DO compile
-            // into Release — PostureLogic defines no DEBUG condition — but nothing references
-            // them there, and they carry no credential, because the Worker owns the token.
+            // The protection is no longer structural, it is a default: `useJevClassifier` is
+            // false until someone flips this switch, and the README's privacy section says so in
+            // user-facing terms. Nothing is sent on launch, on calibration, or on any automatic
+            // schedule — only on an explicit tap of "Classify now".
+            //
+            // Still true and worth keeping: no credential ships. The Worker owns the TypeSafe
+            // token, so what a shipped binary exposes is an endpoint URL, never a key.
             //
             // Manual trigger rather than a timer: Dave is present and IS the ground truth, so a
             // classification is most useful the moment he has deliberately assumed a posture.
@@ -293,7 +292,6 @@ struct DebugOverlayView: View {
                         .foregroundStyle(.orange)
                 }
             }
-#endif
 
             Divider()
 
@@ -597,7 +595,6 @@ struct DebugOverlayView: View {
         .font(.system(size: 10))
     }
 
-#if DEBUG
     /// The threshold side, compressed to one token. Not a class — a temporal state.
     private var thresholdSummary: String {
         switch appModel.postureState {
@@ -626,7 +623,6 @@ struct DebugOverlayView: View {
             .prefix(3)
             .map { (key: $0.key, value: $0.value) }
     }
-#endif
 
     private func sipStateColor(_ state: String?) -> Color {
         switch state {

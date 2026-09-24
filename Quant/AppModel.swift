@@ -725,19 +725,28 @@ class AppModel: ObservableObject {
         ))
     }
 
-#if DEBUG
-    // MARK: - Jev classification (debug-only experiment, step 3b)
+    // MARK: - Jev classification (opt-in experiment, off by default, step 3b)
     //
-    // Wrapped in `#if DEBUG` on purpose. DebugOverlayView has no compile gate and is mounted
-    // unconditionally, so anything here that were not gated would ship to TestFlight — and this
-    // sends camera-derived posture data to a US-hosted service, which contradicts the app's own
-    // "all processed on-device" claim. The claim stays true precisely because none of this exists
-    // in a Release build. The threshold engine remains the shipping classifier.
+    // This SHIPS — it is reachable in TestFlight, deliberately, so the experiment can be run on a
+    // device remotely. It was `#if DEBUG` until 2026-09-24; that gate is gone, so read the
+    // following as the current invariant rather than a historical note.
     //
-    // The app holds no credential: the Cloudflare Worker adds the TypeSafe bearer token. That is
-    // why there is no key, no keychain and no xcconfig anywhere in this file.
+    // WHAT PROTECTS THE USER NOW IS ONE BOOLEAN. `useJevClassifier` defaults to false and nothing
+    // is sent until someone turns it on in the debug HUD. When it is on, a call sends nine
+    // derived numbers plus tracking quality — no imagery — to a Cloudflare Worker, which forwards
+    // to TypeSafe in the United States, where retention is open-ended. The threshold engine
+    // remains the shipping classifier either way; Jev never drives a nudge.
+    //
+    // Because that default is the entire privacy boundary, it is pinned by a test
+    // (QuantTests/JevPacingTests.test_useJevClassifier_shipsOff). Do not change it without
+    // changing the README's privacy section in the same commit.
+    //
+    // The app still holds no credential: the Worker adds the TypeSafe bearer token. That is why
+    // there is no key, no keychain and no xcconfig anywhere in this file — and why shipping this
+    // path exposes an endpoint URL but never a secret.
 
-    /// Opt-in from the debug HUD. Ships false, and in Release does not exist at all.
+    /// Opt-in from the debug HUD. Ships false, and that default is the only thing preventing
+    /// posture data from leaving the device.
     @Published var useJevClassifier = false
 
     @Published private(set) var latestJevVerdict: JevVerdict?
@@ -816,7 +825,6 @@ class AppModel: ObservableObject {
             jevError: error
         ))
     }
-#endif
 
     @discardableResult
     func stopRecording() -> URL? {

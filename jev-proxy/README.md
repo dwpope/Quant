@@ -50,11 +50,11 @@ Then point the app's `useJevClassifier` client at the deployed URL (step 3b in
   "head_roll_degrees": 1.0,
   "forward_creep_fraction_of_baseline_shoulder_width": 0.12,
   "head_drop_in_shoulder_widths": 0.04,
-  "shoulder_rounding_degrees": 6.0,
-  "lateral_lean_signed_normalised": 0.08,
-  "twist_signed_degrees": 12.0,
+  "torso_lean_delta_degrees": 6.0,
+  "lateral_lean_in_shoulder_widths": 0.08,
+  "shoulder_tilt_signed_degrees": 12.0,
   "torso_angle_degrees": 4.0,
-  "tracking_quality": "good"      // good | degraded | poor | lost
+  "tracking_quality": "good"      // good | degraded | lost
 }
 
 // 200
@@ -92,16 +92,23 @@ something unmappable · `503` the Worker has no key configured.
 
 ## Open items
 
-- **The Worker is unauthenticated.** Its URL will be extractable from the app binary, so anyone
-  who finds it can spend Jev credits. Accepted deliberately for a personal experiment: input is
-  $0.042/MTok with output free, so abuse costs pennies and the Worker can be deleted instantly.
-  Add Cloudflare rate limiting in the dashboard; add a low-value rotatable token only if
-  unexplained traffic appears.
+- **The Worker is unauthenticated, and its URL now ships.** As of 2026-09-24 the Jev path is no
+  longer `#if DEBUG`, so `https://jev-proxy.quantaware.workers.dev/classify` is present in every
+  TestFlight binary and recoverable with `strings`. This bullet previously said "will be
+  extractable" and deferred rate limiting until "unexplained traffic appears" — that ordering was
+  written while the URL was Debug-only and no longer holds. **Add Cloudflare rate limiting now.**
+  The cost of abuse is still small (input $0.042/MTok, output free, and the Worker can be deleted
+  instantly), but the endpoint is now discoverable by anyone with a build.
 - **Latency.** Jev is 130 ms p50 near-provider and 475 ms p50 / 715 ms p99 from Europe via a
   gateway; this adds one edge hop. Do **not** classify per frame — interval or state change only.
-- **Privacy.** This does not change the fact that posture data leaves the device for a US-hosted
-  service. Aware's README line 5 still claims fully on-device processing and must be corrected
-  before any cloud classification ships.
+- **Privacy — the README was corrected on 2026-09-24.** This bullet used to say Aware's README
+  "line 5" still claimed fully on-device processing (it was line 6 — two badge lines had shifted
+  it). `README.md` now states that all detection, scoring and nudging run on-device while naming
+  this experiment as an opt-in exception, and carries a **Privacy and network** section describing
+  exactly what is sent: nine derived numbers plus tracking quality and camera mode, **no
+  imagery**. The remaining obligation is Apple-side: App Privacy answers in App Store Connect
+  gate external TestFlight testers, and "Data Not Collected" stops being true the moment a tester
+  enables the toggle.
 
 ## Development
 

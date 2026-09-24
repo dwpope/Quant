@@ -3,7 +3,7 @@
 [![PostureLogic Tests](https://github.com/dwpope/Quant/actions/workflows/tests.yml/badge.svg)](https://github.com/dwpope/Quant/actions/workflows/tests.yml)
 [![App Tests](https://github.com/dwpope/Quant/actions/workflows/app-tests.yml/badge.svg)](https://github.com/dwpope/Quant/actions/workflows/app-tests.yml)
 
-A real-time posture monitoring iOS app that uses the front camera and Apple's Vision framework to track body positioning, detect drinking gestures for hydration logging, and nudge you when you slouch — all processed on-device with no server dependency.
+A real-time posture monitoring iOS app that uses the front camera and Apple's Vision framework to track body positioning, detect drinking gestures for hydration logging, and nudge you when you slouch. **All detection, scoring and nudging runs on-device.** One optional experiment, **off by default**, can send derived posture numbers to a cloud classifier — see [Privacy and network](#privacy-and-network).
 
 (Codebase is internally named Quant — repo, Xcode project, and source folders still use that name; only the user-facing app brand is "Aware".)
 
@@ -20,6 +20,38 @@ Aware sits on your desk (phone on a stand) and watches your upper body through t
 **Training mode** — A sidecar data-collection pipeline captures labeled training data (feature vectors + 3s pose windows) for a future CreateML gesture classifier, with a timed annotation UI and JSONL/JSON export. The entire training path is additive — removing it touches zero production code.
 
 **Thermal adaptation** — Frame rate scales dynamically with device temperature (10 → 5 → 2 FPS), with full pause at critical thermal state, so the phone doesn't overheat during long sessions.
+
+## Privacy and network
+
+**Everything that actually judges your posture runs on your device.** Pose detection, the five
+posture metrics, the state machine and the nudge decisions all execute locally, with no network
+call and no account. That is the app as shipped and as used.
+
+There is one exception, and it is opt-in:
+
+**The Jev classifier (experimental, off by default).** A toggle in the debug HUD labelled *Jev
+classifier* enables an experiment that asks a cloud model to classify posture, so its answers can
+be compared against the on-device thresholds. It is **false on every launch** and nothing is sent
+unless you turn it on and tap *Classify now*. It never drives a nudge — the on-device engine
+remains the only thing that does.
+
+When it is enabled, each classification sends **nine derived numbers** (head yaw/pitch/roll, a
+torso angle, and five calibration-relative deltas) plus a tracking-quality label and the camera
+mode. **No image, video or audio ever leaves the device** — there is no imagery in the payload at
+all. Those numbers go to a Cloudflare Worker under this project's control, which forwards them to
+[TypeSafe](https://typesafe.ai)'s Jev API in the United States. TypeSafe states it does not train
+on submitted input, and its retention is open-ended unless a zero-retention agreement is in place.
+The API credential lives only in the Worker's environment and is never present in the app.
+
+Enabling it also records each comparison locally, as
+`jev-comparisons-YYYY-MM-DD.json` in the app's private Documents directory: the exact payload
+sent, the calibration baseline it was relative to, both verdicts, and your adjudication. These
+files are sandbox-private and are not shared anywhere, but they are included in device backups and
+are not pruned automatically.
+
+If you would rather none of this exist in your build, leave the toggle alone — or remove
+`Quant/Models/JevComparisonStore.swift`, the Jev block in `Quant/AppModel.swift` and the Jev
+section in `Quant/Views/DebugOverlayView.swift`, which is the whole of it.
 
 ## Architecture
 
