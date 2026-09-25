@@ -36,6 +36,24 @@ public final class ReplayService: ReplayServiceProtocol {
 
     public init() {}
 
+    // MARK: - Timing
+
+    /// Delay before the next sample, derived from the gap between sample timestamps.
+    ///
+    /// Extracted so playback speed can be asserted exactly instead of measured. A wall-clock
+    /// test of this relationship is a race between the code and the machine: the previous one
+    /// compared elapsed times for a 1x and a 10x run and failed on CI at 0.0877s vs 0.0720s,
+    /// which was scheduling noise rather than a regression.
+    ///
+    /// Returns 0 for a non-positive delta, so samples sharing a timestamp or arriving out of
+    /// order neither stall playback nor trap on a negative `UInt64` conversion. Speed is clamped
+    /// to a small positive value for the same reason — a zero speed would divide by zero.
+    public static func sleepNanoseconds(timestampDelta: TimeInterval, speed: Double) -> UInt64 {
+        guard timestampDelta > 0 else { return 0 }
+        let safeSpeed = max(speed, 0.001)
+        return UInt64(timestampDelta / safeSpeed * 1_000_000_000)
+    }
+
     // MARK: - Lifecycle
 
     public func load(session: RecordedSession) {
@@ -65,13 +83,17 @@ public final class ReplayService: ReplayServiceProtocol {
                 for i in samples.indices {
                     if Task.isCancelled { return }
 
-                    // Delay based on timestamp delta from previous sample
+                    // Delay based on timestamp delta from previous sample. Uses the same
+                    // `sleepNanoseconds` the tests assert on, so the tested arithmetic is the
+                    // arithmetic that actually runs.
                     if i > 0 {
-                        let delta = samples[i].timestamp - samples[i - 1].timestamp
-                        if delta > 0 {
-                            let sleepNanoseconds = UInt64(delta / speed * 1_000_000_000)
+                        let nanoseconds = Self.sleepNanoseconds(
+                            timestampDelta: samples[i].timestamp - samples[i - 1].timestamp,
+                            speed: speed
+                        )
+                        if nanoseconds > 0 {
                             do {
-                                try await Task.sleep(nanoseconds: sleepNanoseconds)
+                                try await Task.sleep(nanoseconds: nanoseconds)
                             } catch {
                                 return // Cancelled
                             }

@@ -231,34 +231,53 @@ final class ReplayServiceTests: XCTestCase {
         XCTAssertEqual(service.playbackSpeed, 10.0)
     }
 
-    func test_playback_fasterAtHigherSpeed() async {
+/// Playback speed, asserted on the timing the service DERIVES from sample timestamps rather
+    /// than on elapsed wall-clock.
+    ///
+    /// The previous version of this test played a session at 1x and again at 10x, measured both
+    /// with `ContinuousClock`, and asserted the 10x run was at least 3x faster. It failed on CI
+    /// on 2026-09-23 at 0.0877s vs 0.0720s — scheduling noise on a loaded runner, not a
+    /// regression. Any wall-clock ratio is a race between the code and the machine it runs on.
+    ///
+    /// The relationship being tested is pure arithmetic: the delay before sample *i* is
+    /// `(t[i] - t[i-1]) / speed`. Asserting that directly makes it exact and deterministic, and
+    /// covers cases a timing test never could — non-positive deltas and the speed clamp.
+    func test_sleepNanoseconds_scalesInverselyWithSpeed() {
+        XCTAssertEqual(ReplayService.sleepNanoseconds(timestampDelta: 0.05, speed: 1.0), 50_000_000)
+        XCTAssertEqual(ReplayService.sleepNanoseconds(timestampDelta: 0.05, speed: 10.0), 5_000_000)
+        XCTAssertEqual(ReplayService.sleepNanoseconds(timestampDelta: 0.05, speed: 0.5), 100_000_000)
+    }
+
+    func test_sleepNanoseconds_isZeroForANonPositiveDelta() {
+        // Samples sharing a timestamp, or out of order, must not stall or trap on a negative
+        // conversion to UInt64.
+        XCTAssertEqual(ReplayService.sleepNanoseconds(timestampDelta: 0, speed: 1.0), 0)
+        XCTAssertEqual(ReplayService.sleepNanoseconds(timestampDelta: -0.05, speed: 1.0), 0)
+    }
+
+    func test_sleepNanoseconds_clampsAZeroOrNegativeSpeed() {
+        // `play()` guards with max(speed, 0.001); pinned here so the guard cannot be dropped
+        // without a failure. Unclamped, a zero speed divides by zero and traps the UInt64
+        // conversion.
+        let clamped = ReplayService.sleepNanoseconds(timestampDelta: 0.05, speed: 0.001)
+        XCTAssertEqual(ReplayService.sleepNanoseconds(timestampDelta: 0.05, speed: 0), clamped)
+        XCTAssertEqual(ReplayService.sleepNanoseconds(timestampDelta: 0.05, speed: -5), clamped)
+    }
+
+    /// The behavioural half, with no timing assertion: speeding up must not drop or reorder
+    /// anything. This is what the old test was really protecting and it is now checked exactly.
+    func test_playback_atHighSpeed_deliversEverySampleInOrder() async {
         let service = ReplayService()
-        // 3 samples with 50ms intervals = 100ms total delay at 1x
-        let session = makeSession(sampleCount: 3, intervalSeconds: 0.05)
-
-        // Play at 1x
-        service.load(session: session)
-        service.playbackSpeed = 1.0
-        let start1x = ContinuousClock.now
-        if let stream = service.play() {
-            for await _ in stream {}
-        }
-        let elapsed1x = ContinuousClock.now - start1x
-
-        // Give defer time to reset
-        try? await Task.sleep(nanoseconds: 10_000_000)
-
-        // Play at 10x
+        let session = makeSession(sampleCount: 5, intervalSeconds: 0.01)
         service.load(session: session)
         service.playbackSpeed = 10.0
-        let start10x = ContinuousClock.now
-        if let stream = service.play() {
-            for await _ in stream {}
-        }
-        let elapsed10x = ContinuousClock.now - start10x
 
-        // 10x should be noticeably faster (at least 3x faster to account for overhead)
-        XCTAssertLessThan(elapsed10x, elapsed1x / 3)
+        var received: [TimeInterval] = []
+        if let stream = service.play() {
+            for await sample in stream { received.append(sample.timestamp) }
+        }
+
+        XCTAssertEqual(received, session.samples.map(\.timestamp))
     }
 
     // MARK: - DebugDumpable

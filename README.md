@@ -2,6 +2,8 @@
 
 [![PostureLogic Tests](https://github.com/dwpope/Quant/actions/workflows/tests.yml/badge.svg)](https://github.com/dwpope/Quant/actions/workflows/tests.yml)
 [![App Tests](https://github.com/dwpope/Quant/actions/workflows/app-tests.yml/badge.svg)](https://github.com/dwpope/Quant/actions/workflows/app-tests.yml)
+[![Jev Proxy](https://github.com/dwpope/Quant/actions/workflows/jev-proxy.yml/badge.svg)](https://github.com/dwpope/Quant/actions/workflows/jev-proxy.yml)
+[![Secrets Guard](https://github.com/dwpope/Quant/actions/workflows/secrets-guard.yml/badge.svg)](https://github.com/dwpope/Quant/actions/workflows/secrets-guard.yml)
 
 A real-time posture monitoring iOS app that uses the front camera and Apple's Vision framework to track body positioning, detect drinking gestures for hydration logging, and nudge you when you slouch. **All detection, scoring and nudging runs on-device.** One optional experiment, **off by default**, can send derived posture numbers to a cloud classifier — see [Privacy and network](#privacy-and-network).
 
@@ -136,6 +138,8 @@ Test coverage includes unit tests for each engine in isolation, integration test
 Two workflows run on every push and PR to `main`, each path-filtered so it only fires when the code it covers changes:
 
 - **PostureLogic Tests** (`tests.yml`) — `swift test` on the package, macOS 15 runner, no simulator, about 90 seconds. Fires on `PostureLogic/**`.
+- **Jev Proxy** (`jev-proxy.yml`) — `tsc --noEmit` then `vitest` for the Cloudflare Worker, plus a `wrangler deploy --dry-run` bundle check. Ubuntu, no Apple toolchain. Fires on `jev-proxy/**`.
+- **Secrets Guard** (`secrets-guard.yml`) — runs `scripts/secrets-check.sh`, the same script the pre-push hook runs, on **every** branch with no path filter. A credential can arrive via any commit.
 - **App Tests** (`app-tests.yml`) — the full `QuantNoWatchTests` suite through `xcodebuild test` on an iOS simulator, with the result bundle uploaded on failure. Fires on `Quant/**`, `QuantTests/**`, `Quant.xcodeproj/**` and `PostureLogic/**`. The package is deliberately included: a change there can compile cleanly and still invalidate an app test, which is exactly how two stale visualization tests reached `main`.
 
 See the badges at the top of this README for current status.

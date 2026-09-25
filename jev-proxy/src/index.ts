@@ -25,8 +25,22 @@ const PATH = "/classify";
 /** Generous for ~10 numeric fields; far below Jev's 32k-token state budget. */
 const MAX_BODY_BYTES = 8 * 1024;
 
+/** Must match `simple.period` in wrangler.toml; sent as Retry-After. */
+const RATE_WINDOW_SECONDS = 60;
+
+/**
+ * Cloudflare's Workers Rate Limiting binding.
+ *
+ * Optional in the type because it is absent in unit tests and in `wrangler dev` without the
+ * binding. `wrangler.toml` declares it, so it is always present in a deployed Worker.
+ */
+export interface RateLimiter {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 export interface Env {
   TYPESAFE_KEY?: string;
+  RATE_LIMITER?: RateLimiter;
 }
 
 const json = (body: unknown, status: number, headers: Record<string, string> = {}) =>
@@ -41,8 +55,33 @@ export default {
     if (url.pathname !== PATH) return json({ error: "not found" }, 404);
     if (request.method !== "POST") return json({ error: "method not allowed" }, 405);
 
-    // Fail closed before anything else, so a misconfigured Worker cannot make a request with
-    // empty credentials and cannot be told apart from a working one by probing.
+    // Rate limit BEFORE the key check and before reading the body, so a flood is rejected as
+    // cheaply as possible and a misconfigured proxy under load answers 429 rather than doing
+    // configuration work first.
+    //
+    // WHY A BINDING AND NOT A WAF RULE: Cloudflare's WAF and Rate Limiting Rules are zone-scoped,
+    // and a workers.dev subdomain is "managed by Cloudflare's infrastructure outside your zone"
+    // (Cloudflare's Custom Domains docs). There is no zone to attach a rule to, so the in-Worker
+    // binding is the only option short of moving to a custom domain.
+    //
+    // Two honest caveats. Cloudflare's own docs advise against keying on IP addresses because
+    // they are shared by many users — accepted here because the endpoint is unauthenticated and
+    // an IP is the only client identity available. And the limit is enforced per key *per
+    // Cloudflare location*, and is "permissive, eventually consistent, and intentionally designed
+    // to not be used as an accurate accounting system" — so 30/min is an abuse brake, not a quota.
+    if (env.RATE_LIMITER) {
+      // CF-Connecting-IP is always set on a real Cloudflare request. The fallback is one shared
+      // bucket, which only applies off-platform, and is named so it is visible rather than
+      // looking like a real client.
+      const rateKey = request.headers.get("cf-connecting-ip") ?? "no-ip";
+      const { success } = await env.RATE_LIMITER.limit({ key: rateKey });
+      if (!success) {
+        return json({ error: "rate limit exceeded" }, 429, { "retry-after": String(RATE_WINDOW_SECONDS) });
+      }
+    }
+
+    // Fail closed, so a misconfigured Worker cannot make a request with empty credentials and
+    // cannot be told apart from a working one by probing.
     const key = env.TYPESAFE_KEY;
     if (!key || key.trim().length === 0) {
       return json({ error: "proxy is not configured" }, 503);

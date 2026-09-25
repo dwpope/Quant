@@ -1,0 +1,58 @@
+name: Jev Proxy
+
+# The Worker had no CI: its 32 tests only ever ran on Dave's machine, while the Swift side has
+# had a gate since 2026-09-22. A change to the Worker's rubric or its rate limiting could reach
+# `wrangler deploy` untested.
+#
+# Path-filtered to jev-proxy/** because nothing else affects it — and ubuntu, not macOS, since
+# this is node and typescript with no Apple toolchain involved.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'jev-proxy/**'
+      - '.github/workflows/jev-proxy.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'jev-proxy/**'
+      - '.github/workflows/jev-proxy.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: jev-proxy
+
+jobs:
+  test:
+    name: typecheck + vitest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: jev-proxy/package-lock.json
+
+      # `npm ci` rather than `npm install`: it installs exactly the committed lockfile and fails
+      # if package.json and the lockfile have drifted, which is the point of committing one.
+      - name: Install
+        run: npm ci
+
+      # `npm test` is tsc --noEmit && vitest run. The typecheck is first on purpose — it has
+      # already caught two real type errors that vitest ran straight past.
+      - name: Test
+        run: npm test
+
+      # Catches a config or syntax error that only surfaces at bundle time, without deploying.
+      - name: Bundle check
+        run: npx wrangler deploy --dry-run --outdir /tmp/jev-proxy-dryrun

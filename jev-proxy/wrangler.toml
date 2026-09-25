@@ -30,3 +30,20 @@ preview_urls = false
 # logs status codes and request ids, never request or response bodies.
 [observability]
 enabled = true
+
+# Workers Rate Limiting binding — the abuse brake on an unauthenticated endpoint whose URL now
+# ships in every TestFlight binary.
+#
+# A WAF / Rate Limiting Rule cannot do this job: those are zone-scoped, and a workers.dev
+# subdomain sits outside any zone you control. Moving to a custom domain would make the WAF an
+# option; until then this binding is it.
+#
+# `period` accepts only 10 or 60, so 30/min is limit = 30 with period = 60.
+# Keep RATE_WINDOW_SECONDS in src/index.ts equal to period — it is sent as Retry-After.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 30
+  period = 60
