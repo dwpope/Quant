@@ -161,4 +161,73 @@ final class JevPacingTests: XCTestCase {
     func test_useJevClassifier_shipsOff() {
         XCTAssertFalse(AppModel().useJevClassifier)
     }
+
+    // MARK: - Why nothing happened
+
+    /// A tap that does nothing must say why.
+    ///
+    /// `Classify now` silently no-ops in four distinct situations, and on a phone they are
+    /// indistinguishable from a broken button — which is exactly how it was first reported.
+    /// Each refusal now names itself so the HUD can show it.
+    func test_gate_saysWhenTheClassifierIsOff() {
+        let model = readyModel()
+        model.useJevClassifier = false
+
+        XCTAssertEqual(model.jevGate(now: Date()), .disabled)
+    }
+
+    func test_gate_saysWhenThereIsNoBaseline() {
+        let model = readyModel()
+        model.baseline = nil
+
+        XCTAssertEqual(model.jevGate(now: Date()), .notCalibrated)
+    }
+
+    func test_gate_saysWhenThereIsNoPose() {
+        let model = readyModel()
+        model.latestSample = nil
+
+        XCTAssertEqual(model.jevGate(now: Date()), .noPose)
+    }
+
+    func test_gate_saysHowLongUntilTheNextCallIsAllowed() {
+        let model = readyModel()
+        model.jevMinInterval = 5
+        let start = Date(timeIntervalSince1970: 1_000)
+
+        // Mark via the call that actually attempts — `jevGate` is a pure query, because the HUD
+        // renders it on every redraw and a mutating query would reset the interval continuously.
+        _ = model.jevPayloadIfDue(now: start)
+
+        XCTAssertEqual(model.jevGate(now: start.addingTimeInterval(2)), .tooSoon(secondsRemaining: 3))
+    }
+
+    func test_gate_isReadyWhenEverythingIsInPlace() {
+        let model = readyModel()
+
+        guard case .ready = model.jevGate(now: Date()) else {
+            return XCTFail("expected .ready, got \(model.jevGate(now: Date()))")
+        }
+    }
+
+    /// A blocked tap must surface the reason, not leave the previous state on screen.
+    func test_classify_whenBlocked_publishesTheReason() async {
+        let model = readyModel()
+        model.baseline = nil
+
+        await model.classifyWithJevIfDue()
+
+        XCTAssertEqual(model.latestJevError, JevGate.notCalibrated.message)
+        XCTAssertNil(model.latestJevVerdict)
+    }
+
+    /// Every reason needs text a human can act on.
+    func test_everyGateReasonHasAMessage() {
+        let reasons: [JevGate] = [
+            .disabled, .notCalibrated, .noPose, .tooSoon(secondsRemaining: 3), .unusableValues,
+        ]
+        for reason in reasons {
+            XCTAssertFalse(reason.message.isEmpty, "\(reason) has no message")
+        }
+    }
 }

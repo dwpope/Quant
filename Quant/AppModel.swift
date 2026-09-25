@@ -773,30 +773,54 @@ class AppModel: ObservableObject {
         transport: URLSessionJevTransport()
     )
 
-    /// The payload to send now, or `nil` if a classification should not happen.
+    /// Whether a classification can happen now, and if not, why not.
     ///
-    /// Marks the attempt when it returns a payload, so the interval holds even if the call
-    /// itself fails. Four refusals, each for a reason established from the pipeline:
+    /// This returns a *reason* rather than a bare `nil` because "Classify now" silently doing
+    /// nothing is indistinguishable from a broken button — which is how it was first reported
+    /// from a device. Each refusal is established from the pipeline, not assumed:
     /// the flag is off; there is no baseline (metrics are all-zero rather than nil before
     /// calibration, so optionality cannot be the gate); the sample is nil while metrics keep a
-    /// stale value, which would pair fresh numbers with an old pose; or the interval has not
-    /// elapsed.
-    func jevPayloadIfDue(now: Date = Date()) -> JevFeatures? {
-        guard useJevClassifier,
-              let sample = latestSample,
-              let metrics = latestMetrics,
-              let baseline = baseline,
-              now.timeIntervalSince(lastJevAttemptAt ?? .distantPast) >= jevMinInterval,
-              let features = JevFeatures.make(sample: sample, metrics: metrics, baseline: baseline)
-        else { return nil }
+    /// stale value, which would pair fresh numbers with an old pose; the interval has not
+    /// elapsed; or a value is non-finite and the proxy would 400.
+    ///
+    /// **Pure.** Marking the attempt belongs to whoever actually makes it — the HUD renders this
+    /// on every redraw, and a query that mutated would reset the interval continuously.
+    func jevGate(now: Date = Date()) -> JevGate {
+        guard useJevClassifier else { return .disabled }
+        guard let baseline else { return .notCalibrated }
+        guard let sample = latestSample, let metrics = latestMetrics else { return .noPose }
 
+        let elapsed = now.timeIntervalSince(lastJevAttemptAt ?? .distantPast)
+        if elapsed < jevMinInterval {
+            return .tooSoon(secondsRemaining: (jevMinInterval - elapsed).rounded())
+        }
+
+        guard let features = JevFeatures.make(sample: sample, metrics: metrics, baseline: baseline)
+        else { return .unusableValues }
+
+        return .ready(features)
+    }
+
+    /// The payload to send now, or `nil` if a classification should not happen.
+    ///
+    /// Unlike ``jevGate(now:)`` this MARKS the attempt, so the interval holds even if the call
+    /// that follows fails.
+    func jevPayloadIfDue(now: Date = Date()) -> JevFeatures? {
+        guard case .ready(let features) = jevGate(now: now) else { return nil }
         lastJevAttemptAt = now
         return features
     }
 
     /// Classifies once, if due, and records the result either way.
     func classifyWithJevIfDue(now: Date = Date()) async {
-        guard let features = jevPayloadIfDue(now: now) else { return }
+        let gate = jevGate(now: now)
+        guard case .ready(let features) = gate else {
+            // Surface the refusal instead of leaving the last state on screen. A tap that does
+            // nothing and says nothing is a bug report waiting to happen.
+            latestJevError = gate.message
+            return
+        }
+        lastJevAttemptAt = now
         do {
             let verdict = try await jevClient.classify(features)
             recordJevComparison(features: features, verdict: verdict, error: nil)

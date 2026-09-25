@@ -228,6 +228,15 @@ struct DebugOverlayView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                // Why the button will do nothing, shown BEFORE it is tapped. `jevGate` is a pure
+                // query precisely so it can be read from here on every redraw.
+                if case .ready = appModel.jevGate() {
+                    EmptyView()
+                } else {
+                    Text(appModel.jevGate().message)
+                        .foregroundStyle(.orange)
+                }
+
                 // Deliberately labelled as two different kinds of answer. The threshold engine
                 // reports a temporal STATE (good/drifting/bad); Jev reports a morphological
                 // CLASS (slouch/lean/chair_swivel). Rendering them as a like-for-like comparison
@@ -287,7 +296,9 @@ struct DebugOverlayView: View {
 
                     Text("judged \(appModel.jevComparisonStore.adjudicatedCount)/\(appModel.jevComparisonStore.comparisons.count)")
                         .foregroundStyle(.secondary)
-                } else if let error = appModel.latestJevError {
+                }
+
+                if let error = appModel.latestJevError {
                     Text("jev: \(error)")
                         .foregroundStyle(.orange)
                 }
