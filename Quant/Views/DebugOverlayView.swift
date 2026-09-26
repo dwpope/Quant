@@ -19,6 +19,10 @@ struct DebugOverlayView: View {
     /// concurrent requests against a paid API.
     @State private var jevBusy = false
 
+    /// The exported JSONL, once written. Held in state rather than recomputed, because writing
+    /// it is a side effect and this view redraws on every frame of live metrics.
+    @State private var jevExportURL: URL?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             // Camera mode
@@ -218,6 +222,7 @@ struct DebugOverlayView: View {
                         Task {
                             await appModel.classifyWithJevIfDue()
                             jevBusy = false
+                            jevExportURL = nil // a new record; any prepared export is stale
                         }
                     }
                     .buttonStyle(.bordered)
@@ -275,16 +280,19 @@ struct DebugOverlayView: View {
                             Button("jev ok") {
                                 appModel.jevComparisonStore.setUserVerdict(
                                     id: id, verdict: .jevWasRight, trueClass: nil)
+                                jevExportURL = nil // adjudication changed; re-export
                             }
                             Button("thr ok") {
                                 appModel.jevComparisonStore.setUserVerdict(
                                     id: id, verdict: .thresholdsWereRight, trueClass: nil)
+                                jevExportURL = nil // adjudication changed; re-export
                             }
                             Menu("both wrong") {
                                 ForEach(TagLabel.allCases, id: \.self) { label in
                                     Button(label.rawValue) {
                                         appModel.jevComparisonStore.setUserVerdict(
                                             id: id, verdict: .bothWrong, trueClass: label)
+                                        jevExportURL = nil // adjudication changed; re-export
                                     }
                                 }
                             }
@@ -296,6 +304,26 @@ struct DebugOverlayView: View {
 
                     Text("judged \(appModel.jevComparisonStore.adjudicatedCount)/\(appModel.jevComparisonStore.comparisons.count)")
                         .foregroundStyle(.secondary)
+                }
+
+                // Getting the dataset off the phone. Two steps on purpose: writing the file is a
+                // side effect, and this HUD redraws continuously, so building a ShareLink whose
+                // item came from `exportJSONL()` would rewrite the file on every frame. The tap
+                // writes it once; the link then shares that exact file.
+                if !appModel.jevComparisonStore.comparisons.isEmpty {
+                    if let jevExportURL {
+                        ShareLink(item: jevExportURL) {
+                            Text("share \(jevExportURL.lastPathComponent)")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    } else {
+                        Button("prepare export (\(appModel.jevComparisonStore.comparisons.count))") {
+                            jevExportURL = try? appModel.jevComparisonStore.exportJSONL()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
                 }
 
                 if let error = appModel.latestJevError {

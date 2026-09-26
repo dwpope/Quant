@@ -121,6 +121,41 @@ final class JevComparisonStore: ObservableObject {
         persist()
     }
 
+    // MARK: - Export
+
+    /// Writes today's comparisons as JSONL to caches and returns the file, for a `ShareLink`.
+    ///
+    /// Exists because remote testing is otherwise write-only: the records live in the app's
+    /// private container, and without this the dataset cannot leave the phone without a Mac and
+    /// Xcode's container download. Follows `SipTrainingStore.exportJSONL` — caches directory,
+    /// `.sortedKeys` for stable diffs, one self-contained JSON object per line.
+    ///
+    /// **Every record is exported, adjudicated or not.** One without a user verdict has no
+    /// ground truth, but it still records what both sides answered at the same moment, which
+    /// measures agreement. Filtering here would silently discard evidence the analysis might
+    /// want, and the analysis can filter for itself.
+    ///
+    /// Each line carries the exact payload sent AND the baseline it was relative to, so the
+    /// deltas remain interpretable long after the live baseline has been recalibrated away.
+    func exportJSONL() throws -> URL {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+
+        let joined = try comparisons
+            .map { String(data: try encoder.encode($0), encoding: .utf8) ?? "" }
+            .joined(separator: "\n")
+
+        let url = cachesFile(name: "jev-comparisons-\(todayKey).jsonl")
+        try Data(joined.utf8).write(to: url, options: .atomic)
+        return url
+    }
+
+    private func cachesFile(name: String) -> URL {
+        FileManager.default
+            .urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(name)
+    }
+
     // MARK: - Persistence
 
     private func load() {
