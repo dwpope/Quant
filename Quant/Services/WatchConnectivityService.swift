@@ -56,6 +56,12 @@ final class WatchConnectivityService: NSObject {
     /// Fires when the Watch sends updated calibration settings.
     let settingsReceived = PassthroughSubject<[String: Any], Never>()
 
+    /// Fires when the Watch, used as a remote for Jev captures, asks for something.
+    let jevRemoteCommand = PassthroughSubject<JevRemote.Command, Never>()
+
+    /// Fires with the new value whenever the Watch app becomes reachable or stops being so.
+    let reachabilityChanged = PassthroughSubject<Bool, Never>()
+
     // MARK: - Private Properties
 
     private let logger = Logger(subsystem: "com.quant.posture", category: "WatchConnectivity")
@@ -129,6 +135,22 @@ final class WatchConnectivityService: NSObject {
         }
     }
 
+    /// Send the Jev remote's status to the Watch.
+    ///
+    /// Only while the Watch app is open. Unlike a nudge there is no queued fallback: a status
+    /// is only worth anything while someone is looking at it, and the Watch asks for a fresh
+    /// one when its screen opens.
+    func sendJevStatus(_ status: JevRemote.Status) {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isReachable else { return }
+        session.sendMessage(status.message, replyHandler: nil) { [weak self] error in
+            Task { @MainActor in
+                self?.logger.error("Jev status send failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// Push calibration settings to the Watch via applicationContext.
     func sendSettings(_ settings: [String: Any]) {
         guard WCSession.isSupported() else { return }
@@ -190,6 +212,7 @@ extension WatchConnectivityService: WCSessionDelegate {
         Task { @MainActor in
             isReachable = session.isReachable
             logger.info("WCSession reachability changed: \(self.isReachable)")
+            reachabilityChanged.send(isReachable)
         }
     }
 
@@ -227,7 +250,11 @@ extension WatchConnectivityService: WCSessionDelegate {
             logger.info("⌚ Settings received from Watch")
             settingsReceived.send(message)
         default:
-            logger.debug("Unknown message type: \(type)")
+            if let command = JevRemote.Command(message: message) {
+                jevRemoteCommand.send(command)
+            } else {
+                logger.debug("Unknown message type: \(type)")
+            }
         }
     }
 }

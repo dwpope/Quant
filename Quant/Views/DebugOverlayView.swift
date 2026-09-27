@@ -45,6 +45,10 @@ struct DebugOverlayView: View {
         .padding(8)
         .background(.ultraThinMaterial)
         .cornerRadius(8)
+        // A prepared export goes stale when a record is added or judged. The buttons here clear
+        // it themselves, but the Watch remote changes records without touching this view.
+        .onChange(of: appModel.jevComparisonStore.comparisons.count) { jevExportURL = nil }
+        .onChange(of: appModel.jevComparisonStore.adjudicatedCount) { jevExportURL = nil }
     }
 
     /// The line that is always visible, collapsed or not.

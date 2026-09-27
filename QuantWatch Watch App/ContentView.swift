@@ -47,6 +47,13 @@ struct ContentView: View {
 
                     Divider()
 
+                    // Remote for Jev captures, so tapping never moves the posture being captured.
+                    NavigationLink {
+                        JevRemoteView(session: sessionDelegate)
+                    } label: {
+                        Label("Jev capture", systemImage: "hand.tap")
+                    }
+
                     // Calibrate button
                     Button {
                         sessionDelegate.sendCalibrateRequest()

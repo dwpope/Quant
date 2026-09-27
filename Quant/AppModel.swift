@@ -566,6 +566,25 @@ class AppModel: ObservableObject {
                 self?.applySettingsFromWatch(settings)
             }
             .store(in: &cancellables)
+
+        // The Watch as a remote for Jev captures. See `JevRemote`.
+        watchService.jevRemoteCommand
+            .sink { [weak self] command in
+                Task { @MainActor [weak self] in await self?.handleJevRemote(command) }
+            }
+            .store(in: &cancellables)
+
+        watchService.reachabilityChanged
+            .filter { $0 }
+            .sink { [weak self] _ in self?.pushJevStatusToWatch(force: true) }
+            .store(in: &cancellables)
+
+        // Tracking and the thresholds' state change on their own while someone is getting into
+        // position, so the status is re-checked once a second and sent only when it changed.
+        Timer.publish(every: 1, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in self?.pushJevStatusToWatch(force: false) }
+            .store(in: &cancellables)
     }
 
     // MARK: - Public Methods
@@ -806,6 +825,7 @@ class AppModel: ObservableObject {
 
     /// Classifies once, if due, and records the result either way.
     func classifyWithJevIfDue(now: Date = Date()) async {
+        jevAttempts += 1
         let gate = jevGate(now: now)
         guard case .ready(let features) = gate else {
             // Surface the refusal instead of leaving the last state on screen. A tap that does
@@ -820,6 +840,66 @@ class AppModel: ObservableObject {
         } catch {
             recordJevComparison(features: features, verdict: nil, error: String(describing: error))
         }
+    }
+
+    // MARK: Jev remote (Apple Watch)
+
+    /// The last status sent to the Watch, so an unchanged one is not sent again every second.
+    private var lastJevStatusSent: JevRemote.Status?
+
+    /// Every call to ``classifyWithJevIfDue(now:)``, refused or not. See `JevRemote.Status.attempts`.
+    private(set) var jevAttempts = 0
+
+    /// What the Watch shows. Pure.
+    func jevRemoteStatus() -> JevRemote.Status {
+        let (thr, since) = JevRemote.stateName(postureState)
+        let store = jevComparisonStore
+        let record = store.comparisons.last.map { r in
+            JevRemote.Status.Record(
+                id: r.id,
+                jevClass: r.jev?.posture,
+                jevConfidence: r.jev?.confidence,
+                thresholdStateAtCapture: JevRemote.stateName(r.thresholdState).0,
+                capturedAt: r.capturedAt.timeIntervalSince1970,
+                judged: r.userVerdict?.rawValue)
+        }
+        return JevRemote.Status(
+            enabled: useJevClassifier,
+            calibrated: !needsCalibration,
+            tracking: trackingQuality.rawValue,
+            thresholdState: thr,
+            thresholdSince: since,
+            notice: latestJevError,
+            lastRecord: record,
+            judgedCount: store.adjudicatedCount,
+            total: store.comparisons.count,
+            trueClassOptions: TagLabel.allCases.map(\.rawValue),
+            attempts: jevAttempts)
+    }
+
+    /// Acts on a request from the Watch, then reports back.
+    ///
+    /// A classify goes through the same gate as the on-screen button, so the Watch can't do
+    /// anything the button couldn't, including switching the classifier on.
+    func handleJevRemote(_ command: JevRemote.Command) async {
+        switch command {
+        case .classify:
+            await classifyWithJevIfDue()
+        case .judge(let id, let verdict, let trueClass):
+            jevComparisonStore.setUserVerdict(id: id, verdict: verdict, trueClass: trueClass)
+        case .statusRequest:
+            break
+        }
+        pushJevStatusToWatch(force: true)
+    }
+
+    /// Sends the status if the Watch app is open and the status changed, or always if forced.
+    private func pushJevStatusToWatch(force: Bool) {
+        guard watchService.isReachable else { return }
+        let status = jevRemoteStatus()
+        guard force || status != lastJevStatusSent else { return }
+        lastJevStatusSent = status
+        watchService.sendJevStatus(status)
     }
 
     /// Stores the comparison and publishes the latest verdict.

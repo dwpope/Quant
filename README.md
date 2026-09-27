@@ -34,7 +34,7 @@ There is one exception, and it is opt-in:
 **The Jev classifier (experimental, off by default).** A toggle in the debug HUD labelled *Jev
 classifier* (tap the chevron beside *Recalibrate* if the panel is collapsed) enables an experiment that asks a cloud model to classify posture, so its answers can
 be compared against the on-device thresholds. It is **false on every launch** and nothing is sent
-unless you turn it on and tap *Classify now*. It never drives a nudge — the on-device engine
+unless you turn it on and tap *Classify now*, or *Classify* on the Apple Watch's *Jev capture* screen. The watch can trigger a capture but cannot turn the classifier on. It never drives a nudge — the on-device engine
 remains the only thing that does.
 
 When it is enabled, each classification sends **nine derived numbers** (head yaw/pitch/roll, a

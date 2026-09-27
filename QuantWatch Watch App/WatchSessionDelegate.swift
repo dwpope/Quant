@@ -26,6 +26,20 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     /// Whether the WCSession is currently activated and reachable.
     @Published var isConnected: Bool = false
 
+    // MARK: - Jev capture remote
+
+    /// The phone's latest report. Nil until the phone answers.
+    @Published var jevStatus: JevRemoteStatus?
+
+    /// True from a Classify tap until the phone's answer to it arrives.
+    @Published var jevBusy = false
+
+    /// Whether the phone app can take a message right now. Taps need this; nudges do not.
+    @Published var isPhoneReachable = false
+
+    /// The phone's attempt count and newest record when the pending tap was sent.
+    private var pendingTap: (attempts: Int, recordID: UUID?, token: UUID)?
+
     // MARK: - Calibration Settings (synced from iPhone)
 
     @Published var maxPositionVariance: Float = 0.06
@@ -103,6 +117,76 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         } else {
             logger.warning("iPhone not reachable — cannot send calibrate request")
         }
+    }
+
+    // MARK: - Jev capture remote
+
+    /// Ask the phone to classify the posture you are holding right now.
+    ///
+    /// This is the point of the remote: tapping the phone meant leaning toward it, and the
+    /// capture recorded the lean. The haptic says how it went, so you needn't look.
+    func sendJevClassify() {
+        guard !jevBusy else { return }
+        beginJevTap()
+        if !sendToPhone(JevRemoteMessage.classify(), what: "classify") {
+            cancelJevTap()
+        }
+    }
+
+    /// Judge the capture the Watch is showing. Names the record, so a capture that lands in
+    /// between can't take the judgement meant for this one.
+    func sendJevJudge(recordID: UUID, verdict: JevRemoteVerdict, trueClass: String? = nil) {
+        sendToPhone(JevRemoteMessage.judge(recordID: recordID, verdict: verdict, trueClass: trueClass),
+                    what: "judge")
+    }
+
+    /// Ask the phone for a fresh status, as when the capture screen opens.
+    func requestJevStatus() {
+        sendToPhone(JevRemoteMessage.statusRequest(), what: "status request")
+    }
+
+    /// Marks a tap as waiting for its answer. Split out of ``sendJevClassify()`` so tests can
+    /// drive it without a paired phone.
+    func beginJevTap() {
+        let token = UUID()
+        pendingTap = (jevStatus?.attempts ?? -1, jevStatus?.lastRecord?.id, token)
+        jevBusy = true
+        // The phone answers well within a second. If nothing comes back, don't stay stuck.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+            guard let self, self.pendingTap?.token == token else { return }
+            self.cancelJevTap()
+            WKInterfaceDevice.current().play(.failure)
+        }
+    }
+
+    private func cancelJevTap() {
+        pendingTap = nil
+        jevBusy = false
+    }
+
+    /// Takes in a status from the phone, and settles a pending tap if this is its answer.
+    func receiveJevStatus(_ status: JevRemoteStatus) {
+        jevStatus = status
+        guard let pending = pendingTap,
+              let outcome = JevRemoteStatus.outcome(of: status, previousRecordID: pending.recordID,
+                                                    attemptsWhenSent: pending.attempts)
+        else { return }
+        cancelJevTap()
+        WKInterfaceDevice.current().play(outcome == .captured ? .success : .failure)
+    }
+
+    @discardableResult
+    private func sendToPhone(_ message: [String: Any], what: String) -> Bool {
+        guard WCSession.isSupported() else { return false }
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isReachable else {
+            logger.warning("iPhone not reachable — cannot send \(what)")
+            return false
+        }
+        session.sendMessage(message, replyHandler: nil) { [weak self] error in
+            self?.logger.error("Failed to send \(what): \(error.localizedDescription)")
+        }
+        return true
     }
 
     /// Reset posture thresholds to defaults and sync to iPhone.
@@ -229,6 +313,7 @@ extension WatchSessionDelegate: WCSessionDelegate {
     ) {
         DispatchQueue.main.async {
             self.isConnected = activationState == .activated
+            self.isPhoneReachable = session.isReachable
         }
         if let error {
             logger.error("WCSession activation failed: \(error.localizedDescription)")
@@ -251,8 +336,24 @@ extension WatchSessionDelegate: WCSessionDelegate {
             DispatchQueue.main.async {
                 self.handleNudge(haptic)
             }
+        case "jevStatus":
+            guard let status = JevRemoteStatus(message: message) else {
+                logger.error("Malformed jevStatus from iPhone")
+                return
+            }
+            DispatchQueue.main.async {
+                self.receiveJevStatus(status)
+            }
         default:
             break
+        }
+    }
+
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        let reachable = session.isReachable
+        DispatchQueue.main.async {
+            self.isPhoneReachable = reachable
+            if reachable { self.requestJevStatus() }
         }
     }
 
