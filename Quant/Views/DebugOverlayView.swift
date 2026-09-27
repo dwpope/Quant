@@ -23,7 +23,86 @@ struct DebugOverlayView: View {
     /// it is a side effect and this view redraws on every frame of live metrics.
     @State private var jevExportURL: URL?
 
+    /// Whether the detail rows are shown. Persisted per device as a convenience only: losing it
+    /// just reopens the panel expanded, which is how it always used to look.
+    @AppStorage(DiagnosticsPanel.expandedKey) private var isExpanded = true
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            header
+
+            if DiagnosticsPanel.showsDetails(isExpanded: isExpanded,
+                                             needsCalibration: appModel.needsCalibration) {
+                Divider()
+                // Scrolls only when the rows are taller than the space above the bottom
+                // controls, so those controls can never be pushed off the screen.
+                ScrollableHUD {
+                    details
+                }
+            }
+        }
+        .font(.system(.caption, design: .monospaced))
+        .padding(8)
+        .background(.ultraThinMaterial)
+        .cornerRadius(8)
+    }
+
+    /// The line that is always visible, collapsed or not.
+    ///
+    /// Recalibrate lives here because this is the one control a stuck tester must always be
+    /// able to reach. It used to sit in the bottom row, where on an iPhone 15 Pro it was squeezed
+    /// to "Re ca li…" and, with Jev results showing, pushed off the screen.
+    ///
+    /// While calibration is pending there is no Recalibrate button, because calibration is
+    /// already running on the screen underneath. The line says what it is waiting for instead.
+    @ViewBuilder
+    private var header: some View {
+        HStack(spacing: 6) {
+            if appModel.needsCalibration {
+                Circle()
+                    .fill(trackingColor)
+                    .frame(width: 6, height: 6)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(DiagnosticsPanel.calibrationLine(status: appModel.calibrationStatus,
+                                                          tracking: appModel.trackingQuality))
+                        .lineLimit(1)
+                    if let hint = DiagnosticsPanel.calibrationHint(status: appModel.calibrationStatus,
+                                                                   tracking: appModel.trackingQuality) {
+                        Text(hint)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            } else {
+                Circle()
+                    .fill(postureColor)
+                    .frame(width: 6, height: 6)
+                Text(postureLabel)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                Button("Recalibrate") {
+                    appModel.recalibrate()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(isExpanded ? "Hide diagnostics" : "Show diagnostics")
+            }
+        }
+    }
+
+    /// Everything below the top line.
+    @ViewBuilder
+    private var details: some View {
         VStack(alignment: .leading, spacing: 4) {
             // Camera mode
             HStack(spacing: 4) {
@@ -72,16 +151,7 @@ struct DebugOverlayView: View {
                 }
             }
 
-            Divider()
-
-            // Posture state with color indicator
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(postureColor)
-                    .frame(width: 6, height: 6)
-                Text("Posture: \(postureLabel)")
-            }
-
+            // Posture state is shown in the header.
             Divider()
 
             // Nudge decision with color indicator
@@ -436,10 +506,6 @@ struct DebugOverlayView: View {
                     .frame(width: 55, alignment: .trailing)
             }
         }
-        .font(.system(.caption, design: .monospaced))
-        .padding(8)
-        .background(.ultraThinMaterial)
-        .cornerRadius(8)
     }
 
     // MARK: - Posture State Display

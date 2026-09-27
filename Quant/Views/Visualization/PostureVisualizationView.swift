@@ -18,7 +18,7 @@ import SwiftUI
 /// * A faint static ghost (``PostureVisualizationScene/makeGhost()``) marks the
 ///   calibrated baseline behind the live assembly.
 /// * Presented as a full-screen cover from `ContentView`, so it carries a
-///   `\.dismiss` close affordance (mirrors `VariantShowcaseView`).
+///   `\.dismiss` close affordance.
 struct PostureVisualizationView: View {
 
     @EnvironmentObject private var appModel: AppModel
@@ -203,32 +203,6 @@ struct PostureVisualizationView: View {
     private static func pulse(at date: Date) -> Double {
         let t = date.timeIntervalSinceReferenceDate
         return (sin(2 * .pi * t / pulsePeriod) + 1) / 2
-    }
-}
-
-/// Caps a floating HUD at `maxHeight`, scrolling its content only when it would
-/// be taller. `ViewThatFits` evaluates each candidate against the proposed height
-/// (clamped to `maxHeight` by the frame), so a panel that fits renders as raw
-/// `content` — sized to itself, no empty translucent box — while a panel that
-/// overflows falls back to a `ScrollView`. No measurement round-trip, so it never
-/// gets stuck at zero height the way a `min(measuredContent, maxHeight)` frame can.
-///
-/// `maxHeight` arrives as 0 for the first frame (before the surface is measured);
-/// we treat that as "uncapped" so the panel is always visible, then the real cap
-/// applies once `availableHeight` lands.
-private struct ScrollableHUD<Content: View>: View {
-    let maxHeight: CGFloat
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        ViewThatFits(in: .vertical) {
-            content
-            ScrollView {
-                content
-            }
-            .scrollBounceBehavior(.basedOnSize)
-        }
-        .frame(maxHeight: maxHeight > 0 ? maxHeight : .infinity)
     }
 }
 

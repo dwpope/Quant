@@ -47,22 +47,6 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Ensure Metal toolchain
-        # Quant/Views/Showcase/Shaders/PostureShaders.metal must compile before
-        # any Swift is built. Xcode 16 bundles the Metal toolchain; Xcode 26+
-        # ships without it, so fetch it only when `metal` is not on the path.
-        run: |
-          if xcrun -f metal >/dev/null 2>&1; then
-            echo "metal compiler present: $(xcrun -f metal)"
-          else
-            echo "metal compiler missing - downloading MetalToolchain"
-            xcodebuild -downloadComponent MetalToolchain \
-              || sudo xcodebuild -downloadComponent MetalToolchain
-            # Fail here with a clear signal rather than later inside an opaque
-            # shader-compile error.
-            xcrun -f metal
-          fi
-
       - name: Pick and boot a simulator
         id: sim
         timeout-minutes: 10

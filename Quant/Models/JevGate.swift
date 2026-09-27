@@ -36,7 +36,7 @@ enum JevGate: Equatable {
         case .disabled:
             return "classifier is off"
         case .notCalibrated:
-            return "not calibrated — recalibrate first"
+            return "not calibrated — calibrate first"
         case .noPose:
             return "no pose — check tracking"
         case .tooSoon(let seconds):

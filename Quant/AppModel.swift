@@ -221,9 +221,6 @@ class AppModel: ObservableObject {
     /// (e.g., paired, reachable, send count) but only AppModel can trigger sends.
     private(set) var watchService = WatchConnectivityService()
 
-    /// The haptic type to use when sending a test nudge to the Watch.
-    @Published var selectedHaptic: String = "failure"
-
     // MARK: - Computed Properties
 
     /// Exposes the pipeline's current PostureThresholds for the debug overlay.
@@ -426,7 +423,7 @@ class AppModel: ObservableObject {
                     self.audioService.playNudgeCue()
 
                     // Send haptic nudge to Apple Watch
-                    self.watchService.sendNudge(hapticType: self.selectedHaptic)
+                    self.watchService.sendNudge()
 
                     // Record that the nudge was delivered so the NudgeEngine
                     // can start its cooldown timer and increment the hourly counter.
@@ -661,10 +658,6 @@ class AppModel: ObservableObject {
         UserDefaults.standard.removeObject(forKey: Self.baselineKey)
         needsCalibration = true
         startCalibration()
-    }
-
-    func sendTestNudge() {
-        watchService.sendNudge(hapticType: selectedHaptic)
     }
 
     /// Re-attempt starting the front camera after the user grants permission in Settings.

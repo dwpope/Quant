@@ -32,7 +32,7 @@ call and no account. That is the app as shipped and as used.
 There is one exception, and it is opt-in:
 
 **The Jev classifier (experimental, off by default).** A toggle in the debug HUD labelled *Jev
-classifier* enables an experiment that asks a cloud model to classify posture, so its answers can
+classifier* (tap the chevron beside *Recalibrate* if the panel is collapsed) enables an experiment that asks a cloud model to classify posture, so its answers can
 be compared against the on-device thresholds. It is **false on every launch** and nothing is sent
 unless you turn it on and tap *Classify now*. It never drives a nudge — the on-device engine
 remains the only thing that does.
@@ -69,14 +69,14 @@ PostureLogic/          ← Pure Swift Package, no UIKit/SwiftUI/ARKit
 Quant/                 ← iOS app target
 ├── AppModel.swift     ← ViewModel hub: wires Pipeline to camera, UI, persistence
 ├── Views/             ← CalibrationView, DebugOverlay, SipTimeline, etc.
-├── Views/Showcase/    ← 60 UI variant designs (Metal shaders, SceneKit, SwiftUI)
+├── Views/Visualization/ ← 3D posture visualization (RealityKit figure, ARKit face-tracked head)
 ├── Services/          ← ARSession, FrontCamera, WatchConnectivity, AudioFeedback
 └── Models/            ← SipStore, SipTrainingStore, SipLabelQueue
 
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~47,000 lines of Swift** across 232 files. The `PostureLogic` package carries **571 tests**, all passing — reproduce with `cd PostureLogic && swift test`.
+**~33,000 lines of Swift** across 173 files. The `PostureLogic` package carries **605 tests**, all passing — reproduce with `cd PostureLogic && swift test`.
 
 ## Technical Decisions
 
@@ -112,13 +112,7 @@ A 3-frame majority-vote window with hysteresis thresholds prevents single-frame 
 
 Open `Quant.xcodeproj` in **Xcode 26 or newer** and run on a physical device. The PostureLogic package resolves automatically.
 
-Xcode 26 is a hard floor, not a recommendation: ten classes declare `nonisolated deinit` (which keeps Swift's MainActor isolated-deinit back-deploy shim out of XCTest's dealloc path, where it corrupts the heap). That needs Swift 6.2. On Xcode 16 the build stops at `LivePostureDataSource.swift:11` with `'isolated' deinit requires frontend flag -enable-experimental-feature IsolatedDeinit`.
-
-**Xcode 26 prerequisite:** Xcode 26 ships without the Metal toolchain, so the shaders in `Quant/Views/Showcase/Shaders/` fail to compile before any Swift is built. Install it once with:
-
-```bash
-xcodebuild -downloadComponent MetalToolchain
-```
+Xcode 26 is a hard floor, not a recommendation: twelve classes declare `nonisolated deinit` (which keeps Swift's MainActor isolated-deinit back-deploy shim out of XCTest's dealloc path, where it corrupts the heap). That needs Swift 6.2. On Xcode 16 the build stops at the first of them with `'isolated' deinit requires frontend flag -enable-experimental-feature IsolatedDeinit`.
 
 ### Tests
 
@@ -131,7 +125,7 @@ xcodebuild test -project Quant.xcodeproj -scheme QuantNoWatchTests \
   -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
 
-Test coverage includes unit tests for each engine in isolation, integration tests wiring multiple engines via Pipeline, golden recording replay tests for deterministic output verification, long-run stability tests, Codable migration tests for backward compatibility, model value tests for core types (TrackingQuality, DepthConfidence, Baseline, PostureState), and batch instantiation tests for all 60 UI variants.
+Test coverage includes unit tests for each engine in isolation, integration tests wiring multiple engines via Pipeline, golden recording replay tests for deterministic output verification, long-run stability tests, Codable migration tests for backward compatibility and model value tests for core types (TrackingQuality, DepthConfidence, Baseline, PostureState).
 
 ### CI
 

@@ -254,9 +254,8 @@ final class PostureVisualizationBindingTests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Repo convention (PostureVisualizationViewModelTests / PostureVisualStyle
-    /// Tests): compare colours via UIColor component extraction, not `Color`
-    /// identity.
+    /// Repo convention (PostureVisualizationViewModelTests): compare colours via
+    /// UIColor component extraction, not `Color` identity.
     private func rgba(_ color: Color) -> [Int] {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         #if canImport(UIKit)
