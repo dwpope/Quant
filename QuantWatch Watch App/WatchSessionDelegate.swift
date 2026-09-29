@@ -34,6 +34,9 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     /// True from a Classify tap until the phone's answer to it arrives.
     @Published var jevBusy = false
 
+    /// When the pending tap was made, for the countdown to the phone's capture.
+    @Published var jevTapDate: Date?
+
     /// Whether the phone app can take a message right now. Taps need this; nudges do not.
     @Published var isPhoneReachable = false
 
@@ -151,8 +154,11 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         let token = UUID()
         pendingTap = (jevStatus?.attempts ?? -1, jevStatus?.lastRecord?.id, token)
         jevBusy = true
-        // The phone answers well within a second. If nothing comes back, don't stay stuck.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+        jevTapDate = Date()
+        // The phone waits `captureDelay`, then answers well within a second. If nothing comes
+        // back after that, don't stay stuck.
+        let timeout = 10 + (jevStatus?.captureDelay ?? 0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
             guard let self, self.pendingTap?.token == token else { return }
             self.cancelJevTap()
             WKInterfaceDevice.current().play(.failure)
@@ -162,6 +168,7 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     private func cancelJevTap() {
         pendingTap = nil
         jevBusy = false
+        jevTapDate = nil
     }
 
     /// Takes in a status from the phone, and settles a pending tap if this is its answer.

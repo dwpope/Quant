@@ -14,7 +14,8 @@ import PostureLogic
 /// tests assert the same dictionaries from the other side. Change both or neither.
 ///
 /// Watch to phone:
-/// - `["type": "jevClassify"]`
+/// - `["type": "jevClassify"]`: the phone captures `captureDelay` seconds later, so the pose
+///   isn't recorded mid-glance at the wrist.
 /// - `["type": "jevJudge", "recordID": <UUID string>, "verdict": <UserVerdict raw>,
 ///   "trueClass": <JevClass raw, optional>]`
 /// - `["type": "jevStatusRequest"]`
@@ -100,6 +101,8 @@ enum JevRemote {
         /// sends a tap, and the first status with a higher count is the answer to that tap.
         /// Without it, a routine once-a-second status arriving first would look like the answer.
         var attempts: Int
+        /// Seconds between a Watch tap and the capture, so the Watch can count down.
+        var captureDelay: TimeInterval
 
         /// Property-list types only, as `WCSession` requires. Absent values are left out rather
         /// than sent as placeholders.
@@ -114,6 +117,7 @@ enum JevRemote {
                 "total": total,
                 "trueClassOptions": trueClassOptions,
                 "attempts": attempts,
+                "captureDelay": captureDelay,
             ]
             if let thresholdSince { m["thrSince"] = thresholdSince }
             if let notice { m["notice"] = notice }

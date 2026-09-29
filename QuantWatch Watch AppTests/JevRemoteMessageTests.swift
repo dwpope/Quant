@@ -48,7 +48,7 @@ struct JevRemoteMessageTests {
             "recordID": id.uuidString, "jevClass": "chair_swivel", "jevConfidence": 0.81,
             "thrAtCapture": "drifting", "capturedAt": 2000.0,
             "judgedCount": 1, "total": 2, "trueClassOptions": ["good_posture", "slouch"],
-            "attempts": 3,
+            "attempts": 3, "captureDelay": 3.0,
         ]
 
         let status = try #require(JevRemoteStatus(message: message))
@@ -63,6 +63,7 @@ struct JevRemoteMessageTests {
         #expect(status.total == 2)
         #expect(status.trueClassOptions == ["good_posture", "slouch"])
         #expect(status.attempts == 3)
+        #expect(status.captureDelay == 3)
         let record = try #require(status.lastRecord)
         #expect(record.id == id)
         #expect(record.jevClass == "chair_swivel")
@@ -77,6 +78,7 @@ struct JevRemoteMessageTests {
             "type": "jevStatus", "enabled": false, "calibrated": false, "tracking": "lost",
             "thr": "absent", "notice": "classifier is off",
             "judgedCount": 0, "total": 0, "trueClassOptions": [String](), "attempts": 0,
+            "captureDelay": 0.0,
         ]
 
         let status = try #require(JevRemoteStatus(message: message))
@@ -97,6 +99,26 @@ struct JevRemoteMessageTests {
         ]
         let status = try #require(JevRemoteStatus(message: message))
         #expect(status.lastRecord?.judged == .thresholdsWereRight)
+    }
+
+    /// A phone build from before the delay sends no `captureDelay`. That means capture at once.
+    @Test func aMissingCaptureDelay_meansNoDelay() throws {
+        let message: [String: Any] = [
+            "type": "jevStatus", "enabled": true, "calibrated": true, "tracking": "good",
+            "thr": "good", "judgedCount": 0, "total": 0, "trueClassOptions": [String](),
+            "attempts": 0,
+        ]
+        #expect(try #require(JevRemoteStatus(message: message)).captureDelay == 0)
+    }
+
+    @Test func countdownToCapture() {
+        let tap = Date(timeIntervalSince1970: 1000)
+        #expect(JevRemoteStatus.secondsUntilCapture(tappedAt: tap, now: tap, delay: 3) == 3)
+        #expect(JevRemoteStatus.secondsUntilCapture(tappedAt: tap, now: tap + 0.4, delay: 3) == 3)
+        #expect(JevRemoteStatus.secondsUntilCapture(tappedAt: tap, now: tap + 1.2, delay: 3) == 2)
+        #expect(JevRemoteStatus.secondsUntilCapture(tappedAt: tap, now: tap + 2.9, delay: 3) == 1)
+        #expect(JevRemoteStatus.secondsUntilCapture(tappedAt: tap, now: tap + 3, delay: 3) == 0)
+        #expect(JevRemoteStatus.secondsUntilCapture(tappedAt: tap, now: tap + 9, delay: 3) == 0)
     }
 
     @Test func rejectsOtherMessages() {

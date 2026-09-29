@@ -70,6 +70,9 @@ struct JevRemoteStatus: Equatable {
     var total: Int
     var trueClassOptions: [String]
     var attempts: Int
+    /// Seconds the phone waits after a tap before capturing. Zero from a phone build that
+    /// predates the delay.
+    var captureDelay: TimeInterval
 
     init?(message: [String: Any]) {
         guard message["type"] as? String == "jevStatus",
@@ -93,6 +96,7 @@ struct JevRemoteStatus: Equatable {
         self.total = total
         self.trueClassOptions = options
         self.attempts = attempts
+        self.captureDelay = message["captureDelay"] as? Double ?? 0
 
         if let idString = message["recordID"] as? String, let id = UUID(uuidString: idString),
            let thrAtCapture = message["thrAtCapture"] as? String,
@@ -119,6 +123,11 @@ struct JevRemoteStatus: Equatable {
         guard status.attempts > attemptsWhenSent else { return nil }
         guard let record = status.lastRecord, record.id != previousRecordID else { return .refused }
         return record.jevClass == nil ? .failed : .captured
+    }
+
+    /// Whole seconds left before the phone captures, counting down from the tap. Zero once due.
+    static func secondsUntilCapture(tappedAt: Date, now: Date, delay: TimeInterval) -> Int {
+        max(0, Int((delay - now.timeIntervalSince(tappedAt)).rounded(.up)))
     }
 
     /// `goodPosture` and `chair_swivel` as "good posture" and "chair swivel".

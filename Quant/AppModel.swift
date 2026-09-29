@@ -780,10 +780,19 @@ class AppModel: ObservableObject {
 
     static let jevProxyEndpoint = URL(string: "https://jev-proxy.quantaware.workers.dev/classify")!
 
+    /// How Jev calls leave the app. Swappable so tests never reach the network. Read once, when
+    /// the first classification builds the client.
+    var jevTransport: JevTransport = URLSessionJevTransport()
+
     private lazy var jevClient = JevClient(
         endpoint: Self.jevProxyEndpoint,
-        transport: URLSessionJevTransport()
+        transport: jevTransport
     )
+
+    /// Seconds between a Watch tap and the capture. In the first device session every Watch
+    /// capture had the head turned and tipped down: the glance at the wrist was being recorded.
+    /// Three seconds is enough to lower the wrist and look back at the screen.
+    var jevRemoteCaptureDelay: TimeInterval = 3
 
     /// Whether a classification can happen now, and if not, why not.
     ///
@@ -834,11 +843,17 @@ class AppModel: ObservableObject {
             return
         }
         lastJevAttemptAt = now
+        // Taken with the features, before the call: the answer arrives up to half a second later,
+        // and the thresholds' state from then isn't the one that goes with this pose.
+        let atPose = JevCaptureContext(thresholdState: postureState,
+                                       thresholds: pipeline.thresholds,
+                                       taskMode: pipeline.taskMode)
         do {
             let verdict = try await jevClient.classify(features)
-            recordJevComparison(features: features, verdict: verdict, error: nil)
+            recordJevComparison(features: features, verdict: verdict, error: nil, atPose: atPose)
         } catch {
-            recordJevComparison(features: features, verdict: nil, error: String(describing: error))
+            recordJevComparison(features: features, verdict: nil, error: String(describing: error),
+                                atPose: atPose)
         }
     }
 
@@ -852,7 +867,12 @@ class AppModel: ObservableObject {
 
     /// What the Watch shows. Pure.
     func jevRemoteStatus() -> JevRemote.Status {
-        let (thr, since) = JevRemote.stateName(postureState)
+        let thr = JevRemote.stateName(postureState).0
+        // The state's own start is a frame timestamp, seconds since boot. The Watch counts up
+        // from a calendar date, so convert. Whole seconds, so a once-a-second status doesn't
+        // differ every time only by frame jitter.
+        let since = DriftClock.wallClockStart(postureState, frameNow: latestMetrics?.timestamp)
+            .map { $0.timeIntervalSince1970.rounded() }
         let store = jevComparisonStore
         let record = store.comparisons.last.map { r in
             JevRemote.Status.Record(
@@ -874,7 +894,8 @@ class AppModel: ObservableObject {
             judgedCount: store.adjudicatedCount,
             total: store.comparisons.count,
             trueClassOptions: JevClass.allCases.map(\.rawValue),
-            attempts: jevAttempts)
+            attempts: jevAttempts,
+            captureDelay: jevRemoteCaptureDelay)
     }
 
     /// Acts on a request from the Watch, then reports back.
@@ -884,6 +905,16 @@ class AppModel: ObservableObject {
     func handleJevRemote(_ command: JevRemote.Command) async {
         switch command {
         case .classify:
+            // Wait for the wrist to go down and the eyes to come back to the screen, unless the
+            // answer is a refusal that waiting can't change.
+            switch jevGate() {
+            case .disabled, .notCalibrated:
+                break
+            default:
+                if jevRemoteCaptureDelay > 0 {
+                    try? await Task.sleep(for: .seconds(jevRemoteCaptureDelay))
+                }
+            }
             await classifyWithJevIfDue()
         case .judge(let id, let verdict, let trueClass):
             jevComparisonStore.setUserVerdict(id: id, verdict: verdict, trueClass: trueClass)
@@ -906,7 +937,13 @@ class AppModel: ObservableObject {
     ///
     /// A failure is recorded too: that Jev was unavailable at a moment the thresholds had an
     /// opinion is itself a data point about whether this is worth shipping.
-    func recordJevComparison(features: JevFeatures, verdict: JevVerdict?, error: String?) {
+    /// `atPose` is what the thresholds were doing when the features were taken. Nil means "now",
+    /// for callers that record at the moment of the pose.
+    func recordJevComparison(features: JevFeatures, verdict: JevVerdict?, error: String?,
+                             atPose: JevCaptureContext? = nil) {
+        let context = atPose ?? JevCaptureContext(thresholdState: postureState,
+                                                  thresholds: pipeline.thresholds,
+                                                  taskMode: pipeline.taskMode)
         latestJevVerdict = verdict
         latestJevError = error
         latestJevVerdictAt = Date()
@@ -917,7 +954,9 @@ class AppModel: ObservableObject {
             baseline: baseline ?? Baseline(
                 timestamp: Date(), shoulderMidpoint: .zero, headPosition: .zero,
                 torsoAngle: 0, shoulderWidth: 0, depthAvailable: false),
-            thresholdState: postureState,
+            thresholdState: context.thresholdState,
+            thresholds: context.thresholds,
+            taskMode: context.taskMode,
             jev: verdict,
             jevError: error
         ))

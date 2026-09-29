@@ -139,7 +139,7 @@ final class JevRemoteTests: XCTestCase {
             lastRecord: .init(id: id, jevClass: "chair_swivel", jevConfidence: 0.81,
                               thresholdStateAtCapture: "drifting", capturedAt: 2000, judged: nil),
             judgedCount: 1, total: 2, trueClassOptions: ["good_posture", "slouch"],
-            attempts: 3)
+            attempts: 3, captureDelay: 3)
 
         let expected: [String: Any] = [
             "type": "jevStatus", "enabled": true, "calibrated": true, "tracking": "good",
@@ -147,7 +147,7 @@ final class JevRemoteTests: XCTestCase {
             "recordID": id.uuidString, "jevClass": "chair_swivel", "jevConfidence": 0.81,
             "thrAtCapture": "drifting", "capturedAt": 2000.0,
             "judgedCount": 1, "total": 2, "trueClassOptions": ["good_posture", "slouch"],
-            "attempts": 3,
+            "attempts": 3, "captureDelay": 3.0,
         ]
         XCTAssertEqual(status.message as NSDictionary, expected as NSDictionary)
     }
@@ -158,12 +158,14 @@ final class JevRemoteTests: XCTestCase {
         let status = JevRemote.Status(
             enabled: false, calibrated: false, tracking: "lost",
             thresholdState: "absent", thresholdSince: nil, notice: "classifier is off",
-            lastRecord: nil, judgedCount: 0, total: 0, trueClassOptions: [], attempts: 0)
+            lastRecord: nil, judgedCount: 0, total: 0, trueClassOptions: [], attempts: 0,
+            captureDelay: 0)
 
         let expected: [String: Any] = [
             "type": "jevStatus", "enabled": false, "calibrated": false, "tracking": "lost",
             "thr": "absent", "notice": "classifier is off",
             "judgedCount": 0, "total": 0, "trueClassOptions": [String](), "attempts": 0,
+            "captureDelay": 0.0,
         ]
         XCTAssertEqual(status.message as NSDictionary, expected as NSDictionary)
     }
@@ -272,6 +274,64 @@ final class JevRemoteTests: XCTestCase {
         await model.handleJevRemote(.judge(recordID: UUID(), verdict: .jevWasRight, trueClass: nil))
 
         XCTAssertNil(model.jevComparisonStore.comparisons[0].userVerdict)
+    }
+
+    // MARK: - Capture delay (first device session, 2026-09-29)
+
+    /// Captures 3 to 6 all had the head turned and tipped down: glancing at the Watch while
+    /// tapping. So a Watch tap captures a few seconds later, once you're looking at the screen.
+    func test_aWatchClassify_capturesAfterTheDelay() async throws {
+        let model = AppModel()
+        model.useJevClassifier = true
+        model.baseline = Baseline(
+            timestamp: Date(), shoulderMidpoint: SIMD3<Float>(0.5, 0.6, 0),
+            headPosition: SIMD3<Float>(0.5, 0.8, 0), torsoAngle: 3, shoulderTwist: 1,
+            shoulderWidth: 0.2, depthAvailable: false, neckHeight: 0.35)
+        // No pose, so the capture is refused with no network call. What's measured is when.
+        model.jevRemoteCaptureDelay = 0.6
+        let started = Date()
+
+        let task = Task { await model.handleJevRemote(.classify) }
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(model.jevRemoteStatus().attempts, 0, "still waiting")
+
+        await task.value
+        XCTAssertEqual(model.jevRemoteStatus().attempts, 1)
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(started), 0.6)
+    }
+
+    /// Waiting can't switch the classifier on, so that refusal comes back at once.
+    func test_aWatchClassify_whenOff_isRefusedWithoutWaiting() async {
+        let model = AppModel()
+        model.jevRemoteCaptureDelay = 5
+        let started = Date()
+
+        await model.handleJevRemote(.classify)
+
+        XCTAssertLessThan(Date().timeIntervalSince(started), 1)
+        XCTAssertEqual(model.jevRemoteStatus().notice, JevGate.disabled.message)
+    }
+
+    func test_status_carriesTheCaptureDelay_soTheWatchCanCountDown() {
+        let model = AppModel()
+        model.jevRemoteCaptureDelay = 3
+        XCTAssertEqual(model.jevRemoteStatus().captureDelay, 3)
+    }
+
+    // MARK: - Drift start on the Watch's clock
+
+    /// The state's start is a frame timestamp (seconds since boot). The Watch shows a running
+    /// timer from a calendar date, so the phone converts it before sending.
+    func test_status_sendsTheDriftStart_asACalendarTime() throws {
+        let model = AppModel()
+        model.postureState = .drifting(since: 670_636)
+        model.latestMetrics = RawMetrics(
+            timestamp: 670_648, forwardCreep: 0, headDrop: 0, shoulderRounding: 0,
+            lateralLean: 0, twist: 0, movementLevel: 0, headMovementPattern: .still)
+
+        let since = try XCTUnwrap(model.jevRemoteStatus().thresholdSince)
+
+        XCTAssertEqual(since, Date().timeIntervalSince1970 - 12, accuracy: 1.5)
     }
 
     func test_status_showsTheJudgementOnTheLastRecord() async throws {

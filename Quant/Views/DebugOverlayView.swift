@@ -553,12 +553,10 @@ struct DebugOverlayView: View {
             return "Calibrating"
         case .good:
             return "Good"
-        case .drifting(let since):
-            let duration = Date().timeIntervalSince1970 - since
-            return String(format: "Drifting (%.0fs)", duration)
-        case .bad(let since):
-            let duration = Date().timeIntervalSince1970 - since
-            return String(format: "Bad (%.0fs)", duration)
+        case .drifting:
+            return withDuration("Drifting")
+        case .bad:
+            return withDuration("Bad")
         }
     }
 
@@ -706,14 +704,31 @@ struct DebugOverlayView: View {
         .font(.system(size: 10))
     }
 
+    /// Seconds in the current drifting or bad state, on the frame clock the state was stamped
+    /// with. These used to subtract a since-boot timestamp from the calendar clock and read
+    /// about 56 years. See `DriftClock`.
+    private var driftSeconds: TimeInterval? {
+        DriftClock.elapsed(appModel.postureState, frameNow: appModel.latestMetrics?.timestamp)
+    }
+
+    private func withDuration(_ label: String) -> String {
+        guard let s = driftSeconds else { return label }
+        return String(format: "%@ (%.0fs)", label, s)
+    }
+
+    private func shortDuration(_ label: String) -> String {
+        guard let s = driftSeconds else { return label }
+        return String(format: "%@ %.0fs", label, s)
+    }
+
     /// The threshold side, compressed to one token. Not a class — a temporal state.
     private var thresholdSummary: String {
         switch appModel.postureState {
         case .absent:              return "absent"
         case .calibrating:         return "calib"
         case .good:                return "good"
-        case .drifting(let since): return String(format: "drift %.0fs", Date().timeIntervalSince1970 - since)
-        case .bad(let since):      return String(format: "bad %.0fs", Date().timeIntervalSince1970 - since)
+        case .drifting:            return shortDuration("drift")
+        case .bad:                 return shortDuration("bad")
         }
     }
 

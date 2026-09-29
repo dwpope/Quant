@@ -77,11 +77,18 @@ struct JevRemoteView: View {
         Button {
             session.sendJevClassify()
         } label: {
-            Text(session.jevBusy ? "Classifying…" : "Classify")
+            buttonLabel(status)
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
         .disabled(session.jevBusy || !status.enabled || !status.calibrated || !session.isPhoneReachable)
+
+        if session.jevBusy, status.captureDelay > 0 {
+            // The capture happens after the wrist goes down, so the glance isn't recorded.
+            Text("Lower your wrist, look at the screen and hold the pose for \(Int(status.captureDelay.rounded())) seconds.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
 
         if let notice = status.notice {
             Text(notice)
@@ -125,6 +132,20 @@ struct JevRemoteView: View {
     }
 
     // MARK: - Helpers
+
+    /// "Classify", then a countdown to the phone's capture, then "Classifying…" until it answers.
+    @ViewBuilder
+    private func buttonLabel(_ status: JevRemoteStatus) -> some View {
+        if session.jevBusy, let tapped = session.jevTapDate {
+            TimelineView(.periodic(from: tapped, by: 0.5)) { context in
+                let left = JevRemoteStatus.secondsUntilCapture(
+                    tappedAt: tapped, now: context.date, delay: status.captureDelay)
+                Text(left > 0 ? "Capturing in \(left)" : "Classifying…")
+            }
+        } else {
+            Text(session.jevBusy ? "Classifying…" : "Classify")
+        }
+    }
 
     private func trackingColor(_ tracking: String) -> Color {
         switch tracking {

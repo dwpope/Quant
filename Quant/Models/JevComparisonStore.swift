@@ -25,6 +25,13 @@ enum JevClass: String, Codable, CaseIterable {
     case ambiguous
 }
 
+/// What the thresholds were doing at the instant of a pose, taken together with Jev's features.
+struct JevCaptureContext {
+    var thresholdState: PostureState
+    var thresholds: PostureThresholds
+    var taskMode: TaskMode
+}
+
 /// One moment where Jev and the threshold engine both had an opinion, plus what Dave said.
 ///
 /// This is step 3c's dataset, and it is deliberately self-contained: it must answer "was Jev
@@ -60,8 +67,16 @@ struct JevComparisonRecord: Codable, Identifiable {
     let features: JevFeatures
     /// What those deltas were relative to. Unrecoverable later; see the type doc.
     let baseline: Baseline
-    /// The threshold engine's state at the same moment.
+    /// The threshold engine's state at the moment of the pose Jev saw. Before 2026-09-29 it was
+    /// read after Jev answered, up to half a second later.
     let thresholdState: PostureState
+    /// The limits the thresholds were judging against at that moment. Nil in records saved
+    /// before 2026-09-29. Without them a "good" can't be explained: the forward-creep limit, for
+    /// one, is a setting.
+    let thresholds: PostureThresholds?
+    /// The inferred task mode at that moment. Stretching switches judgement off entirely, and
+    /// reading and meetings loosen some limits. Nil in records saved before 2026-09-29.
+    let taskMode: TaskMode?
     /// The verdict, or `nil` when the call failed — which is itself evidence that Jev was
     /// unavailable at a moment the thresholds had an opinion.
     let jev: JevVerdict?
@@ -80,6 +95,8 @@ struct JevComparisonRecord: Codable, Identifiable {
         features: JevFeatures,
         baseline: Baseline,
         thresholdState: PostureState,
+        thresholds: PostureThresholds? = nil,
+        taskMode: TaskMode? = nil,
         jev: JevVerdict?,
         jevError: String?,
         userVerdict: UserVerdict? = nil,
@@ -90,13 +107,16 @@ struct JevComparisonRecord: Codable, Identifiable {
         self.features = features
         self.baseline = baseline
         self.thresholdState = thresholdState
+        self.thresholds = thresholds
+        self.taskMode = taskMode
         self.jev = jev
         self.jevError = jevError
         self.userVerdict = userVerdict
         self.trueClass = trueClass
     }
 
-    /// Decodes every field strictly except `trueClass`, which is tolerant.
+    /// Decodes every field strictly except `trueClass`, `thresholds` and `taskMode`, which are
+    /// tolerant.
     ///
     /// Records saved before 2026-09-29 hold a recording tag there. None of those maps honestly
     /// onto a Jev class: "goodPosture" and "slouching" were often just the nearest pick for a lean
@@ -110,6 +130,10 @@ struct JevComparisonRecord: Codable, Identifiable {
         features = try c.decode(JevFeatures.self, forKey: .features)
         baseline = try c.decode(Baseline.self, forKey: .baseline)
         thresholdState = try c.decode(PostureState.self, forKey: .thresholdState)
+        // Context, not ground truth: tolerant, so a limits struct a later build extends can't
+        // cost the whole record.
+        thresholds = (try? c.decodeIfPresent(PostureThresholds.self, forKey: .thresholds)).flatMap { $0 }
+        taskMode = (try? c.decodeIfPresent(TaskMode.self, forKey: .taskMode)).flatMap { $0 }
         jev = try c.decodeIfPresent(JevVerdict.self, forKey: .jev)
         jevError = try c.decodeIfPresent(String.self, forKey: .jevError)
         userVerdict = try c.decodeIfPresent(UserVerdict.self, forKey: .userVerdict)

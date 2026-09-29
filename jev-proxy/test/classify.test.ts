@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   POSTURE_CRITERIA,
   QUESTION_ID,
+  SWIVEL_MIN_NARROWING,
   buildJevRequest,
   mapJevAnswer,
   parseFeatures,
@@ -128,5 +129,31 @@ describe("mapJevAnswer", () => {
   it("errors when the answer is not a choice", () => {
     const noul = { model: "m", answers: { posture: { type: "noul", noul: 0.9 } } };
     expect(mapJevAnswer(noul).ok).toBe(false);
+  });
+});
+
+// The first device session (2026-09-29) had Jev call a slouch and a lean "chair_swivel" at
+// 96-98%. The slouch had shoulders at baseline width and only the head turned 36 degrees. The
+// lean narrowed the shoulders by 7%, which the old wording ("prefer it over 'lean' whenever
+// forward_creep is negative") sent straight to swivel. The real swivel narrowed them by 40%.
+describe("chair_swivel vs lean and a turned head", () => {
+  it("puts the swivel cut between the lean and the swivel that were measured", () => {
+    expect(SWIVEL_MIN_NARROWING).toBeLessThan(-0.068);
+    expect(SWIVEL_MIN_NARROWING).toBeGreaterThan(-0.399);
+  });
+
+  it("requires clearly narrowed shoulders for a swivel, at the same cut the lean uses", () => {
+    const cut = String(SWIVEL_MIN_NARROWING);
+    expect(POSTURE_CRITERIA.chair_swivel).toContain(cut);
+    expect(POSTURE_CRITERIA.lean).toContain(cut);
+  });
+
+  it("says a turned head alone is not a swivel", () => {
+    expect(POSTURE_CRITERIA.chair_swivel).toMatch(/head_yaw_degrees/);
+    expect(POSTURE_CRITERIA.chair_swivel).toMatch(/alone/i);
+  });
+
+  it("no longer sends every negative forward_creep to swivel", () => {
+    expect(POSTURE_CRITERIA.chair_swivel).not.toMatch(/whenever forward_creep is negative/);
   });
 });

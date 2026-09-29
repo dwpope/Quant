@@ -115,6 +115,19 @@ final class JevComparisonLegacyDecodeTests: XCTestCase {
         }
     }
 
+    /// Records saved before 2026-09-29 have no limits or task mode. They load without them.
+    func test_aRecordWithoutLimitsOrTaskMode_stillLoads() throws {
+        let object = try legacyRecordObject(trueClass: "reading")
+        XCTAssertNil(object["thresholds"])
+        XCTAssertNil(object["taskMode"])
+
+        let record = try JSONDecoder().decode(
+            JevComparisonRecord.self, from: JSONSerialization.data(withJSONObject: object))
+
+        XCTAssertNil(record.thresholds)
+        XCTAssertNil(record.taskMode)
+    }
+
     func test_jevClassTrueClass_roundTrips_asTheProxysName() throws {
         let data = try JSONEncoder().encode(makeRecord(trueClass: .chairSwivel))
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])

@@ -24,15 +24,26 @@ export type TrackingQuality = (typeof TRACKING_QUALITY)[number];
  * describing itself. And Jev has no built-in abstain class — `probabilities` always sums to 1
  * over the options supplied — so `ambiguous` has to be an explicit option.
  */
+/**
+ * How much narrower the shoulders must look before a pose can be a chair swivel.
+ *
+ * `forward_creep` is the change in apparent shoulder width. Rotating in the chair narrows it by
+ * 1 − cos(angle): about 13% for a 30° turn. A sideways lean narrows it a little too. In the first
+ * device session (2026-09-29) a lean measured −0.068 and a real swivel −0.399, and the old rule,
+ * "any negative forward_creep", called the lean a swivel at 98%. This cut sits between them and
+ * still admits a 30° swivel. One example of each so far: revise it as sessions accumulate.
+ */
+export const SWIVEL_MIN_NARROWING = -0.12;
+
 export const POSTURE_CRITERIA: Record<string, string> = {
   good_posture:
-    "Sitting upright, close to the calibration baseline. forward_creep, head_drop and torso_lean_delta are all near zero and lateral lean is small.",
+    "Sitting upright, close to the calibration baseline. forward_creep, head_drop and torso_lean_delta are all near zero and lateral lean is small. The head may be turned: head angles alone do not make a posture bad.",
   slouch:
     "Collapsed toward the screen or downward. forward_creep is clearly POSITIVE (the shoulders appear wider because the torso moved closer to the camera) and/or head_drop is positive, usually with a positive torso_lean_delta. Lateral lean is not the story.",
   lean:
-    "The torso has translated sideways while staying square to the camera. lateral_lean_in_shoulder_widths is clearly non-zero and holds its sign, while forward_creep stays near zero — a sideways shift barely changes apparent shoulder width.",
+    `The torso has translated sideways while staying roughly square to the camera. lateral_lean_in_shoulder_widths is clearly non-zero and holds its sign, while forward_creep stays near zero or only slightly negative, no lower than ${SWIVEL_MIN_NARROWING}: a sideways shift can narrow the shoulders a little, but not much.`,
   chair_swivel:
-    "The whole body has ROTATED in the chair rather than the posture degrading. The tell is a NEGATIVE forward_creep together with a non-zero lateral lean: rotating about the vertical axis foreshortens the shoulders, so they appear NARROWER than baseline, while the midpoint shifts sideways. head_drop stays near zero. This is a comfortable neutral posture seen off-axis, not bad posture — prefer it over 'lean' whenever forward_creep is negative rather than near zero.",
+    `The whole body has ROTATED in the chair rather than the posture degrading. It needs CLEARLY narrowed shoulders: forward_creep below ${SWIVEL_MIN_NARROWING}, because rotating about the vertical axis foreshortens them (a 30-degree turn narrows them about 13%), usually with the midpoint shifted sideways. Between 0 and ${SWIVEL_MIN_NARROWING} with a sideways shift, it is a lean, not a swivel. head_yaw_degrees alone is never a swivel: a head turned while the shoulders stay at baseline width is someone looking away, so judge that pose by the other signals. The head usually turns with a real swivel, so yaw can support it but cannot decide it. head_drop stays near zero. A swivel is a comfortable neutral posture seen off-axis, not bad posture.`,
   ambiguous:
     "The signals disagree with each other, or tracking_quality is 'degraded' or 'lost' so the values cannot be trusted. Prefer this over guessing; the caller gates on confidence and falls back to its own thresholds.",
 };
