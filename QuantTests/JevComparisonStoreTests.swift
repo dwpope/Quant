@@ -99,10 +99,10 @@ final class JevComparisonStoreTests: XCTestCase {
         let record = makeRecord()
         store.add(record)
 
-        store.setUserVerdict(id: record.id, verdict: .bothWrong, trueClass: .stretching)
+        store.setUserVerdict(id: record.id, verdict: .bothWrong, trueClass: .chairSwivel)
 
         XCTAssertEqual(store.comparisons.first?.userVerdict, .bothWrong)
-        XCTAssertEqual(store.comparisons.first?.trueClass, .stretching)
+        XCTAssertEqual(store.comparisons.first?.trueClass, .chairSwivel)
     }
 
     func test_setUserVerdict_isANoOpForAnUnknownId() {

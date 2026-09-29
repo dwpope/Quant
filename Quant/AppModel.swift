@@ -873,7 +873,7 @@ class AppModel: ObservableObject {
             lastRecord: record,
             judgedCount: store.adjudicatedCount,
             total: store.comparisons.count,
-            trueClassOptions: TagLabel.allCases.map(\.rawValue),
+            trueClassOptions: JevClass.allCases.map(\.rawValue),
             attempts: jevAttempts)
     }
 

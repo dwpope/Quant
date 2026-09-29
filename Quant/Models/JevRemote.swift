@@ -16,7 +16,7 @@ import PostureLogic
 /// Watch to phone:
 /// - `["type": "jevClassify"]`
 /// - `["type": "jevJudge", "recordID": <UUID string>, "verdict": <UserVerdict raw>,
-///   "trueClass": <TagLabel raw, optional>]`
+///   "trueClass": <JevClass raw, optional>]`
 /// - `["type": "jevStatusRequest"]`
 ///
 /// Phone to Watch: `["type": "jevStatus", …]`, see ``Status/message``.
@@ -35,14 +35,16 @@ enum JevRemote {
     /// Something the Watch asked for.
     enum Command: Equatable {
         case classify
-        case judge(recordID: UUID, verdict: JevComparisonRecord.UserVerdict, trueClass: TagLabel?)
+        case judge(recordID: UUID, verdict: JevComparisonRecord.UserVerdict, trueClass: JevClass?)
         case statusRequest
 
         /// Nil for anything that is not a well-formed remote command, including the Watch's
         /// older message types, which keep their own handlers.
         ///
-        /// A judgement that cannot be applied exactly is rejected rather than guessed at,
-        /// because it is the only ground truth the dataset has.
+        /// A judgement without a readable record or verdict is rejected rather than guessed at,
+        /// because it is the only ground truth the dataset has. An unknown true class is not a
+        /// reason to lose the judgement: it is kept with `trueClass` nil, the same rule the
+        /// store applies to old records, so the "both wrong" still flags the capture.
         init?(message: [String: Any]) {
             switch message["type"] as? String {
             case MessageType.classify:
@@ -55,11 +57,7 @@ enum JevRemote {
                       let verdictRaw = message["verdict"] as? String,
                       let verdict = JevComparisonRecord.UserVerdict(rawValue: verdictRaw)
                 else { return nil }
-                var trueClass: TagLabel?
-                if let raw = message["trueClass"] as? String {
-                    guard let label = TagLabel(rawValue: raw) else { return nil }
-                    trueClass = label
-                }
+                let trueClass = (message["trueClass"] as? String).flatMap(JevClass.init(rawValue:))
                 self = .judge(recordID: id, verdict: verdict, trueClass: trueClass)
             default:
                 return nil

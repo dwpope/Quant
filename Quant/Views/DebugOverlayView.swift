@@ -361,8 +361,10 @@ struct DebugOverlayView: View {
                                     id: id, verdict: .thresholdsWereRight, trueClass: nil)
                                 jevExportURL = nil // adjudication changed; re-export
                             }
+                            // What it actually was, in Jev's own classes so 3c can compare
+                            // like with like. It offered the recording tags until 2026-09-29.
                             Menu("both wrong") {
-                                ForEach(TagLabel.allCases, id: \.self) { label in
+                                ForEach(JevClass.allCases, id: \.self) { label in
                                     Button(label.rawValue) {
                                         appModel.jevComparisonStore.setUserVerdict(
                                             id: id, verdict: .bothWrong, trueClass: label)

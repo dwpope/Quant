@@ -12,6 +12,19 @@ import SwiftUI
 // That container is sandbox-private and has no file-sharing key, but it is included in device
 // backups, and nothing prunes old files.
 
+/// Jev's five posture classes: what "both wrong" records as the true class.
+///
+/// The raw values are the keys of `POSTURE_CRITERIA` in `jev-proxy/src/classify.ts`, the rubric
+/// Jev answers from. `JevComparisonLegacyDecodeTests.test_jevClasses_matchTheProxysRubric` reads
+/// that file, so a rename on either side fails a test instead of splitting the dataset.
+enum JevClass: String, Codable, CaseIterable {
+    case goodPosture = "good_posture"
+    case slouch
+    case lean
+    case chairSwivel = "chair_swivel"
+    case ambiguous
+}
+
 /// One moment where Jev and the threshold engine both had an opinion, plus what Dave said.
 ///
 /// This is step 3c's dataset, and it is deliberately self-contained: it must answer "was Jev
@@ -55,7 +68,11 @@ struct JevComparisonRecord: Codable, Identifiable {
     let jevError: String?
     var userVerdict: UserVerdict?
     /// What the posture actually was, when both sides got it wrong.
-    var trueClass: TagLabel?
+    ///
+    /// One of Jev's classes since 2026-09-29. Before that it was a recording tag (reading,
+    /// typing…), which 3c can't compare with Jev's answer. Those old strings decode as `nil`;
+    /// see ``init(from:)``.
+    var trueClass: JevClass?
 
     init(
         id: UUID,
@@ -66,7 +83,7 @@ struct JevComparisonRecord: Codable, Identifiable {
         jev: JevVerdict?,
         jevError: String?,
         userVerdict: UserVerdict? = nil,
-        trueClass: TagLabel? = nil
+        trueClass: JevClass? = nil
     ) {
         self.id = id
         self.capturedAt = capturedAt
@@ -77,6 +94,28 @@ struct JevComparisonRecord: Codable, Identifiable {
         self.jevError = jevError
         self.userVerdict = userVerdict
         self.trueClass = trueClass
+    }
+
+    /// Decodes every field strictly except `trueClass`, which is tolerant.
+    ///
+    /// Records saved before 2026-09-29 hold a recording tag there. None of those maps honestly
+    /// onto a Jev class: "goodPosture" and "slouching" were often just the nearest pick for a lean
+    /// or a swivel, so translating them would launder a guess into a label. They become `nil`,
+    /// and the "both wrong" verdict stays, flagging the record for re-labelling. A strict decode
+    /// here would throw and lose the whole record.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        capturedAt = try c.decode(Date.self, forKey: .capturedAt)
+        features = try c.decode(JevFeatures.self, forKey: .features)
+        baseline = try c.decode(Baseline.self, forKey: .baseline)
+        thresholdState = try c.decode(PostureState.self, forKey: .thresholdState)
+        jev = try c.decodeIfPresent(JevVerdict.self, forKey: .jev)
+        jevError = try c.decodeIfPresent(String.self, forKey: .jevError)
+        userVerdict = try c.decodeIfPresent(UserVerdict.self, forKey: .userVerdict)
+        trueClass = (try? c.decodeIfPresent(String.self, forKey: .trueClass))
+            .flatMap { $0 }
+            .flatMap(JevClass.init(rawValue:))
     }
 }
 
@@ -103,6 +142,10 @@ final class JevComparisonStore: ObservableObject {
     private let calendar = Calendar.current
     private var todayKey: String { dateKey(for: Date()) }
 
+    /// Today's records this build couldn't decode, each as its own JSON, written back with every
+    /// save. Without this, loading drops them and the next save deletes them from disk.
+    private var unreadable: [Data] = []
+
     init() {
         load()
     }
@@ -114,7 +157,7 @@ final class JevComparisonStore: ObservableObject {
     }
 
     /// Records who was right. No-op for an unknown id, so a stale tap cannot corrupt the set.
-    func setUserVerdict(id: UUID, verdict: JevComparisonRecord.UserVerdict, trueClass: TagLabel?) {
+    func setUserVerdict(id: UUID, verdict: JevComparisonRecord.UserVerdict, trueClass: JevClass?) {
         guard let idx = comparisons.firstIndex(where: { $0.id == id }) else { return }
         comparisons[idx].userVerdict = verdict
         comparisons[idx].trueClass = trueClass
@@ -158,11 +201,42 @@ final class JevComparisonStore: ObservableObject {
 
     // MARK: - Persistence
 
+    /// Loads today's file one record at a time, so one bad record can never empty the day.
+    ///
+    /// This used to decode the whole file with one `try?`. Any record that failed to decode made
+    /// the day load empty, and the next capture's save then replaced the file with just itself.
+    /// Now a record that fails is kept aside and written back untouched. A file that isn't a
+    /// JSON array at all is moved aside before anything can overwrite it.
     private func load() {
-        guard let data = try? Data(contentsOf: fileURL(for: todayKey)),
-              let decoded = try? JSONDecoder().decode([JevComparisonRecord].self, from: data)
-        else { return }
+        let url = fileURL(for: todayKey)
+        guard let data = try? Data(contentsOf: url) else { return }  // no file yet today
+
+        guard let elements = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
+            setAside(url)
+            return
+        }
+
+        let decoder = JSONDecoder()
+        var decoded: [JevComparisonRecord] = []
+        for element in elements {
+            guard let elementData = try? JSONSerialization.data(
+                withJSONObject: element, options: .fragmentsAllowed)
+            else { continue }  // unreachable: it was just parsed from JSON
+            if let record = try? decoder.decode(JevComparisonRecord.self, from: elementData) {
+                decoded.append(record)
+            } else {
+                unreadable.append(elementData)
+            }
+        }
         comparisons = decoded.sorted { $0.capturedAt < $1.capturedAt }
+    }
+
+    /// Renames an unparseable day file so the next save starts a new one beside it.
+    private func setAside(_ url: URL) {
+        let stamp = Int(Date().timeIntervalSince1970)
+        let aside = url.deletingLastPathComponent()
+            .appendingPathComponent("jev-comparisons-\(todayKey).unreadable-\(stamp).json")
+        try? FileManager.default.moveItem(at: url, to: aside)
     }
 
     /// Serial utility queue for disk writes. Static so every instance writing the same per-day
@@ -172,9 +246,19 @@ final class JevComparisonStore: ObservableObject {
 
     private func persist() {
         let snapshot = comparisons
+        let kept = unreadable
         let url = fileURL(for: todayKey)
         Self.persistQueue.async {
-            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            guard var data = try? JSONEncoder().encode(snapshot) else { return }
+            if !kept.isEmpty {
+                // Append the records this build couldn't read, so saving never deletes them.
+                guard var array = try? JSONSerialization.jsonObject(with: data) as? [Any] else { return }
+                array.append(contentsOf: kept.compactMap {
+                    try? JSONSerialization.jsonObject(with: $0, options: .fragmentsAllowed)
+                })
+                guard let merged = try? JSONSerialization.data(withJSONObject: array) else { return }
+                data = merged
+            }
             try? data.write(to: url, options: .atomic)
         }
     }

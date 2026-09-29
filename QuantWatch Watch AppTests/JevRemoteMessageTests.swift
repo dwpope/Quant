@@ -32,9 +32,9 @@ struct JevRemoteMessageTests {
         let id = UUID()
         let expected: [String: Any] = [
             "type": "jevJudge", "recordID": id.uuidString, "verdict": "bothWrong",
-            "trueClass": "slouching",
+            "trueClass": "chair_swivel",
         ]
-        #expect(JevRemoteMessage.judge(recordID: id, verdict: .bothWrong, trueClass: "slouching")
+        #expect(JevRemoteMessage.judge(recordID: id, verdict: .bothWrong, trueClass: "chair_swivel")
                 as NSDictionary == expected as NSDictionary)
     }
 
@@ -47,7 +47,7 @@ struct JevRemoteMessageTests {
             "thr": "drifting", "thrSince": 1000.0,
             "recordID": id.uuidString, "jevClass": "chair_swivel", "jevConfidence": 0.81,
             "thrAtCapture": "drifting", "capturedAt": 2000.0,
-            "judgedCount": 1, "total": 2, "trueClassOptions": ["goodPosture", "slouching"],
+            "judgedCount": 1, "total": 2, "trueClassOptions": ["good_posture", "slouch"],
             "attempts": 3,
         ]
 
@@ -61,7 +61,7 @@ struct JevRemoteMessageTests {
         #expect(status.notice == nil)
         #expect(status.judgedCount == 1)
         #expect(status.total == 2)
-        #expect(status.trueClassOptions == ["goodPosture", "slouching"])
+        #expect(status.trueClassOptions == ["good_posture", "slouch"])
         #expect(status.attempts == 3)
         let record = try #require(status.lastRecord)
         #expect(record.id == id)

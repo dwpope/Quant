@@ -87,23 +87,37 @@ final class JevRemoteTests: XCTestCase {
         let id = UUID()
         let message: [String: Any] = [
             "type": "jevJudge", "recordID": id.uuidString, "verdict": "bothWrong",
-            "trueClass": "slouching",
+            "trueClass": "chair_swivel",
         ]
         XCTAssertEqual(JevRemote.Command(message: message),
-                       .judge(recordID: id, verdict: .bothWrong, trueClass: .slouching))
+                       .judge(recordID: id, verdict: .bothWrong, trueClass: .chairSwivel))
     }
 
-    /// A judgement that cannot be applied exactly is dropped, never guessed at: it is ground truth.
+    /// A judgement with no readable record or verdict is dropped, never guessed at: it is
+    /// ground truth.
     func test_rejects_malformedJudgements() {
         let id = UUID().uuidString
         let bad: [[String: Any]] = [
             ["type": "jevJudge", "verdict": "jevWasRight"],
             ["type": "jevJudge", "recordID": "not-a-uuid", "verdict": "jevWasRight"],
             ["type": "jevJudge", "recordID": id, "verdict": "maybe"],
-            ["type": "jevJudge", "recordID": id, "verdict": "bothWrong", "trueClass": "flying"],
         ]
         for message in bad {
             XCTAssertNil(JevRemote.Command(message: message), "\(message) should be rejected")
+        }
+    }
+
+    /// An unknown true class, such as an old recording tag from a stale Watch screen, keeps the
+    /// "both wrong" and drops only the class. Same rule the store applies to saved records.
+    func test_unknownTrueClass_keepsTheJudgement_withoutAClass() {
+        let id = UUID()
+        for legacy in ["slouching", "reading", "flying"] {
+            let message: [String: Any] = [
+                "type": "jevJudge", "recordID": id.uuidString, "verdict": "bothWrong",
+                "trueClass": legacy,
+            ]
+            XCTAssertEqual(JevRemote.Command(message: message),
+                           .judge(recordID: id, verdict: .bothWrong, trueClass: nil))
         }
     }
 
@@ -124,7 +138,7 @@ final class JevRemoteTests: XCTestCase {
             thresholdState: "drifting", thresholdSince: 1000, notice: nil,
             lastRecord: .init(id: id, jevClass: "chair_swivel", jevConfidence: 0.81,
                               thresholdStateAtCapture: "drifting", capturedAt: 2000, judged: nil),
-            judgedCount: 1, total: 2, trueClassOptions: ["goodPosture", "slouching"],
+            judgedCount: 1, total: 2, trueClassOptions: ["good_posture", "slouch"],
             attempts: 3)
 
         let expected: [String: Any] = [
@@ -132,7 +146,7 @@ final class JevRemoteTests: XCTestCase {
             "thr": "drifting", "thrSince": 1000.0,
             "recordID": id.uuidString, "jevClass": "chair_swivel", "jevConfidence": 0.81,
             "thrAtCapture": "drifting", "capturedAt": 2000.0,
-            "judgedCount": 1, "total": 2, "trueClassOptions": ["goodPosture", "slouching"],
+            "judgedCount": 1, "total": 2, "trueClassOptions": ["good_posture", "slouch"],
             "attempts": 3,
         ]
         XCTAssertEqual(status.message as NSDictionary, expected as NSDictionary)
@@ -181,7 +195,9 @@ final class JevRemoteTests: XCTestCase {
         XCTAssertEqual(status.lastRecord?.id, model.jevComparisonStore.comparisons.last?.id)
         XCTAssertEqual(status.total, 1)
         XCTAssertEqual(status.judgedCount, 0)
-        XCTAssertEqual(status.trueClassOptions, TagLabel.allCases.map(\.rawValue))
+        XCTAssertEqual(status.trueClassOptions,
+                       ["good_posture", "slouch", "lean", "chair_swivel", "ambiguous"],
+                       "Jev's classes, so a Watch judgement compares like with like")
     }
 
     func test_status_aFailedCall_isARecordWithNoClass() {
@@ -240,11 +256,11 @@ final class JevRemoteTests: XCTestCase {
         let first = try XCTUnwrap(model.jevComparisonStore.comparisons.first?.id)
         model.recordJevComparison(features: makeFeatures(), verdict: swivelVerdict(), error: nil)
 
-        await model.handleJevRemote(.judge(recordID: first, verdict: .bothWrong, trueClass: .slouching))
+        await model.handleJevRemote(.judge(recordID: first, verdict: .bothWrong, trueClass: .slouch))
 
         let records = model.jevComparisonStore.comparisons
         XCTAssertEqual(records[0].userVerdict, .bothWrong)
-        XCTAssertEqual(records[0].trueClass, .slouching)
+        XCTAssertEqual(records[0].trueClass, .slouch)
         XCTAssertNil(records[1].userVerdict)
         XCTAssertEqual(model.jevRemoteStatus().judgedCount, 1)
     }
