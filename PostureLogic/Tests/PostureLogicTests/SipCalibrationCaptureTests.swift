@@ -31,8 +31,8 @@ final class SipCalibrationCaptureTests: XCTestCase {
 
     /// Simulates a complete 10-second sip capture recording.
     private func recordOneSip(into capture: SipCalibrationCapture, startTime: TimeInterval) {
-        capture.beginCapture(at: startTime)
-        // Feed observations for 10+ seconds to trigger auto-end
+        capture.beginCapture()
+        // Feed observations for 10+ seconds to trigger auto-end (timed from the first frame)
         for i in 0...105 {
             let t = startTime + Double(i) * 0.1
             capture.process(makeObservation(timestamp: t))
@@ -113,9 +113,9 @@ final class SipCalibrationCaptureTests: XCTestCase {
     func test_manualEndCapture_incrementsCount() {
         let capture = SipCalibrationCapture()
 
-        capture.beginCapture(at: 0)
+        capture.beginCapture()
         capture.process(makeObservation(timestamp: 1.0))
-        capture.endCapture(at: 5.0)
+        capture.endCapture()
 
         XCTAssertEqual(capture.recordedSipCount, 1,
                        "Manual endCapture should increment the recorded sip count")

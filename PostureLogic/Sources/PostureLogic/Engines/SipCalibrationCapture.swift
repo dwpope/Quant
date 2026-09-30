@@ -7,7 +7,8 @@ import Foundation
 ///
 /// 1. Present the "Record Sip" UI.
 /// 2. When the user taps "Record Sip", call `beginCapture()`.
-/// 3. Feed observations via `process(_:)` for the next 10 seconds.
+/// 3. Feed observations via `process(_:)` for the next 10 seconds. The window is timed on the
+///    observations' own timestamps, never the calendar clock.
 /// 4. Call `endCapture()` — the engine stores the sample internally.
 /// 5. Repeat until `isReady` is `true` (5 sips captured).
 /// 6. Read `derivedThresholds` and assign to `SipDetector.thresholds`.
@@ -40,7 +41,11 @@ public final class SipCalibrationCapture {
     // MARK: - Capture State
 
     private var isCapturing = false
+    /// The first frame's timestamp in this capture. Set by the first frame, not by the caller:
+    /// see ``beginCapture()``.
     private var captureStartTime: TimeInterval?
+    /// The latest frame's timestamp in this capture, where ``endCapture()`` ends it.
+    private var lastFrameTime: TimeInterval?
     private var currentSipSamples: [RawCaptureSampleInternal] = []
 
     // MARK: - Recorded Data
@@ -71,9 +76,17 @@ public final class SipCalibrationCapture {
     // MARK: - Public Methods
 
     /// Start a 10-second capture window. Call when the user taps "Record Sip".
-    public func beginCapture(at timestamp: TimeInterval = Date().timeIntervalSince1970) {
+    ///
+    /// Takes no time on purpose. The window is measured on the frames' own clock, which on a
+    /// device counts seconds since boot. This used to take a time, defaulting to
+    /// `Date().timeIntervalSince1970`, and the app passed exactly that: about 1.79 billion
+    /// against ~670,000. The 10-second auto-end then never came, and a capture ended with the
+    /// wrist still at the mouth recorded a sip lasting ~1.79 billion seconds, which became the
+    /// detector's minimum sip duration. The window now starts at the first frame.
+    public func beginCapture() {
         isCapturing = true
-        captureStartTime = timestamp
+        captureStartTime = nil
+        lastFrameTime = nil
         currentSipSamples = []
         previousWristPos = nil
         previousTimestamp = nil
@@ -83,12 +96,15 @@ public final class SipCalibrationCapture {
     /// Process one observation during an active capture window.
     /// Safe to call when not capturing — returns immediately.
     public func process(_ observation: PoseObservation) {
-        guard isCapturing, let startTime = captureStartTime else { return }
+        guard isCapturing else { return }
         let t = observation.timestamp
+        let startTime = captureStartTime ?? t
+        captureStartTime = startTime
+        lastFrameTime = t
 
-        // Auto-end after 10 seconds
+        // Auto-end after 10 seconds of frames
         if t - startTime >= captureDuration {
-            endCapture(at: t)
+            finishCapture(at: t)
             return
         }
 
@@ -153,9 +169,23 @@ public final class SipCalibrationCapture {
         }
     }
 
-    /// End the current capture window and store the sample.
-    /// Also called automatically when 10 seconds elapse.
-    public func endCapture(at timestamp: TimeInterval = Date().timeIntervalSince1970) {
+    /// End the current capture window and store the sample. Also happens by itself after 10
+    /// seconds of frames.
+    ///
+    /// Ends at the latest frame, on the same clock as the rest of the capture. Like
+    /// ``beginCapture()``, it takes no time so the calendar clock can't be passed in.
+    public func endCapture() {
+        guard isCapturing else { return }
+        guard let end = lastFrameTime else {
+            // No frame arrived, so there is nothing to summarise.
+            isCapturing = false
+            captureStartTime = nil
+            return
+        }
+        finishCapture(at: end)
+    }
+
+    private func finishCapture(at timestamp: TimeInterval) {
         guard isCapturing else { return }
         isCapturing = false
 
@@ -187,6 +217,7 @@ public final class SipCalibrationCapture {
         recordedSipCount = recordedSamples.count
         currentSipSamples = []
         captureStartTime = nil
+        lastFrameTime = nil
     }
 
     /// Remove the most recently recorded sip. Returns `true` if a sip was removed.
@@ -205,6 +236,7 @@ public final class SipCalibrationCapture {
         currentSipSamples = []
         isCapturing = false
         captureStartTime = nil
+        lastFrameTime = nil
         previousWristPos = nil
         previousTimestamp = nil
         proximityEnteredAt = nil

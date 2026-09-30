@@ -1029,7 +1029,8 @@ class AppModel: ObservableObject {
     /// Begins the 10-second recording phase after the countdown completes.
     private func startSipCapture() {
         let now = Date()
-        sipCalibrationCapture.beginCapture(at: now.timeIntervalSince1970)
+        // The capture times itself on frame timestamps. `now` only drives the progress bar.
+        sipCalibrationCapture.beginCapture()
         sipCalibrationActive = true
         sipCalibrationProgress = 0
         sipCalibrationStartTime = now
@@ -1046,7 +1047,7 @@ class AppModel: ObservableObject {
                 if elapsed >= 10.0 {
                     timer.invalidate()
                     self.sipCalibrationTimer = nil
-                    self.sipCalibrationCapture.endCapture(at: Date().timeIntervalSince1970)
+                    self.sipCalibrationCapture.endCapture()
                     self.sipCalibrationActive = false
                     self.sipCalibrationProgress = 1.0
                 }
