@@ -427,8 +427,11 @@ class AppModel: ObservableObject {
 
                     // Record that the nudge was delivered so the NudgeEngine
                     // can start its cooldown timer and increment the hourly counter.
+                    // The pipeline records it on its own frame clock. This used to pass
+                    // the calendar clock, and the cooldown then never ended.
+                    self.pipeline.recordNudgeFired()
+                    // Calendar clock, compared only with the calendar clock below.
                     let now = Date().timeIntervalSince1970
-                    self.pipeline.recordNudgeFired(at: now)
                     self.lastNudgeFiredTime = now
                     print("🔔 Nudge fired at \(now)")
                 }

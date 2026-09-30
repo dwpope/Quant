@@ -277,7 +277,7 @@ final class NudgeEngine: NudgeEngineProtocol {
             //
             // The caller (Pipeline or AppModel) should:
             // 1. Deliver feedback (audio cue, watch haptic)
-            // 2. Call `recordNudgeFired(at:)` to start cooldown
+            // 2. Call `Pipeline.recordNudgeFired()` to start cooldown, on the frame clock
             let decision = NudgeDecision.fire(reason: reason)
             lastDecisionDescription = "FIRE: \(reason.rawValue) (bad for \(String(format: "%.0f", duration))s)"
             return decision

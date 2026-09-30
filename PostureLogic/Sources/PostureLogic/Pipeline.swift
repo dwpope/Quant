@@ -85,6 +85,10 @@ public class Pipeline {
     private var modeSwitcher: ModeSwitcher
     private var postureEngine: PostureEngine
     private var nudgeEngine: NudgeEngine
+
+    /// Frame timestamp of the latest nudge evaluation, on the clock the NudgeEngine measures
+    /// with. ``recordNudgeFired()`` records the fire at this time.
+    private var lastNudgeEvaluationTime: TimeInterval?
     private var taskModeEngine = TaskModeEngine()
     private var staleBaselineDetector = StaleBaselineDetector()
     private var recentMetricsBuffer: [RawMetrics] = []
@@ -394,6 +398,7 @@ public class Pipeline {
                         // Is cooldown active? Is the hourly limit reached?
                         // The metrics are passed so the engine can determine the
                         // specific nudge reason (forwardCreep, headDrop, etc.).
+                        self.lastNudgeEvaluationTime = smoothedMetrics.timestamp
                         self.nudgeDecision = self.nudgeEngine.evaluate(
                             state: newPostureState,
                             trackingQuality: finalQuality,
@@ -476,6 +481,7 @@ public class Pipeline {
                 self.showRecalibrationPrompt = true
             }
 
+            self.lastNudgeEvaluationTime = smoothedMetrics.timestamp
             self.nudgeDecision = self.nudgeEngine.evaluate(
                 state: newPostureState,
                 trackingQuality: sample.trackingQuality,
@@ -583,15 +589,22 @@ public class Pipeline {
 
     /// Record that a nudge was delivered to the user.
     ///
-    /// Call this from the feedback layer (AppModel) after the audio cue
-    /// or watch haptic is successfully delivered. This starts the cooldown
-    /// timer and increments the hourly nudge counter in the NudgeEngine.
+    /// Call this from the feedback layer (AppModel) after the audio cue or watch haptic is
+    /// delivered. This starts the cooldown timer and counts toward the hourly limit.
     ///
-    /// - Parameter currentTime: The timestamp when the nudge was delivered.
-    ///   Pass `Date().timeIntervalSince1970` in production, or a test value.
-    public func recordNudgeFired(at currentTime: TimeInterval) {
-        nudgeEngine.recordNudgeFired(at: currentTime)
+    /// It takes no time on purpose. The NudgeEngine measures the cooldown and the hourly window
+    /// on the frame clock, which on a device counts seconds since boot. This used to take a
+    /// time, and the documented production value was `Date().timeIntervalSince1970`, about
+    /// 1.79 billion against ~670,000. `currentTime - lastNudgeTime` was then always far below
+    /// the cooldown, so the cooldown never ended and the app nudged once per launch. The fire
+    /// is now recorded at the frame that produced it, so the clocks can't be mixed.
+    public func recordNudgeFired() {
+        guard let frameTime = lastNudgeEvaluationTime else { return }  // no frame, no fire
+        nudgeEngine.recordNudgeFired(at: frameTime)
     }
+
+    /// The nudge engine's debug dump: cooldown, hourly count, last decision.
+    var nudgeDebugState: [String: Any] { nudgeEngine.debugState }
 
     /// Record that the user corrected their posture after a nudge.
     ///
