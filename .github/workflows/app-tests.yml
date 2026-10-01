@@ -13,6 +13,9 @@ on:
       # A package change can compile cleanly yet invalidate an app test (adding
       # defaulted init parameters, for instance), so watch it here too.
       - 'PostureLogic/**'
+      # The Watch app and its tests, for the watch-tests job below.
+      - 'QuantWatch Watch App/**'
+      - 'QuantWatch Watch AppTests/**'
       - '.github/workflows/app-tests.yml'
   pull_request:
     branches: [main]
@@ -23,6 +26,9 @@ on:
       # A package change can compile cleanly yet invalidate an app test (adding
       # defaulted init parameters, for instance), so watch it here too.
       - 'PostureLogic/**'
+      # The Watch app and its tests, for the watch-tests job below.
+      - 'QuantWatch Watch App/**'
+      - 'QuantWatch Watch AppTests/**'
       - '.github/workflows/app-tests.yml'
 
 concurrency:
@@ -116,4 +122,88 @@ jobs:
         with:
           name: TestResults.xcresult
           path: TestResults.xcresult
+          retention-days: 7
+
+  watch-tests:
+    name: QuantWatch Watch AppTests (watchOS Simulator)
+    # The phone and the Watch each keep their own copy of the Jev remote's message
+    # format, and each side's tests assert the same golden dictionaries. Until
+    # 2026-10-01 only the phone's half ran in CI, so a change to the Watch's copy
+    # alone could break the pairing with every check green.
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick and boot a Watch simulator
+        id: sim
+        timeout-minutes: 10
+        # By UDID, for the same reasons as the iOS job above. Read from JSON
+        # rather than the text listing: Watch names carry their own parentheses,
+        # "Apple Watch Series 11 (46mm)", which trip a name-then-UDID pattern.
+        # The newest watchOS runtime no newer than this Xcode's Watch SDK, since a
+        # runner can carry runtimes its Xcode can't run tests on.
+        run: |
+          sdk=$(xcrun --sdk watchsimulator --show-sdk-version)
+          echo "watchsimulator SDK $sdk"
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          sdk = tuple(int(x) for x in sys.argv[1].split("."))
+          best = None
+          for runtime, items in json.load(sys.stdin)["devices"].items():
+              m = re.search(r"watchOS-(\d+)-(\d+)", runtime)
+              if not m:
+                  continue
+              version = (int(m.group(1)), int(m.group(2)))
+              available = [d for d in items if d.get("isAvailable")]
+              if available and version <= sdk[:2] and (best is None or version > best[0]):
+                  best = (version, available[0]["udid"])
+          if best:
+              print(best[1])
+          ' "$sdk")
+          if [ -z "$udid" ]; then
+            echo "::error::no available watchOS simulator on this runner"
+            xcrun simctl list runtimes
+            exit 1
+          fi
+          xcrun simctl list devices available | grep -F "$udid"
+          xcrun simctl boot "$udid" || true      # already-booted is not an error
+          xcrun simctl bootstatus "$udid" -b
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        timeout-minutes: 20
+        env:
+          NSUnbufferedIO: YES
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Quant.xcodeproj \
+            -scheme "QuantWatch Watch App" \
+            -destination "platform=watchOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -only-testing:"QuantWatch Watch AppTests" \
+            -resultBundlePath WatchTestResults.xcresult
+
+      - name: Summarise results
+        if: always()
+        # Counts from the result bundle, as in the iOS job.
+        run: |
+          [ -d WatchTestResults.xcresult ] || exit 0
+          xcrun xcresulttool get test-results summary \
+            --path WatchTestResults.xcresult > summary.json
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d = json.load(open("summary.json"))
+          print(f'**Watch: {d.get("result")}** - {d.get("passedTests")} passed, '
+                f'{d.get("failedTests")} failed, {d.get("skippedTests")} skipped, '
+                f'of {d.get("totalTestCount")} tests')
+          PY
+          cat "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WatchTestResults.xcresult
+          path: WatchTestResults.xcresult
           retention-days: 7
