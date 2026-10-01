@@ -76,7 +76,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~33,000 lines of Swift** across 173 files. The `PostureLogic` package carries **605 tests**, all passing — reproduce with `cd PostureLogic && swift test`.
+**~35,000 lines of Swift** across 187 files, tests included. All tests pass: **611** in the `PostureLogic` package (`cd PostureLogic && swift test`), **307** in the app target and **20** in the Watch app (commands below).
 
 ## Technical Decisions
 
@@ -123,18 +123,25 @@ cd PostureLogic && swift test
 # Full Xcode test suite (requires iOS simulator)
 xcodebuild test -project Quant.xcodeproj -scheme QuantNoWatchTests \
   -destination 'platform=iOS Simulator,name=iPhone 17'
+
+# Watch app tests (requires a watchOS simulator; any Apple Watch model works)
+xcodebuild test -project Quant.xcodeproj -scheme "QuantWatch Watch App" \
+  -destination 'platform=watchOS Simulator,name=Apple Watch Series 11 (46mm)' \
+  -only-testing:"QuantWatch Watch AppTests"
 ```
+
+If a simulator name matches more than one device, pass `id=<UDID>` instead (`xcrun simctl list devices`). On a simulator that has never been granted camera access, the app suite waits forever behind the permission alert, so grant it once first: `xcrun simctl privacy <UDID> grant camera net.davepope.Quant`.
 
 Test coverage includes unit tests for each engine in isolation, integration tests wiring multiple engines via Pipeline, golden recording replay tests for deterministic output verification, long-run stability tests, Codable migration tests for backward compatibility and model value tests for core types (TrackingQuality, DepthConfidence, Baseline, PostureState).
 
 ### CI
 
-Two workflows run on every push and PR to `main`, each path-filtered so it only fires when the code it covers changes:
+Four workflows run on every push and PR to `main`, each path-filtered so it only fires when the code it covers changes:
 
 - **PostureLogic Tests** (`tests.yml`) — `swift test` on the package, macOS 15 runner, no simulator, about 90 seconds. Fires on `PostureLogic/**`.
 - **Jev Proxy** (`jev-proxy.yml`) — `tsc --noEmit` then `vitest` for the Cloudflare Worker, plus a `wrangler deploy --dry-run` bundle check. Ubuntu, no Apple toolchain. Fires on `jev-proxy/**`.
 - **Secrets Guard** (`secrets-guard.yml`) — runs `scripts/secrets-check.sh`, the same script the pre-push hook runs, on **every** branch with no path filter. A credential can arrive via any commit.
-- **App Tests** (`app-tests.yml`) — the full `QuantNoWatchTests` suite through `xcodebuild test` on an iOS simulator, with the result bundle uploaded on failure. Fires on `Quant/**`, `QuantTests/**`, `Quant.xcodeproj/**` and `PostureLogic/**`. The package is deliberately included: a change there can compile cleanly and still invalidate an app test, which is exactly how two stale visualization tests reached `main`.
+- **App Tests** (`app-tests.yml`) — two jobs, each uploading its result bundle on every run. One runs the full `QuantNoWatchTests` suite through `xcodebuild test` on an iOS simulator. The other runs the Watch app's tests on a watchOS simulator: the phone and the Watch each keep a copy of the Jev remote's message format, and only both suites together guard it. Fires on `Quant/**`, `QuantTests/**`, `Quant.xcodeproj/**`, `PostureLogic/**` and the two `QuantWatch Watch App*` folders. The package is deliberately included: a change there can compile cleanly and still invalidate an app test, which is exactly how two stale visualization tests reached `main`.
 
 See the badges at the top of this README for current status.
 
