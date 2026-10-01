@@ -11,15 +11,27 @@ import SwiftUI
 struct JevRemoteView: View {
     @ObservedObject var session: WatchSessionDelegate
 
+    /// Where you are in the test plan. Kept across launches, so a session can be paused.
+    @AppStorage("jevTestPlan.index") private var planIndex = 0
+
+    /// The last record whose judgement moved the plan on, so a double tap can't skip a step.
+    @AppStorage("jevTestPlan.advancedFor") private var advancedForRecord = ""
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
+                // The top of the screen is always the next action: judge a fresh capture,
+                // otherwise the posture to do and Classify. Everything else is below the fold.
                 if let status = session.jevStatus {
+                    if let record = status.lastRecord, awaitsJudgement(record) {
+                        judgeSection(record, options: status.trueClassOptions)
+                    } else {
+                        planSection(status)
+                    }
+                    Divider()
                     liveSection(status)
-                    classifySection(status)
-                    if let record = status.lastRecord {
-                        Divider()
-                        recordSection(record, options: status.trueClassOptions)
+                    if let record = status.lastRecord, !awaitsJudgement(record) {
+                        lastCaptureSection(record)
                     }
                     Text("Judged \(status.judgedCount) of \(status.total)")
                         .font(.caption2)
@@ -38,7 +50,95 @@ struct JevRemoteView: View {
         .onAppear { session.requestJevStatus() }
     }
 
+    private func awaitsJudgement(_ record: JevRemoteStatus.Record) -> Bool {
+        JevTestPlan.awaitsJudgement(capturedAt: record.capturedAt, jevClass: record.jevClass,
+                                    judged: record.judged != nil, now: Date())
+    }
+
     // MARK: - Sections
+
+    /// The posture to do now and the Classify button first, then how to do it and what counts
+    /// as right. Moves on by itself when you judge; Back and Skip are for a capture gone wrong.
+    @ViewBuilder
+    private func planSection(_ status: JevRemoteStatus) -> some View {
+        if let progress = JevTestPlan.progress(at: planIndex) {
+            let posture = progress.step.posture
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(trackingColor(status.tracking))
+                    .frame(width: 8, height: 8)
+                Text(progress.repeatCount > 1
+                     ? "\(posture.name) \(progress.repeatNumber)/\(progress.repeatCount)"
+                     : posture.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            classifySection(status)
+            Text(posture.instruction)
+                .font(.caption2)
+            Text("Right: Jev \(posture.jevShouldSay), thresholds \(posture.thresholdsShouldSay)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("Back") { planIndex = JevTestPlan.previous(before: planIndex) }
+                    .disabled(planIndex == 0)
+                Button("Skip") { planIndex = JevTestPlan.next(after: planIndex) }
+            }
+            .font(.caption2)
+            .buttonStyle(.bordered)
+            Text("\(progress.number) of \(progress.total)\(progress.step.optional ? " · optional" : "")")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        } else {
+            Text("Test plan done")
+                .font(.headline)
+            Text("Export on the phone: prepare export, then share.")
+                .font(.caption2)
+            Button("Start again") { planIndex = 0 }
+                .font(.caption2)
+                .buttonStyle(.bordered)
+            classifySection(status)
+        }
+    }
+
+    /// Judge the capture you just made, with the right answers for this step beside it.
+    @ViewBuilder
+    private func judgeSection(_ record: JevRemoteStatus.Record, options: [String]) -> some View {
+        let posture = JevTestPlan.progress(at: planIndex)?.step.posture
+        Text(posture.map { "Judge: \($0.name)" } ?? "Judge the capture")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        Text("Jev: \(JevRemoteStatus.displayName(record.jevClass ?? "")) \(Int(((record.jevConfidence ?? 0) * 100).rounded()))%")
+            .font(.headline)
+        Text("Thresholds said \(record.thresholdStateAtCapture)")
+            .font(.caption)
+        if let posture {
+            Text("Right: Jev \(posture.jevShouldSay), thresholds \(posture.thresholdsShouldSay)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        Button("Jev ok") {
+            session.sendJevJudge(recordID: record.id, verdict: .jevWasRight)
+            advancePlan(after: record.id)
+        }
+        Button("Thr ok") {
+            session.sendJevJudge(recordID: record.id, verdict: .thresholdsWereRight)
+            advancePlan(after: record.id)
+        }
+        NavigationLink("Both wrong") {
+            TrueClassPicker(session: session, recordID: record.id, options: options,
+                            thisStep: posture?.trueClass,
+                            onJudged: { advancePlan(after: record.id) })
+        }
+    }
+
+    /// Moves the plan on once per judged record.
+    private func advancePlan(after recordID: UUID) {
+        guard advancedForRecord != recordID.uuidString else { return }
+        advancedForRecord = recordID.uuidString
+        planIndex = JevTestPlan.next(after: planIndex)
+    }
 
     /// What the camera sees right now, so you know a capture will be usable before you tap.
     @ViewBuilder
@@ -97,37 +197,24 @@ struct JevRemoteView: View {
         }
     }
 
+    /// The last capture, below the fold, once it's judged or too old to ask about.
     @ViewBuilder
-    private func recordSection(_ record: JevRemoteStatus.Record, options: [String]) -> some View {
+    private func lastCaptureSection(_ record: JevRemoteStatus.Record) -> some View {
         Text("Last capture, \(record.capturedAt, style: .relative) ago")
             .font(.caption2)
             .foregroundStyle(.secondary)
-
         if let jevClass = record.jevClass {
             Text("Jev: \(JevRemoteStatus.displayName(jevClass)) \(Int(((record.jevConfidence ?? 0) * 100).rounded()))%")
-                .font(.headline)
+                .font(.caption)
         } else {
-            Text("Jev didn't answer")
-                .font(.headline)
+            Text("Jev didn't answer. Classify again.")
+                .font(.caption)
                 .foregroundStyle(.orange)
         }
-        Text("Thresholds said \(record.thresholdStateAtCapture)")
-            .font(.caption)
-
         if let judged = record.judged {
             Label(verdictLabel(judged), systemImage: "checkmark.circle.fill")
-                .font(.caption)
+                .font(.caption2)
                 .foregroundStyle(.green)
-        } else if record.jevClass != nil {
-            Button("Jev ok") {
-                session.sendJevJudge(recordID: record.id, verdict: .jevWasRight)
-            }
-            Button("Thr ok") {
-                session.sendJevJudge(recordID: record.id, verdict: .thresholdsWereRight)
-            }
-            NavigationLink("Both wrong") {
-                TrueClassPicker(session: session, recordID: record.id, options: options)
-            }
         }
     }
 
@@ -164,17 +251,28 @@ struct JevRemoteView: View {
     }
 }
 
-/// "Both wrong": what you were actually doing.
+/// "Both wrong": what you were actually doing. The test plan's posture for this step is listed
+/// first and marked, since that's almost always the answer.
 private struct TrueClassPicker: View {
     @ObservedObject var session: WatchSessionDelegate
     let recordID: UUID
     let options: [String]
+    var thisStep: String? = nil
+    var onJudged: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
 
+    private var ordered: [String] {
+        guard let thisStep, options.contains(thisStep) else { return options }
+        return [thisStep] + options.filter { $0 != thisStep }
+    }
+
     var body: some View {
-        List(options, id: \.self) { option in
-            Button(JevRemoteStatus.displayName(option)) {
+        List(ordered, id: \.self) { option in
+            Button(option == thisStep
+                   ? "\(JevRemoteStatus.displayName(option)) · this step"
+                   : JevRemoteStatus.displayName(option)) {
                 session.sendJevJudge(recordID: recordID, verdict: .bothWrong, trueClass: option)
+                onJudged()
                 dismiss()
             }
         }
