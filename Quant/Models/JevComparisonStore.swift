@@ -170,9 +170,32 @@ final class JevComparisonStore: ObservableObject {
     /// save. Without this, loading drops them and the next save deletes them from disk.
     private var unreadable: [Data] = []
 
+    /// Records from earlier days' files, read once at launch for the export. Those files are
+    /// never written again, so reading them once is enough. Today's records live in
+    /// `comparisons`.
+    private var earlierDays: [JevComparisonRecord] = []
+
     init() {
         load()
+        loadEarlierDays()
     }
+
+    /// What "prepare export" writes: every day's records, each once, oldest first.
+    ///
+    /// A session that runs past midnight keeps yesterday's records in memory and saves them to
+    /// today's file too, so the same record can be in two files. The in-memory copy wins,
+    /// because it carries any judgement made since.
+    var exportableRecords: [JevComparisonRecord] {
+        var seen = Set<UUID>()
+        var records: [JevComparisonRecord] = []
+        for record in comparisons + earlierDays where seen.insert(record.id).inserted {
+            records.append(record)
+        }
+        return records.sorted { $0.capturedAt < $1.capturedAt }
+    }
+
+    /// The number the panel's "prepare export (N)" shows. Always what the export will hold.
+    var exportableCount: Int { exportableRecords.count }
 
     func add(_ record: JevComparisonRecord) {
         comparisons.append(record)
@@ -190,7 +213,10 @@ final class JevComparisonStore: ObservableObject {
 
     // MARK: - Export
 
-    /// Writes today's comparisons as JSONL to caches and returns the file, for a `ShareLink`.
+    /// Writes every day's comparisons as JSONL to caches and returns the file, for a `ShareLink`.
+    ///
+    /// Until 2026-10-01 this held only today's records, so a session that ran past midnight
+    /// could not leave the phone. See ``exportableRecords``.
     ///
     /// Exists because remote testing is otherwise write-only: the records live in the app's
     /// private container, and without this the dataset cannot leave the phone without a Mac and
@@ -208,11 +234,11 @@ final class JevComparisonStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
 
-        let joined = try comparisons
+        let joined = try exportableRecords
             .map { String(data: try encoder.encode($0), encoding: .utf8) ?? "" }
             .joined(separator: "\n")
 
-        let url = cachesFile(name: "jev-comparisons-\(todayKey).jsonl")
+        let url = cachesFile(name: "jev-comparisons-to-\(todayKey).jsonl")
         try Data(joined.utf8).write(to: url, options: .atomic)
         return url
     }
@@ -235,24 +261,56 @@ final class JevComparisonStore: ObservableObject {
         let url = fileURL(for: todayKey)
         guard let data = try? Data(contentsOf: url) else { return }  // no file yet today
 
-        guard let elements = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
+        guard let (decoded, failed) = Self.decodeDay(data) else {
             setAside(url)
             return
         }
+        unreadable = failed
+        comparisons = decoded.sorted { $0.capturedAt < $1.capturedAt }
+    }
 
+    /// Decodes a day file record by record. Nil if it isn't a JSON array at all. Records that
+    /// fail are returned separately, each as its own JSON, so a caller can keep them.
+    private static func decodeDay(_ data: Data) -> (records: [JevComparisonRecord], unreadable: [Data])? {
+        guard let elements = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
+            return nil
+        }
         let decoder = JSONDecoder()
-        var decoded: [JevComparisonRecord] = []
+        var records: [JevComparisonRecord] = []
+        var unreadable: [Data] = []
         for element in elements {
             guard let elementData = try? JSONSerialization.data(
                 withJSONObject: element, options: .fragmentsAllowed)
             else { continue }  // unreachable: it was just parsed from JSON
             if let record = try? decoder.decode(JevComparisonRecord.self, from: elementData) {
-                decoded.append(record)
+                records.append(record)
             } else {
                 unreadable.append(elementData)
             }
         }
-        comparisons = decoded.sorted { $0.capturedAt < $1.capturedAt }
+        return (records, unreadable)
+    }
+
+    /// Reads every earlier day's file, for the export only. A file set aside as unparseable
+    /// (`….unreadable-<epoch>.json`) is skipped: it's evidence for a person, not data. An
+    /// unreadable record inside a good file costs only itself, as in ``load()``. Read-only:
+    /// earlier days' files are never written back.
+    private func loadEarlierDays() {
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: documents.path)) ?? []
+        let today = "jev-comparisons-\(todayKey).json"
+        let dayFiles = names.filter { name in
+            name != today
+                && name.hasPrefix("jev-comparisons-")
+                && name.hasSuffix(".json")
+                && !name.contains(".unreadable-")
+        }
+        earlierDays = dayFiles.sorted().flatMap { name -> [JevComparisonRecord] in
+            guard let data = try? Data(contentsOf: documents.appendingPathComponent(name)),
+                  let (records, _) = Self.decodeDay(data)
+            else { return [] }
+            return records
+        }
     }
 
     /// Renames an unparseable day file so the next save starts a new one beside it.

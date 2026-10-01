@@ -386,7 +386,9 @@ struct DebugOverlayView: View {
                 // side effect, and this HUD redraws continuously, so building a ShareLink whose
                 // item came from `exportJSONL()` would rewrite the file on every frame. The tap
                 // writes it once; the link then shares that exact file.
-                if !appModel.jevComparisonStore.comparisons.isEmpty {
+                // Every day's records, not just today's, so a session past midnight can still
+                // leave the phone. The count is the export's own, so they can't disagree.
+                if appModel.jevComparisonStore.exportableCount > 0 {
                     if let jevExportURL {
                         ShareLink(item: jevExportURL) {
                             Text("share \(jevExportURL.lastPathComponent)")
@@ -394,7 +396,7 @@ struct DebugOverlayView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                     } else {
-                        Button("prepare export (\(appModel.jevComparisonStore.comparisons.count))") {
+                        Button("prepare export (\(appModel.jevComparisonStore.exportableCount))") {
                             jevExportURL = try? appModel.jevComparisonStore.exportJSONL()
                         }
                         .buttonStyle(.bordered)
