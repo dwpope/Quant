@@ -50,6 +50,10 @@ struct ContentView: View {
                 CameraPermissionView {
                     Task { await appModel.retryFrontCamera() }
                 }
+            } else if appModel.cameraMode == .rearDepth && appModel.rearCameraStatus != .ok {
+                RearCameraProblemView(status: appModel.rearCameraStatus) {
+                    Task { await appModel.retryRearCamera() }
+                }
             } else if appModel.needsCalibration {
                 CalibrationView(appModel: appModel)
             } else {

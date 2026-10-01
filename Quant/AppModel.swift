@@ -143,6 +143,9 @@ class AppModel: ObservableObject {
     /// The UI shows a permission-recovery screen when this is true and cameraMode is .front2D.
     @Published var frontCameraBlocked: Bool = false
 
+    /// Whether the rear camera can run, for the recovery screen. Follows `arService`.
+    @Published var rearCameraStatus: RearCameraStatus = .ok
+
     // MARK: - Camera Preview
 
     @Published var showCameraPreview: Bool = false
@@ -357,6 +360,11 @@ class AppModel: ObservableObject {
             .map { $0 == .denied || $0 == .restricted }
             .receive(on: RunLoop.main)
             .assign(to: &$frontCameraBlocked)
+
+        // The rear camera's equivalent, so a failure shows a screen instead of only logs.
+        arService.statusPublisher
+            .receive(on: RunLoop.main)
+            .assign(to: &$rearCameraStatus)
 
         loadBaseline()
         setupPipeline()
@@ -680,6 +688,17 @@ class AppModel: ObservableObject {
         UserDefaults.standard.removeObject(forKey: Self.baselineKey)
         needsCalibration = true
         startCalibration()
+    }
+
+    /// Restart the rear camera from its recovery screen.
+    func retryRearCamera() async {
+        guard cameraMode == .rearDepth else { return }
+        arService.stop()
+        do {
+            try await arService.start()
+        } catch {
+            print("Failed to restart rear camera: \(error)")
+        }
     }
 
     /// Re-attempt starting the front camera after the user grants permission in Settings.

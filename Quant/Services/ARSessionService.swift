@@ -25,10 +25,21 @@ final class ARSessionService: NSObject, PoseProvider {
         sessionStateSubject.eraseToAnyPublisher()
     }
 
+    /// Whether the rear camera is usable, for the screen. See `RearCameraStatus`.
+    var statusPublisher: AnyPublisher<RearCameraStatus, Never> {
+        statusSubject.eraseToAnyPublisher()
+    }
+
+    var status: RearCameraStatus { statusSubject.value }
+
     /// The underlying ARSession, exposed so an ARView can share it for camera preview.
     let session = ARSession()
     private let frameSubject = PassthroughSubject<InputFrame, Never>()
     private let sessionStateSubject = CurrentValueSubject<SessionState, Never>(.idle)
+    private let statusSubject = CurrentValueSubject<RearCameraStatus, Never>(.ok)
+    private var startedAt: Date?
+    private var receivedAnyFrame = false
+    private var loggedNoFrames = false
     private let logger = Logger(subsystem: "com.quant.posture", category: "ARSession")
 
     private var currentConfig: ARWorldTrackingConfiguration?
@@ -63,6 +74,11 @@ final class ARSessionService: NSObject, PoseProvider {
 
         currentConfig = config
         session.delegate = self
+        startedAt = Date()
+        receivedAnyFrame = false
+        loggedNoFrames = false
+        lastFrameTime = nil
+        statusSubject.send(.ok)
         session.run(config)
 
         sessionStateSubject.send(.running)
@@ -89,7 +105,18 @@ final class ARSessionService: NSObject, PoseProvider {
 
     private func checkFrameTimeout() {
         guard let lastFrame = lastFrameTime else {
-            logger.warning("⚠️ No frames received yet")
+            // Once, not every 2 s: past the grace period it becomes a screen, not a log line.
+            if !loggedNoFrames {
+                logger.warning("⚠️ No frames received yet")
+                loggedNoFrames = true
+            }
+            if status == .ok,
+               let problem = RearCameraStatus.afterFrameCheck(
+                   secondsSinceStart: Date().timeIntervalSince(startedAt ?? Date()),
+                   receivedAnyFrame: receivedAnyFrame) {
+                logger.error("Rear camera sent no frames — showing the person a retry screen")
+                statusSubject.send(problem)
+            }
             return
         }
 
@@ -141,6 +168,8 @@ final class ARSessionService: NSObject, PoseProvider {
 extension ARSessionService: ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         lastFrameTime = Date()
+        receivedAnyFrame = true
+        if status != .ok { statusSubject.send(.ok) }
 
         // Try smoothed depth first (preferred), then fall back to regular depth
         let depthMap = frame.smoothedSceneDepth?.depthMap ?? frame.sceneDepth?.depthMap
@@ -183,6 +212,9 @@ extension ARSessionService: ARSessionDelegate {
     func session(_ session: ARSession, didFailWithError error: Error) {
         logger.error("ARSession failed with error: \(error.localizedDescription)")
         sessionStateSubject.send(.failed(error))
+        if let problem = RearCameraStatus.after(error: error) {
+            statusSubject.send(problem)
+        }
 
         let arError = error as NSError
         if arError.domain == ARError.errorDomain {
