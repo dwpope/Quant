@@ -97,7 +97,10 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// - `nudgeCooldown` (default: 600s = 10 minutes)
     /// - `maxNudgesPerHour` (default: 2)
     /// - `acknowledgementWindow` (default: 30s)
-    private let thresholds: PostureThresholds
+    ///
+    /// Settable so `Pipeline.thresholds` can pass changes on. Until 2026-10-01 this was fixed
+    /// at init, so limits changed later reached the posture engine and not this one.
+    var thresholds: PostureThresholds
 
     // MARK: - Internal State
 

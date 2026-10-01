@@ -107,4 +107,39 @@ final class PipelineNudgeClockTests: XCTestCase {
         XCTAssertEqual(lastNudgeTime, try XCTUnwrap(recordedAt), accuracy: 0.001)
         XCTAssertLessThan(lastNudgeTime, bootClockStart + 3_600, "a since-boot time, not a calendar one")
     }
+
+    // MARK: - Limits changed after init (2026-10-01)
+
+    /// `pipeline.thresholds` set after init used to reach the posture engine only. The nudge
+    /// engine kept the limits it was created with, so a changed cooldown silently didn't apply.
+    func test_nudgeLimitsSetAfterInit_apply() async throws {
+        let provider = MockPoseProvider()
+        let pipeline = Pipeline(provider: provider)  // defaults: 300 s to nudge, 600 s cooldown
+        pipeline.baseline = GoldenRecordings.baselineForGoodPosture()
+        var t = pipeline.thresholds
+        t.driftingToBadThreshold = 1
+        t.slouchDurationBeforeNudge = 2
+        t.nudgeCooldown = 5
+        t.maxNudgesPerHour = 10
+        pipeline.thresholds = t                      // after init, as AppModel does
+        try await provider.start()
+
+        var fireTimes: [TimeInterval] = []
+        let secondFire = XCTestExpectation(description: "a second nudge after the new cooldown")
+        let subscription = pipeline.$nudgeDecision.sink { decision in
+            guard case .fire = decision else { return }
+            fireTimes.append(pipeline.latestMetrics?.timestamp ?? .nan)
+            pipeline.recordNudgeFired()
+            if fireTimes.count == 2 { secondFire.fulfill() }
+        }
+
+        emit(slouchSamples(from: bootClockStart, count: 60, step: 0.5), via: provider)
+        await fulfillment(of: [secondFire], timeout: 5)
+        subscription.cancel()
+
+        try XCTSkipIf(fireTimes.count < 2)  // already reported by the expectation above
+        let gap = fireTimes[1] - fireTimes[0]
+        XCTAssertGreaterThan(gap, 5, "the new 5 s cooldown, not the 600 s default")
+        XCTAssertLessThan(gap, 7)
+    }
 }

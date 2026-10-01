@@ -71,6 +71,9 @@ public class Pipeline {
     public var thresholds: PostureThresholds {
         didSet {
             postureEngine.thresholds = thresholds
+            // The nudge engine reads the cooldown, the hourly cap and the time to nudge from
+            // these. It used to keep its init values, so changes here silently didn't apply.
+            nudgeEngine.thresholds = thresholds
         }
     }
 
