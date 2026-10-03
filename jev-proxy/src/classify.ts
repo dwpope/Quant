@@ -44,8 +44,10 @@ export const SWIVEL_MAX_FORWARD_CREEP = -0.03;
 
 /**
  * A sideways shift this large is a lean even with mild forward creep: two session-2 leans moved
- * the shoulders towards the phone too (forward creep +0.085, +0.092) and read as slouch. Only
- * with the head below the swivel yaw, since a swivel also shifts the shoulder midpoint.
+ * the shoulders towards the phone too (forward creep +0.085, +0.092) and read as slouch. Any
+ * head yaw, unless it's a swivel by rule, since a swivel also shifts the shoulder midpoint: until
+ * v3.5 the head had to stay under the swivel yaw, and session 4's lean with the head turned 57°
+ * (shoulders not narrowed) fitted no class and read as slouch.
  */
 export const LEAN_CLEAR_SHIFT = 0.15;
 
@@ -78,6 +80,15 @@ export function isSwivelByRule(forwardCreep: number, headYawDegrees: number): bo
   return Math.abs(headYawDegrees) >= SWIVEL_MIN_HEAD_YAW && forwardCreep <= SWIVEL_MAX_FORWARD_CREEP;
 }
 
+/** The clear-lean rule, in code: a clear sideways shift that isn't a swivel, whatever the yaw. */
+export function isClearLeanByRule(
+  lateralShift: number,
+  forwardCreep: number,
+  headYawDegrees: number,
+): boolean {
+  return Math.abs(lateralShift) >= LEAN_CLEAR_SHIFT && !isSwivelByRule(forwardCreep, headYawDegrees);
+}
+
 export const POSTURE_CRITERIA: Record<string, string> = {
   good_posture:
     `Sitting upright, close to the calibration baseline. forward_creep stays under ${SLOUCH_MIN_FORWARD_CREEP} (sitting still, it wanders a few hundredths either side of zero), head_drop stays above ${SLOUCH_MAX_HEAD_DROP}, torso_lean_delta is near zero and lateral lean is small. The head may be turned: head angles alone do not make a posture bad.`,
@@ -86,7 +97,7 @@ export const POSTURE_CRITERIA: Record<string, string> = {
   slouch:
     `Collapsed toward the screen or downward. forward_creep is clearly POSITIVE, ${SLOUCH_MIN_FORWARD_CREEP} or more (the shoulders appear wider because the torso moved closer to the camera; slouches so far measured +0.08 to +0.18), and/or head_drop is NEGATIVE, ${SLOUCH_MAX_HEAD_DROP} or lower, while lateral_lean_in_shoulder_widths stays under ${HEAD_DROP_SLOUCH_MAX_SHIFT} either way (with the camera below eye level, leaning towards it makes the head appear higher in the image; slouches so far measured -0.02 to -0.11, uprights -0.004 or above). Either signal alone is enough. Lateral lean is not the story.`,
   lean:
-    `The torso has shifted sideways. lateral_lean_in_shoulder_widths is clearly non-zero and holds its sign, and head_yaw_degrees stays under ${SWIVEL_MIN_HEAD_YAW} either way. A clear shift, ${LEAN_CLEAR_SHIFT} or more either way, is a lean even if forward_creep is mildly positive or head_drop is negative: leaning sideways often brings the shoulders a little toward the camera and tilts the head up in the image. Shoulders slightly narrower than baseline are fine for a lean when the head is not turned past ${SWIVEL_MIN_HEAD_YAW} degrees.`,
+    `The torso has shifted sideways. lateral_lean_in_shoulder_widths is clearly non-zero and holds its sign. A clear shift, ${LEAN_CLEAR_SHIFT} or more either way, is a lean whatever head_yaw_degrees says (the head often turns while leaning, sometimes past ${SWIVEL_MIN_HEAD_YAW} degrees), and even if forward_creep is mildly positive or head_drop is negative: leaning sideways often brings the shoulders a little toward the camera and tilts the head up in the image. The one exception is a swivel, which needs head_yaw_degrees at least ${SWIVEL_MIN_HEAD_YAW} AND forward_creep at or below ${SWIVEL_MAX_FORWARD_CREEP}. A smaller shift with the head turned past ${SWIVEL_MIN_HEAD_YAW} degrees is someone looking away, not a lean. Shoulders slightly narrower than baseline are fine for a lean when the head is not turned past ${SWIVEL_MIN_HEAD_YAW} degrees.`,
   chair_swivel:
     `The whole body has ROTATED in the chair rather than the posture degrading. It needs BOTH of these: head_yaw_degrees at least ${SWIVEL_MIN_HEAD_YAW} either way, because the head turns with the body, AND forward_creep at or below ${SWIVEL_MAX_FORWARD_CREEP}, because rotating about the vertical axis makes the shoulders look narrower (by 5% to 40% so far). A head turned that far with the shoulders at or wider than baseline (forward_creep above ${SWIVEL_MAX_FORWARD_CREEP}) is someone looking away, not a swivel: judge that pose by the other signals. Narrower shoulders with head_yaw_degrees under ${SWIVEL_MIN_HEAD_YAW} is not a swivel either. The shoulder midpoint usually shifts sideways in a swivel too, so a sideways shift does not make it a lean. head_drop stays near zero. A swivel is a comfortable neutral posture seen off-axis, not bad posture.`,
   ambiguous:

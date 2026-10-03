@@ -9,6 +9,7 @@ import {
   SWIVEL_MAX_FORWARD_CREEP,
   SWIVEL_MIN_HEAD_YAW,
   isSwivelByRule,
+  isClearLeanByRule,
   buildJevRequest,
   mapJevAnswer,
   parseFeatures,
@@ -241,5 +242,52 @@ describe("head drop only for a small sideways shift (v3.4)", () => {
   it("states the condition in the slouch description, and the exception in the lean one", () => {
     expect(POSTURE_CRITERIA.slouch).toContain(String(HEAD_DROP_SLOUCH_MAX_SHIFT));
     expect(POSTURE_CRITERIA.lean).toMatch(/head_drop/);
+  });
+});
+
+// v3.5: session 4's lean 9 shifted 0.185 with the head turned 57° and the shoulders not narrowed
+// (forward creep +0.007). The lean wording capped head yaw at 45 and the swivel wording needs
+// narrowing, so no class fitted and Jev said slouch at 83%. The head often turns while leaning
+// (±24-25° on session 4's other two leans), so a clear shift is a lean unless it's a swivel.
+describe("a clear shift is a lean whatever the head yaw, unless it's a swivel (v3.5)", () => {
+  // Every capture measured on device so far: [sideways shift, forward creep, head yaw].
+  const clearLeans: Array<[number, number, number]> = [
+    [-0.355, 0.006, 28], [0.367, 0.085, -13], [-0.279, -0.005, 0], [0.356, -0.004, -10],
+    [-0.173, 0.056, -4], [-0.314, -0.032, 24], [0.264, -0.04, -25], [-0.185, 0.007, 57],
+  ];
+  const swivels: Array<[number, number, number]> = [
+    [0.118, -0.399, 70], [-0.141, -0.052, -77], [0.034, -0.103, 60], [-0.178, -0.161, -76],
+    [0.026, -0.234, -76], [-0.024, -0.069, 60], [0.071, -0.146, -78],
+    [-0.182, -0.277, -66], [0.103, -0.274, 60], [-0.064, -0.171, -79],
+  ];
+  const headTurnsAndSmallSwivels: Array<[number, number, number]> = [
+    [-0.052, 0.162, -75], [0.012, 0.139, 60], [0.036, 0.061, 78], [0.037, 0.008, -77],
+    [-0.103, 0.06, -75], [-0.013, 0.036, 77], [-0.109, 0.084, -60], [0.037, 0.072, 66],
+    [0.051, -0.014, 66], [-0.039, -0.093, -76], [-0.13, -0.053, -71], [-0.017, 0.054, 70],
+  ];
+
+  it("calls every clear lean a lean, including the one with the head turned 57°", () => {
+    for (const [lat, fc, yaw] of clearLeans) {
+      expect(isClearLeanByRule(lat, fc, yaw), `${lat} ${fc} ${yaw}`).toBe(true);
+    }
+  });
+
+  it("never calls a swivel, a head turn or a small swivel a clear lean", () => {
+    for (const [lat, fc, yaw] of [...swivels, ...headTurnsAndSmallSwivels]) {
+      expect(isClearLeanByRule(lat, fc, yaw), `${lat} ${fc} ${yaw}`).toBe(false);
+    }
+  });
+
+  it("drops the blanket head-yaw cap from the lean description", () => {
+    expect(POSTURE_CRITERIA.lean).not.toMatch(/head_yaw_degrees stays under/);
+  });
+
+  it("names the swivel as the one exception, with the swivel rule's numbers", () => {
+    expect(POSTURE_CRITERIA.lean).toContain(String(SWIVEL_MIN_HEAD_YAW));
+    expect(POSTURE_CRITERIA.lean).toContain(String(SWIVEL_MAX_FORWARD_CREEP));
+  });
+
+  it("still says a small shift with the head turned away is looking away, not a lean", () => {
+    expect(POSTURE_CRITERIA.lean).toMatch(/looking away/);
   });
 });
