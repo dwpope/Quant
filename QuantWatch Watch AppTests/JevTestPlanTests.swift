@@ -208,4 +208,10 @@ struct JevTestPlanTests {
         #expect(JevTestPlan.pickerLabel("slouch", thisStep: .headTurned) == "slouch")
         #expect(JevTestPlan.pickerLabel("good_posture", thisStep: nil) == "good posture")
     }
+
+    /// Session 4's lean miss had the head turned 57°, and its other two leans ±24–25°; session 3's
+    /// leans, 0–10°. A turned head also makes the thresholds discount the lean.
+    @Test func lean_asksYouToKeepLookingAtTheScreen() {
+        #expect(JevTestPlan.Posture.lean.instruction.contains("Keep looking at the screen"))
+    }
 }

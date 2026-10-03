@@ -37,7 +37,7 @@ enum JevTestPlan {
             case .slouch:
                 return "Collapse forward so your shoulders move towards the phone, head dropping. Don't just sink."
             case .lean:
-                return "Shift your upper body sideways at the waist, shoulders still facing the phone."
+                return "Shift your upper body sideways at the waist, shoulders still facing the phone. Keep looking at the screen."
             case .chairSwivel:
                 return "Sit upright and turn the whole chair 30° or more. Not just your head."
             case .headTurned:
