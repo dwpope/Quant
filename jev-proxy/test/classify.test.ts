@@ -4,6 +4,8 @@ import {
   QUESTION_ID,
   LEAN_CLEAR_SHIFT,
   SLOUCH_MIN_FORWARD_CREEP,
+  SLOUCH_MAX_HEAD_DROP,
+  HEAD_DROP_SLOUCH_MAX_SHIFT,
   SWIVEL_MAX_FORWARD_CREEP,
   SWIVEL_MIN_HEAD_YAW,
   isSwivelByRule,
@@ -203,5 +205,41 @@ describe("a numeric scale for slouch and upright (v3.2)", () => {
   it("states the cut in both the slouch and the upright descriptions", () => {
     expect(POSTURE_CRITERIA.slouch).toContain(String(SLOUCH_MIN_FORWARD_CREEP));
     expect(POSTURE_CRITERIA.good_posture).toContain(String(SLOUCH_MIN_FORWARD_CREEP));
+  });
+});
+
+// v3.3: head drop reads NEGATIVE when Dave slouches. Across three sessions all 9 slouches read
+// -0.020 to -0.113 while every judged upright read -0.004 or above; the rubric had told Jev a
+// slouch makes head_drop positive. Likely perspective: leaning towards a phone below eye level
+// moves the head up in the image.
+describe("head drop as a slouch signal (v3.3)", () => {
+  const uprightHeadDrops = [0.019, 0.013, 0.019, -0.002, -0.002, -0.004];
+  const slouchHeadDrops = [-0.061, -0.04, -0.113, -0.02, -0.021, -0.055, -0.02, -0.045, -0.069];
+
+  it("puts the cut between every upright and every slouch measured", () => {
+    for (const hd of uprightHeadDrops) expect(hd).toBeGreaterThan(SLOUCH_MAX_HEAD_DROP);
+    for (const hd of slouchHeadDrops) expect(hd).toBeLessThanOrEqual(SLOUCH_MAX_HEAD_DROP);
+  });
+
+  it("tells Jev the direction this setup actually measures", () => {
+    expect(POSTURE_CRITERIA.slouch).toContain(String(SLOUCH_MAX_HEAD_DROP));
+    expect(POSTURE_CRITERIA.slouch).toMatch(/NEGATIVE/);
+    expect(POSTURE_CRITERIA.slouch).not.toMatch(/head_drop is positive/);
+    expect(POSTURE_CRITERIA.good_posture).toContain(String(SLOUCH_MAX_HEAD_DROP));
+  });
+});
+
+// v3.4: head drop counts towards slouch only when the sideways shift is small. In v3.3, three
+// leans (sideways shift 0.136, 0.356, 0.367) also read the head higher and became slouch. Every
+// slouch so far shifted sideways 0.096 or less.
+describe("head drop only for a small sideways shift (v3.4)", () => {
+  it("puts the cut above every slouch's shift and below the leans v3.3 broke", () => {
+    expect(HEAD_DROP_SLOUCH_MAX_SHIFT).toBeGreaterThan(0.096);
+    expect(HEAD_DROP_SLOUCH_MAX_SHIFT).toBeLessThan(0.136);
+  });
+
+  it("states the condition in the slouch description, and the exception in the lean one", () => {
+    expect(POSTURE_CRITERIA.slouch).toContain(String(HEAD_DROP_SLOUCH_MAX_SHIFT));
+    expect(POSTURE_CRITERIA.lean).toMatch(/head_drop/);
   });
 });
