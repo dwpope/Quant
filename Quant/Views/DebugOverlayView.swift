@@ -23,6 +23,9 @@ struct DebugOverlayView: View {
     /// it is a side effect and this view redraws on every frame of live metrics.
     @State private var jevExportURL: URL?
 
+    /// Asks before "start fresh" sets every Jev record so far aside.
+    @State private var confirmingStartFresh = false
+
     /// Whether the detail rows are shown. Persisted per device as a convenience only: losing it
     /// just reopens the panel expanded, which is how it always used to look.
     @AppStorage(DiagnosticsPanel.expandedKey) private var isExpanded = true
@@ -402,6 +405,25 @@ struct DebugOverlayView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                     }
+
+                    // Sets every record so far aside (not deleted), so the next export holds
+                    // only the session that follows. Export first if you want them.
+                    Button("start fresh") { confirmingStartFresh = true }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .tint(.orange)
+                        .confirmationDialog(
+                            "Set aside all \(appModel.jevComparisonStore.exportableCount) Jev records?",
+                            isPresented: $confirmingStartFresh, titleVisibility: .visible
+                        ) {
+                            Button("Start fresh", role: .destructive) {
+                                try? appModel.jevComparisonStore.startFresh()
+                                jevExportURL = nil
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("They move to an archive on this phone and are left out of future exports. Nothing is deleted. Export first if you still need them.")
+                        }
                 }
 
                 if let error = appModel.latestJevError {

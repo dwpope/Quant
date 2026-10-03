@@ -211,6 +211,53 @@ final class JevComparisonStore: ObservableObject {
     }
 
     /// Records who was right. No-op for an unknown id, so a stale tap cannot corrupt the set.
+    // MARK: - Start fresh
+
+    /// Sets every Jev record so far aside, so the next export holds only what comes after.
+    ///
+    /// Asked for on 2026-10-03, when 49 practice and test records sat ahead of a real session in
+    /// the same export and nothing on the phone could remove them. Set aside, not deleted: every
+    /// `jev-comparisons-*` file, including any set aside as unparseable, moves into
+    /// `Documents/jev-archive/<timestamp>/`, which the export never reads. They stay reachable
+    /// with Xcode's container download.
+    ///
+    /// Runs on the write queue, after any save still pending, so a save can't land in a file
+    /// that has just been moved, or recreate it.
+    func startFresh() throws {
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        var thrown: Error?
+        Self.persistQueue.sync {
+            do {
+                let fm = FileManager.default
+                let names = try fm.contentsOfDirectory(atPath: documents.path)
+                    .filter { $0.hasPrefix("jev-comparisons-") }
+                guard !names.isEmpty else { return }
+
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.dateFormat = "yyyy-MM-dd'T'HH-mm-ss"
+                let root = documents.appendingPathComponent("jev-archive")
+                var folder = root.appendingPathComponent(formatter.string(from: Date()))
+                var n = 2
+                while fm.fileExists(atPath: folder.path) {
+                    folder = root.appendingPathComponent("\(formatter.string(from: Date()))-\(n)")
+                    n += 1
+                }
+                try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+                for name in names {
+                    try fm.moveItem(at: documents.appendingPathComponent(name),
+                                    to: folder.appendingPathComponent(name))
+                }
+            } catch {
+                thrown = error
+            }
+        }
+        if let thrown { throw thrown }
+        comparisons = []
+        earlierDays = []
+        unreadable = []
+    }
+
     /// Marks a capture made by mistake. No-op for an unknown id. Any judgement is kept.
     func setDiscarded(id: UUID) {
         guard let idx = comparisons.firstIndex(where: { $0.id == id }) else { return }
