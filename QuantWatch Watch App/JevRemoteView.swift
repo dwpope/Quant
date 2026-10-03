@@ -17,6 +17,8 @@ struct JevRemoteView: View {
     /// The last record whose judgement moved the plan on, so a double tap can't skip a step.
     @AppStorage("jevTestPlan.advancedFor") private var advancedForRecord = ""
 
+    @State private var confirmingRestart = false
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
@@ -87,6 +89,17 @@ struct JevRemoteView: View {
             }
             .font(.caption2)
             .buttonStyle(.bordered)
+            Button("Restart plan") { confirmingRestart = true }
+                .font(.caption2)
+                .buttonStyle(.bordered)
+                .disabled(planIndex == 0)
+                .confirmationDialog("Restart the test plan from step 1?",
+                                    isPresented: $confirmingRestart) {
+                    Button("Restart", role: .destructive) { planIndex = 0 }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Captures you've already made stay on the phone.")
+                }
             Text("\(progress.number) of \(progress.total)\(progress.step.optional ? " · optional" : "")")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -102,34 +115,79 @@ struct JevRemoteView: View {
         }
     }
 
-    /// Judge the capture you just made, with the right answers for this step beside it.
+    /// Judge the capture you just made.
+    ///
+    /// Labelled "You did", "Jev said" and "Thresholds said", because "Judge: Lean" read as an
+    /// answer rather than the posture you were doing (2026-10-03). Each answer gets a tick or a
+    /// cross against this step's right answers, and the button they point to is highlighted.
+    /// You still choose: a capture can go wrong in ways the plan can't see.
     @ViewBuilder
     private func judgeSection(_ record: JevRemoteStatus.Record, options: [String]) -> some View {
         let posture = JevTestPlan.progress(at: planIndex)?.step.posture
-        Text(posture.map { "Judge: \($0.name)" } ?? "Judge the capture")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-        Text("Jev: \(JevRemoteStatus.displayName(record.jevClass ?? "")) \(Int(((record.jevConfidence ?? 0) * 100).rounded()))%")
-            .font(.headline)
-        Text("Thresholds said \(record.thresholdStateAtCapture)")
-            .font(.caption)
+        let jevRight = posture?.jevRight(record.jevClass)
+        let thresholdsRight = posture?.thresholdsRight(record.thresholdStateAtCapture)
+        let suggested = jevRight.flatMap { j in
+            thresholdsRight.map { JevTestPlan.suggestedVerdict(jevRight: j, thresholdsRight: $0) }
+        }
+
+        if let posture {
+            Text("You did: \(posture.name)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        answerRow("Jev said: \(JevRemoteStatus.displayName(record.jevClass ?? "")) \(Int(((record.jevConfidence ?? 0) * 100).rounded()))%",
+                  right: jevRight, font: .headline)
+        answerRow("Thresholds said: \(record.thresholdStateAtCapture)",
+                  right: thresholdsRight, font: .caption)
         if let posture {
             Text("Right: Jev \(posture.jevShouldSay), thresholds \(posture.thresholdsShouldSay)")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-        Button("Jev ok") {
+
+        verdictButton("Jev ok", .jevWasRight, suggested: suggested) {
             session.sendJevJudge(recordID: record.id, verdict: .jevWasRight)
             advancePlan(after: record.id)
         }
-        Button("Thr ok") {
+        verdictButton("Thr ok", .thresholdsWereRight, suggested: suggested) {
             session.sendJevJudge(recordID: record.id, verdict: .thresholdsWereRight)
             advancePlan(after: record.id)
         }
-        NavigationLink("Both wrong") {
+        let picker = NavigationLink("Both wrong") {
             TrueClassPicker(session: session, recordID: record.id, options: options,
                             thisStep: posture?.trueClass,
                             onJudged: { advancePlan(after: record.id) })
+        }
+        if suggested == .bothWrong {
+            picker.buttonStyle(.borderedProminent).tint(.green)
+        } else {
+            picker.buttonStyle(.bordered)
+        }
+    }
+
+    /// An answer with a tick or a cross against this step, or plain once the plan is finished.
+    @ViewBuilder
+    private func answerRow(_ text: String, right: Bool?, font: Font) -> some View {
+        HStack(spacing: 4) {
+            if let right {
+                Image(systemName: right ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundStyle(right ? .green : .red)
+                    .accessibilityLabel(right ? "right" : "wrong")
+            }
+            Text(text)
+                .font(font)
+        }
+    }
+
+    /// The button the ticks point to is filled in; the others are outlined.
+    @ViewBuilder
+    private func verdictButton(_ title: String, _ verdict: JevRemoteVerdict,
+                               suggested: JevRemoteVerdict?,
+                               action: @escaping () -> Void) -> some View {
+        if verdict == suggested {
+            Button(title, action: action).buttonStyle(.borderedProminent).tint(.green)
+        } else {
+            Button(title, action: action).buttonStyle(.bordered)
         }
     }
 

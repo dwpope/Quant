@@ -75,6 +75,23 @@ enum JevTestPlan {
             case .chairSwivel, .smallSwivel: return "chair_swivel"
             }
         }
+
+        /// Whether Jev's answer is the posture you did. "ambiguous" is Jev declining to answer,
+        /// and no answer is never right.
+        func jevRight(_ jevClass: String?) -> Bool {
+            jevClass == trueClass
+        }
+
+        /// Whether the thresholds' state fits the posture: "good" for upright and swivel,
+        /// drifting or bad for slouch and lean. Absent or calibrating isn't a judgement at all.
+        func thresholdsRight(_ state: String) -> Bool {
+            switch self {
+            case .upright, .chairSwivel, .headTurned, .smallSwivel:
+                return state == "good"
+            case .slouch, .lean:
+                return state == "drifting" || state == "bad"
+            }
+        }
     }
 
     struct Step: Equatable {
@@ -118,6 +135,14 @@ enum JevTestPlan {
     static func next(after index: Int) -> Int { min(index + 1, steps.count) }
 
     static func previous(before index: Int) -> Int { max(index - 1, 0) }
+
+    /// The button the ticks point to. Jev if it's right, whatever the thresholds said (when both
+    /// are right, "Jev ok" loses nothing: the record keeps the thresholds' state). Otherwise the
+    /// thresholds if they're right, otherwise neither.
+    static func suggestedVerdict(jevRight: Bool, thresholdsRight: Bool) -> JevRemoteVerdict {
+        if jevRight { return .jevWasRight }
+        return thresholdsRight ? .thresholdsWereRight : .bothWrong
+    }
 
     /// How recent an unjudged capture must be to take over the top of the screen.
     static let judgeWindow: TimeInterval = 120

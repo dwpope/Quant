@@ -108,4 +108,59 @@ struct JevTestPlanTests {
         let old = now - JevTestPlan.judgeWindow - 1
         #expect(!JevTestPlan.awaitsJudgement(capturedAt: old, jevClass: "slouch", judged: false, now: now))
     }
+
+    // MARK: - Ticks and the suggested button (2026-10-03)
+    //
+    // "Judge: Lean" read as an answer, not the posture you were doing. The screen now says
+    // "You did", "Jev said" and "Thresholds said", with a tick or cross beside each answer and
+    // the matching button highlighted, so judging doesn't depend on reading it right.
+
+    @Test func jevIsRight_onlyWhenItNamesThePostureYouDid() {
+        #expect(JevTestPlan.Posture.upright.jevRight("good_posture"))
+        #expect(!JevTestPlan.Posture.upright.jevRight("slouch"))
+        #expect(JevTestPlan.Posture.slouch.jevRight("slouch"))
+        #expect(JevTestPlan.Posture.lean.jevRight("lean"))
+        #expect(!JevTestPlan.Posture.lean.jevRight("chair_swivel"))
+        #expect(JevTestPlan.Posture.chairSwivel.jevRight("chair_swivel"))
+        #expect(JevTestPlan.Posture.headTurned.jevRight("good_posture"))
+        #expect(!JevTestPlan.Posture.headTurned.jevRight("chair_swivel"), "the first session's mistake")
+        #expect(JevTestPlan.Posture.smallSwivel.jevRight("chair_swivel"))
+    }
+
+    /// Ambiguous is Jev declining to answer, and no answer is never right.
+    @Test func ambiguousOrNoAnswer_isNeverRight() {
+        for step in JevTestPlan.steps {
+            #expect(!step.posture.jevRight("ambiguous"))
+            #expect(!step.posture.jevRight(nil))
+        }
+    }
+
+    @Test func thresholdsAreRight_whenTheirStateFitsThePosture() {
+        #expect(JevTestPlan.Posture.upright.thresholdsRight("good"))
+        #expect(!JevTestPlan.Posture.upright.thresholdsRight("drifting"))
+        #expect(JevTestPlan.Posture.slouch.thresholdsRight("drifting"))
+        #expect(JevTestPlan.Posture.slouch.thresholdsRight("bad"))
+        #expect(!JevTestPlan.Posture.slouch.thresholdsRight("good"))
+        #expect(JevTestPlan.Posture.lean.thresholdsRight("bad"))
+        // A swivel is fine posture: flagging it is the thresholds' known false alarm.
+        #expect(JevTestPlan.Posture.chairSwivel.thresholdsRight("good"))
+        #expect(!JevTestPlan.Posture.chairSwivel.thresholdsRight("drifting"))
+    }
+
+    /// Absent or calibrating isn't a judgement of the posture at all.
+    @Test func thresholdsWithoutAJudgement_areNeverRight() {
+        for step in JevTestPlan.steps {
+            #expect(!step.posture.thresholdsRight("absent"))
+            #expect(!step.posture.thresholdsRight("calibrating"))
+        }
+    }
+
+    /// Who to trust: Jev if it's right, whatever the thresholds said; else the thresholds if
+    /// they're right; else neither.
+    @Test func theSuggestedButton() {
+        #expect(JevTestPlan.suggestedVerdict(jevRight: true, thresholdsRight: true) == .jevWasRight)
+        #expect(JevTestPlan.suggestedVerdict(jevRight: true, thresholdsRight: false) == .jevWasRight)
+        #expect(JevTestPlan.suggestedVerdict(jevRight: false, thresholdsRight: true) == .thresholdsWereRight)
+        #expect(JevTestPlan.suggestedVerdict(jevRight: false, thresholdsRight: false) == .bothWrong)
+    }
 }
