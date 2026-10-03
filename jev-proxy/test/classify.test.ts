@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   POSTURE_CRITERIA,
   QUESTION_ID,
-  SWIVEL_MIN_NARROWING,
+  LEAN_CLEAR_SHIFT,
+  SLOUCH_MIN_FORWARD_CREEP,
+  SWIVEL_MAX_FORWARD_CREEP,
+  SWIVEL_MIN_HEAD_YAW,
+  isSwivelByRule,
   buildJevRequest,
   mapJevAnswer,
   parseFeatures,
@@ -132,28 +136,72 @@ describe("mapJevAnswer", () => {
   });
 });
 
-// The first device session (2026-09-29) had Jev call a slouch and a lean "chair_swivel" at
-// 96-98%. The slouch had shoulders at baseline width and only the head turned 36 degrees. The
-// lean narrowed the shoulders by 7%, which the old wording ("prefer it over 'lean' whenever
-// forward_creep is negative") sent straight to swivel. The real swivel narrowed them by 40%.
-describe("chair_swivel vs lean and a turned head", () => {
-  it("puts the swivel cut between the lean and the swivel that were measured", () => {
-    expect(SWIVEL_MIN_NARROWING).toBeLessThan(-0.068);
-    expect(SWIVEL_MIN_NARROWING).toBeGreaterThan(-0.399);
+// Swivel wording v3 (2026-10-03), from two device sessions. v2 required forward creep below
+// -0.12 and so called two of session 2's three swivels "lean": they narrowed the shoulders by
+// only 5% and 10%. Narrowing alone can't separate lean from swivel (a session-1 lean narrowed
+// 7%). Head yaw paired with narrowing does: swivels turned the head 60-77 degrees with the
+// shoulders narrower; leans stayed at or under 39 degrees; head turns reached 60-75 degrees but
+// with the shoulders WIDER than baseline.
+describe("chair_swivel vs lean and a turned head (v3)", () => {
+  // Every lean, swivel and head turn measured on device so far: [forward creep, head yaw].
+  const swivels: Array<[number, number]> = [[-0.399, 70], [-0.052, -77], [-0.103, 60], [-0.161, -76]];
+  const leans: Array<[number, number]> = [[-0.068, 39], [0.006, 28], [0.085, -13], [0.092, -3]];
+  const headTurns: Array<[number, number]> = [[0.162, -75], [0.139, 60]];
+
+  it("puts the head-yaw cut between the leans and the swivels", () => {
+    expect(SWIVEL_MIN_HEAD_YAW).toBeGreaterThan(39);
+    expect(SWIVEL_MIN_HEAD_YAW).toBeLessThan(60);
   });
 
-  it("requires clearly narrowed shoulders for a swivel, at the same cut the lean uses", () => {
-    const cut = String(SWIVEL_MIN_NARROWING);
-    expect(POSTURE_CRITERIA.chair_swivel).toContain(cut);
-    expect(POSTURE_CRITERIA.lean).toContain(cut);
+  it("puts the narrowing cut above the weakest swivel and below baseline width", () => {
+    expect(SWIVEL_MAX_FORWARD_CREEP).toBeGreaterThan(-0.052);
+    expect(SWIVEL_MAX_FORWARD_CREEP).toBeLessThan(0);
   });
 
-  it("says a turned head alone is not a swivel", () => {
+  it("the rule separates every capture measured so far", () => {
+    for (const [fc, yaw] of swivels) expect(isSwivelByRule(fc, yaw), `${fc} ${yaw}`).toBe(true);
+    for (const [fc, yaw] of leans) expect(isSwivelByRule(fc, yaw), `${fc} ${yaw}`).toBe(false);
+    for (const [fc, yaw] of headTurns) expect(isSwivelByRule(fc, yaw), `${fc} ${yaw}`).toBe(false);
+  });
+
+  it("states both swivel conditions, with the same numbers the rule uses", () => {
+    expect(POSTURE_CRITERIA.chair_swivel).toContain(String(SWIVEL_MIN_HEAD_YAW));
+    expect(POSTURE_CRITERIA.chair_swivel).toContain(String(SWIVEL_MAX_FORWARD_CREEP));
+    expect(POSTURE_CRITERIA.chair_swivel).toMatch(/BOTH/);
     expect(POSTURE_CRITERIA.chair_swivel).toMatch(/head_yaw_degrees/);
-    expect(POSTURE_CRITERIA.chair_swivel).toMatch(/alone/i);
   });
 
-  it("no longer sends every negative forward_creep to swivel", () => {
-    expect(POSTURE_CRITERIA.chair_swivel).not.toMatch(/whenever forward_creep is negative/);
+  it("still says a turned head on its own is not a swivel", () => {
+    expect(POSTURE_CRITERIA.chair_swivel).toMatch(/looking away/);
+  });
+
+  // Two session-2 leans moved the shoulders towards the phone as well as sideways (shift 0.37
+  // and 0.10, forward creep +0.085 and +0.092) and both read as slouch.
+  it("calls a clear sideways shift a lean even with mild forward creep", () => {
+    expect(LEAN_CLEAR_SHIFT).toBeGreaterThan(0.102);
+    expect(LEAN_CLEAR_SHIFT).toBeLessThan(0.355);
+    expect(POSTURE_CRITERIA.lean).toContain(String(LEAN_CLEAR_SHIFT));
+    expect(POSTURE_CRITERIA.lean).toContain(String(SWIVEL_MIN_HEAD_YAW));
+  });
+
+  // Replay of both sessions: adding the lean rule to the slouch description turned four clear
+  // slouches into good_posture. It belongs to the lean description alone.
+  it("keeps the slouch description free of the lean rule", () => {
+    expect(POSTURE_CRITERIA.slouch).not.toContain(String(LEAN_CLEAR_SHIFT));
+  });
+});
+
+// v3.2: a scale for "clearly positive". With v3's sharper lean and swivel wording, four slouches
+// with forward creep +0.14 to +0.18 replayed as good_posture; under v2 they were slouch. Upright
+// captures in session 2 sat at +0.024 to +0.042; the weakest real slouch was +0.081.
+describe("a numeric scale for slouch and upright (v3.2)", () => {
+  it("puts the slouch cut above upright noise and below the weakest slouch", () => {
+    expect(SLOUCH_MIN_FORWARD_CREEP).toBeGreaterThan(0.042);
+    expect(SLOUCH_MIN_FORWARD_CREEP).toBeLessThan(0.081);
+  });
+
+  it("states the cut in both the slouch and the upright descriptions", () => {
+    expect(POSTURE_CRITERIA.slouch).toContain(String(SLOUCH_MIN_FORWARD_CREEP));
+    expect(POSTURE_CRITERIA.good_posture).toContain(String(SLOUCH_MIN_FORWARD_CREEP));
   });
 });
