@@ -86,6 +86,7 @@ struct JevRemoteView: View {
             Text("Right: Jev \(posture.jevShouldSay), thresholds \(posture.thresholdsShouldSay)")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+            noteRow(posture)
             HStack {
                 Button("Back") { planIndex = JevTestPlan.previous(before: planIndex) }
                     .disabled(planIndex == 0)
@@ -147,6 +148,7 @@ struct JevRemoteView: View {
             Text("Right: Jev \(posture.jevShouldSay), thresholds \(posture.thresholdsShouldSay)")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+            noteRow(posture)
         }
 
         verdictButton("Jev ok", .jevWasRight, suggested: suggested) {
@@ -159,7 +161,7 @@ struct JevRemoteView: View {
         }
         let picker = NavigationLink("Both wrong") {
             TrueClassPicker(session: session, recordID: record.id, options: options,
-                            thisStep: posture?.trueClass,
+                            thisStep: posture,
                             onJudged: { advancePlan(after: record.id) })
         }
         if suggested == .bothWrong {
@@ -189,6 +191,16 @@ struct JevRemoteView: View {
             } message: {
                 Text("It stays on the phone, marked, and is left out of the analysis.")
             }
+    }
+
+    /// Why this step's right answer is what it is, where the posture's name doesn't say.
+    @ViewBuilder
+    private func noteRow(_ posture: JevTestPlan.Posture) -> some View {
+        if let note = posture.note {
+            Label(note, systemImage: "info.circle")
+                .font(.caption2)
+                .foregroundStyle(.yellow)
+        }
     }
 
     /// An answer with a tick or a cross against this step, or plain once the plan is finished.
@@ -343,26 +355,24 @@ struct JevRemoteView: View {
     }
 }
 
-/// "Both wrong": what you were actually doing. The test plan's posture for this step is listed
-/// first and marked, since that's almost always the answer.
+/// "Both wrong": what you were actually doing. The test plan's class for this step is listed
+/// first and marked with the posture's name, since that's almost always the answer.
 private struct TrueClassPicker: View {
     @ObservedObject var session: WatchSessionDelegate
     let recordID: UUID
     let options: [String]
-    var thisStep: String? = nil
+    var thisStep: JevTestPlan.Posture? = nil
     var onJudged: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
 
     private var ordered: [String] {
-        guard let thisStep, options.contains(thisStep) else { return options }
-        return [thisStep] + options.filter { $0 != thisStep }
+        guard let first = thisStep?.trueClass, options.contains(first) else { return options }
+        return [first] + options.filter { $0 != first }
     }
 
     var body: some View {
         List(ordered, id: \.self) { option in
-            Button(option == thisStep
-                   ? "\(JevRemoteStatus.displayName(option)) · this step"
-                   : JevRemoteStatus.displayName(option)) {
+            Button(JevTestPlan.pickerLabel(option, thisStep: thisStep)) {
                 session.sendJevJudge(recordID: recordID, verdict: .bothWrong, trueClass: option)
                 onJudged()
                 dismiss()

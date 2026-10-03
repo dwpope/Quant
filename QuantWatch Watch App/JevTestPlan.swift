@@ -47,6 +47,18 @@ enum JevTestPlan {
             }
         }
 
+        /// Why the right answer is what it is, where the posture's name doesn't say. On
+        /// 2026-10-03 a head turn called slouch couldn't be corrected: "Both wrong" had no
+        /// "head turned", because looking away is good posture.
+        var note: String? {
+            switch self {
+            case .headTurned:
+                return "Looking away isn't bad posture, so Jev should say good posture. If it doesn't: Both wrong, then good posture."
+            case .upright, .slouch, .lean, .chairSwivel, .smallSwivel:
+                return nil
+            }
+        }
+
         /// The answer that counts as right for Jev, as the Watch displays class names.
         var jevShouldSay: String {
             switch self {
@@ -129,6 +141,16 @@ enum JevTestPlan {
             total: steps.count,
             repeatNumber: (samePosture.firstIndex(of: index) ?? 0) + 1,
             repeatCount: samePosture.count)
+    }
+
+    /// A "Both wrong" entry. This step's class is marked, with the posture's name beside it
+    /// where the class reads differently, so "Head turned" can be found under good posture.
+    static func pickerLabel(_ option: String, thisStep: Posture?) -> String {
+        let name = JevRemoteStatus.displayName(option)
+        guard let thisStep, option == thisStep.trueClass else { return name }
+        return thisStep.name.lowercased() == name
+            ? "\(name) · this step"
+            : "\(name) · this step (\(thisStep.name))"
     }
 
     /// The next index. One past the last step means finished, and it stays there.

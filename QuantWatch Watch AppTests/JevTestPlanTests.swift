@@ -170,4 +170,42 @@ struct JevTestPlanTests {
         #expect(!JevTestPlan.awaitsJudgement(capturedAt: now - 10, jevClass: "lean", judged: false,
                                              discarded: true, now: now))
     }
+
+    // MARK: - Head turned (2026-10-03, session 3)
+    //
+    // When Jev called a head turn slouch, "Both wrong" had no "head turned" to choose: its right
+    // answer is good posture, because looking away isn't bad posture. The step now says so, and
+    // the list names the posture beside its class.
+
+    @Test func headTurned_explainsWhyGoodPostureIsRight() throws {
+        let note = try #require(JevTestPlan.Posture.headTurned.note)
+        #expect(note.contains("good posture"))
+    }
+
+    /// Where the answer is the posture's own name, the screen stays short.
+    @Test func theCorePostures_needNoNote() {
+        for posture in [JevTestPlan.Posture.upright, .slouch, .lean, .chairSwivel] {
+            #expect(posture.note == nil, "\(posture.name)")
+        }
+    }
+
+    @Test func bothWrongList_namesThePostureWhenItsClassReadsDifferently() {
+        #expect(JevTestPlan.pickerLabel("good_posture", thisStep: .headTurned)
+                == "good posture · this step (Head turned)")
+        #expect(JevTestPlan.pickerLabel("chair_swivel", thisStep: .smallSwivel)
+                == "chair swivel · this step (Small swivel)")
+        #expect(JevTestPlan.pickerLabel("good_posture", thisStep: .upright)
+                == "good posture · this step (Upright)")
+    }
+
+    @Test func bothWrongList_doesNotRepeatAPostureNamedLikeItsClass() {
+        #expect(JevTestPlan.pickerLabel("lean", thisStep: .lean) == "lean · this step")
+        #expect(JevTestPlan.pickerLabel("chair_swivel", thisStep: .chairSwivel)
+                == "chair swivel · this step")
+    }
+
+    @Test func bothWrongList_leavesOtherClassesPlain() {
+        #expect(JevTestPlan.pickerLabel("slouch", thisStep: .headTurned) == "slouch")
+        #expect(JevTestPlan.pickerLabel("good_posture", thisStep: nil) == "good posture")
+    }
 }
