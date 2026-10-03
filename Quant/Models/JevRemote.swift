@@ -19,6 +19,7 @@ import PostureLogic
 /// - `["type": "jevJudge", "recordID": <UUID string>, "verdict": <UserVerdict raw>,
 ///   "trueClass": <JevClass raw, optional>]`
 /// - `["type": "jevStatusRequest"]`
+/// - `["type": "jevDiscard", "recordID": <UUID string>]`: flag a capture made by mistake
 ///
 /// Phone to Watch: `["type": "jevStatus", …]`, see ``Status/message``.
 ///
@@ -29,6 +30,7 @@ enum JevRemote {
     enum MessageType {
         static let classify = "jevClassify"
         static let judge = "jevJudge"
+        static let discard = "jevDiscard"
         static let statusRequest = "jevStatusRequest"
         static let status = "jevStatus"
     }
@@ -38,6 +40,8 @@ enum JevRemote {
         case classify
         case judge(recordID: UUID, verdict: JevComparisonRecord.UserVerdict, trueClass: JevClass?)
         case statusRequest
+        /// The capture was a mistake: flag it, keep it.
+        case discard(recordID: UUID)
 
         /// Nil for anything that is not a well-formed remote command, including the Watch's
         /// older message types, which keep their own handlers.
@@ -52,6 +56,11 @@ enum JevRemote {
                 self = .classify
             case MessageType.statusRequest:
                 self = .statusRequest
+            case MessageType.discard:
+                guard let idString = message["recordID"] as? String,
+                      let id = UUID(uuidString: idString)
+                else { return nil }
+                self = .discard(recordID: id)
             case MessageType.judge:
                 guard let idString = message["recordID"] as? String,
                       let id = UUID(uuidString: idString),
@@ -81,6 +90,8 @@ enum JevRemote {
             var capturedAt: TimeInterval
             /// The `UserVerdict` raw value, once judged.
             var judged: String?
+            /// Flagged as a mistake. Sent only when true.
+            var discarded: Bool = false
         }
 
         var enabled: Bool
@@ -128,6 +139,7 @@ enum JevRemote {
                 if let c = r.jevClass { m["jevClass"] = c }
                 if let c = r.jevConfidence { m["jevConfidence"] = c }
                 if let j = r.judged { m["judged"] = j }
+                if r.discarded { m["discarded"] = true }
             }
             return m
         }

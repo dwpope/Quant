@@ -150,7 +150,9 @@ enum JevTestPlan {
     /// Whether the top of the screen should ask you to judge the last capture rather than show
     /// the next posture. Only a fresh capture that has an answer: a failed call means classify
     /// again, and an old unjudged one (say from yesterday) mustn't block the plan.
-    static func awaitsJudgement(capturedAt: Date, jevClass: String?, judged: Bool, now: Date) -> Bool {
-        jevClass != nil && !judged && now.timeIntervalSince(capturedAt) < judgeWindow
+    /// A discarded capture doesn't either: you retake the same posture.
+    static func awaitsJudgement(capturedAt: Date, jevClass: String?, judged: Bool,
+                                discarded: Bool = false, now: Date) -> Bool {
+        jevClass != nil && !judged && !discarded && now.timeIntervalSince(capturedAt) < judgeWindow
     }
 }

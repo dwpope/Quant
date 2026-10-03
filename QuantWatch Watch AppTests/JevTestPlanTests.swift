@@ -163,4 +163,11 @@ struct JevTestPlanTests {
         #expect(JevTestPlan.suggestedVerdict(jevRight: false, thresholdsRight: true) == .thresholdsWereRight)
         #expect(JevTestPlan.suggestedVerdict(jevRight: false, thresholdsRight: false) == .bothWrong)
     }
+
+    /// A discarded capture has nothing to judge: retake the same posture.
+    @Test func aDiscardedCapture_isNotJudged() {
+        let now = Date()
+        #expect(!JevTestPlan.awaitsJudgement(capturedAt: now - 10, jevClass: "lean", judged: false,
+                                             discarded: true, now: now))
+    }
 }

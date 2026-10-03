@@ -38,6 +38,27 @@ struct JevRemoteMessageTests {
                 as NSDictionary == expected as NSDictionary)
     }
 
+    @Test func discardMessage() {
+        let id = UUID()
+        #expect(JevRemoteMessage.discard(recordID: id) as NSDictionary
+                == ["type": "jevDiscard", "recordID": id.uuidString] as NSDictionary)
+    }
+
+    @Test func decodesADiscardedRecord_andDefaultsToNotDiscarded() throws {
+        func status(_ extra: [String: Any]) -> JevRemoteStatus? {
+            var m: [String: Any] = [
+                "type": "jevStatus", "enabled": true, "calibrated": true, "tracking": "good",
+                "thr": "good", "recordID": UUID().uuidString, "jevClass": "lean",
+                "jevConfidence": 0.8, "thrAtCapture": "good", "capturedAt": 5.0,
+                "judgedCount": 0, "total": 1, "trueClassOptions": [String](), "attempts": 1,
+            ]
+            m.merge(extra) { $1 }
+            return JevRemoteStatus(message: m)
+        }
+        #expect(try #require(status(["discarded": true])).lastRecord?.discarded == true)
+        #expect(try #require(status([:])).lastRecord?.discarded == false)
+    }
+
     // MARK: - Status the phone sends
 
     @Test func decodesStatus_withARecord() throws {

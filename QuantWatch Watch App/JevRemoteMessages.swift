@@ -24,6 +24,11 @@ enum JevRemoteMessage {
 
     static func statusRequest() -> [String: Any] { ["type": "jevStatusRequest"] }
 
+    /// Flag a capture made by mistake. The phone keeps it, marked, and the analysis skips it.
+    static func discard(recordID: UUID) -> [String: Any] {
+        ["type": "jevDiscard", "recordID": recordID.uuidString]
+    }
+
     static func judge(recordID: UUID, verdict: JevRemoteVerdict, trueClass: String?) -> [String: Any] {
         var m: [String: Any] = [
             "type": "jevJudge", "recordID": recordID.uuidString, "verdict": verdict.rawValue,
@@ -46,6 +51,7 @@ struct JevRemoteStatus: Equatable {
         var thresholdStateAtCapture: String
         var capturedAt: Date
         var judged: JevRemoteVerdict?
+        var discarded: Bool
     }
 
     /// How a tap turned out, once its answer arrives.
@@ -107,7 +113,8 @@ struct JevRemoteStatus: Equatable {
                 jevConfidence: message["jevConfidence"] as? Double,
                 thresholdStateAtCapture: thrAtCapture,
                 capturedAt: Date(timeIntervalSince1970: capturedAt),
-                judged: (message["judged"] as? String).flatMap(JevRemoteVerdict.init(rawValue:)))
+                judged: (message["judged"] as? String).flatMap(JevRemoteVerdict.init(rawValue:)),
+                discarded: message["discarded"] as? Bool ?? false)
         } else {
             self.lastRecord = nil
         }

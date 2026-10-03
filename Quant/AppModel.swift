@@ -903,7 +903,8 @@ class AppModel: ObservableObject {
                 jevConfidence: r.jev?.confidence,
                 thresholdStateAtCapture: JevRemote.stateName(r.thresholdState).0,
                 capturedAt: r.capturedAt.timeIntervalSince1970,
-                judged: r.userVerdict?.rawValue)
+                judged: r.userVerdict?.rawValue,
+                discarded: r.isDiscarded)
         }
         return JevRemote.Status(
             enabled: useJevClassifier,
@@ -940,6 +941,8 @@ class AppModel: ObservableObject {
             await classifyWithJevIfDue()
         case .judge(let id, let verdict, let trueClass):
             jevComparisonStore.setUserVerdict(id: id, verdict: verdict, trueClass: trueClass)
+        case .discard(let id):
+            jevComparisonStore.setDiscarded(id: id)
         case .statusRequest:
             break
         }

@@ -143,6 +143,11 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
                     what: "judge")
     }
 
+    /// Flag the capture as a mistake. It stays on the phone, marked, and the analysis skips it.
+    func sendJevDiscard(recordID: UUID) {
+        sendToPhone(JevRemoteMessage.discard(recordID: recordID), what: "discard")
+    }
+
     /// Ask the phone for a fresh status, as when the capture screen opens.
     func requestJevStatus() {
         sendToPhone(JevRemoteMessage.statusRequest(), what: "status request")

@@ -19,6 +19,9 @@ struct JevRemoteView: View {
 
     @State private var confirmingRestart = false
 
+    /// The capture waiting on a "Discard?" confirmation.
+    @State private var confirmingDiscard: UUID?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
@@ -54,7 +57,8 @@ struct JevRemoteView: View {
 
     private func awaitsJudgement(_ record: JevRemoteStatus.Record) -> Bool {
         JevTestPlan.awaitsJudgement(capturedAt: record.capturedAt, jevClass: record.jevClass,
-                                    judged: record.judged != nil, now: Date())
+                                    judged: record.judged != nil, discarded: record.discarded,
+                                    now: Date())
     }
 
     // MARK: - Sections
@@ -163,6 +167,28 @@ struct JevRemoteView: View {
         } else {
             picker.buttonStyle(.bordered)
         }
+        discardButton(record)
+    }
+
+    /// For a capture made by mistake. It isn't judged, the plan stays on the same posture, and
+    /// the phone keeps the record, flagged, so the analysis can leave it out.
+    @ViewBuilder
+    private func discardButton(_ record: JevRemoteStatus.Record) -> some View {
+        Button("Discard capture", role: .destructive) { confirmingDiscard = record.id }
+            .font(.caption2)
+            .buttonStyle(.bordered)
+            .confirmationDialog("Discard this capture?",
+                                isPresented: Binding(
+                                    get: { confirmingDiscard == record.id },
+                                    set: { if !$0 { confirmingDiscard = nil } })) {
+                Button("Discard", role: .destructive) {
+                    session.sendJevDiscard(recordID: record.id)
+                    confirmingDiscard = nil
+                }
+                Button("Cancel", role: .cancel) { confirmingDiscard = nil }
+            } message: {
+                Text("It stays on the phone, marked, and is left out of the analysis.")
+            }
     }
 
     /// An answer with a tick or a cross against this step, or plain once the plan is finished.
@@ -269,10 +295,18 @@ struct JevRemoteView: View {
                 .font(.caption)
                 .foregroundStyle(.orange)
         }
-        if let judged = record.judged {
-            Label(verdictLabel(judged), systemImage: "checkmark.circle.fill")
+        if record.discarded {
+            Label("Discarded", systemImage: "trash")
                 .font(.caption2)
-                .foregroundStyle(.green)
+                .foregroundStyle(.secondary)
+        } else {
+            if let judged = record.judged {
+                Label(verdictLabel(judged), systemImage: "checkmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+            }
+            // Also here, for a capture judged and only then found to be a mistake.
+            discardButton(record)
         }
     }
 

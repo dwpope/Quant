@@ -88,6 +88,12 @@ struct JevComparisonRecord: Codable, Identifiable {
     /// typing…), which 3c can't compare with Jev's answer. Those old strings decode as `nil`;
     /// see ``init(from:)``.
     var trueClass: JevClass?
+    /// Set when the capture was a mistake. The record stays, in the file and the export, and
+    /// the analysis leaves it out: a dropped record could hide a pattern, a flagged one can't.
+    /// Nil (not written) unless set, so records from before 2026-10-03 read as kept.
+    var discarded: Bool?
+
+    var isDiscarded: Bool { discarded == true }
 
     init(
         id: UUID,
@@ -140,6 +146,7 @@ struct JevComparisonRecord: Codable, Identifiable {
         trueClass = (try? c.decodeIfPresent(String.self, forKey: .trueClass))
             .flatMap { $0 }
             .flatMap(JevClass.init(rawValue:))
+        discarded = (try? c.decodeIfPresent(Bool.self, forKey: .discarded)).flatMap { $0 }
     }
 }
 
@@ -204,6 +211,13 @@ final class JevComparisonStore: ObservableObject {
     }
 
     /// Records who was right. No-op for an unknown id, so a stale tap cannot corrupt the set.
+    /// Marks a capture made by mistake. No-op for an unknown id. Any judgement is kept.
+    func setDiscarded(id: UUID) {
+        guard let idx = comparisons.firstIndex(where: { $0.id == id }) else { return }
+        comparisons[idx].discarded = true
+        persist()
+    }
+
     func setUserVerdict(id: UUID, verdict: JevComparisonRecord.UserVerdict, trueClass: JevClass?) {
         guard let idx = comparisons.firstIndex(where: { $0.id == id }) else { return }
         comparisons[idx].userVerdict = verdict
