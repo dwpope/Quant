@@ -8,25 +8,38 @@
 
 import Foundation
 
-/// The protocol agreed for the second device session (2026-10-01): three captures each of
-/// upright, slouch, lean and chair swivel, then two optional extras that probe the new swivel
-/// wording. Each step is one capture.
+/// The protocol for a device session, revised 2026-10-04 to what matters for soreness: three
+/// captures each of upright, slouch, lean and chair swivel, two small slouches, then two optional
+/// head turns. Each step is one capture.
+///
+/// Only slouch and lean are worth a nudge. The swivel and the head turn are here as false-alarm
+/// checks: a nudge for nothing teaches you to ignore nudges. The small swivel was dropped: it
+/// isn't bad posture, and a 15-20° turn doesn't narrow the shoulders enough for the camera.
 ///
 /// The camera never sees the spine, only how wide the shoulders look, where the head is and how
 /// far the body has shifted sideways, so each instruction says how to change one of those.
 enum JevTestPlan {
 
     enum Posture: Equatable {
-        case upright, slouch, lean, chairSwivel, headTurned, smallSwivel
+        case upright, slouch, smallSlouch, lean, chairSwivel, headTurned
+
+        /// Slouch and lean, the postures a nudge is for. For the others what matters is that
+        /// nothing nudges.
+        var worthANudge: Bool {
+            switch self {
+            case .slouch, .smallSlouch, .lean: return true
+            case .upright, .chairSwivel, .headTurned: return false
+            }
+        }
 
         var name: String {
             switch self {
             case .upright: return "Upright"
             case .slouch: return "Slouch"
+            case .smallSlouch: return "Small slouch"
             case .lean: return "Lean"
             case .chairSwivel: return "Chair swivel"
             case .headTurned: return "Head turned"
-            case .smallSwivel: return "Small swivel"
             }
         }
 
@@ -36,14 +49,14 @@ enum JevTestPlan {
                 return "Sit as you did when calibrating, looking at the screen."
             case .slouch:
                 return "Collapse forward so your shoulders move towards the phone, head dropping. Don't just sink."
+            case .smallSlouch:
+                return "Ease forward just a little, shoulders slightly towards the phone, head dropping a touch. The start of a slouch."
             case .lean:
                 return "Shift your upper body sideways at the waist, shoulders still facing the phone. Keep looking at the screen."
             case .chairSwivel:
                 return "Sit upright and turn the whole chair 30° or more. Not just your head."
             case .headTurned:
                 return "Stay upright and look 30–40° to one side. Keep your shoulders still."
-            case .smallSwivel:
-                return "Turn the chair only 15–20°. Jev may well say lean or good posture: that shows where the cut is."
             }
         }
 
@@ -53,8 +66,8 @@ enum JevTestPlan {
         var note: String? {
             switch self {
             case .headTurned:
-                return "Looking away isn't bad posture, so Jev should say good posture. If it doesn't: Both wrong, then good posture."
-            case .upright, .slouch, .lean, .chairSwivel, .smallSwivel:
+                return "Looking away isn't bad posture, so good posture is the answer, and slouch or lean is a false alarm."
+            case .upright, .slouch, .smallSlouch, .lean, .chairSwivel:
                 return nil
             }
         }
@@ -62,10 +75,10 @@ enum JevTestPlan {
         /// The answer that counts as right for Jev, as the Watch displays class names.
         var jevShouldSay: String {
             switch self {
-            case .upright, .headTurned: return "good posture"
-            case .slouch: return "slouch"
+            case .upright: return "good posture"
+            case .slouch, .smallSlouch: return "slouch"
             case .lean: return "lean"
-            case .chairSwivel, .smallSwivel: return "chair swivel"
+            case .chairSwivel, .headTurned: return "not slouch or lean"
             }
         }
 
@@ -73,8 +86,8 @@ enum JevTestPlan {
         /// right for it, and that's the false alarm Jev is meant to fix.
         var thresholdsShouldSay: String {
             switch self {
-            case .upright, .chairSwivel, .headTurned, .smallSwivel: return "good"
-            case .slouch, .lean: return "drifting or bad"
+            case .upright, .chairSwivel, .headTurned: return "good"
+            case .slouch, .smallSlouch, .lean: return "drifting or bad"
             }
         }
 
@@ -82,27 +95,24 @@ enum JevTestPlan {
         var trueClass: String {
             switch self {
             case .upright, .headTurned: return "good_posture"
-            case .slouch: return "slouch"
+            case .slouch, .smallSlouch: return "slouch"
             case .lean: return "lean"
-            case .chairSwivel, .smallSwivel: return "chair_swivel"
+            case .chairSwivel: return "chair_swivel"
             }
         }
 
-        /// Whether Jev's answer is the posture you did. "ambiguous" is Jev declining to answer,
-        /// and no answer is never right.
+        /// Whether Jev's answer is right. A posture worth a nudge needs its own class, since that
+        /// says what to fix; for the others any answer that wouldn't nudge is right. "ambiguous"
+        /// is Jev declining to answer, and no answer is never right.
         func jevRight(_ jevClass: String?) -> Bool {
-            jevClass == trueClass
+            if worthANudge { return jevClass == trueClass }
+            return jevClass == "good_posture" || jevClass == "chair_swivel"
         }
 
-        /// Whether the thresholds' state fits the posture: "good" for upright and swivel,
-        /// drifting or bad for slouch and lean. Absent or calibrating isn't a judgement at all.
+        /// Whether the thresholds' state fits the posture: drifting or bad for a posture worth a
+        /// nudge, "good" otherwise. Absent or calibrating isn't a judgement at all.
         func thresholdsRight(_ state: String) -> Bool {
-            switch self {
-            case .upright, .chairSwivel, .headTurned, .smallSwivel:
-                return state == "good"
-            case .slouch, .lean:
-                return state == "drifting" || state == "bad"
-            }
+            worthANudge ? (state == "drifting" || state == "bad") : state == "good"
         }
     }
 
@@ -125,10 +135,10 @@ enum JevTestPlan {
     static let steps: [Step] =
         Array(repeating: Step(posture: .upright, optional: false), count: 3)
         + Array(repeating: Step(posture: .slouch, optional: false), count: 3)
+        + Array(repeating: Step(posture: .smallSlouch, optional: false), count: 2)
         + Array(repeating: Step(posture: .lean, optional: false), count: 3)
         + Array(repeating: Step(posture: .chairSwivel, optional: false), count: 3)
         + Array(repeating: Step(posture: .headTurned, optional: true), count: 2)
-        + Array(repeating: Step(posture: .smallSwivel, optional: true), count: 2)
 
     /// The step at `index`, or nil once the plan is finished (or for a nonsense index).
     static func progress(at index: Int) -> Progress? {

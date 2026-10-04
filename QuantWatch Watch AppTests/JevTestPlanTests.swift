@@ -4,16 +4,16 @@ import Testing
 
 /// The guided test plan on the Watch: which posture to do next, how, and what counts as right.
 ///
-/// It's the protocol agreed for the second device session (2026-10-01): three captures each of
-/// upright, slouch, lean and chair swivel, then two optional extras that probe the new swivel
-/// wording.
+/// Revised 2026-10-04 to what matters for soreness: three captures each of upright, slouch, lean
+/// and chair swivel, two small slouches, then two optional head turns. The small swivel is gone:
+/// it isn't bad posture, and the camera can't see a 15-20° turn.
 struct JevTestPlanTests {
 
-    @Test func runsTwelveCoreCapturesThenFourOptionalOnes() {
+    @Test func runsFourteenCoreCapturesThenTwoOptionalOnes() {
         let steps = JevTestPlan.steps
         #expect(steps.count == 16)
-        #expect(steps.prefix(12).allSatisfy { !$0.optional })
-        #expect(steps.suffix(4).allSatisfy { $0.optional })
+        #expect(steps.prefix(14).allSatisfy { !$0.optional })
+        #expect(steps.suffix(2).allSatisfy { $0.optional })
     }
 
     @Test func goesThroughThePosturesInOrder_threeOfEach() {
@@ -21,10 +21,10 @@ struct JevTestPlanTests {
         #expect(names == [
             "Upright", "Upright", "Upright",
             "Slouch", "Slouch", "Slouch",
+            "Small slouch", "Small slouch",
             "Lean", "Lean", "Lean",
             "Chair swivel", "Chair swivel", "Chair swivel",
             "Head turned", "Head turned",
-            "Small swivel", "Small swivel",
         ])
     }
 
@@ -36,12 +36,13 @@ struct JevTestPlanTests {
         #expect(JevTestPlan.Posture.slouch.thresholdsShouldSay == "drifting or bad")
         #expect(JevTestPlan.Posture.lean.jevShouldSay == "lean")
         #expect(JevTestPlan.Posture.lean.thresholdsShouldSay == "drifting or bad")
-        // The thresholds' known false alarm: a swivel is fine posture.
-        #expect(JevTestPlan.Posture.chairSwivel.jevShouldSay == "chair swivel")
+        #expect(JevTestPlan.Posture.smallSlouch.jevShouldSay == "slouch")
+        #expect(JevTestPlan.Posture.smallSlouch.thresholdsShouldSay == "drifting or bad")
+        // The thresholds' known false alarm: a swivel is fine posture. For a fine posture what
+        // matters is no nudge, so any answer but slouch or lean is right.
+        #expect(JevTestPlan.Posture.chairSwivel.jevShouldSay == "not slouch or lean")
         #expect(JevTestPlan.Posture.chairSwivel.thresholdsShouldSay == "good")
-        // The first session's main mistake: a turned head alone is not a swivel.
-        #expect(JevTestPlan.Posture.headTurned.jevShouldSay == "good posture")
-        #expect(JevTestPlan.Posture.smallSwivel.jevShouldSay == "chair swivel")
+        #expect(JevTestPlan.Posture.headTurned.jevShouldSay == "not slouch or lean")
     }
 
     /// "Both wrong" asks what you were actually doing. The plan already knows.
@@ -51,7 +52,7 @@ struct JevTestPlanTests {
         #expect(JevTestPlan.Posture.lean.trueClass == "lean")
         #expect(JevTestPlan.Posture.chairSwivel.trueClass == "chair_swivel")
         #expect(JevTestPlan.Posture.headTurned.trueClass == "good_posture")
-        #expect(JevTestPlan.Posture.smallSwivel.trueClass == "chair_swivel")
+        #expect(JevTestPlan.Posture.smallSlouch.trueClass == "slouch")
     }
 
     @Test func everyPostureHasAnInstruction() {
@@ -123,8 +124,8 @@ struct JevTestPlanTests {
         #expect(!JevTestPlan.Posture.lean.jevRight("chair_swivel"))
         #expect(JevTestPlan.Posture.chairSwivel.jevRight("chair_swivel"))
         #expect(JevTestPlan.Posture.headTurned.jevRight("good_posture"))
-        #expect(!JevTestPlan.Posture.headTurned.jevRight("chair_swivel"), "the first session's mistake")
-        #expect(JevTestPlan.Posture.smallSwivel.jevRight("chair_swivel"))
+        #expect(JevTestPlan.Posture.smallSlouch.jevRight("slouch"))
+        #expect(!JevTestPlan.Posture.smallSlouch.jevRight("good_posture"), "the miss that matters")
     }
 
     /// Ambiguous is Jev declining to answer, and no answer is never right.
@@ -192,8 +193,8 @@ struct JevTestPlanTests {
     @Test func bothWrongList_namesThePostureWhenItsClassReadsDifferently() {
         #expect(JevTestPlan.pickerLabel("good_posture", thisStep: .headTurned)
                 == "good posture · this step (Head turned)")
-        #expect(JevTestPlan.pickerLabel("chair_swivel", thisStep: .smallSwivel)
-                == "chair swivel · this step (Small swivel)")
+        #expect(JevTestPlan.pickerLabel("slouch", thisStep: .smallSlouch)
+                == "slouch · this step (Small slouch)")
         #expect(JevTestPlan.pickerLabel("good_posture", thisStep: .upright)
                 == "good posture · this step (Upright)")
     }
@@ -213,5 +214,44 @@ struct JevTestPlanTests {
     /// leans, 0–10°. A turned head also makes the thresholds discount the lean.
     @Test func lean_asksYouToKeepLookingAtTheScreen() {
         #expect(JevTestPlan.Posture.lean.instruction.contains("Keep looking at the screen"))
+    }
+
+    // MARK: - Nudge or not (2026-10-04)
+    //
+    // Only slouch and lean are worth a nudge. For everything else what matters is no nudge, so
+    // Jev saying good posture on a swivel, or swivel on a head turn, is right. Session 5's two
+    // "Both wrong" taps on a swivel Jev called good posture are what this removes.
+
+    @Test func onlySlouchAndLean_areWorthANudge() {
+        #expect(JevTestPlan.Posture.slouch.worthANudge)
+        #expect(JevTestPlan.Posture.smallSlouch.worthANudge)
+        #expect(JevTestPlan.Posture.lean.worthANudge)
+        #expect(!JevTestPlan.Posture.upright.worthANudge)
+        #expect(!JevTestPlan.Posture.chairSwivel.worthANudge)
+        #expect(!JevTestPlan.Posture.headTurned.worthANudge)
+    }
+
+    @Test func aFinePosture_isRightForAnyAnswerThatWouldNotNudge() {
+        for posture in [JevTestPlan.Posture.upright, .chairSwivel, .headTurned] {
+            #expect(posture.jevRight("good_posture"), "\(posture.name)")
+            #expect(posture.jevRight("chair_swivel"), "\(posture.name)")
+            #expect(!posture.jevRight("slouch"), "\(posture.name)")
+            #expect(!posture.jevRight("lean"), "\(posture.name)")
+        }
+    }
+
+    /// A posture worth a nudge still needs its own class: it says what to fix.
+    @Test func aPostureWorthANudge_needsItsOwnClass() {
+        #expect(!JevTestPlan.Posture.slouch.jevRight("lean"))
+        #expect(!JevTestPlan.Posture.lean.jevRight("slouch"))
+        #expect(!JevTestPlan.Posture.slouch.jevRight("chair_swivel"))
+    }
+
+    /// Session 3's two missed slouches came forward only 4-5%; every slouch since has come well
+    /// forward, so the head-height rule for them is still untested on the device.
+    @Test func smallSlouch_asksForJustTheStartOfOne() {
+        let instruction = JevTestPlan.Posture.smallSlouch.instruction
+        #expect(instruction.contains("a little"))
+        #expect(instruction.contains("head"))
     }
 }
