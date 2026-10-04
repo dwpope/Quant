@@ -13,6 +13,7 @@ import {
   buildJevRequest,
   mapJevAnswer,
   parseFeatures,
+  BASELINE_NOTE,
 } from "../src/classify";
 
 const valid = {
@@ -291,3 +292,50 @@ describe("a clear shift is a lean whatever the head yaw, unless it's a swivel (v
     expect(POSTURE_CRITERIA.lean).toMatch(/looking away/);
   });
 });
+
+// v3.6: three inputs never varied across all 70 captures from five sessions. torso_angle_degrees
+// was always 45 and torso_lean_delta_degrees always 0 (the hips are never in frame, so both are a
+// clamped proxy), and depth_mode always "twoDOnly". They told Jev nothing and cost it attention.
+// The app still sends them; the Worker stops forwarding them.
+describe("the three dead inputs are not sent to Jev (v3.6)", () => {
+  const dead = ["torso_angle_degrees", "torso_lean_delta_degrees", "depth_mode"];
+  const fromTheApp = { ...valid, depth_mode: "twoDOnly" };
+
+  it("accepts today's app payload, which still includes them", () => {
+    expect(parseFeatures(fromTheApp).ok).toBe(true);
+  });
+
+  it("accepts a payload without them", () => {
+    const { torso_angle_degrees, torso_lean_delta_degrees, ...without } = valid;
+    expect(parseFeatures(without).ok).toBe(true);
+  });
+
+  it("leaves them out of what goes to Jev", () => {
+    const r = parseFeatures(fromTheApp);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const state = buildJevRequest(r.features).state;
+    for (const key of dead) expect(state, key).not.toHaveProperty(key);
+  });
+
+  it("no longer explains them in the baseline note", () => {
+    expect(BASELINE_NOTE).not.toMatch(/torso_angle|torso_lean_delta|depth_mode/);
+  });
+
+  it("no posture description relies on them", () => {
+    for (const [name, desc] of Object.entries(POSTURE_CRITERIA)) {
+      expect(desc, name).not.toMatch(/torso_angle|torso_lean|depth_mode/);
+    }
+  });
+
+  it("still sends everything the wording uses", () => {
+    const r = parseFeatures(fromTheApp);
+    if (!r.ok) throw new Error(r.error);
+    const state = buildJevRequest(r.features).state;
+    for (const key of [
+      "forward_creep_fraction_of_baseline_shoulder_width", "head_drop_in_shoulder_widths",
+      "lateral_lean_in_shoulder_widths", "head_yaw_degrees", "tracking_quality",
+    ]) expect(state, key).toHaveProperty(key);
+  });
+});
+

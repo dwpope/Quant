@@ -91,7 +91,7 @@ export function isClearLeanByRule(
 
 export const POSTURE_CRITERIA: Record<string, string> = {
   good_posture:
-    `Sitting upright, close to the calibration baseline. forward_creep stays under ${SLOUCH_MIN_FORWARD_CREEP} (sitting still, it wanders a few hundredths either side of zero), head_drop stays above ${SLOUCH_MAX_HEAD_DROP}, torso_lean_delta is near zero and lateral lean is small. The head may be turned: head angles alone do not make a posture bad.`,
+    `Sitting upright, close to the calibration baseline. forward_creep stays under ${SLOUCH_MIN_FORWARD_CREEP} (sitting still, it wanders a few hundredths either side of zero), head_drop stays above ${SLOUCH_MAX_HEAD_DROP}, and lateral lean is small. The head may be turned: head angles alone do not make a posture bad.`,
   // Kept free of the lean rule: v3 first added it here and four clear slouches dropped to
   // good_posture in replay. The lean rule lives only in the lean description.
   slouch:
@@ -110,31 +110,32 @@ export const POSTURE_CRITERIA: Record<string, string> = {
  * prose rubric has nothing to bind the numbers to.
  */
 export const BASELINE_NOTE = [
-  "All values except the head angles and torso_angle are deltas from a calibration snapshot taken while the user sat upright; 0 means exactly at baseline.",
+  "All values except the head angles are deltas from a calibration snapshot taken while the user sat upright; 0 means exactly at baseline.",
   "forward_creep is the fractional change in APPARENT shoulder width: positive means the shoulders look wider (torso closer to the camera), negative means narrower (torso rotated away from square).",
   "head_drop is in shoulder-widths; positive means the head appears lower in the image than at baseline. With the phone below eye level, leaning towards it makes the head appear higher, so a slouch usually reads NEGATIVE.",
   "lateral_lean_in_shoulder_widths is the sideways shift of the shoulder midpoint, divided by baseline shoulder width so it is dimensionless in both camera modes.",
   "shoulder_tilt_signed_degrees is one shoulder higher than the other, not axial rotation.",
-  "torso_lean_delta_degrees is the change in torso lean angle, not shoulder protraction.",
-  "torso_angle_degrees is camera-absolute, not a delta, and when the hips are out of frame it is a clamped proxy derived from head-to-shoulder height rather than a measured angle. Weigh it lightly.",
   "Head angles are camera-absolute degrees and read 0 both when centred and when unavailable.",
 ].join(" ");
 
+/**
+ * What Jev is sent. Not torso_angle_degrees, torso_lean_delta_degrees or depth_mode: across all
+ * 70 captures from five sessions they never varied (45, 0 and "twoDOnly"; the hips are never in
+ * frame, so the torso values are a clamped proxy). The app still sends them, and they're dropped
+ * here with any other unknown key.
+ */
 const NUMERIC_FIELDS = [
   "head_yaw_degrees",
   "head_pitch_degrees",
   "head_roll_degrees",
   "forward_creep_fraction_of_baseline_shoulder_width",
   "head_drop_in_shoulder_widths",
-  "torso_lean_delta_degrees",
   "lateral_lean_in_shoulder_widths",
   "shoulder_tilt_signed_degrees",
-  "torso_angle_degrees",
 ] as const;
 
 export type Features = { [K in (typeof NUMERIC_FIELDS)[number]]: number } & {
   tracking_quality: TrackingQuality;
-  depth_mode?: string;
 };
 
 export type Parsed = { ok: true; features: Features } | { ok: false; error: string };
@@ -166,10 +167,6 @@ export function parseFeatures(body: unknown): Parsed {
     return { ok: false, error: `tracking_quality must be one of ${TRACKING_QUALITY.join(", ")}` };
   }
   out.tracking_quality = q;
-
-  if (typeof src.depth_mode === "string" && src.depth_mode.length <= 32) {
-    out.depth_mode = src.depth_mode;
-  }
 
   return { ok: true, features: out as Features };
 }
