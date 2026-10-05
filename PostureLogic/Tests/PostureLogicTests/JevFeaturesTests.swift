@@ -150,6 +150,7 @@ final class JevFeaturesTests: XCTestCase {
             "torso_lean_delta_degrees", "lateral_lean_in_shoulder_widths",
             "shoulder_tilt_signed_degrees", "torso_angle_degrees",
             "tracking_quality", "depth_mode",
+            "shoulder_sink_in_shoulder_widths",   // since 2026-10-05; the Worker forwards it from v3.9
         ]))
         XCTAssertEqual(json["tracking_quality"] as? String, "good")
         XCTAssertEqual(json["depth_mode"] as? String, "twoDOnly")
@@ -193,4 +194,37 @@ final class JevFeaturesTests: XCTestCase {
 
         XCTAssertEqual(decoded, original)
     }
+
+    // MARK: - Shoulder sink (2026-10-05)
+
+    /// Sent to Jev from this build on, so it can see a sinking slouch. Optional, so a record saved
+    /// before it still reads, and an older app simply doesn't send it.
+    func test_includesTheShoulderSink() throws {
+        let sample = PoseSample(timestamp: 0, depthMode: .twoDOnly, headPosition: SIMD3<Float>(0, -0.38, 0),
+                                shoulderMidpoint: SIMD3<Float>(0.5, 0.71, 0), leftShoulder: SIMD3<Float>(-0.5, 0, 0),
+                                rightShoulder: SIMD3<Float>(0.5, 0, 0), torsoAngle: 45, headForwardOffset: 0,
+                                shoulderTwist: 0, shoulderWidthRaw: 0.42, trackingQuality: .good)
+        let metrics = RawMetrics(timestamp: 0, forwardCreep: -0.05, headDrop: 0.002, shoulderRounding: 0,
+                                 lateralLean: 0, twist: 0, movementLevel: 0, headMovementPattern: .still,
+                                 shoulderSink: 0.095)
+        let baseline = Baseline(timestamp: Date(), shoulderMidpoint: SIMD3<Float>(0.5, 0.67, 0),
+                                headPosition: .zero, torsoAngle: 45, shoulderWidth: 0.42, depthAvailable: false)
+        let features = try XCTUnwrap(JevFeatures.make(sample: sample, metrics: metrics, baseline: baseline))
+        XCTAssertEqual(try XCTUnwrap(features.shoulderSinkInShoulderWidths), 0.095, accuracy: 1e-6)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(features)) as? [String: Any])
+        XCTAssertEqual((json["shoulder_sink_in_shoulder_widths"] as? Double) ?? .nan, 0.095, accuracy: 1e-6)
+    }
+
+    func test_aPayloadSavedBeforeTheSink_stillReads() throws {
+        let older = """
+        {"head_yaw_degrees":0,"head_pitch_degrees":0,"head_roll_degrees":0,
+         "forward_creep_fraction_of_baseline_shoulder_width":0.1,"head_drop_in_shoulder_widths":0,
+         "torso_lean_delta_degrees":0,"lateral_lean_in_shoulder_widths":0,
+         "shoulder_tilt_signed_degrees":0,"torso_angle_degrees":45,"tracking_quality":"good",
+         "depth_mode":"twoDOnly"}
+        """
+        let features = try JSONDecoder().decode(JevFeatures.self, from: Data(older.utf8))
+        XCTAssertNil(features.shoulderSinkInShoulderWidths)
+    }
 }
+

@@ -15,7 +15,7 @@ Built with SwiftUI, ARKit, and Vision. Targeting iOS 17+.
 
 Aware sits on your desk (phone on a stand) and watches your upper body through the front camera. It continuously compares your posture against a personal baseline you calibrate at the start of each session.
 
-**Posture monitoring** — Tracks five metrics (forward lean, head drop, shoulder rounding, lateral lean, twist) with a traffic-light state machine that gives you a grace period to self-correct before nudging. Nudges are spaced by a cooldown (an hourly cap is available in settings, off by default), and can be silenced for 30 minutes to 2 hours from the phone's bell button or the Watch. Sitting up after a nudge is recorded, and slouching again gets a fresh nudge once it's held long enough.
+**Posture monitoring** — Tracks six metrics (forward lean, head drop, shoulder sink, shoulder rounding, lateral lean, twist) with a traffic-light state machine that gives you a grace period to self-correct before nudging. Nudges are spaced by a cooldown (an hourly cap is available in settings, off by default), and can be silenced for 30 minutes to 2 hours from the phone's bell button or the Watch. Sitting up after a nudge is recorded, and slouching again gets a fresh nudge once it's held long enough. Shoulder sink catches sinking down in the chair, where the head and shoulders drop together and nothing else changes.
 
 **Head-turn nudge** — Working on a second screen off to the side twists the neck, and holding it gets uncomfortable. A head turned past 45° while the shoulders still face the phone, held for five minutes, gets its own nudge: turn the chair to face that screen. Turning the chair narrows the shoulders in view, which is how the app tells a turned chair from a turned neck. Turns are measured from where you looked while calibrating, and the panel asks you to move the phone if that was more than 20° to one side: every posture rule assumes the phone is in front of you. It shares the slouch nudge's cooldown and hourly cap, and every nudge shows its own one-line advice on the Apple Watch.
 
@@ -39,10 +39,10 @@ be compared against the on-device thresholds. It is **false on every launch** an
 unless you turn it on and tap *Classify now*, or *Classify* on the Apple Watch's *Jev capture* screen. The watch can trigger a capture but cannot turn the classifier on. It never drives a nudge — the on-device engine
 remains the only thing that does.
 
-When it is enabled, each classification sends **nine derived numbers** (head yaw/pitch/roll, a
-torso angle, and five calibration-relative deltas) plus a tracking-quality label and the camera
-mode. **No image, video or audio ever leaves the device** — there is no imagery in the payload at
-all. Those numbers go to a Cloudflare Worker under this project's control, which forwards **seven**
+When it is enabled, each classification sends **ten derived numbers** (head yaw/pitch/roll, a
+torso angle, and six calibration-relative deltas, including how far the shoulders have sunk in the
+frame) plus a tracking-quality label and the camera mode. **No image, video or audio ever leaves the device** — there is no imagery in the payload at
+all. Those numbers go to a Cloudflare Worker under this project's control, which forwards **eight**
 of them and the tracking label to [TypeSafe](https://typesafe.ai)'s Jev API in the United States.
 It drops the torso angle, the torso-lean delta and the camera mode, which never varied across
 five device sessions. TypeSafe states it does not train
@@ -80,7 +80,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~38,000 lines of Swift** across 212 files, tests included. All tests pass: **680** in the `PostureLogic` package (`cd PostureLogic && swift test`), **341** in the app target and **64** in the Watch app (commands below), plus **63** for the Jev Worker (`cd jev-proxy && npm test`).
+**~38,000 lines of Swift** across 213 files, tests included. All tests pass: **689** in the `PostureLogic` package (`cd PostureLogic && swift test`), **343** in the app target and **66** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
 
 ## Technical Decisions
 

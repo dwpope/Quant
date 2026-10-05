@@ -12,6 +12,7 @@ import {
   isClearLeanByRule,
   isLookingAwayByRule,
   isSlouchByRule,
+  SLOUCH_MIN_SHOULDER_SINK,
   buildJevRequest,
   mapJevAnswer,
   parseFeatures,
@@ -413,3 +414,54 @@ describe("head_drop explained by its sign, not by the camera height (v3.8)", () 
     expect(SLOUCH_MAX_HEAD_DROP).toBe(-0.015);
   });
 });
+
+// v3.9: sinking down in the chair (2026-10-05). The head and shoulders drop together, so neither
+// forward creep nor head drop moves. Session 8 measured the shoulders' own drop in the frame:
+// sinks +0.086 to +0.103, uprights +0.005 to +0.020, swivels and head turns +0.018 or below.
+describe("shoulder sink (v3.9)", () => {
+  // Session 8 and its false start: [forward creep, head drop, sideways shift, head yaw, sink].
+  const sinks: Array<[number, number, number, number, number]> = [
+    [-0.052, 0.002, 0.022, 1, 0.103], [-0.046, 0.006, 0.024, 2, 0.096], [-0.033, 0.004, 0.0, 1, 0.1],
+    [-0.08, 0.005, 0.012, 2, 0.088], [-0.083, 0.003, 0.034, 0, 0.086],
+  ];
+  const uprights: Array<[number, number, number, number, number]> = [
+    [0.021, 0.001, 0.005, 2, 0.005], [0.03, 0.001, 0.008, 1, 0.008], [0.024, -0.004, 0.002, 4, 0.02],
+    [-0.005, -0.003, 0.013, 1, 0.006], [-0.01, 0.002, 0.009, 0, 0.006], [-0.012, 0.002, 0.009, 0, 0.008],
+  ];
+
+  it("puts the line between every upright and every sink", () => {
+    expect(SLOUCH_MIN_SHOULDER_SINK).toBeGreaterThan(0.02);
+    expect(SLOUCH_MIN_SHOULDER_SINK).toBeLessThan(0.086);
+  });
+
+  it("calls every sink a slouch, and no upright", () => {
+    for (const [fc, hd, lat, yaw, sink] of sinks) expect(isSlouchByRule(fc, hd, lat, yaw, sink)).toBe(true);
+    for (const [fc, hd, lat, yaw, sink] of uprights) expect(isSlouchByRule(fc, hd, lat, yaw, sink)).toBe(false);
+  });
+
+  it("works without a sink, as older app builds send", () => {
+    expect(isSlouchByRule(0.1, 0, 0, 0)).toBe(true);
+    expect(isSlouchByRule(0.01, 0, 0, 0)).toBe(false);
+  });
+
+  it("forwards the sink when the app sends it, and nothing when it doesn't", () => {
+    const withSink = parseFeatures({ ...valid, shoulder_sink_in_shoulder_widths: 0.1 });
+    expect(withSink.ok).toBe(true);
+    if (withSink.ok) expect(buildJevRequest(withSink.features).state).toHaveProperty("shoulder_sink_in_shoulder_widths", 0.1);
+    const without = parseFeatures(valid);
+    expect(without.ok).toBe(true);
+    if (without.ok) expect(buildJevRequest(without.features).state).not.toHaveProperty("shoulder_sink_in_shoulder_widths");
+  });
+
+  it("rejects a sink that isn't a finite number", () => {
+    expect(parseFeatures({ ...valid, shoulder_sink_in_shoulder_widths: NaN }).ok).toBe(false);
+    expect(parseFeatures({ ...valid, shoulder_sink_in_shoulder_widths: "0.1" }).ok).toBe(false);
+  });
+
+  it("tells Jev what it is and where the line is", () => {
+    expect(POSTURE_CRITERIA.slouch).toContain("shoulder_sink_in_shoulder_widths");
+    expect(POSTURE_CRITERIA.slouch).toContain(String(SLOUCH_MIN_SHOULDER_SINK));
+    expect(BASELINE_NOTE).toMatch(/shoulder_sink[^.]*lower in the frame/);
+  });
+});
+

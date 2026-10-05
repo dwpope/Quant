@@ -76,6 +76,14 @@ export const SLOUCH_MAX_HEAD_DROP = -0.015;
  */
 export const HEAD_DROP_SLOUCH_MAX_SHIFT = 0.1;
 
+/**
+ * Shoulder sink at or above this is a slouch: sinking down in the chair, where the head and
+ * shoulders drop together and neither forward creep nor head drop moves. Session 8 (2026-10-05):
+ * sinks +0.086 to +0.103, uprights +0.005 to +0.020, swivels and head turns +0.018 or below. Sent
+ * by app builds from 2026-10-05 on; absent from older ones.
+ */
+export const SLOUCH_MIN_SHOULDER_SINK = 0.05;
+
 /** The swivel rule above, in code: what the wording tells Jev, made testable. */
 export function isSwivelByRule(forwardCreep: number, headYawDegrees: number): boolean {
   return Math.abs(headYawDegrees) >= SWIVEL_MIN_HEAD_YAW && forwardCreep <= SWIVEL_MAX_FORWARD_CREEP;
@@ -101,12 +109,14 @@ export function isSlouchByRule(
   headDrop: number,
   lateralShift: number,
   headYawDegrees: number,
+  shoulderSink?: number,
 ): boolean {
   const byCreep =
     forwardCreep >= SLOUCH_MIN_FORWARD_CREEP && !isLookingAwayByRule(forwardCreep, headYawDegrees);
   const byHeadHeight =
     headDrop <= SLOUCH_MAX_HEAD_DROP && Math.abs(lateralShift) < HEAD_DROP_SLOUCH_MAX_SHIFT;
-  return byCreep || byHeadHeight;
+  const bySink = shoulderSink !== undefined && shoulderSink >= SLOUCH_MIN_SHOULDER_SINK;
+  return byCreep || byHeadHeight || bySink;
 }
 
 /** The clear-lean rule, in code: a clear sideways shift that isn't a swivel, whatever the yaw. */
@@ -120,11 +130,11 @@ export function isClearLeanByRule(
 
 export const POSTURE_CRITERIA: Record<string, string> = {
   good_posture:
-    `Sitting upright, close to the calibration baseline. forward_creep stays under ${SLOUCH_MIN_FORWARD_CREEP} (sitting still, it wanders a few hundredths either side of zero), head_drop stays above ${SLOUCH_MAX_HEAD_DROP}, and lateral lean is small. The head may be turned: head angles alone do not make a posture bad. Someone looking away (head_yaw_degrees at least ${SWIVEL_MIN_HEAD_YAW} either way with forward_creep above ${SWIVEL_MAX_FORWARD_CREEP}) is good posture even with forward_creep well above ${SLOUCH_MIN_FORWARD_CREEP}, unless head_drop is ${SLOUCH_MAX_HEAD_DROP} or lower.`,
+    `Sitting upright, close to the calibration baseline. forward_creep stays under ${SLOUCH_MIN_FORWARD_CREEP} (sitting still, it wanders a few hundredths either side of zero), head_drop stays above ${SLOUCH_MAX_HEAD_DROP}, shoulder_sink_in_shoulder_widths (when present) stays under ${SLOUCH_MIN_SHOULDER_SINK}, and lateral lean is small. The head may be turned: head angles alone do not make a posture bad. Someone looking away (head_yaw_degrees at least ${SWIVEL_MIN_HEAD_YAW} either way with forward_creep above ${SWIVEL_MAX_FORWARD_CREEP}) is good posture even with forward_creep well above ${SLOUCH_MIN_FORWARD_CREEP}, unless head_drop is ${SLOUCH_MAX_HEAD_DROP} or lower.`,
   // Kept free of the lean rule: v3 first added it here and four clear slouches dropped to
   // good_posture in replay. The lean rule lives only in the lean description.
   slouch:
-    `Collapsed toward the screen or downward. forward_creep is clearly POSITIVE, ${SLOUCH_MIN_FORWARD_CREEP} or more (the shoulders appear wider because the torso moved closer to the camera; slouches so far measured +0.08 to +0.18), and/or head_drop is NEGATIVE, ${SLOUCH_MAX_HEAD_DROP} or lower, while lateral_lean_in_shoulder_widths stays under ${HEAD_DROP_SLOUCH_MAX_SHIFT} either way (it goes negative as the head drops towards the shoulders; slouches so far measured -0.02 to -0.11, uprights -0.004 or above). Either signal alone is enough, with one exception: while looking away (head_yaw_degrees at least ${SWIVEL_MIN_HEAD_YAW} either way with forward_creep above ${SWIVEL_MAX_FORWARD_CREEP}), forward_creep alone is not a slouch, because turning the head makes the shoulders look wider (head turns so far +0.01 to +0.16 with head_drop -0.003 or above). Then it is a slouch only if head_drop is ${SLOUCH_MAX_HEAD_DROP} or lower. Lateral lean is not the story.`,
+    `Collapsed toward the screen or downward. forward_creep is clearly POSITIVE, ${SLOUCH_MIN_FORWARD_CREEP} or more (the shoulders appear wider because the torso moved closer to the camera; slouches so far measured +0.08 to +0.18), and/or head_drop is NEGATIVE, ${SLOUCH_MAX_HEAD_DROP} or lower, while lateral_lean_in_shoulder_widths stays under ${HEAD_DROP_SLOUCH_MAX_SHIFT} either way (it goes negative as the head drops towards the shoulders; slouches so far measured -0.02 to -0.11, uprights -0.004 or above). Either signal alone is enough, with one exception: while looking away (head_yaw_degrees at least ${SWIVEL_MIN_HEAD_YAW} either way with forward_creep above ${SWIVEL_MAX_FORWARD_CREEP}), forward_creep alone is not a slouch, because turning the head makes the shoulders look wider (head turns so far +0.01 to +0.16 with head_drop -0.003 or above). Then it is a slouch only if head_drop is ${SLOUCH_MAX_HEAD_DROP} or lower. A third way, when shoulder_sink_in_shoulder_widths is present: ${SLOUCH_MIN_SHOULDER_SINK} or more is a slouch on its own, sinking down in the chair, where the head and shoulders drop together so forward_creep and head_drop barely move (sinks so far +0.086 to +0.103, uprights +0.020 or below). Lateral lean is not the story.`,
   lean:
     `The torso has shifted sideways. lateral_lean_in_shoulder_widths is clearly non-zero and holds its sign. A clear shift, ${LEAN_CLEAR_SHIFT} or more either way, is a lean whatever head_yaw_degrees says (the head often turns while leaning, sometimes past ${SWIVEL_MIN_HEAD_YAW} degrees), and even if forward_creep is mildly positive or head_drop is negative: leaning sideways often brings the shoulders a little toward the camera and tilts the head up in the image. The one exception is a swivel, which needs head_yaw_degrees at least ${SWIVEL_MIN_HEAD_YAW} AND forward_creep at or below ${SWIVEL_MAX_FORWARD_CREEP}. A smaller shift with the head turned past ${SWIVEL_MIN_HEAD_YAW} degrees is someone looking away, not a lean. Shoulders slightly narrower than baseline are fine for a lean when the head is not turned past ${SWIVEL_MIN_HEAD_YAW} degrees.`,
   chair_swivel:
@@ -142,6 +152,7 @@ export const BASELINE_NOTE = [
   "All values except the head angles are deltas from a calibration snapshot taken while the user sat upright; 0 means exactly at baseline.",
   "forward_creep is the fractional change in APPARENT shoulder width: positive means the shoulders look wider (torso closer to the camera), negative means narrower (torso rotated away from square).",
   "head_drop is in shoulder-widths and NEGATIVE when the head has dropped towards the shoulders since baseline, as in a slouch; positive means it sits higher above them.",
+  "shoulder_sink_in_shoulder_widths, when present, is how far the shoulders sit lower in the frame than at baseline; positive is lower. Older app builds don't send it.",
   "lateral_lean_in_shoulder_widths is the sideways shift of the shoulder midpoint, divided by baseline shoulder width so it is dimensionless in both camera modes.",
   "shoulder_tilt_signed_degrees is one shoulder higher than the other, not axial rotation.",
   "Head angles are camera-absolute degrees and read 0 both when centred and when unavailable.",
@@ -165,6 +176,7 @@ const NUMERIC_FIELDS = [
 
 export type Features = { [K in (typeof NUMERIC_FIELDS)[number]]: number } & {
   tracking_quality: TrackingQuality;
+  shoulder_sink_in_shoulder_widths?: number;
 };
 
 export type Parsed = { ok: true; features: Features } | { ok: false; error: string };
@@ -196,6 +208,15 @@ export function parseFeatures(body: unknown): Parsed {
     return { ok: false, error: `tracking_quality must be one of ${TRACKING_QUALITY.join(", ")}` };
   }
   out.tracking_quality = q;
+
+  // Optional: app builds from 2026-10-05 send it, older ones don't.
+  if ("shoulder_sink_in_shoulder_widths" in src) {
+    const sink = src.shoulder_sink_in_shoulder_widths;
+    if (typeof sink !== "number" || !Number.isFinite(sink)) {
+      return { ok: false, error: "shoulder_sink_in_shoulder_widths must be a finite number" };
+    }
+    out.shoulder_sink_in_shoulder_widths = sink;
+  }
 
   return { ok: true, features: out as Features };
 }

@@ -33,6 +33,10 @@ public struct JevFeatures: Codable, Equatable {
     public let torsoAngleDegrees: Float
     public let trackingQuality: TrackingQuality
     public let depthMode: DepthMode
+    /// The shoulders' drop in the frame since calibration (`RawMetrics.shoulderSink`), so Jev can
+    /// see sinking down in the chair (2026-10-05). Optional: a payload saved before it still reads,
+    /// and an older app doesn't send it.
+    public let shoulderSinkInShoulderWidths: Float?
 
     enum CodingKeys: String, CodingKey {
         case headYawDegrees = "head_yaw_degrees"
@@ -46,6 +50,7 @@ public struct JevFeatures: Codable, Equatable {
         case torsoAngleDegrees = "torso_angle_degrees"
         case trackingQuality = "tracking_quality"
         case depthMode = "depth_mode"
+        case shoulderSinkInShoulderWidths = "shoulder_sink_in_shoulder_widths"
     }
 
     /// Builds a payload, or returns `nil` when one cannot honestly be built.
@@ -78,7 +83,8 @@ public struct JevFeatures: Codable, Equatable {
             shoulderTiltSignedDegrees: metrics.twistSigned,
             torsoAngleDegrees: sample.torsoAngle,
             trackingQuality: sample.trackingQuality,
-            depthMode: sample.depthMode
+            depthMode: sample.depthMode,
+            shoulderSinkInShoulderWidths: metrics.shoulderSink
         )
 
         let numbers = [
@@ -86,6 +92,7 @@ public struct JevFeatures: Codable, Equatable {
             features.forwardCreepFraction, features.headDropInShoulderWidths,
             features.torsoLeanDeltaDegrees, features.lateralLeanInShoulderWidths,
             features.shoulderTiltSignedDegrees, features.torsoAngleDegrees,
+            features.shoulderSinkInShoulderWidths ?? 0,
         ]
         guard numbers.allSatisfy({ $0.isFinite }) else { return nil }
 
