@@ -986,7 +986,10 @@ class AppModel: ObservableObject {
             total: store.comparisons.count,
             trueClassOptions: JevClass.allCases.map(\.rawValue),
             attempts: jevAttempts,
-            captureDelay: jevRemoteCaptureDelay)
+            captureDelay: jevRemoteCaptureDelay,
+            headTurnedSince: pipeline.headTurnedSince.flatMap {
+                DriftClock.wallClock(of: $0, frameNow: latestMetrics?.timestamp)
+            }.map { $0.timeIntervalSince1970.rounded() })
     }
 
     /// Acts on a request from the Watch, then reports back.

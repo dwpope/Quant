@@ -114,6 +114,9 @@ enum JevRemote {
         var attempts: Int
         /// Seconds between a Watch tap and the capture, so the Watch can count down.
         var captureDelay: TimeInterval
+        /// Seconds since 1970 that the head was turned and held there, from the phone's
+        /// head-turn timer, so the Watch can show a turn registering (2026-10-05).
+        var headTurnedSince: TimeInterval? = nil
 
         /// Property-list types only, as `WCSession` requires. Absent values are left out rather
         /// than sent as placeholders.
@@ -131,6 +134,7 @@ enum JevRemote {
                 "captureDelay": captureDelay,
             ]
             if let thresholdSince { m["thrSince"] = thresholdSince }
+            if let headTurnedSince { m["headTurned"] = headTurnedSince }
             if let notice { m["notice"] = notice }
             if let r = lastRecord {
                 m["recordID"] = r.id.uuidString

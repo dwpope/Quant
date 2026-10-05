@@ -70,6 +70,8 @@ struct JevRemoteStatus: Equatable {
     /// Live, for getting into position.
     var thresholdState: String
     var thresholdSince: Date?
+    /// When the phone's head-turn timer started, or nil when the head isn't turned.
+    var headTurnedSince: Date?
     var notice: String?
     var lastRecord: Record?
     var judgedCount: Int
@@ -97,6 +99,7 @@ struct JevRemoteStatus: Equatable {
         self.tracking = tracking
         self.thresholdState = thr
         self.thresholdSince = (message["thrSince"] as? Double).map(Date.init(timeIntervalSince1970:))
+        self.headTurnedSince = (message["headTurned"] as? Double).map(Date.init(timeIntervalSince1970:))
         self.notice = message["notice"] as? String
         self.judgedCount = judgedCount
         self.total = total

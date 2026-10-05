@@ -17,7 +17,7 @@ Aware sits on your desk (phone on a stand) and watches your upper body through t
 
 **Posture monitoring** — Tracks five metrics (forward lean, head drop, shoulder rounding, lateral lean, twist) with a traffic-light state machine that gives you a grace period to self-correct before nudging. Nudges are spaced by a cooldown (an hourly cap is available in settings, off by default), and can be silenced for 30 minutes to 2 hours from the phone's bell button or the Watch. Sitting up after a nudge is recorded, and slouching again gets a fresh nudge once it's held long enough.
 
-**Head-turn nudge** — Working on a second screen off to the side twists the neck, and holding it gets uncomfortable. A head turned past 45° while the shoulders still face the phone, held for five minutes, gets its own nudge: turn the chair to face that screen. Turning the chair narrows the shoulders in view, which is how the app tells a turned chair from a turned neck. It shares the slouch nudge's cooldown and hourly cap, and every nudge shows its own one-line advice on the Apple Watch.
+**Head-turn nudge** — Working on a second screen off to the side twists the neck, and holding it gets uncomfortable. A head turned past 45° while the shoulders still face the phone, held for five minutes, gets its own nudge: turn the chair to face that screen. Turning the chair narrows the shoulders in view, which is how the app tells a turned chair from a turned neck. Turns are measured from where you looked while calibrating, and the panel asks you to move the phone if that was more than 20° to one side: every posture rule assumes the phone is in front of you. It shares the slouch nudge's cooldown and hourly cap, and every nudge shows its own one-line advice on the Apple Watch.
 
 **Sip detection** — A three-signal scoring system (proximity, velocity profile, duration band) detects drinking gestures from upper-body pose data. Proximity is normalised by shoulder width for scale invariance; velocity distinguishes the lift-pause-lower pattern of drinking from static gestures like chin-resting.
 
@@ -80,7 +80,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~38,000 lines of Swift** across 208 files, tests included. All tests pass: **669** in the `PostureLogic` package (`cd PostureLogic && swift test`), **334** in the app target and **57** in the Watch app (commands below), plus **60** for the Jev Worker (`cd jev-proxy && npm test`).
+**~38,000 lines of Swift** across 210 files, tests included. All tests pass: **674** in the `PostureLogic` package (`cd PostureLogic && swift test`), **339** in the app target and **60** in the Watch app (commands below), plus **60** for the Jev Worker (`cd jev-proxy && npm test`).
 
 ## Technical Decisions
 

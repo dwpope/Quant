@@ -154,6 +154,11 @@ public final class CalibrationEngine {
             .map { $0.neckHeight }
             .reduce(Float(0), +) / count
 
+        // Where you look when working, so head turns can be measured from it.
+        let avgHeadYaw = collectedSamples
+            .map { $0.headYaw }
+            .reduce(Float(0), +) / count
+
         let hasDepth = collectedSamples.contains { $0.depthMode == .depthFusion }
 
         return Baseline(
@@ -164,7 +169,8 @@ public final class CalibrationEngine {
             shoulderTwist: avgShoulderTwist,
             shoulderWidth: avgShoulderWidth,
             depthAvailable: hasDepth,
-            neckHeight: avgNeckHeight
+            neckHeight: avgNeckHeight,
+            headYaw: avgHeadYaw
         )
     }
 

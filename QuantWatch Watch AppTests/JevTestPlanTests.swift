@@ -254,4 +254,11 @@ struct JevTestPlanTests {
         #expect(instruction.contains("a little"))
         #expect(instruction.contains("head"))
     }
+
+    /// "It says on the watch that the capture should be good posture?" (2026-10-05). Jev judges
+    /// posture; the phone times the turn itself, and the step says where to see it.
+    @Test func headTurned_saysThePhoneTimesTheTurn() throws {
+        let note = try #require(JevTestPlan.Posture.headTurned.note)
+        #expect(note.contains("times the turn"))
+    }
 }

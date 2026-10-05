@@ -18,7 +18,13 @@ public struct Baseline: Codable {
     /// serialized baselines valid (additive-default pattern, as with `shoulderTwist`).
     public let neckHeight: Float
 
-    public init(timestamp: Date, shoulderMidpoint: SIMD3<Float>, headPosition: SIMD3<Float>, torsoAngle: Float, shoulderTwist: Float = 0, shoulderWidth: Float, depthAvailable: Bool, neckHeight: Float = 0) {
+    /// The head's yaw while calibrating, in camera degrees: where you look when working. Head
+    /// turns are measured from it, since yaw is camera-absolute and the phone needn't sit straight
+    /// in front (session 6, 2026-10-05: about 50° to one side). Default 0, an older baseline, is
+    /// the old assumption: looking straight at the phone.
+    public let headYaw: Float
+
+    public init(timestamp: Date, shoulderMidpoint: SIMD3<Float>, headPosition: SIMD3<Float>, torsoAngle: Float, shoulderTwist: Float = 0, shoulderWidth: Float, depthAvailable: Bool, neckHeight: Float = 0, headYaw: Float = 0) {
         self.timestamp = timestamp
         self.shoulderMidpoint = shoulderMidpoint
         self.headPosition = headPosition
@@ -27,6 +33,7 @@ public struct Baseline: Codable {
         self.shoulderWidth = shoulderWidth
         self.depthAvailable = depthAvailable
         self.neckHeight = neckHeight
+        self.headYaw = headYaw
     }
 
     public func isStale(after interval: TimeInterval = 3600) -> Bool {
@@ -43,7 +50,7 @@ public struct Baseline: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case timestamp, shoulderMidpoint, headPosition, torsoAngle, shoulderTwist,
-             shoulderWidth, depthAvailable, neckHeight
+             shoulderWidth, depthAvailable, neckHeight, headYaw
     }
 
     public init(from decoder: Decoder) throws {
@@ -56,6 +63,7 @@ public struct Baseline: Codable {
         self.shoulderWidth = try container.decode(Float.self, forKey: .shoulderWidth)
         self.depthAvailable = try container.decode(Bool.self, forKey: .depthAvailable)
         self.neckHeight = try container.decodeIfPresent(Float.self, forKey: .neckHeight) ?? 0
+        self.headYaw = try container.decodeIfPresent(Float.self, forKey: .headYaw) ?? 0
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -68,5 +76,6 @@ public struct Baseline: Codable {
         try container.encode(shoulderWidth, forKey: .shoulderWidth)
         try container.encode(depthAvailable, forKey: .depthAvailable)
         try container.encode(neckHeight, forKey: .neckHeight)
+        try container.encode(headYaw, forKey: .headYaw)
     }
 }

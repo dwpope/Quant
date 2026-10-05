@@ -236,4 +236,24 @@ struct JevRemoteSessionTests {
         #expect(!delegate.jevBusy)
         #expect(delegate.jevStatus == s)
     }
+
+    // MARK: - The phone's head-turn timer (2026-10-05)
+
+    @Test func readsWhenTheHeadTurnBegan() throws {
+        let status = try #require(JevRemoteStatus(message: [
+            "type": "jevStatus", "enabled": true, "calibrated": true, "tracking": "good",
+            "thr": "good", "judgedCount": 0, "total": 0, "trueClassOptions": [String](),
+            "attempts": 0, "captureDelay": 3.0, "headTurned": 1_800_000_000.0,
+        ]))
+        #expect(status.headTurnedSince == Date(timeIntervalSince1970: 1_800_000_000))
+    }
+
+    @Test func noHeadTurn_isNil() throws {
+        let status = try #require(JevRemoteStatus(message: [
+            "type": "jevStatus", "enabled": true, "calibrated": true, "tracking": "good",
+            "thr": "good", "judgedCount": 0, "total": 0, "trueClassOptions": [String](),
+            "attempts": 0, "captureDelay": 3.0,
+        ]))
+        #expect(status.headTurnedSince == nil)
+    }
 }

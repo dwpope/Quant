@@ -24,6 +24,15 @@ enum DriftClock {
         }
     }
 
+    /// A frame time as a calendar time, measured frame to frame and counted back from now. Nil
+    /// without a frame to measure against. For any start the pipeline publishes, such as when
+    /// the head turned.
+    static func wallClock(of frameTime: TimeInterval, frameNow: TimeInterval?,
+                          wallNow: Date = Date()) -> Date? {
+        guard let frameNow else { return nil }
+        return wallNow.addingTimeInterval(-max(0, frameNow - frameTime))
+    }
+
     /// When the current drifting or bad state began, as a calendar time, for a display that
     /// counts up from a date, such as the Watch's.
     static func wallClockStart(_ state: PostureState, frameNow: TimeInterval?,

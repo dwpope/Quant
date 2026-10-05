@@ -66,7 +66,7 @@ enum JevTestPlan {
         var note: String? {
             switch self {
             case .headTurned:
-                return "Looking away isn't bad posture, so good posture is the answer, and slouch or lean is a false alarm."
+                return "Jev judges posture: a straight back with your head turned is good posture. The phone times the turn itself: watch Head turned below count up."
             case .upright, .slouch, .smallSlouch, .lean, .chairSwivel:
                 return nil
             }

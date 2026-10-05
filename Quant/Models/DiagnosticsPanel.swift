@@ -7,6 +7,21 @@ import PostureLogic
 /// 2026-09-26, and a tester could not recalibrate at all.
 enum DiagnosticsPanel {
 
+    /// How far the head may be turned from the phone while calibrating before the panel asks you
+    /// to move the phone. Earlier sessions calibrated at 0 to 5°; session 6 at about 50°.
+    static let phoneOffCentreLimit: Float = 20
+
+    /// A warning when you calibrated looking well to one side of the phone, or nil.
+    ///
+    /// Every posture rule assumes the phone is in front of you. From 50° off, turning the chair
+    /// towards it reads as a slouch (session 6, 2026-10-05). Head turns are measured from the
+    /// calibrated angle, but the shoulders can't be.
+    static func phoneOffCentreLine(baselineHeadYaw: Float?) -> String? {
+        guard let yaw = baselineHeadYaw, abs(yaw) > phoneOffCentreLimit else { return nil }
+        return "The phone is about \(Int(abs(yaw).rounded()))° to one side of where you look. "
+            + "Put it in front of you, below your screen, then recalibrate."
+    }
+
     /// `UserDefaults` key for whether the panel is expanded. Read by the panel, and by the main
     /// screen to decide whether the cards should start below the panel.
     static let expandedKey = "diagnosticsPanel.expanded"

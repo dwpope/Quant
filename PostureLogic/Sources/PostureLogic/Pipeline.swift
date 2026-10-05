@@ -464,21 +464,25 @@ public class Pipeline {
     /// The whole chair turned: head and shoulders together. Only once calibrated, like the head
     /// turn, since it needs forward creep.
     private func isChairTurned(sample: PoseSample, metrics: RawMetrics) -> Bool {
-        baseline != nil && HeadTurnTracker.isChairTurned(
-            headYaw: sample.headYaw, forwardCreep: metrics.forwardCreep, thresholds: headTurnThresholds)
+        guard let baseline else { return false }
+        return HeadTurnTracker.isChairTurned(
+            headYaw: sample.headYaw - baseline.headYaw, forwardCreep: metrics.forwardCreep,
+            thresholds: headTurnThresholds)
     }
 
     /// Times a head held turned. Not before calibrating: without a baseline forward creep reads
     /// zero, and it's what tells a turned neck from a turned chair.
     private func updateHeadTurn(sample: PoseSample, metrics: RawMetrics,
                                 trackingQuality: TrackingQuality) -> TimeInterval? {
-        guard baseline != nil else {
+        guard let baseline else {
             headTurnTracker.reset()
             headTurnedSince = nil
             return nil
         }
+        // Measured from where you looked when calibrating: yaw is camera-absolute, and the
+        // phone needn't sit straight in front.
         let since = headTurnTracker.update(
-            headYaw: sample.headYaw, forwardCreep: metrics.forwardCreep,
+            headYaw: sample.headYaw - baseline.headYaw, forwardCreep: metrics.forwardCreep,
             trackingQuality: trackingQuality, timestamp: metrics.timestamp)
         headTurnedSince = since
         return since

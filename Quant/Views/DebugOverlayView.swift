@@ -33,6 +33,7 @@ struct DebugOverlayView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             header
+            phonePositionWarning
 
             if DiagnosticsPanel.showsDetails(isExpanded: isExpanded,
                                              needsCalibration: appModel.needsCalibration) {
@@ -52,6 +53,19 @@ struct DebugOverlayView: View {
         // it themselves, but the Watch remote changes records without touching this view.
         .onChange(of: appModel.jevComparisonStore.comparisons.count) { jevExportURL = nil }
         .onChange(of: appModel.jevComparisonStore.adjudicatedCount) { jevExportURL = nil }
+    }
+
+    /// Shown under the top line, collapsed or not, when calibration found the phone well to one
+    /// side of where you look.
+    @ViewBuilder
+    private var phonePositionWarning: some View {
+        if !appModel.needsCalibration,
+           let line = DiagnosticsPanel.phoneOffCentreLine(baselineHeadYaw: appModel.baseline?.headYaw) {
+            Label(line, systemImage: "iphone.gen3.badge.exclamationmark")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     /// The line that is always visible, collapsed or not.
