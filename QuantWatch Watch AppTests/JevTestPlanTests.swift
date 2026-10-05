@@ -9,10 +9,10 @@ import Testing
 /// chair swivels, then two optional head turns.
 struct JevTestPlanTests {
 
-    @Test func runsFourteenCoreCapturesThenTwoOptionalOnes_withSinkingIncluded() {
+    @Test func runsSixteenCoreCapturesThenTwoOptionalOnes_withSinkingAndLeaningBack() {
         let steps = JevTestPlan.steps
-        #expect(steps.count == 16)
-        #expect(steps.prefix(14).allSatisfy { !$0.optional })
+        #expect(steps.count == 18)
+        #expect(steps.prefix(16).allSatisfy { !$0.optional })
         #expect(steps.suffix(2).allSatisfy { $0.optional })
     }
 
@@ -25,6 +25,7 @@ struct JevTestPlanTests {
             "Small slouch", "Small slouch",
             "Lean", "Lean",
             "Chair swivel", "Chair swivel",
+            "Lean back", "Lean back",
             "Head turned", "Head turned",
         ])
     }
@@ -67,7 +68,7 @@ struct JevTestPlanTests {
     @Test func numbersStepsFromOne_andCountsWithinAPosture() throws {
         let fourth = try #require(JevTestPlan.progress(at: 3))
         #expect(fourth.number == 4)
-        #expect(fourth.total == 16)
+        #expect(fourth.total == 18)
         #expect(fourth.step.posture == .slouch)
         #expect(fourth.repeatNumber == 1)
         #expect(fourth.repeatCount == 2)
@@ -76,15 +77,16 @@ struct JevTestPlanTests {
 
     @Test func nextAndPrevious_stayInsideThePlan() {
         #expect(JevTestPlan.next(after: 0) == 1)
-        #expect(JevTestPlan.next(after: 15) == 16, "one past the end means finished")
-        #expect(JevTestPlan.next(after: 16) == 16)
+        let end = JevTestPlan.steps.count
+        #expect(JevTestPlan.next(after: end - 1) == end, "one past the end means finished")
+        #expect(JevTestPlan.next(after: end) == end)
         #expect(JevTestPlan.previous(before: 1) == 0)
         #expect(JevTestPlan.previous(before: 0) == 0)
-        #expect(JevTestPlan.previous(before: 16) == 15)
+        #expect(JevTestPlan.previous(before: end) == end - 1)
     }
 
     @Test func pastTheLastStep_isFinished() {
-        #expect(JevTestPlan.progress(at: 16) == nil)
+        #expect(JevTestPlan.progress(at: JevTestPlan.steps.count) == nil)
         #expect(JevTestPlan.progress(at: -1) == nil)
     }
 
@@ -288,6 +290,24 @@ struct JevTestPlanTests {
 
     @Test func slouch_asksToLeanIn() {
         #expect(JevTestPlan.Posture.slouch.instruction.contains("towards the phone"))
+    }
+
+    // MARK: - Leaning back (2026-10-05)
+    //
+    // Reclining against the backrest may lower the shoulders in the frame too, like a sink. It's
+    // fine posture, so it's here to check the new sink line doesn't flag it.
+
+    @Test func leanBack_isFinePosture_aFalseAlarmCheck() {
+        #expect(!JevTestPlan.Posture.leanBack.worthANudge)
+        #expect(JevTestPlan.Posture.leanBack.trueClass == "good_posture")
+        #expect(JevTestPlan.Posture.leanBack.jevShouldSay == "not slouch or lean")
+        #expect(JevTestPlan.Posture.leanBack.thresholdsShouldSay == "good")
+    }
+
+    @Test func leanBack_asksForTheBackrest_notSliding() {
+        let instruction = JevTestPlan.Posture.leanBack.instruction
+        #expect(instruction.contains("backrest"))
+        #expect(instruction.contains("Don't slide"))
     }
 }
 
