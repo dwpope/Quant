@@ -4,12 +4,12 @@ import Testing
 
 /// The guided test plan on the Watch: which posture to do next, how, and what counts as right.
 ///
-/// Revised 2026-10-04 to what matters for soreness: three captures each of upright, slouch, lean
-/// and chair swivel, two small slouches, then two optional head turns. The small swivel is gone:
-/// it isn't bad posture, and the camera can't see a 15-20° turn.
+/// Revised 2026-10-04 to what matters for soreness, and 2026-10-05 for sinking: three uprights,
+/// two slouches leaning in, three sinking down in the chair, two small slouches, two leans, two
+/// chair swivels, then two optional head turns.
 struct JevTestPlanTests {
 
-    @Test func runsFourteenCoreCapturesThenTwoOptionalOnes() {
+    @Test func runsFourteenCoreCapturesThenTwoOptionalOnes_withSinkingIncluded() {
         let steps = JevTestPlan.steps
         #expect(steps.count == 16)
         #expect(steps.prefix(14).allSatisfy { !$0.optional })
@@ -20,10 +20,11 @@ struct JevTestPlanTests {
         let names = JevTestPlan.steps.map(\.posture.name)
         #expect(names == [
             "Upright", "Upright", "Upright",
-            "Slouch", "Slouch", "Slouch",
+            "Slouch", "Slouch",
+            "Sink", "Sink", "Sink",
             "Small slouch", "Small slouch",
-            "Lean", "Lean", "Lean",
-            "Chair swivel", "Chair swivel", "Chair swivel",
+            "Lean", "Lean",
+            "Chair swivel", "Chair swivel",
             "Head turned", "Head turned",
         ])
     }
@@ -69,8 +70,8 @@ struct JevTestPlanTests {
         #expect(fourth.total == 16)
         #expect(fourth.step.posture == .slouch)
         #expect(fourth.repeatNumber == 1)
-        #expect(fourth.repeatCount == 3)
-        #expect(try #require(JevTestPlan.progress(at: 5)).repeatNumber == 3)
+        #expect(fourth.repeatCount == 2)
+        #expect(try #require(JevTestPlan.progress(at: 7)).repeatNumber == 3, "the third sink")
     }
 
     @Test func nextAndPrevious_stayInsideThePlan() {
@@ -261,4 +262,32 @@ struct JevTestPlanTests {
         let note = try #require(JevTestPlan.Posture.headTurned.note)
         #expect(note.contains("times the turn"))
     }
+
+    // MARK: - Sinking (2026-10-05)
+    //
+    // Session 7's slouches sank down in the chair, and nothing measured saw them. The plan now
+    // asks for both kinds, so the new shoulder-sink measure can be checked against them.
+
+    @Test func sink_isASlouch_worthANudge() {
+        #expect(JevTestPlan.Posture.sink.trueClass == "slouch")
+        #expect(JevTestPlan.Posture.sink.worthANudge)
+        #expect(JevTestPlan.Posture.sink.jevShouldSay == "slouch")
+    }
+
+    @Test func sink_asksForHeadAndShouldersDownTogether() {
+        let instruction = JevTestPlan.Posture.sink.instruction
+        #expect(instruction.contains("Slide down"))
+        #expect(instruction.contains("together"))
+    }
+
+    /// Neither side can see it yet; the step says so, so a miss isn't a surprise.
+    @Test func sink_saysItIsBeingMeasuredFirst() throws {
+        let note = try #require(JevTestPlan.Posture.sink.note)
+        #expect(note.contains("recorded"))
+    }
+
+    @Test func slouch_asksToLeanIn() {
+        #expect(JevTestPlan.Posture.slouch.instruction.contains("towards the phone"))
+    }
 }
+

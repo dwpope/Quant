@@ -35,7 +35,9 @@ struct MetricsEngine: MetricsEngineProtocol {
             forwardCreep = 0
         }
 
-        // Head drop: ear-based head carriage below the calibrated neutral = positive.
+        // Head drop: ear-based head carriage against the calibrated neutral. Image y runs down
+        // (PoseService flips Vision's), so on the device a head dropping towards the shoulders
+        // reads NEGATIVE; see `PostureThresholds.headDropThreshold`.
         // Sourced from `neckHeight` (ear-midpoint height above the shoulders,
         // shoulder-normalized) rather than the nose-relative `headPosition.y`, so it
         // tracks true neck/head carriage and ignores transient look-down/chin-drops.
@@ -60,6 +62,16 @@ struct MetricsEngine: MetricsEngineProtocol {
         // Head movement pattern: deferred to Ticket 2.5
         let headMovementPattern: MovementPattern = .still
 
+        // Shoulder sink: the shoulders' drop in the frame, in calibrated shoulder widths. Image y
+        // runs down (PoseService flips Vision's), so lower is positive. Only where the midpoint
+        // and the width are both image-space: the depth path's midpoint is in metres.
+        let shoulderSink: Float
+        if sample.depthMode == .twoDOnly, !baseline.depthAvailable, baseline.shoulderWidth > 1e-6 {
+            shoulderSink = (sample.shoulderMidpoint.y - baseline.shoulderMidpoint.y) / baseline.shoulderWidth
+        } else {
+            shoulderSink = 0
+        }
+
         return RawMetrics(
             timestamp: sample.timestamp,
             forwardCreep: forwardCreep,
@@ -70,7 +82,8 @@ struct MetricsEngine: MetricsEngineProtocol {
             movementLevel: movementLevel,
             headMovementPattern: headMovementPattern,
             lateralLeanSigned: lateralLeanSigned,
-            twistSigned: twistSigned
+            twistSigned: twistSigned,
+            shoulderSink: shoulderSink
         )
     }
 

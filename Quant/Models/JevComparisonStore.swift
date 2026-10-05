@@ -30,6 +30,8 @@ struct JevCaptureContext {
     var thresholdState: PostureState
     var thresholds: PostureThresholds
     var taskMode: TaskMode
+    /// The shoulders' drop in the frame at that moment (`RawMetrics.shoulderSink`).
+    var shoulderSink: Float? = nil
 }
 
 /// One moment where Jev and the threshold engine both had an opinion, plus what Dave said.
@@ -92,6 +94,10 @@ struct JevComparisonRecord: Codable, Identifiable {
     /// the analysis leaves it out: a dropped record could hide a pattern, a flagged one can't.
     /// Nil (not written) unless set, so records from before 2026-10-03 read as kept.
     var discarded: Bool?
+    /// The shoulders' drop in the frame at the pose, in calibrated shoulder widths, positive
+    /// lower (`RawMetrics.shoulderSink`). Recorded so a session can show whether it tells a
+    /// sinking slouch from sitting upright (2026-10-05). Not sent to Jev. Nil in older records.
+    let shoulderSink: Float?
 
     var isDiscarded: Bool { discarded == true }
 
@@ -106,7 +112,8 @@ struct JevComparisonRecord: Codable, Identifiable {
         jev: JevVerdict?,
         jevError: String?,
         userVerdict: UserVerdict? = nil,
-        trueClass: JevClass? = nil
+        trueClass: JevClass? = nil,
+        shoulderSink: Float? = nil
     ) {
         self.id = id
         self.capturedAt = capturedAt
@@ -119,6 +126,7 @@ struct JevComparisonRecord: Codable, Identifiable {
         self.jevError = jevError
         self.userVerdict = userVerdict
         self.trueClass = trueClass
+        self.shoulderSink = shoulderSink
     }
 
     /// Decodes every field strictly except `trueClass`, `thresholds` and `taskMode`, which are
@@ -147,6 +155,7 @@ struct JevComparisonRecord: Codable, Identifiable {
             .flatMap { $0 }
             .flatMap(JevClass.init(rawValue:))
         discarded = (try? c.decodeIfPresent(Bool.self, forKey: .discarded)).flatMap { $0 }
+        shoulderSink = (try? c.decodeIfPresent(Float.self, forKey: .shoulderSink)).flatMap { $0 }
     }
 }
 

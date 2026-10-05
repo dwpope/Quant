@@ -936,7 +936,8 @@ class AppModel: ObservableObject {
         // and the thresholds' state from then isn't the one that goes with this pose.
         let atPose = JevCaptureContext(thresholdState: postureState,
                                        thresholds: pipeline.thresholds,
-                                       taskMode: pipeline.taskMode)
+                                       taskMode: pipeline.taskMode,
+                                       shoulderSink: latestMetrics?.shoulderSink)
         do {
             let verdict = try await jevClient.classify(features)
             recordJevComparison(features: features, verdict: verdict, error: nil, atPose: atPose)
@@ -1039,7 +1040,8 @@ class AppModel: ObservableObject {
                              atPose: JevCaptureContext? = nil) {
         let context = atPose ?? JevCaptureContext(thresholdState: postureState,
                                                   thresholds: pipeline.thresholds,
-                                                  taskMode: pipeline.taskMode)
+                                                  taskMode: pipeline.taskMode,
+                                                  shoulderSink: latestMetrics?.shoulderSink)
         latestJevVerdict = verdict
         latestJevError = error
         latestJevVerdictAt = Date()
@@ -1054,7 +1056,8 @@ class AppModel: ObservableObject {
             thresholds: context.thresholds,
             taskMode: context.taskMode,
             jev: verdict,
-            jevError: error
+            jevError: error,
+            shoulderSink: context.shoulderSink
         ))
     }
 

@@ -467,9 +467,21 @@ struct DebugOverlayView: View {
                     .frame(width: 55, alignment: .trailing)
                 Text(metricValue(appModel.latestMetrics?.headDrop))
                     .frame(width: 55, alignment: .trailing)
-                    // Coloured by the rise, the direction that counts (a lower head is green).
+                    // Coloured by the drop, which reads NEGATIVE on the device; positive is green.
                     .foregroundStyle(metricColor(appModel.latestMetrics.map { max(0, -$0.headDrop) },
                                                   threshold: appModel.postureThresholds.headDropThreshold))
+            }
+
+            // Shoulder height in the frame — raw vs the drop since calibration (shoulderSink).
+            // Sinking down in the chair shows here and nowhere else. Not scored yet, so no colour.
+            HStack(spacing: 0) {
+                Text("Sink")
+                    .frame(width: 70, alignment: .leading)
+                Text(poseScalar(appModel.latestSample?.shoulderMidpoint.y, "%.3f"))
+                    .frame(width: 55, alignment: .trailing)
+                Text(metricValue(appModel.latestMetrics?.shoulderSink))
+                    .frame(width: 55, alignment: .trailing)
+                    .foregroundStyle(.secondary)
             }
 
             // Shoulder Width — raw absolute vs calibrated delta (forwardCreep)

@@ -25,7 +25,14 @@ public struct RawMetrics: Codable {
     public let movementLevel: Float
     public let headMovementPattern: MovementPattern
 
-    public init(timestamp: TimeInterval, forwardCreep: Float, headDrop: Float, shoulderRounding: Float, lateralLean: Float, twist: Float, movementLevel: Float, headMovementPattern: MovementPattern, lateralLeanSigned: Float = 0, twistSigned: Float = 0) {
+    /// How far the shoulders have dropped in the frame since calibration, in calibrated shoulder
+    /// widths: positive is lower (image y runs down). Sinking down in the chair moves the head and
+    /// shoulders down together, which forward creep and head drop can't see (session 7,
+    /// 2026-10-05). 2D only, 0 in depth mode or before calibrating. Recorded and shown, not yet
+    /// scored. Defaults to 0 so older construction sites stay valid.
+    public let shoulderSink: Float
+
+    public init(timestamp: TimeInterval, forwardCreep: Float, headDrop: Float, shoulderRounding: Float, lateralLean: Float, twist: Float, movementLevel: Float, headMovementPattern: MovementPattern, lateralLeanSigned: Float = 0, twistSigned: Float = 0, shoulderSink: Float = 0) {
         self.timestamp = timestamp
         self.forwardCreep = forwardCreep
         self.headDrop = headDrop
@@ -36,6 +43,7 @@ public struct RawMetrics: Codable {
         self.twistSigned = twistSigned
         self.movementLevel = movementLevel
         self.headMovementPattern = headMovementPattern
+        self.shoulderSink = shoulderSink
     }
 }
 
