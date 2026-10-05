@@ -15,7 +15,9 @@ Built with SwiftUI, ARKit, and Vision. Targeting iOS 17+.
 
 Aware sits on your desk (phone on a stand) and watches your upper body through the front camera. It continuously compares your posture against a personal baseline you calibrate at the start of each session.
 
-**Posture monitoring** — Tracks five metrics (forward lean, head drop, shoulder rounding, lateral lean, twist) with a traffic-light state machine that gives you a grace period to self-correct before nudging. Nudges are gated by cooldown timers, hourly caps, and acknowledgement detection to avoid nagging.
+**Posture monitoring** — Tracks five metrics (forward lean, head drop, shoulder rounding, lateral lean, twist) with a traffic-light state machine that gives you a grace period to self-correct before nudging. Nudges are spaced by a cooldown and an hourly cap to avoid nagging. Sitting up after a nudge is recorded, and slouching again gets a fresh nudge once it's held long enough.
+
+**Head-turn nudge** — Working on a second screen off to the side twists the neck, and holding it gets uncomfortable. A head turned past 45° while the shoulders still face the phone, held for five minutes, gets its own nudge: turn the chair to face that screen. Turning the chair narrows the shoulders in view, which is how the app tells a turned chair from a turned neck. It shares the slouch nudge's cooldown and hourly cap, and every nudge shows its own one-line advice on the Apple Watch.
 
 **Sip detection** — A three-signal scoring system (proximity, velocity profile, duration band) detects drinking gestures from upper-body pose data. Proximity is normalised by shoulder width for scale invariance; velocity distinguishes the lift-pause-lower pattern of drinking from static gestures like chin-resting.
 
@@ -40,8 +42,10 @@ remains the only thing that does.
 When it is enabled, each classification sends **nine derived numbers** (head yaw/pitch/roll, a
 torso angle, and five calibration-relative deltas) plus a tracking-quality label and the camera
 mode. **No image, video or audio ever leaves the device** — there is no imagery in the payload at
-all. Those numbers go to a Cloudflare Worker under this project's control, which forwards them to
-[TypeSafe](https://typesafe.ai)'s Jev API in the United States. TypeSafe states it does not train
+all. Those numbers go to a Cloudflare Worker under this project's control, which forwards **seven**
+of them and the tracking label to [TypeSafe](https://typesafe.ai)'s Jev API in the United States.
+It drops the torso angle, the torso-lean delta and the camera mode, which never varied across
+five device sessions. TypeSafe states it does not train
 on submitted input, and its retention is open-ended unless a zero-retention agreement is in place.
 The API credential lives only in the Worker's environment and is never present in the app.
 
@@ -76,7 +80,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~35,000 lines of Swift** across 187 files, tests included. All tests pass: **611** in the `PostureLogic` package (`cd PostureLogic && swift test`), **307** in the app target and **20** in the Watch app (commands below).
+**~37,000 lines of Swift** across 199 files, tests included. All tests pass: **642** in the `PostureLogic` package (`cd PostureLogic && swift test`), **322** in the app target and **51** in the Watch app (commands below), plus **60** for the Jev Worker (`cd jev-proxy && npm test`).
 
 ## Technical Decisions
 
