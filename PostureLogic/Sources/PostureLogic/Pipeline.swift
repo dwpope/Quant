@@ -39,6 +39,10 @@ public class Pipeline {
     /// 2. Call `recordNudgeFired()` on the pipeline
     @Published public var nudgeDecision: NudgeDecision = .none
 
+    /// When the head was turned to one side and held there, on the frame clock, or nil. Timed
+    /// only once calibrated: forward creep is what tells a turned neck from a turned chair.
+    @Published public private(set) var headTurnedSince: TimeInterval?
+
     /// The inferred activity classification based on recent movement patterns.
     /// Updated each frame after smoothing using a rolling window of metrics.
     @Published public var taskMode: TaskMode = .unknown
@@ -88,6 +92,16 @@ public class Pipeline {
     private var modeSwitcher: ModeSwitcher
     private var postureEngine: PostureEngine
     private var nudgeEngine: NudgeEngine
+
+    /// When a head held turned is worth a nudge. Reaches the tracker and the nudge engine,
+    /// whether set at init or after.
+    public var headTurnThresholds: HeadTurnThresholds {
+        didSet {
+            headTurnTracker.thresholds = headTurnThresholds
+            nudgeEngine.headTurnThresholds = headTurnThresholds
+        }
+    }
+    private let headTurnTracker: HeadTurnTracker
 
     /// Frame timestamp of the latest nudge evaluation, on the clock the NudgeEngine measures
     /// with. ``recordNudgeFired()`` records the fire at this time.
@@ -151,13 +165,16 @@ public class Pipeline {
     public init(
         provider: PoseProvider,
         thresholds: PostureThresholds = PostureThresholds(),
+        headTurnThresholds: HeadTurnThresholds = HeadTurnThresholds(),
         thermalMonitor: (any ThermalMonitorProtocol)? = nil
     ) {
         self.thresholds = thresholds
+        self.headTurnThresholds = headTurnThresholds
         self.thermalMonitor = thermalMonitor
         self.modeSwitcher = ModeSwitcher(thresholds: thresholds)
         self.postureEngine = PostureEngine(thresholds: thresholds)
-        self.nudgeEngine = NudgeEngine(thresholds: thresholds)
+        self.nudgeEngine = NudgeEngine(thresholds: thresholds, headTurnThresholds: headTurnThresholds)
+        self.headTurnTracker = HeadTurnTracker(thresholds: headTurnThresholds)
 
         // Subscribe to thermal level changes
         if let monitor = thermalMonitor {
@@ -402,13 +419,16 @@ public class Pipeline {
                         // The metrics are passed so the engine can determine the
                         // specific nudge reason (forwardCreep, headDrop, etc.).
                         self.lastNudgeEvaluationTime = smoothedMetrics.timestamp
+                        let turnedSince = self.updateHeadTurn(
+                            sample: sample, metrics: smoothedMetrics, trackingQuality: finalQuality)
                         self.nudgeDecision = self.nudgeEngine.evaluate(
                             state: newPostureState,
                             trackingQuality: finalQuality,
                             movementLevel: smoothedMetrics.movementLevel,
                             taskMode: inferredTaskMode,
                             currentTime: smoothedMetrics.timestamp,
-                            metrics: smoothedMetrics
+                            metrics: smoothedMetrics,
+                            headTurnedSince: turnedSince
                         )
 
                         // Periodic staleness check (every 60s, not every frame)
@@ -425,6 +445,22 @@ public class Pipeline {
                 }
             }
         }
+    }
+
+    /// Times a head held turned. Not before calibrating: without a baseline forward creep reads
+    /// zero, and it's what tells a turned neck from a turned chair.
+    private func updateHeadTurn(sample: PoseSample, metrics: RawMetrics,
+                                trackingQuality: TrackingQuality) -> TimeInterval? {
+        guard baseline != nil else {
+            headTurnTracker.reset()
+            headTurnedSince = nil
+            return nil
+        }
+        let since = headTurnTracker.update(
+            headYaw: sample.headYaw, forwardCreep: metrics.forwardCreep,
+            trackingQuality: trackingQuality, timestamp: metrics.timestamp)
+        headTurnedSince = since
+        return since
     }
 
     /// Fast path for precomputed samples (replay / test).
@@ -485,13 +521,16 @@ public class Pipeline {
             }
 
             self.lastNudgeEvaluationTime = smoothedMetrics.timestamp
+            let turnedSince = self.updateHeadTurn(
+                sample: sample, metrics: smoothedMetrics, trackingQuality: sample.trackingQuality)
             self.nudgeDecision = self.nudgeEngine.evaluate(
                 state: newPostureState,
                 trackingQuality: sample.trackingQuality,
                 movementLevel: smoothedMetrics.movementLevel,
                 taskMode: inferredTaskMode,
                 currentTime: smoothedMetrics.timestamp,
-                metrics: smoothedMetrics
+                metrics: smoothedMetrics,
+                headTurnedSince: turnedSince
             )
 
             // Periodic staleness check (every 60s, not every frame)
@@ -621,6 +660,7 @@ public class Pipeline {
     /// Reset the NudgeEngine state. Call this on app relaunch or recalibration.
     public func resetNudgeEngine() {
         nudgeEngine.reset()
+        headTurnTracker.reset()
     }
 
     private func computeFPS(timestamp: TimeInterval) -> Float {

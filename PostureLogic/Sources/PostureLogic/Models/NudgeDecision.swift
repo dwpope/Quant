@@ -11,6 +11,9 @@ public enum NudgeReason: String, Codable {
     case sustainedSlouch
     case forwardCreep
     case headDrop
+    /// The head held turned to one side with the shoulders still facing the phone, as when
+    /// working on a second screen. Not a slouch; timed by `HeadTurnTracker`.
+    case headTurned
 }
 
 public enum SuppressionReason: String, Codable {

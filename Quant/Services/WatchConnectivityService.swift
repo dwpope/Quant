@@ -107,11 +107,14 @@ final class WatchConnectivityService: NSObject {
     /// The app always sends the default haptic. The on-screen haptic picker was
     /// removed on 2026-09-26; the parameter stays so the message format, and the
     /// Watch's `parseHapticType`, are unchanged.
-    func sendNudge(hapticType: String = "failure") {
+    ///
+    /// `body` is the line the Watch shows: the nudge reason's coaching line. Every nudge used to
+    /// say "Straighten up!", the wrong advice for a head held turned (2026-10-04).
+    func sendNudge(hapticType: String = "failure", body: String? = nil) {
         guard WCSession.isSupported() else { return }
 
         let session = WCSession.default
-        let message: [String: Any] = ["type": "nudge", "haptic": hapticType]
+        let message = Self.nudgeMessage(hapticType: hapticType, body: body)
 
         guard session.isPaired else {
             logger.debug("No Watch paired — skipping nudge send")
@@ -133,6 +136,13 @@ final class WatchConnectivityService: NSObject {
             totalSent += 1
             logger.info("⌚ Nudge queued via transferUserInfo (total: \(self.totalSent))")
         }
+    }
+
+    /// The nudge message, `body` only when there is one. The Watch's `NudgeMessage` reads it.
+    static func nudgeMessage(hapticType: String, body: String?) -> [String: Any] {
+        var message: [String: Any] = ["type": "nudge", "haptic": hapticType]
+        if let body, !body.isEmpty { message["body"] = body }
+        return message
     }
 
     /// Send the Jev remote's status to the Watch.

@@ -426,12 +426,12 @@ class AppModel: ObservableObject {
         pipeline.$nudgeDecision
             .sink { [weak self] decision in
                 guard let self = self else { return }
-                if case .fire = decision {
+                if case .fire(let reason) = decision {
                     // Play the audio feedback cue (subtle tone)
                     self.audioService.playNudgeCue()
 
-                    // Send haptic nudge to Apple Watch
-                    self.watchService.sendNudge()
+                    // Send haptic nudge to Apple Watch, with what to do about it
+                    self.watchService.sendNudge(body: reason.coachingMessage)
 
                     // Record that the nudge was delivered so the NudgeEngine
                     // can start its cooldown timer and increment the hourly counter.

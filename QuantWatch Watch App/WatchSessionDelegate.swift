@@ -243,17 +243,17 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
 
     // MARK: - Private Methods
 
-    private func handleNudge(_ hapticType: WKHapticType = .notification) {
+    private func handleNudge(_ hapticType: WKHapticType = .notification, body: String) {
         WKInterfaceDevice.current().play(hapticType)
-        scheduleNudgeNotification()
+        scheduleNudgeNotification(body: body)
         lastNudgeTime = Date()
         logger.info("⌚ Haptic nudge delivered")
     }
 
-    private func scheduleNudgeNotification() {
+    private func scheduleNudgeNotification(body: String) {
         let content = UNMutableNotificationContent()
         content.title = "Posture Check"
-        content.body = "Straighten up!"
+        content.body = body
         content.sound = .default
 
         let request = UNNotificationRequest(
@@ -345,8 +345,9 @@ extension WatchSessionDelegate: WCSessionDelegate {
         switch type {
         case "nudge":
             let haptic = parseHapticType(from: message)
+            let body = NudgeMessage.body(from: message)
             DispatchQueue.main.async {
-                self.handleNudge(haptic)
+                self.handleNudge(haptic, body: body)
             }
         case "jevStatus":
             guard let status = JevRemoteStatus(message: message) else {
@@ -372,8 +373,9 @@ extension WatchSessionDelegate: WCSessionDelegate {
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         guard userInfo["type"] as? String == "nudge" else { return }
         let haptic = parseHapticType(from: userInfo)
+        let body = NudgeMessage.body(from: userInfo)
         DispatchQueue.main.async {
-            self.handleNudge(haptic)
+            self.handleNudge(haptic, body: body)
         }
     }
 

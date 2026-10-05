@@ -613,8 +613,8 @@ struct DebugOverlayView: View {
             return "None"
         case .fire(let reason):
             return "FIRE (\(reason.rawValue))"
-        case .pending(_, let remaining):
-            return String(format: "Pending (%.0fs)", remaining)
+        case .pending(let reason, let remaining):
+            return String(format: "Pending %@ (%.0fs)", reason.rawValue, remaining)
         case .suppressed(let reason):
             return "Suppressed (\(reason.rawValue))"
         }

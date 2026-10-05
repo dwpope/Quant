@@ -34,7 +34,7 @@ final class ConfigAndDecisionModelTests: XCTestCase {
     }
 
     func testNudgeDecision_fire_roundTripsAllReasons() throws {
-        for reason in [NudgeReason.sustainedSlouch, .forwardCreep, .headDrop] {
+        for reason in [NudgeReason.sustainedSlouch, .forwardCreep, .headDrop, .headTurned] {
             let original = NudgeDecision.fire(reason: reason)
             let data = try JSONEncoder().encode(original)
             let decoded = try JSONDecoder().decode(NudgeDecision.self, from: data)
@@ -67,6 +67,7 @@ final class ConfigAndDecisionModelTests: XCTestCase {
         XCTAssertEqual(NudgeReason.sustainedSlouch.rawValue, "sustainedSlouch")
         XCTAssertEqual(NudgeReason.forwardCreep.rawValue, "forwardCreep")
         XCTAssertEqual(NudgeReason.headDrop.rawValue, "headDrop")
+        XCTAssertEqual(NudgeReason.headTurned.rawValue, "headTurned")
     }
 
     // MARK: - SuppressionReason: raw values are stable

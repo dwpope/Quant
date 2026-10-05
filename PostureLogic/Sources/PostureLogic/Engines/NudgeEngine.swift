@@ -102,6 +102,9 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// at init, so limits changed later reached the posture engine and not this one.
     var thresholds: PostureThresholds
 
+    /// How long a head held turned waits before its nudge. Settable for the same reason.
+    var headTurnThresholds: HeadTurnThresholds
+
     // MARK: - Internal State
 
     /// Timestamps of all nudges fired within the rolling hour window.
@@ -141,8 +144,10 @@ final class NudgeEngine: NudgeEngineProtocol {
     ///
     /// - Parameter thresholds: The configurable thresholds that control nudge
     ///   timing and limits. Pass `PostureThresholds()` for defaults.
-    init(thresholds: PostureThresholds = PostureThresholds()) {
+    init(thresholds: PostureThresholds = PostureThresholds(),
+         headTurnThresholds: HeadTurnThresholds = HeadTurnThresholds()) {
         self.thresholds = thresholds
+        self.headTurnThresholds = headTurnThresholds
     }
 
     // MARK: - NudgeEngineProtocol
@@ -169,6 +174,8 @@ final class NudgeEngine: NudgeEngineProtocol {
     ///   - currentTime: The current timestamp in seconds.
     ///   - metrics: The current posture metrics, used to determine the specific
     ///     nudge reason. Pass `nil` to default to `.sustainedSlouch`.
+    ///   - headTurnedSince: When the head was last turned and held there (`HeadTurnTracker`),
+    ///     or nil. A second thing to nudge for, sharing the cooldown and the hourly cap.
     /// - Returns: A `NudgeDecision` indicating what the caller should do.
     func evaluate(
         state: PostureState,
@@ -176,7 +183,8 @@ final class NudgeEngine: NudgeEngineProtocol {
         movementLevel: Float,
         taskMode: TaskMode,
         currentTime: TimeInterval,
-        metrics: RawMetrics? = nil
+        metrics: RawMetrics? = nil,
+        headTurnedSince: TimeInterval? = nil
     ) -> NudgeDecision {
 
         // ──────────────────────────────────────────────
@@ -239,27 +247,49 @@ final class NudgeEngine: NudgeEngineProtocol {
         //     If the user fixed their posture after the last nudge but then
         //     slumped again, we suppress to avoid re-nudging for the same episode.
         //     The acknowledgement flag is cleared when a new nudge fires.
-        if hasBeenAcknowledged {
+        //     It's about the slouch: a head held turned can still be nudged.
+        if hasBeenAcknowledged && headTurnedSince == nil {
             let decision = NudgeDecision.suppressed(reason: .recentAcknowledgement)
             lastDecisionDescription = "suppressed: recentAcknowledgement"
             return decision
         }
 
         // ──────────────────────────────────────────────
-        // STEP 3: Check if posture is actually bad
+        // STEP 3: The head held turned
         // ──────────────────────────────────────────────
         //
-        // Only `.bad(since:)` state can trigger a nudge.
-        // `.good`, `.drifting`, `.absent`, and `.calibrating` all
-        // return `.none` — nothing to nudge about.
-        guard case .bad(let since) = state else {
+        // While the head is turned its nudge wins: a turned head reads the shoulders wider
+        // (6 of 8 measured head turns, +0.06 to +0.16), which is what the slouch thresholds
+        // look for, so a "slouch" then is likelier the turn. Its advice is to turn the chair.
+        var headTurnRemaining: TimeInterval?
+        if let turnedSince = headTurnedSince {
+            let turnedFor = currentTime - turnedSince
+            if turnedFor >= headTurnThresholds.durationBeforeNudge {
+                lastDecisionDescription = "FIRE: headTurned (turned for \(String(format: "%.0f", turnedFor))s)"
+                return .fire(reason: .headTurned)
+            }
+            headTurnRemaining = headTurnThresholds.durationBeforeNudge - turnedFor
+        }
+
+        // ──────────────────────────────────────────────
+        // STEP 4: Check if posture is actually bad
+        // ──────────────────────────────────────────────
+        //
+        // Only `.bad(since:)` state can trigger a slouch nudge, and not once that slouch
+        // nudge was acknowledged. `.good`, `.drifting`, `.absent`, and `.calibrating` leave
+        // only the head turn, if any, counting down.
+        guard !hasBeenAcknowledged, case .bad(let since) = state else {
+            if let remaining = headTurnRemaining {
+                lastDecisionDescription = "pending (headTurned): \(String(format: "%.0f", remaining))s remaining"
+                return .pending(reason: .headTurned, timeRemaining: remaining)
+            }
             let decision = NudgeDecision.none
             lastDecisionDescription = "none (state is not .bad)"
             return decision
         }
 
         // ──────────────────────────────────────────────
-        // STEP 4: Check slouch duration
+        // STEP 5: Check slouch duration
         // ──────────────────────────────────────────────
         //
         // Calculate how long the user has been in sustained bad posture.
@@ -287,13 +317,17 @@ final class NudgeEngine: NudgeEngineProtocol {
         }
 
         // ──────────────────────────────────────────────
-        // STEP 5: Not yet — return pending with countdown
+        // STEP 6: Not yet — return pending with countdown
         // ──────────────────────────────────────────────
         //
         // Posture is bad but hasn't been bad long enough.
         // Return `.pending` with the time remaining so the UI can
-        // show a countdown if desired.
+        // show a countdown if desired: whichever nudge is sooner.
         let remaining = thresholds.slouchDurationBeforeNudge - duration
+        if let turnRemaining = headTurnRemaining, turnRemaining < remaining {
+            lastDecisionDescription = "pending (headTurned): \(String(format: "%.0f", turnRemaining))s remaining"
+            return .pending(reason: .headTurned, timeRemaining: turnRemaining)
+        }
         let decision = NudgeDecision.pending(reason: reason, timeRemaining: remaining)
         lastDecisionDescription = "pending (\(reason.rawValue)): \(String(format: "%.0f", remaining))s remaining"
         return decision
@@ -420,6 +454,7 @@ extension NudgeReason {
         case .sustainedSlouch: return "Sit up — reset your posture"
         case .forwardCreep:    return "Sit back — you're leaning in"
         case .headDrop:        return "Lift your head — ease your neck back"
+        case .headTurned:      return "Turn your chair to face that screen"
         }
     }
 }

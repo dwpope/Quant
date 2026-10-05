@@ -53,6 +53,8 @@ protocol NudgeEngineProtocol: DebugDumpable {
     ///     instead of `Date()` makes this testable — tests can control time.
     ///   - metrics: The current posture metrics, used to determine the specific
     ///     nudge reason. Pass `nil` to default to `.sustainedSlouch`.
+    ///   - headTurnedSince: When the head was turned and held there, or nil. A head held
+    ///     turned long enough fires `.headTurned`, sharing the cooldown and the hourly cap.
     /// - Returns: A `NudgeDecision` telling the caller what to do.
     func evaluate(
         state: PostureState,
@@ -60,7 +62,8 @@ protocol NudgeEngineProtocol: DebugDumpable {
         movementLevel: Float,
         taskMode: TaskMode,
         currentTime: TimeInterval,
-        metrics: RawMetrics?
+        metrics: RawMetrics?,
+        headTurnedSince: TimeInterval?
     ) -> NudgeDecision
 
     /// Record that a nudge was just fired and delivered to the user.
