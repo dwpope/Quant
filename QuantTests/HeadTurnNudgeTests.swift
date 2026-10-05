@@ -42,3 +42,25 @@ final class HeadTurnNudgeTests: XCTestCase {
         XCTAssertEqual(insights.dominantReasonDescription, "Mostly head turned")
     }
 }
+
+/// Sinking down in the chair is its own nudge reason (2026-10-05), counted with the others.
+@MainActor
+final class SinkNudgeInsightsTests: XCTestCase {
+    func test_insights_countSinks() {
+        let events = [
+            NudgeEvent(timestamp: 1_000, reason: .sink),
+            NudgeEvent(timestamp: 2_000, reason: .sink),
+            NudgeEvent(timestamp: 3_000, reason: .headTurned),
+        ]
+        let insights = NudgeInsights(events: events)
+        XCTAssertEqual(insights.sinkCount, 2)
+        XCTAssertEqual(insights.dominantReason, .sink)
+        XCTAssertEqual(insights.dominantReasonDescription, "Mostly sinking in the chair")
+    }
+
+    func test_aSinkNudge_tellsTheWatchToSlideBack() {
+        let message = WatchConnectivityService.nudgeMessage(hapticType: "failure",
+                                                            body: NudgeReason.sink.coachingMessage)
+        XCTAssertEqual(message["body"] as? String, "Sit up — slide back in your chair")
+    }
+}

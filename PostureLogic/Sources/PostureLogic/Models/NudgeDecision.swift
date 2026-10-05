@@ -14,6 +14,9 @@ public enum NudgeReason: String, Codable {
     /// The head held turned to one side with the shoulders still facing the phone, as when
     /// working on a second screen. Not a slouch; timed by `HeadTurnTracker`.
     case headTurned
+    /// Sinking down in the chair: the shoulders lower in the frame than at calibration
+    /// (`RawMetrics.shoulderSink`), 2026-10-05.
+    case sink
 }
 
 public enum SuppressionReason: String, Codable {

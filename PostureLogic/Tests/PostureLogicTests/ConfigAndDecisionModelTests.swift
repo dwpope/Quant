@@ -34,7 +34,7 @@ final class ConfigAndDecisionModelTests: XCTestCase {
     }
 
     func testNudgeDecision_fire_roundTripsAllReasons() throws {
-        for reason in [NudgeReason.sustainedSlouch, .forwardCreep, .headDrop, .headTurned] {
+        for reason in [NudgeReason.sustainedSlouch, .forwardCreep, .headDrop, .headTurned, .sink] {
             let original = NudgeDecision.fire(reason: reason)
             let data = try JSONEncoder().encode(original)
             let decoded = try JSONDecoder().decode(NudgeDecision.self, from: data)

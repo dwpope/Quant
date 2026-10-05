@@ -473,7 +473,7 @@ struct DebugOverlayView: View {
             }
 
             // Shoulder height in the frame — raw vs the drop since calibration (shoulderSink).
-            // Sinking down in the chair shows here and nowhere else. Not scored yet, so no colour.
+            // Sinking down in the chair shows here and nowhere else. Scored since 2026-10-05.
             HStack(spacing: 0) {
                 Text("Sink")
                     .frame(width: 70, alignment: .leading)
@@ -481,7 +481,9 @@ struct DebugOverlayView: View {
                     .frame(width: 55, alignment: .trailing)
                 Text(metricValue(appModel.latestMetrics?.shoulderSink))
                     .frame(width: 55, alignment: .trailing)
-                    .foregroundStyle(.secondary)
+                    // Coloured by the sink only: shoulders higher than at calibration are fine.
+                    .foregroundStyle(metricColor(appModel.latestMetrics.map { max(0, $0.shoulderSink) },
+                                                  threshold: appModel.postureThresholds.shoulderSinkThreshold))
             }
 
             // Shoulder Width — raw absolute vs calibrated delta (forwardCreep)

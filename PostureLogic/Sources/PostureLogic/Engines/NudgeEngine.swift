@@ -406,18 +406,20 @@ final class NudgeEngine: NudgeEngineProtocol {
             ? -metrics.headDrop / thresholds.headDropThreshold
             : 0
 
-        // Pick the metric with the highest ratio
-        if forwardCreepRatio > headDropRatio && forwardCreepRatio > 1.0 {
-            return .forwardCreep
-        }
+        let sinkRatio: Float = thresholds.shoulderSinkThreshold > 0
+            ? metrics.shoulderSink / thresholds.shoulderSinkThreshold
+            : 0
 
-        if headDropRatio > forwardCreepRatio && headDropRatio > 1.0 {
-            return .headDrop
-        }
-
-        // If both are equal and above threshold, or neither is above threshold,
-        // fall back to the general reason
-        return .sustainedSlouch
+        // Pick the metric with the highest ratio, if it's past its line and alone at the top.
+        // A tie, or nothing past its line, falls back to the general reason.
+        let ratios: [(NudgeReason, Float)] = [
+            (.forwardCreep, forwardCreepRatio), (.headDrop, headDropRatio), (.sink, sinkRatio),
+        ]
+        guard let top = ratios.map(\.1).max(), top > 1.0,
+              ratios.filter({ $0.1 == top }).count == 1,
+              let winner = ratios.first(where: { $0.1 == top })
+        else { return .sustainedSlouch }
+        return winner.0
     }
 
     /// Calculate how many seconds remain in the cooldown period.
@@ -463,6 +465,7 @@ extension NudgeReason {
         case .forwardCreep:    return "Sit back — you're leaning in"
         case .headDrop:        return "Lift your head — ease your neck back"
         case .headTurned:      return "Turn your chair to face that screen"
+        case .sink:            return "Sit up — slide back in your chair"
         }
     }
 }

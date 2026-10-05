@@ -394,6 +394,8 @@ final class PostureEngine: PostureEngineProtocol {
             // The head dropped towards the shoulders, which reads NEGATIVE on the device.
             // See `PostureThresholds.headDropThreshold` for why it's this way round.
             || (!chairTurned && -metrics.headDrop >= headDropLimit)
+            // Sinking down in the chair: the shoulders lower in the frame (2026-10-05).
+            || metrics.shoulderSink >= thresholds.shoulderSinkThreshold
             || metrics.shoulderRounding > shoulderRoundingThreshold
     }
 
