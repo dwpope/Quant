@@ -179,8 +179,8 @@ struct PostureVisualizationValuesOverlay: View {
                     active: debug.headForward)
                 // Neck carriage → scored head-drop. raw = ear-height off the sample
                 // (PoseSample.neckHeight); mapped = the baseline-relative deviation the
-                // engine scores (RawMetrics.headDrop). Orange when the head has RISEN past
-                // headDropThreshold (2026-10-05) — i.e. the neck metric is tripping *now*. This is a
+                // engine scores (RawMetrics.headDrop). Orange when it is at or below MINUS
+                // headDropThreshold (it reads negative as the head drops; 2026-10-05) — i.e. the neck metric is tripping *now*. This is a
                 // scored 2D metric mirror, not an isolatable viz channel, so it stays
                 // `active` (never dimmed) and reuses the standard clipped→orange cue.
                 // Mapped cell reads "--" with no baseline: a 0.0 there would be

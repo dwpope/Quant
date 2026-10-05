@@ -2,13 +2,14 @@ import XCTest
 import PostureLogic
 @testable import Quant
 
-/// Head drop counts a RISING head since 2026-10-05 (see `PostureThresholds.headDropThreshold`).
+/// Head drop counts the way it reads on the device, negative as the head drops, since 2026-10-05
+/// (see `PostureThresholds.headDropThreshold`).
 /// The setting's meaning changed with it, so a value stored under the old meaning must not carry
-/// over: 0.15 would read as a huge rise and silence the signal.
+/// over: 0.15 would need a huge drop and silence the signal.
 @MainActor
 final class HeadDropSettingTests: XCTestCase {
 
-    func test_theDefault_isTheRisingHeadTripPoint() {
+    func test_theDefault_isTheJevWordingsTripPoint() {
         XCTAssertEqual(AppModel.defaultHeadDropThreshold, 0.015)
     }
 

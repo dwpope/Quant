@@ -7,9 +7,10 @@ import simd
 /// end (via `fuse`) since `computeNeckHeight` is private; `neckHeight` on the
 /// produced `PoseSample` is the observable.
 ///
-/// `neckHeight = (earMidY − shoulderMidY) / shoulderWidth` in Vision y-up image
-/// coordinates: ears above shoulders ⇒ positive; sinking the head toward the
-/// shoulders ⇒ decreasing; scale-invariant under a uniform zoom about any center.
+/// `neckHeight = (earMidY − shoulderMidY) / shoulderWidth`. These tests use y-up points:
+/// ears above shoulders ⇒ positive; sinking the head toward the shoulders ⇒ decreasing;
+/// scale-invariant under a uniform zoom about any center. On the device PoseService flips
+/// Vision's y, so y runs DOWN and every sign here is reversed (see `PostureThresholds`).
 final class NeckHeightTests: XCTestCase {
 
     // MARK: - Helpers

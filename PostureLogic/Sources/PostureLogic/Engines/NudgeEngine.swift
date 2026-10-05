@@ -400,8 +400,8 @@ final class NudgeEngine: NudgeEngineProtocol {
             ? metrics.forwardCreep / thresholds.forwardCreepThreshold
             : 0
 
-        // A slouch makes the head read higher (negative head drop) with the phone below eye
-        // level, so it's the rise that's compared with the trip point.
+        // A dropping head reads NEGATIVE on the device (image y runs down; see
+        // `PostureThresholds.headDropThreshold`), so it's the negated value that's compared.
         let headDropRatio: Float = thresholds.headDropThreshold > 0
             ? -metrics.headDrop / thresholds.headDropThreshold
             : 0
@@ -461,7 +461,7 @@ extension NudgeReason {
         switch self {
         case .sustainedSlouch: return "Sit up — reset your posture"
         case .forwardCreep:    return "Sit back — you're leaning in"
-        case .headDrop:        return "Sit back — ease your head away from the screen"
+        case .headDrop:        return "Lift your head — ease your neck back"
         case .headTurned:      return "Turn your chair to face that screen"
         }
     }

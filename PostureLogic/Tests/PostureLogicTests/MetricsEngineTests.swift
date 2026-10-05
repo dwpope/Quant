@@ -169,20 +169,20 @@ final class MetricsEngineTests: XCTestCase {
     /// it, a smaller one does not. The threshold's meaning is unchanged (both are in
     /// shoulder-widths of carriage/height); only the underlying signal moved from
     /// `headPosition.y` to `neckHeight`.
-    /// Since 2026-10-05 a slouch is the head RISING past the trip point: with the phone below eye
-    /// level, leaning towards it makes the head look higher (see `PostureThresholds`).
+    /// Since 2026-10-05 a slouch is head drop at or below MINUS the trip point: on the device's
+    /// y-down coordinates, neck height grows as the head drops (see `PostureThresholds`).
     func test_headDrop_crossesThresholdFromNeckHeight() {
         var engine = MetricsEngine()
-        let threshold = PostureThresholds().headDropThreshold   // 0.015 rise (ear-sourced)
+        let threshold = PostureThresholds().headDropThreshold   // 0.015 (ear-sourced)
         let baseline = makeBaseline(neckHeight: 1.0)
 
-        // A rise of 0.01 ⇒ headDrop -0.01, inside the trip point (uprights read -0.007 or above).
+        // Neck height up 0.01 ⇒ headDrop -0.01, inside the trip point (uprights read -0.007 or above).
         let under = engine.compute(from: makeSample(neckHeight: 1.0 + 0.01), baseline: baseline)
-        XCTAssertLessThan(-under.headDrop, threshold, "A small rise must not trip")
+        XCTAssertLessThan(-under.headDrop, threshold, "A small drop must not trip")
 
-        // A rise of 0.04 ⇒ headDrop -0.04, past it (session 3's weak slouch read -0.040).
+        // Neck height up 0.04 ⇒ headDrop -0.04, past it (session 3's weak slouch read -0.040).
         let over = engine.compute(from: makeSample(neckHeight: 1.0 + 0.04), baseline: baseline)
-        XCTAssertGreaterThan(-over.headDrop, threshold, "A slouch's rise must trip")
+        XCTAssertGreaterThan(-over.headDrop, threshold, "A slouch's drop must trip")
     }
 
     // MARK: - Shoulder Rounding

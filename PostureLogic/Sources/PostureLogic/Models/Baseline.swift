@@ -13,8 +13,8 @@ public struct Baseline: Codable {
     /// The calibrated neutral head-carriage height, averaged over the calibration
     /// window. Same ear-based, shoulder-normalized quantity as
     /// `PoseSample.neckHeight`; `RawMetrics.headDrop` is `baseline.neckHeight −
-    /// sample.neckHeight`, so a sample carrying its head lower than this neutral
-    /// reads as positive head-drop. Default 0 keeps existing call sites and old
+    /// sample.neckHeight`. On the device image y runs down, so neck height is negative and a head
+    /// dropping towards the shoulders reads as NEGATIVE head-drop (see `PostureThresholds`). Default 0 keeps existing call sites and old
     /// serialized baselines valid (additive-default pattern, as with `shoulderTwist`).
     public let neckHeight: Float
 

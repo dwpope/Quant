@@ -143,7 +143,7 @@ final class PostureEngine: PostureEngineProtocol {
     ///   - metrics: The latest smoothed metrics from MetricsEngine + MetricsSmoother.
     ///   - taskMode: Current activity (reading, typing, etc.) — affects thresholds.
     ///   - trackingQuality: How reliable the current camera data is.
-    ///   - chairTurned: The whole chair is turned, so a rising head isn't a slouch
+    ///   - chairTurned: The whole chair is turned, so a head drop isn't counted as a slouch
     ///     (`HeadTurnTracker.isChairTurned`).
     /// - Returns: The updated PostureState.
     @discardableResult
@@ -385,15 +385,15 @@ final class PostureEngine: PostureEngineProtocol {
         let forwardThreshold = thresholds.forwardCreepThreshold * forwardCreepMultiplier
         let twistThreshold = thresholds.twistThreshold * twistMultiplier
         let sideLeanThreshold = thresholds.sideLeanThreshold * sideLeanMultiplier
-        let headRiseThreshold = thresholds.headDropThreshold
+        let headDropLimit = thresholds.headDropThreshold
         let shoulderRoundingThreshold = thresholds.shoulderRoundingThreshold * shoulderRoundingMultiplier
 
         return metrics.forwardCreep > forwardThreshold
             || metrics.twist > twistThreshold
             || metrics.lateralLean > sideLeanThreshold
-            // The head higher than at calibration: leaning towards a phone below eye level.
+            // The head dropped towards the shoulders, which reads NEGATIVE on the device.
             // See `PostureThresholds.headDropThreshold` for why it's this way round.
-            || (!chairTurned && -metrics.headDrop >= headRiseThreshold)
+            || (!chairTurned && -metrics.headDrop >= headDropLimit)
             || metrics.shoulderRounding > shoulderRoundingThreshold
     }
 

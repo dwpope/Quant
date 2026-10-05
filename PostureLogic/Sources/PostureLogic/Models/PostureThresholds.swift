@@ -10,16 +10,18 @@ public struct PostureThresholds: Codable {
     public var forwardCreepThreshold: Float = 0.03
     public var twistThreshold: Float = 15.0
     public var sideLeanThreshold: Float = 0.08
-    /// Head-rise trip point, in shoulder widths: posture is off when `headDrop` is at or below
-    /// MINUS this, the head that much HIGHER in the image than at calibration. `headDrop` is
-    /// **ear-sourced** (ear-midpoint carriage above the shoulders), positive when lower.
+    /// Head-drop trip point, in shoulder widths: posture is off when `headDrop` is at or below
+    /// MINUS this, the head that much closer to the shoulders than at calibration.
     ///
-    /// **Flipped 2026-10-05.** With the phone below eye level, leaning towards it makes the head
-    /// look higher: all 15 of Dave's slouches across five device sessions read -0.013 to -0.186,
-    /// and every upright -0.007 or above. The old trip point, +0.15 downwards (derived on
-    /// 2026-07-03 in a setup where slouching read positive), never caught one here and fired
-    /// once in 64 captures, on a chair swivel. 0.015 is the Jev wording's point. Which way a
-    /// slouch reads depends on where the camera sits relative to the eyes.
+    /// **On the device a dropping head reads NEGATIVE**, the opposite of what the name says.
+    /// `headDrop` is `baseline.neckHeight − sample.neckHeight`, and neck height is measured in
+    /// image coordinates whose y runs DOWN (PoseService flips Vision's): ears above the shoulders
+    /// give a negative neck height, which grows towards zero as the head drops, so the drop
+    /// comes out negative. All 15 of Dave's slouches across five sessions read -0.013 to -0.186;
+    /// every upright -0.007 or above. The old trip point, +0.15, assumed y runs up; on the device
+    /// it fired once in 64 captures, on a chair swivel. Flipped 2026-10-05 to -0.015, the Jev
+    /// wording's point. (A note here first put the sign down to the phone sitting below eye
+    /// level. That was wrong: it's the coordinate direction.)
     public var headDropThreshold: Float = 0.015
     public var shoulderRoundingThreshold: Float = 10.0
 

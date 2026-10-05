@@ -60,17 +60,18 @@ export const LEAN_CLEAR_SHIFT = 0.15;
 export const SLOUCH_MIN_FORWARD_CREEP = 0.06;
 
 /**
- * Head drop at or below this reads as a slouch in this setup. Across three sessions all 9 of
- * Dave's slouches read -0.020 to -0.113 while every judged upright read -0.004 or above: the head
- * appears HIGHER in the image when leaning towards a phone below eye level. The wording used to
- * say a slouch makes head_drop positive, and three slouches whose shoulders barely came forward
- * replayed as good_posture at 97-100%.
+ * Head drop at or below this reads as a slouch. Across three sessions all 9 of Dave's slouches
+ * read -0.020 to -0.113 while every judged upright read -0.004 or above. It's negative because the
+ * app measures in image coordinates whose y runs down, so a head dropping towards the shoulders
+ * comes out negative (v3.3 put it down to the phone sitting below eye level; corrected in v3.8).
+ * The wording used to say a slouch makes head_drop positive, and three slouches whose shoulders
+ * barely came forward replayed as good_posture at 97-100%.
  */
 export const SLOUCH_MAX_HEAD_DROP = -0.015;
 
 /**
  * Head drop counts towards slouch only below this sideways shift. In v3.3 three leans (shift
- * 0.136, 0.356, 0.367) also read the head higher and became slouch; every slouch so far shifted
+ * 0.136, 0.356, 0.367) also read a negative head drop and became slouch; every slouch so far shifted
  * sideways 0.096 or less.
  */
 export const HEAD_DROP_SLOUCH_MAX_SHIFT = 0.1;
@@ -123,7 +124,7 @@ export const POSTURE_CRITERIA: Record<string, string> = {
   // Kept free of the lean rule: v3 first added it here and four clear slouches dropped to
   // good_posture in replay. The lean rule lives only in the lean description.
   slouch:
-    `Collapsed toward the screen or downward. forward_creep is clearly POSITIVE, ${SLOUCH_MIN_FORWARD_CREEP} or more (the shoulders appear wider because the torso moved closer to the camera; slouches so far measured +0.08 to +0.18), and/or head_drop is NEGATIVE, ${SLOUCH_MAX_HEAD_DROP} or lower, while lateral_lean_in_shoulder_widths stays under ${HEAD_DROP_SLOUCH_MAX_SHIFT} either way (with the camera below eye level, leaning towards it makes the head appear higher in the image; slouches so far measured -0.02 to -0.11, uprights -0.004 or above). Either signal alone is enough, with one exception: while looking away (head_yaw_degrees at least ${SWIVEL_MIN_HEAD_YAW} either way with forward_creep above ${SWIVEL_MAX_FORWARD_CREEP}), forward_creep alone is not a slouch, because turning the head makes the shoulders look wider (head turns so far +0.01 to +0.16 with head_drop -0.003 or above). Then it is a slouch only if head_drop is ${SLOUCH_MAX_HEAD_DROP} or lower. Lateral lean is not the story.`,
+    `Collapsed toward the screen or downward. forward_creep is clearly POSITIVE, ${SLOUCH_MIN_FORWARD_CREEP} or more (the shoulders appear wider because the torso moved closer to the camera; slouches so far measured +0.08 to +0.18), and/or head_drop is NEGATIVE, ${SLOUCH_MAX_HEAD_DROP} or lower, while lateral_lean_in_shoulder_widths stays under ${HEAD_DROP_SLOUCH_MAX_SHIFT} either way (it goes negative as the head drops towards the shoulders; slouches so far measured -0.02 to -0.11, uprights -0.004 or above). Either signal alone is enough, with one exception: while looking away (head_yaw_degrees at least ${SWIVEL_MIN_HEAD_YAW} either way with forward_creep above ${SWIVEL_MAX_FORWARD_CREEP}), forward_creep alone is not a slouch, because turning the head makes the shoulders look wider (head turns so far +0.01 to +0.16 with head_drop -0.003 or above). Then it is a slouch only if head_drop is ${SLOUCH_MAX_HEAD_DROP} or lower. Lateral lean is not the story.`,
   lean:
     `The torso has shifted sideways. lateral_lean_in_shoulder_widths is clearly non-zero and holds its sign. A clear shift, ${LEAN_CLEAR_SHIFT} or more either way, is a lean whatever head_yaw_degrees says (the head often turns while leaning, sometimes past ${SWIVEL_MIN_HEAD_YAW} degrees), and even if forward_creep is mildly positive or head_drop is negative: leaning sideways often brings the shoulders a little toward the camera and tilts the head up in the image. The one exception is a swivel, which needs head_yaw_degrees at least ${SWIVEL_MIN_HEAD_YAW} AND forward_creep at or below ${SWIVEL_MAX_FORWARD_CREEP}. A smaller shift with the head turned past ${SWIVEL_MIN_HEAD_YAW} degrees is someone looking away, not a lean. Shoulders slightly narrower than baseline are fine for a lean when the head is not turned past ${SWIVEL_MIN_HEAD_YAW} degrees.`,
   chair_swivel:
@@ -140,7 +141,7 @@ export const POSTURE_CRITERIA: Record<string, string> = {
 export const BASELINE_NOTE = [
   "All values except the head angles are deltas from a calibration snapshot taken while the user sat upright; 0 means exactly at baseline.",
   "forward_creep is the fractional change in APPARENT shoulder width: positive means the shoulders look wider (torso closer to the camera), negative means narrower (torso rotated away from square).",
-  "head_drop is in shoulder-widths; positive means the head appears lower in the image than at baseline. With the phone below eye level, leaning towards it makes the head appear higher, so a slouch usually reads NEGATIVE.",
+  "head_drop is in shoulder-widths and NEGATIVE when the head has dropped towards the shoulders since baseline, as in a slouch; positive means it sits higher above them.",
   "lateral_lean_in_shoulder_widths is the sideways shift of the shoulder midpoint, divided by baseline shoulder width so it is dimensionless in both camera modes.",
   "shoulder_tilt_signed_degrees is one shoulder higher than the other, not axial rotation.",
   "Head angles are camera-absolute degrees and read 0 both when centred and when unavailable.",

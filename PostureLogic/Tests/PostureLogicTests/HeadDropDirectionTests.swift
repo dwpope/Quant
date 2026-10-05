@@ -2,14 +2,14 @@ import XCTest
 import Combine
 @testable import PostureLogic
 
-/// Head drop counts the way it actually reads with the phone below eye level (2026-10-05).
+/// Head drop counts the way it actually reads on the device (2026-10-05).
 ///
-/// Leaning towards a phone below eye level makes the head look HIGHER in the image, so every one
-/// of Dave's 15 slouches across five sessions read head drop -0.013 to -0.186. The thresholds
-/// tripped on head drop above +0.15, which a slouch never reaches here: across 64 captures it
-/// fired once, on a chair swivel. The Jev wording already uses it the right way round: -0.015 or
-/// lower is a slouch. The thresholds now do the same, except with the chair turned, where the
-/// shoulders narrow and the head can read a little higher too.
+/// Image y runs down on the device (PoseService flips Vision's), so a head dropping towards the
+/// shoulders reads NEGATIVE: every one of Dave's 15 slouches across five sessions read -0.013 to
+/// -0.186. The thresholds tripped on head drop above +0.15, which assumed y runs up and never
+/// happens: across 64 captures it fired once, on a chair swivel. The Jev wording already uses it
+/// the right way round: -0.015 or lower is a slouch. The thresholds now do the same, except with
+/// the chair turned, where it can read a little negative too.
 ///
 /// Replaying the thresholds over all 65 judged captures: misses 3 -> 0, false alarms 11 -> 10.
 final class HeadDropDirectionTests: XCTestCase {
@@ -35,12 +35,12 @@ final class HeadDropDirectionTests: XCTestCase {
 
     func test_theTripPoint_isTheJevWordings() {
         XCTAssertEqual(PostureThresholds().headDropThreshold, 0.015,
-                       "the head 0.015 shoulder widths higher than at calibration")
+                       "the head 0.015 shoulder widths closer to the shoulders than at calibration")
     }
 
     /// Every slouch measured on device read at or below -0.013; the weakest two that barely came
     /// forward read -0.020 and -0.040.
-    func test_aHeadHigherThanAtCalibration_isASlouch() {
+    func test_aHeadDroppedTowardsTheShoulders_isASlouch() {
         XCTAssertTrue(isDrifting(state(headDrop: -0.02)))
         XCTAssertTrue(isDrifting(state(headDrop: -0.015)))
     }
@@ -52,19 +52,19 @@ final class HeadDropDirectionTests: XCTestCase {
     }
 
     /// The old direction fired once in 64 captures, on a swivel (+0.183), and never on a slouch.
-    func test_aHeadLowerThanAtCalibration_isNoLongerASlouch() {
+    func test_aPositiveHeadDrop_isNoLongerASlouch() {
         XCTAssertEqual(state(headDrop: 0.183), .good)
     }
 
     /// Two measured swivels read -0.016 and -0.021: with the chair turned, it isn't a slouch.
-    func test_withTheChairTurned_aHigherHeadIsNot() {
+    func test_withTheChairTurned_aHeadDropIsNot() {
         XCTAssertEqual(state(headDrop: -0.021, chairTurned: true), .good)
     }
 
     // MARK: - The nudge's advice
 
-    /// A rising head is leaning in towards the screen, and the advice says so.
-    func test_aRisingHead_isTheNudgesReason_whenItDominates() {
+    /// A dropped head is the nudge's reason when it dominates, and the advice is to lift it.
+    func test_aDroppedHead_isTheNudgesReason_whenItDominates() {
         var thresholds = PostureThresholds()
         thresholds.slouchDurationBeforeNudge = 0
         let engine = NudgeEngine(thresholds: thresholds)
@@ -74,7 +74,7 @@ final class HeadDropDirectionTests: XCTestCase {
                                        headTurnedSince: nil, silenced: false)
         guard case .fire(let reason) = decision else { return XCTFail("expected a nudge") }
         XCTAssertEqual(reason, .headDrop)
-        XCTAssertTrue(NudgeReason.headDrop.coachingMessage.contains("Sit back"))
+        XCTAssertTrue(NudgeReason.headDrop.coachingMessage.contains("Lift your head"))
     }
 
     // MARK: - The chair, as the pipeline sees it
@@ -118,12 +118,12 @@ final class HeadDropDirectionTests: XCTestCase {
         return pipeline.postureState
     }
 
-    func test_pipeline_aRisingHeadFacingThePhone_drifts() async throws {
+    func test_pipeline_aDroppedHeadFacingThePhone_drifts() async throws {
         let state = try await finalState(samples(yaw: 0, shoulderWidth: 0.2, neckHeight: 0.04, count: 6))
         XCTAssertTrue(isDrifting(state), "got \(state)")
     }
 
-    func test_pipeline_aRisingHeadWithTheChairTurned_staysGood() async throws {
+    func test_pipeline_aDroppedHeadWithTheChairTurned_staysGood() async throws {
         let state = try await finalState(samples(yaw: 66, shoulderWidth: 0.17, neckHeight: 0.04, count: 6))
         XCTAssertEqual(state, .good)
     }

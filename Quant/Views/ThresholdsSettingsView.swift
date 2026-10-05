@@ -50,14 +50,14 @@ struct ThresholdsSettingsView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("Head Rise")
+                        Text("Head Drop")
                         Spacer()
                         Text(String(format: "%.3f", appModel.headDropThreshold))
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
                     Slider(value: $appModel.headDropThreshold, in: 0.005...0.05, step: 0.0025)
-                    Text("How much higher than at calibration your head can look, in shoulder widths. With the phone below eye level, leaning towards it raises it.")
+                    Text("How far your head can drop towards your shoulders, in shoulder widths, before it counts.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

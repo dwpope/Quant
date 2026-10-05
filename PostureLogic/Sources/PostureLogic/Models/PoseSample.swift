@@ -42,8 +42,9 @@ public struct PoseSample: Codable {
     public let headOrientation: SIMD4<Float>?
 
     /// Ear-based head-carriage height: `(ear-midpoint.y − shoulder-midpoint.y) /
-    /// shoulderWidth`, in Vision y-up image coordinates (larger y = physically
-    /// higher). Scale-invariant like the other shoulder-normalized fields. This is
+    /// shoulderWidth`. Written for y-up image coordinates (larger y = physically
+    /// higher), but PoseService flips Vision's y, so on the device y runs DOWN: ears
+    /// above the shoulders give a NEGATIVE value, rising towards zero as the head drops. Scale-invariant like the other shoulder-normalized fields. This is
     /// a **2D body-pose** signal (ear + shoulder image keypoints, same domain as
     /// `torsoAngle`) — NOT a head-orientation angle — and it sources the refined
     /// `RawMetrics.headDrop`, which now tracks true neck/head carriage rather than

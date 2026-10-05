@@ -467,7 +467,8 @@ struct PoseDepthFusion: PoseDepthFusionProtocol {
             earY = fallbackHeadY
         }
 
-        // Vision y-up: ears above shoulders ⇒ positive.
+        // In y-up coordinates ears above shoulders ⇒ positive. The device's keypoints are y-DOWN
+        // (PoseService flips Vision's), so there it's negative, and grows as the head drops.
         return Float((earY - shoulderMidY) / shoulderWidth)
     }
 

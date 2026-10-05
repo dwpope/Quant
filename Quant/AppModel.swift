@@ -267,8 +267,8 @@ class AppModel: ObservableObject {
         static let twistThreshold = "com.quant.posture.twist"
         static let sideLeanThreshold = "com.quant.posture.sideLean"
         static let driftingToBadThreshold = "com.quant.posture.driftingToBad"
-        /// `.v2` since 2026-10-05, when head drop started counting a RISING head (0.015 default).
-        /// A value stored under the old meaning (0.15 downwards) would silence the signal.
+        /// `.v2` since 2026-10-05, when head drop started counting the way it reads on the device
+        /// (negative, 0.015 default). A value stored under the old meaning (+0.15) would silence it.
         static let headDropThreshold = "com.quant.posture.headDrop.v2"
         static let shoulderRoundingThreshold = "com.quant.posture.shoulderRounding"
         static let slouchDurationBeforeNudge = "com.quant.posture.slouchDuration"

@@ -790,7 +790,7 @@ final class NudgeEngineTests: XCTestCase {
         let engine = makeEngine(slouchDuration: 10)
 
         // forwardCreep = 0.05 / 0.03 threshold ≈ 1.67 ratio
-        // head rise    = 0.045 / 0.015 threshold = 3.0 ratio (head drop -0.045)
+        // head drop    = 0.045 / 0.015 threshold = 3.0 ratio (reads -0.045 on the device)
         // → headDrop dominates
         let metrics = makeMetrics(forwardCreep: 0.05, headDrop: -0.045)
 
@@ -869,7 +869,7 @@ final class NudgeEngineTests: XCTestCase {
 
         // Both at exactly the same ratio above threshold
         // forwardCreep = 0.06 / 0.03 = 2.0
-        // head rise    = 0.03 / 0.015 = 2.0 (head drop -0.03)
+        // head drop    = 0.03 / 0.015 = 2.0 (reads -0.03 on the device)
         // Equal → falls back to .sustainedSlouch
         let metrics = makeMetrics(forwardCreep: 0.06, headDrop: -0.03)
 

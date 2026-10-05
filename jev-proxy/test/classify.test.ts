@@ -214,8 +214,8 @@ describe("a numeric scale for slouch and upright (v3.2)", () => {
 
 // v3.3: head drop reads NEGATIVE when Dave slouches. Across three sessions all 9 slouches read
 // -0.020 to -0.113 while every judged upright read -0.004 or above; the rubric had told Jev a
-// slouch makes head_drop positive. Likely perspective: leaning towards a phone below eye level
-// moves the head up in the image.
+// slouch makes head_drop positive. (The app's image y runs down, so a dropping head reads
+// negative; v3.3 first put it down to the phone below eye level, corrected in v3.8.)
 describe("head drop as a slouch signal (v3.3)", () => {
   const uprightHeadDrops = [0.019, 0.013, 0.019, -0.002, -0.002, -0.004];
   const slouchHeadDrops = [-0.061, -0.04, -0.113, -0.02, -0.021, -0.055, -0.02, -0.045, -0.069];
@@ -234,7 +234,7 @@ describe("head drop as a slouch signal (v3.3)", () => {
 });
 
 // v3.4: head drop counts towards slouch only when the sideways shift is small. In v3.3, three
-// leans (sideways shift 0.136, 0.356, 0.367) also read the head higher and became slouch. Every
+// leans (sideways shift 0.136, 0.356, 0.367) also read a negative head drop and became slouch. Every
 // slouch so far shifted sideways 0.096 or less.
 describe("head drop only for a small sideways shift (v3.4)", () => {
   it("puts the cut above every slouch's shift and below the leans v3.3 broke", () => {
@@ -393,3 +393,23 @@ describe("looking away is not a slouch (v3.7)", () => {
   });
 });
 
+
+// v3.8: head_drop's explanation corrected (2026-10-05). It goes negative as the head drops towards
+// the shoulders because the app's image coordinates run downward, not because the phone sits below
+// eye level, as v3.3 had it. The numbers and cuts are unchanged; Jev was told a wrong reason.
+describe("head_drop explained by its sign, not by the camera height (v3.8)", () => {
+  it("says negative is the head dropping towards the shoulders", () => {
+    expect(BASELINE_NOTE).toMatch(/head_drop[^.]*NEGATIVE[^.]*dropped towards the shoulders/);
+  });
+
+  it("no longer puts it down to the phone below eye level", () => {
+    expect(BASELINE_NOTE).not.toMatch(/eye level/);
+    for (const [name, desc] of Object.entries(POSTURE_CRITERIA)) {
+      expect(desc, name).not.toMatch(/eye level/);
+    }
+  });
+
+  it("keeps the same cut", () => {
+    expect(SLOUCH_MAX_HEAD_DROP).toBe(-0.015);
+  });
+});
