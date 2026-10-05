@@ -10,6 +10,8 @@ import {
   SWIVEL_MIN_HEAD_YAW,
   isSwivelByRule,
   isClearLeanByRule,
+  isLookingAwayByRule,
+  isSlouchByRule,
   buildJevRequest,
   mapJevAnswer,
   parseFeatures,
@@ -336,6 +338,58 @@ describe("the three dead inputs are not sent to Jev (v3.6)", () => {
       "forward_creep_fraction_of_baseline_shoulder_width", "head_drop_in_shoulder_widths",
       "lateral_lean_in_shoulder_widths", "head_yaw_degrees", "tracking_quality",
     ]) expect(state, key).toHaveProperty(key);
+  });
+});
+
+// v3.7: looking away is not a slouch. Turning the head reads the shoulders wider (6 of 8 head
+// turns +0.06 to +0.16), so with the head turned and the shoulders square, forward creep alone
+// read as slouch: both of session 5's head turns, at 94-97%. Head height separates them: every
+// head turn read head_drop -0.003 or above, every slouch -0.013 or below. The app times a head
+// held turned on its own (HeadTurnTracker, same 45° and -0.03), so a slouch call there would
+// also give the wrong advice.
+describe("looking away is not a slouch (v3.7)", () => {
+  // Every capture measured on device so far: [forward creep, head drop, sideways shift, head yaw].
+  const uprights: Array<[number, number, number, number]> = [
+    [0.024, 0.019, -0.011, -2], [0.042, 0.013, -0.017, -1], [0.032, 0.019, -0.013, -2],
+    [0.01, -0.002, -0.006, -1], [0.023, -0.002, 0.004, -5], [0.029, -0.004, -0.001, -5],
+    [0.014, -0.001, 0.013, -3], [0.044, -0.002, 0.021, -2], [0.036, -0.0, 0.024, -3],
+    [0.021, -0.007, 0.002, 0], [0.02, -0.006, 0.007, -1], [0.026, -0.0, -0.002, 0],
+  ];
+  const slouches: Array<[number, number, number, number]> = [
+    [0.157, -0.061, -0.096, -1], [-0.004, -0.04, -0.01, 36], [0.081, -0.113, -0.09, 14],
+    [0.136, -0.02, -0.018, 0], [0.179, -0.021, -0.027, -7], [0.182, -0.055, -0.027, -3],
+    [0.038, -0.02, 0.012, 0], [0.046, -0.045, -0.011, -2], [0.099, -0.069, 0.027, 4],
+    [0.135, -0.034, 0.042, -1], [0.092, -0.186, 0.112, -2], [0.156, -0.094, 0.11, -2],
+    [0.092, -0.013, -0.017, 2], [0.162, -0.129, -0.06, -37], [0.214, -0.156, -0.039, 56],
+  ];
+  const headTurns: Array<[number, number, number, number]> = [
+    [0.162, 0.008, -0.052, -75], [0.139, 0.006, 0.012, 60], [0.061, -0.003, 0.036, 78],
+    [0.008, 0.009, 0.037, -77], [0.06, 0.008, -0.103, -75], [0.036, 0.006, -0.013, 77],
+    [0.119, 0.016, 0.055, 77], [0.082, 0.035, -0.016, -74],
+  ];
+
+  it("calls every measured slouch a slouch, including the one with the head turned 56°", () => {
+    for (const [fc, hd, lat, yaw] of slouches) {
+      expect(isSlouchByRule(fc, hd, lat, yaw), `${fc} ${hd} ${lat} ${yaw}`).toBe(true);
+    }
+  });
+
+  it("calls no head turn and no upright a slouch", () => {
+    for (const [fc, hd, lat, yaw] of [...headTurns, ...uprights]) {
+      expect(isSlouchByRule(fc, hd, lat, yaw), `${fc} ${hd} ${lat} ${yaw}`).toBe(false);
+    }
+  });
+
+  it("finds every head turn looking away, and no swivel", () => {
+    for (const [fc, , , yaw] of headTurns) expect(isLookingAwayByRule(fc, yaw)).toBe(true);
+    for (const [fc, yaw] of [[-0.399, 70], [-0.052, -77], [-0.279, -60], [-0.048, 60]]) {
+      expect(isLookingAwayByRule(fc, yaw), `${fc} ${yaw}`).toBe(false);
+    }
+  });
+
+  it("tells Jev that forward creep alone isn't a slouch while looking away", () => {
+    expect(POSTURE_CRITERIA.slouch).toMatch(/looking away/);
+    expect(POSTURE_CRITERIA.good_posture).toMatch(/looking away/);
   });
 });
 
