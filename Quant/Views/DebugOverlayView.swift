@@ -453,7 +453,8 @@ struct DebugOverlayView: View {
                     .frame(width: 55, alignment: .trailing)
                 Text(metricValue(appModel.latestMetrics?.headDrop))
                     .frame(width: 55, alignment: .trailing)
-                    .foregroundStyle(metricColor(appModel.latestMetrics?.headDrop,
+                    // Coloured by the rise, the direction that counts (a lower head is green).
+                    .foregroundStyle(metricColor(appModel.latestMetrics.map { max(0, -$0.headDrop) },
                                                   threshold: appModel.postureThresholds.headDropThreshold))
             }
 

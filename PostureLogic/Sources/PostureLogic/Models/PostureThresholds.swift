@@ -10,20 +10,17 @@ public struct PostureThresholds: Codable {
     public var forwardCreepThreshold: Float = 0.03
     public var twistThreshold: Float = 15.0
     public var sideLeanThreshold: Float = 0.08
-    /// Head-drop trip point, in shoulder-widths of carriage loss. `headDrop` is
-    /// **ear-sourced** (ear-midpoint carriage above the shoulders) rather than
-    /// nose-relative.
+    /// Head-rise trip point, in shoulder widths: posture is off when `headDrop` is at or below
+    /// MINUS this, the head that much HIGHER in the image than at calibration. `headDrop` is
+    /// **ear-sourced** (ear-midpoint carriage above the shoulders), positive when lower.
     ///
-    /// **Device-derived 2026-07-03**, first readings on honest instrumentation
-    /// (3-decimal HUD, verified-fresh baseline, One Euro denoiser active):
-    /// held-pose flicker ±0.001, mild slouch ≈ 0.10, clearly-bad carriage ≈ 0.22
-    /// (max observed ≈ 0.24). `0.15` sits midway between mild and bad — everyday
-    /// settling stays quiet, sustained bad carriage trips with ~50% margin, and
-    /// the noise floor is two orders of magnitude below the trip point. Earlier
-    /// values (0.06, then 0.018) were derived from readings later found to be
-    /// display-truncated to 1 decimal — treat pre-2026-07-03 headDrop numbers
-    /// as unreliable.
-    public var headDropThreshold: Float = 0.15
+    /// **Flipped 2026-10-05.** With the phone below eye level, leaning towards it makes the head
+    /// look higher: all 15 of Dave's slouches across five device sessions read -0.013 to -0.186,
+    /// and every upright -0.007 or above. The old trip point, +0.15 downwards (derived on
+    /// 2026-07-03 in a setup where slouching read positive), never caught one here and fired
+    /// once in 64 captures, on a chair swivel. 0.015 is the Jev wording's point. Which way a
+    /// slouch reads depends on where the camera sits relative to the eyes.
+    public var headDropThreshold: Float = 0.015
     public var shoulderRoundingThreshold: Float = 10.0
 
     // MARK: - Confidence Gates

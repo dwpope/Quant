@@ -169,21 +169,20 @@ final class MetricsEngineTests: XCTestCase {
     /// it, a smaller one does not. The threshold's meaning is unchanged (both are in
     /// shoulder-widths of carriage/height); only the underlying signal moved from
     /// `headPosition.y` to `neckHeight`.
+    /// Since 2026-10-05 a slouch is the head RISING past the trip point: with the phone below eye
+    /// level, leaning towards it makes the head look higher (see `PostureThresholds`).
     func test_headDrop_crossesThresholdFromNeckHeight() {
         var engine = MetricsEngine()
-        let threshold = PostureThresholds().headDropThreshold   // 0.15 (ear-sourced)
+        let threshold = PostureThresholds().headDropThreshold   // 0.015 rise (ear-sourced)
         let baseline = makeBaseline(neckHeight: 1.0)
 
-        // Just under the threshold: neckHeight deficit 0.10 ⇒ headDrop 0.10 < 0.15.
-        // (0.10 is the device "mild slouch" deficit the threshold sits above —
-        //  2026-07-03 post-One-Euro readings.)
-        let under = engine.compute(from: makeSample(neckHeight: 1.0 - 0.10), baseline: baseline)
-        XCTAssertLessThan(under.headDrop, threshold, "Deficit below threshold must not trip")
+        // A rise of 0.01 ⇒ headDrop -0.01, inside the trip point (uprights read -0.007 or above).
+        let under = engine.compute(from: makeSample(neckHeight: 1.0 + 0.01), baseline: baseline)
+        XCTAssertLessThan(-under.headDrop, threshold, "A small rise must not trip")
 
-        // Just over the threshold: neckHeight deficit 0.22 ⇒ headDrop 0.22 > 0.15.
-        // (0.22 is the device "clearly bad" deficit the threshold sits below.)
-        let over = engine.compute(from: makeSample(neckHeight: 1.0 - 0.22), baseline: baseline)
-        XCTAssertGreaterThan(over.headDrop, threshold, "Deficit above threshold must trip")
+        // A rise of 0.04 ⇒ headDrop -0.04, past it (session 3's weak slouch read -0.040).
+        let over = engine.compute(from: makeSample(neckHeight: 1.0 + 0.04), baseline: baseline)
+        XCTAssertGreaterThan(-over.headDrop, threshold, "A slouch's rise must trip")
     }
 
     // MARK: - Shoulder Rounding

@@ -404,7 +404,8 @@ public class Pipeline {
                         let newPostureState = self.postureEngine.update(
                             metrics: smoothedMetrics,
                             taskMode: inferredTaskMode,
-                            trackingQuality: finalQuality
+                            trackingQuality: finalQuality,
+                            chairTurned: self.isChairTurned(sample: sample, metrics: smoothedMetrics)
                         )
                         self.postureState = newPostureState
 
@@ -460,6 +461,13 @@ public class Pipeline {
         }
     }
 
+    /// The whole chair turned: head and shoulders together. Only once calibrated, like the head
+    /// turn, since it needs forward creep.
+    private func isChairTurned(sample: PoseSample, metrics: RawMetrics) -> Bool {
+        baseline != nil && HeadTurnTracker.isChairTurned(
+            headYaw: sample.headYaw, forwardCreep: metrics.forwardCreep, thresholds: headTurnThresholds)
+    }
+
     /// Times a head held turned. Not before calibrating: without a baseline forward creep reads
     /// zero, and it's what tells a turned neck from a turned chair.
     private func updateHeadTurn(sample: PoseSample, metrics: RawMetrics,
@@ -512,7 +520,8 @@ public class Pipeline {
             let newPostureState = self.postureEngine.update(
                 metrics: smoothedMetrics,
                 taskMode: inferredTaskMode,
-                trackingQuality: sample.trackingQuality
+                trackingQuality: sample.trackingQuality,
+                chairTurned: self.isChairTurned(sample: sample, metrics: smoothedMetrics)
             )
             self.postureState = newPostureState
 

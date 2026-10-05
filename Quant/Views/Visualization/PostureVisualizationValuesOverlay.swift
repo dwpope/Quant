@@ -179,8 +179,8 @@ struct PostureVisualizationValuesOverlay: View {
                     active: debug.headForward)
                 // Neck carriage → scored head-drop. raw = ear-height off the sample
                 // (PoseSample.neckHeight); mapped = the baseline-relative deviation the
-                // engine scores (RawMetrics.headDrop). Orange when it exceeds the
-                // headDropThreshold — i.e. the neck metric is tripping *now*. This is a
+                // engine scores (RawMetrics.headDrop). Orange when the head has RISEN past
+                // headDropThreshold (2026-10-05) — i.e. the neck metric is tripping *now*. This is a
                 // scored 2D metric mirror, not an isolatable viz channel, so it stays
                 // `active` (never dimmed) and reuses the standard clipped→orange cue.
                 // Mapped cell reads "--" with no baseline: a 0.0 there would be
@@ -191,7 +191,7 @@ struct PostureVisualizationValuesOverlay: View {
                 row("neck",      raw: viewModel.rawNeckHeight,
                     map: appModel.baseline == nil ? nil : viewModel.neckDropScored, mapUnit: "",
                     mapDecimals: 3,
-                    clipped: appModel.baseline != nil && viewModel.neckDropScored > headDropThreshold)
+                    clipped: appModel.baseline != nil && -viewModel.neckDropScored >= headDropThreshold)
 
                 // Capped angles: raw column is the *pre-clamp* amplified value;
                 // a gap vs. the mapped column means the cap is clipping now.

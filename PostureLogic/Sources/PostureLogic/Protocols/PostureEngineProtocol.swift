@@ -13,11 +13,14 @@ protocol PostureEngineProtocol: DebugDumpable {
     ///   - metrics: Smoothed posture metrics (deltas from baseline).
     ///   - taskMode: Current activity classification (reading, typing, etc.).
     ///   - trackingQuality: How reliable the current pose data is.
+    ///   - chairTurned: The whole chair is turned (head and shoulders), so a rising head
+    ///     isn't counted as a slouch.
     /// - Returns: The new `PostureState` after this update.
     func update(
         metrics: RawMetrics,
         taskMode: TaskMode,
-        trackingQuality: TrackingQuality
+        trackingQuality: TrackingQuality,
+        chairTurned: Bool
     ) -> PostureState
 
     /// Reset the state machine back to `.absent`. Call this when calibration

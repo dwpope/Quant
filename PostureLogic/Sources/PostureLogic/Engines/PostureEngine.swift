@@ -143,12 +143,15 @@ final class PostureEngine: PostureEngineProtocol {
     ///   - metrics: The latest smoothed metrics from MetricsEngine + MetricsSmoother.
     ///   - taskMode: Current activity (reading, typing, etc.) — affects thresholds.
     ///   - trackingQuality: How reliable the current camera data is.
+    ///   - chairTurned: The whole chair is turned, so a rising head isn't a slouch
+    ///     (`HeadTurnTracker.isChairTurned`).
     /// - Returns: The updated PostureState.
     @discardableResult
     func update(
         metrics: RawMetrics,
         taskMode: TaskMode,
-        trackingQuality: TrackingQuality
+        trackingQuality: TrackingQuality,
+        chairTurned: Bool = false
     ) -> PostureState {
         // ──────────────────────────────────────────────
         // SAFETY GATE: Don't judge posture with bad data
@@ -201,7 +204,7 @@ final class PostureEngine: PostureEngineProtocol {
         lastGoodUpdateTimestamp = metrics.timestamp
 
         // Check whether current posture exceeds thresholds
-        let isPostureBad = checkPostureBad(metrics: metrics, taskMode: taskMode)
+        let isPostureBad = checkPostureBad(metrics: metrics, taskMode: taskMode, chairTurned: chairTurned)
 
         // ──────────────────────────────────────
         // STATE MACHINE TRANSITIONS
@@ -329,7 +332,7 @@ final class PostureEngine: PostureEngineProtocol {
     ///   - metrics: The current smoothed metrics.
     ///   - taskMode: The current activity classification.
     /// - Returns: `true` if posture exceeds at least one threshold.
-    private func checkPostureBad(metrics: RawMetrics, taskMode: TaskMode) -> Bool {
+    private func checkPostureBad(metrics: RawMetrics, taskMode: TaskMode, chairTurned: Bool) -> Bool {
         // Stretching mode disables posture judgement entirely.
         // The user is intentionally moving around — that's a good thing!
         if taskMode == .stretching {
@@ -382,13 +385,15 @@ final class PostureEngine: PostureEngineProtocol {
         let forwardThreshold = thresholds.forwardCreepThreshold * forwardCreepMultiplier
         let twistThreshold = thresholds.twistThreshold * twistMultiplier
         let sideLeanThreshold = thresholds.sideLeanThreshold * sideLeanMultiplier
-        let headDropThreshold = thresholds.headDropThreshold
+        let headRiseThreshold = thresholds.headDropThreshold
         let shoulderRoundingThreshold = thresholds.shoulderRoundingThreshold * shoulderRoundingMultiplier
 
         return metrics.forwardCreep > forwardThreshold
             || metrics.twist > twistThreshold
             || metrics.lateralLean > sideLeanThreshold
-            || metrics.headDrop > headDropThreshold
+            // The head higher than at calibration: leaning towards a phone below eye level.
+            // See `PostureThresholds.headDropThreshold` for why it's this way round.
+            || (!chairTurned && -metrics.headDrop >= headRiseThreshold)
             || metrics.shoulderRounding > shoulderRoundingThreshold
     }
 

@@ -66,8 +66,10 @@ final class PostureEngineTests: XCTestCase {
 
     /// Creates metrics with excessive head drop — exceeds the 0.15 threshold
     /// (0.22 = the 2026-07-03 device "clearly bad" carriage reading).
+    /// The head 0.04 shoulder widths higher than at calibration: past the 0.015 rise that, with
+    /// the phone below eye level, means leaning towards it (see `PostureThresholds`).
     private func headDropMetrics(timestamp: TimeInterval) -> RawMetrics {
-        makeMetrics(timestamp: timestamp, headDrop: 0.22)
+        makeMetrics(timestamp: timestamp, headDrop: -0.04)
     }
 
     /// Creates metrics with excessive shoulder rounding — exceeds the 10.0° threshold.
@@ -255,7 +257,7 @@ final class PostureEngineTests: XCTestCase {
             trackingQuality: .good
         )
 
-        // Head drop of 0.10 exceeds the 0.06 threshold.
+        // A head rise of 0.04 exceeds the 0.015 trip point.
         // Reading mode should NOT relax head drop (no multiplier applied).
         let state = engine.update(
             metrics: headDropMetrics(timestamp: 2.0),
@@ -756,8 +758,8 @@ final class PostureEngineTests: XCTestCase {
             let engine = PostureEngine()
             _ = engine.update(metrics: goodMetrics(timestamp: 0), taskMode: .unknown, trackingQuality: .good)
 
-            // headDrop 0.22 exceeds the 0.15 threshold regardless of mode
-            let metrics = makeMetrics(timestamp: 1.0, headDrop: 0.22)
+            // A head rise of 0.04 exceeds the 0.015 trip point regardless of mode
+            let metrics = makeMetrics(timestamp: 1.0, headDrop: -0.04)
             let state = engine.update(metrics: metrics, taskMode: mode, trackingQuality: .good)
 
             if case .drifting = state {

@@ -48,6 +48,14 @@ final class HeadTurnTracker {
         abs(headYaw) >= thresholds.turnedDegrees && forwardCreep > thresholds.swivelMaxForwardCreep
     }
 
+    /// The other half of the rule: the head turned past `turnedDegrees` AND the shoulders
+    /// narrowed, so the whole chair turned. Not bad posture, and the head can read a little
+    /// higher in the image then (two measured swivels: head drop -0.016 and -0.021), so the
+    /// posture engine doesn't count a rising head as a slouch while it holds.
+    static func isChairTurned(headYaw: Float, forwardCreep: Float, thresholds: HeadTurnThresholds) -> Bool {
+        abs(headYaw) >= thresholds.turnedDegrees && forwardCreep <= thresholds.swivelMaxForwardCreep
+    }
+
     /// Takes one frame and returns when the current episode began, or nil.
     ///
     /// Nothing counts as turned without a clear view (the posture engine's rule). Not turned for
