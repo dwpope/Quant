@@ -957,8 +957,9 @@ class AppModel: ObservableObject {
     /// What the Watch shows. Pure.
     func jevRemoteStatus() -> JevRemote.Status {
         let thr = JevRemote.stateName(postureState).0
-        // The state's own start is a frame timestamp, seconds since boot. The Watch counts up
-        // from a calendar date, so convert. Whole seconds, so a once-a-second status doesn't
+        // The state's own start is a frame timestamp. Frames are on the calendar clock since
+        // 2026-10-05 (FrameClock), but a replayed recording may not be, so measure the elapsed
+        // time on the frame clock and count back from now. Whole seconds, so a once-a-second status doesn't
         // differ every time only by frame jitter.
         let since = DriftClock.wallClockStart(postureState, frameNow: latestMetrics?.timestamp)
             .map { $0.timeIntervalSince1970.rounded() }

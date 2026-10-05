@@ -231,7 +231,7 @@ struct NudgeInsights: Equatable {
         // Hourly distribution
         var hourly = Array(repeating: 0, count: 24)
         for event in sorted {
-            let date = Date(timeIntervalSinceReferenceDate: event.timestamp)
+            let date = Date(timeIntervalSince1970: event.timestamp)
             let hour = calendar.component(.hour, from: date)
             hourly[hour] += 1
         }

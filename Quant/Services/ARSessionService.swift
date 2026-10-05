@@ -175,7 +175,7 @@ extension ARSessionService: ARSessionDelegate {
         let depthMap = frame.smoothedSceneDepth?.depthMap ?? frame.sceneDepth?.depthMap
 
         let inputFrame = InputFrame(
-            timestamp: frame.timestamp,
+            timestamp: FrameClock.shared.calendarSeconds(fromUptime: frame.timestamp),  // one clock: see FrameClock
             pixelBuffer: frame.capturedImage,
             depthMap: depthMap,
             cameraIntrinsics: frame.camera.intrinsics

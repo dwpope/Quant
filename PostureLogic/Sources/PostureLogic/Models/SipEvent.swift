@@ -45,8 +45,10 @@ public struct SipEvent: Identifiable, Codable {
     }
 
     public let id: UUID
-    /// Timestamp (seconds since reference date) when the wrist first entered
-    /// the proximity zone — i.e., when the sip started.
+    /// When the wrist first entered the proximity zone — i.e., when the sip
+    /// started — in seconds since 1970. Detected sips take the frame's time,
+    /// which `FrameClock` puts on the calendar clock (before 2026-10-05 it was
+    /// seconds since boot, so sips saved before then show the wrong time).
     public let timestamp: TimeInterval
     /// How long the wrist remained near the face (seconds).
     public let duration: TimeInterval

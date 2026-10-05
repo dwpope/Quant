@@ -19,7 +19,7 @@ public struct NudgeEvent: Identifiable, Codable, Equatable {
 
     public let id: UUID
 
-    /// When the nudge was delivered (seconds since reference date).
+    /// When the nudge was delivered (seconds since 1970).
     public let timestamp: TimeInterval
 
     /// Why the nudge fired — the dominant posture violation.

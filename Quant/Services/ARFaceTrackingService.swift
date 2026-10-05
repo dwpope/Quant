@@ -256,7 +256,7 @@ extension ARFaceTrackingService: ARSessionDelegate {
         }
 
         let inputFrame = InputFrame(
-            timestamp: frame.timestamp,
+            timestamp: FrameClock.shared.calendarSeconds(fromUptime: frame.timestamp),  // one clock: see FrameClock
             pixelBuffer: frame.capturedImage,
             depthMap: nil,  // ARFaceTracking has no sceneDepth map; shoulders stay 2D, head is ARKit
             cameraIntrinsics: frame.camera.intrinsics,

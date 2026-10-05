@@ -619,7 +619,7 @@ enum PostureVisualizationBinding {
         /// their first `update` (snap to the first target, no swing-in from identity).
         var headDamp = DampedOrientation()
         var torsoDamp = DampedOrientation()
-        /// Wall-clock timestamp (`timeIntervalSinceReferenceDate`) of the previous
+        /// Wall-clock timestamp (`timeIntervalSince1970`) of the previous
         /// `apply`, so the next call can derive a real `dt` for the dt-aware followers.
         /// `nil` until the first animated call; a non-clock caller (tests) leaves it nil
         /// and the followers snap.
@@ -657,7 +657,7 @@ enum PostureVisualizationBinding {
         defer { assembly.components.set(cache) }
 
         // Real elapsed time for the dt-aware orientation followers. The view passes
-        // `now` = wall clock (`timeIntervalSinceReferenceDate`); the first animated frame
+        // `now` = wall clock (`timeIntervalSince1970`); the first animated frame
         // (no prior timestamp) and any non-clock caller (tests, with the default 0) get
         // dt = 0 so the followers snap to the live pose instead of swinging in from a
         // stale one. Clamp to [1/1000, 1/15] s: the ceiling stops a stall or a background

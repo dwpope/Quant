@@ -3,10 +3,12 @@ import PostureLogic
 
 /// How long the thresholds have been drifting or bad, on the clock the state was stamped with.
 ///
-/// `PostureState.drifting(since:)` and `.bad(since:)` hold the camera frame's timestamp, which
-/// counts seconds since the device booted, not since 1970. The phone's panel and the Watch
-/// subtracted it from the calendar clock, so in the first device session (2026-09-29) the drift
-/// timer read about 56 years. Elapsed time has to come from another frame timestamp.
+/// `PostureState.drifting(since:)` and `.bad(since:)` hold the camera frame's timestamp. Until
+/// 2026-10-05 that counted seconds since the device booted, not since 1970. The phone's panel
+/// and the Watch subtracted it from the calendar clock, so in the first device session
+/// (2026-09-29) the drift timer read about 56 years. Live frames are on the calendar clock now
+/// (`FrameClock`), but a replayed recording keeps its own clock, so elapsed time still comes from
+/// another frame timestamp.
 enum DriftClock {
 
     /// Seconds in the current drifting or bad state, or nil for states without a start or when

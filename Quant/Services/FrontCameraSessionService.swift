@@ -167,7 +167,8 @@ extension FrontCameraSessionService: AVCaptureVideoDataOutputSampleBufferDelegat
         didOutput sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
     ) {
-        let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
+        // On the host (uptime) clock; converted so the whole app is on one clock.
+        let timestamp = FrameClock.shared.calendarSeconds(fromUptime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds)
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
         let frame = InputFrame(

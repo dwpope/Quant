@@ -4,8 +4,8 @@ import PostureLogic
 
 /// Tests for `SipInsights` — pure computation over sip event arrays.
 ///
-/// All timestamps use `Date.timeIntervalSinceReferenceDate` because that's
-/// what `SipEvent.timestamp` stores. Tests pin a known reference date
+/// All timestamps use `Date.timeIntervalSince1970` because that's
+/// what `SipEvent.timestamp` stores (one clock for the app since 2026-10-05). Tests pin a known reference date
 /// (2026-05-13 at 08:00 UTC) so morning/afternoon splits are deterministic.
 final class SipInsightsTests: XCTestCase {
 
@@ -35,7 +35,7 @@ final class SipInsightsTests: XCTestCase {
         comps.timeZone = TimeZone(identifier: "UTC")
         let date = utcCalendar.date(from: comps)!
         return SipEvent(
-            timestamp: date.timeIntervalSinceReferenceDate,
+            timestamp: date.timeIntervalSince1970,
             duration: 2.0
         )
     }

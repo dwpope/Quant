@@ -167,7 +167,7 @@ struct SipInsights: Equatable {
         noonDateComponents.minute = 0
         noonDateComponents.second = 0
         let noonTimestamp = (calendar.date(from: noonDateComponents) ?? referenceDate)
-            .timeIntervalSinceReferenceDate
+            .timeIntervalSince1970
 
         var morning = 0
         var afternoon = 0
@@ -184,7 +184,7 @@ struct SipInsights: Equatable {
         // Hourly distribution
         var hourly = Array(repeating: 0, count: 24)
         for sip in sorted {
-            let date = Date(timeIntervalSinceReferenceDate: sip.timestamp)
+            let date = Date(timeIntervalSince1970: sip.timestamp)
             let hour = calendar.component(.hour, from: date)
             hourly[hour] += 1
         }

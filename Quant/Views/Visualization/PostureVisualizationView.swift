@@ -71,7 +71,7 @@ struct PostureVisualizationView: View {
                 }) else { return }
                 PostureVisualizationBinding.apply(
                     viewModel, to: assembly, pulse: pulse,
-                    now: timeline.date.timeIntervalSinceReferenceDate
+                    now: timeline.date.timeIntervalSince1970
                 )
             }
         }
@@ -201,7 +201,7 @@ struct PostureVisualizationView: View {
     /// wall clock so the pulse needs no stored animation state and stays in
     /// step regardless of how often the timeline ticks.
     private static func pulse(at date: Date) -> Double {
-        let t = date.timeIntervalSinceReferenceDate
+        let t = date.timeIntervalSince1970
         return (sin(2 * .pi * t / pulsePeriod) + 1) / 2
     }
 }

@@ -4,8 +4,8 @@ import PostureLogic
 
 /// Tests for `NudgeInsights` — pure computation over nudge event arrays.
 ///
-/// All timestamps use `Date.timeIntervalSinceReferenceDate` because that's
-/// what `NudgeEvent.timestamp` stores. Tests pin a known reference date
+/// All timestamps use `Date.timeIntervalSince1970` because that's
+/// what `NudgeEvent.timestamp` stores (one clock for the app since 2026-10-05). Tests pin a known reference date
 /// (2026-05-15 at 08:00 UTC) so hourly distributions are deterministic.
 final class NudgeInsightsTests: XCTestCase {
 
@@ -31,7 +31,7 @@ final class NudgeInsightsTests: XCTestCase {
         comps.timeZone = TimeZone(identifier: "UTC")
         let date = utcCalendar.date(from: comps)!
         return NudgeEvent(
-            timestamp: date.timeIntervalSinceReferenceDate,
+            timestamp: date.timeIntervalSince1970,
             reason: reason,
             acknowledged: acknowledged,
             responseTime: responseTime
