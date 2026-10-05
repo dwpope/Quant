@@ -81,8 +81,8 @@ protocol NudgeEngineProtocol: DebugDumpable {
     /// within the `acknowledgementWindow` after a nudge was fired. This tells
     /// the engine "the user responded — the nudge worked."
     ///
-    /// This can be used to suppress duplicate nudges for the same slouch episode
-    /// and to track nudge effectiveness over time.
+    /// It tracks nudge effectiveness. It suppresses nothing: a slouch after sitting
+    /// up is nudged once it's held long enough (2026-10-05).
     func recordAcknowledgement()
 
     /// Reset all internal state (counters, timers, cooldowns).

@@ -25,8 +25,6 @@ import Foundation
 /// │
 /// ├─ Max nudges per hour reached? ─────── Yes ──→ .suppressed(.maxNudgesReached)
 /// │
-/// ├─ Was this slouch already acknowledged? Yes ──→ .suppressed(.recentAcknowledgement)
-/// │
 /// ├─ Has bad posture lasted long enough? ─ No ──→ .pending(timeRemaining: ...)
 /// │
 /// └─ All checks passed! ───────────────────────→ .fire(reason: .sustainedSlouch)
@@ -48,8 +46,11 @@ import Foundation
 /// ### Acknowledgement
 ///
 /// When the user corrects their posture after a nudge (within the
-/// `acknowledgementWindow`), we record that the nudge "worked". This prevents
-/// re-nudging for the same slouch episode if the user briefly slumps again.
+/// `acknowledgementWindow`), we record that the nudge "worked". It doesn't hold
+/// anything back: a slouch after sitting up is timed like any other and nudged
+/// once it's held long enough, subject to the cooldown and the hourly cap. Until
+/// 2026-10-05 it suppressed slouch nudges, and nothing cleared it, so one
+/// corrected nudge silenced slouch nudges until the app was quit.
 ///
 /// ## Example Timeline
 ///
@@ -60,8 +61,8 @@ import Foundation
 /// t=360:   Bad for 5 min → NudgeEngine: .fire! → Audio plays, watch taps
 /// t=361:   NudgeEngine: recordNudgeFired() → cooldown starts
 /// t=365:   User sits up → PostureEngine: .good → recordAcknowledgement()
-/// t=500:   User slouches again...
-/// t=800:   Bad for 5 min BUT cooldown active (need 10 min) → .suppressed
+/// t=380:   User slouches again...
+/// t=680:   Bad for 5 min BUT cooldown active (need 10 min) → .suppressed
 /// t=961:   Cooldown expired + 5 min bad → .fire! (if within hourly limit)
 /// ```
 final class NudgeEngine: NudgeEngineProtocol {
@@ -123,11 +124,15 @@ final class NudgeEngine: NudgeEngineProtocol {
     private var lastNudgeTime: TimeInterval?
 
     /// Whether the user has acknowledged (corrected posture after) the most
-    /// recent nudge. When `true`, we suppress further nudges for the same
-    /// slouch episode to avoid nagging about something they already fixed.
+    /// recent nudge. Recorded for the debug overlay; it suppresses nothing.
+    ///
+    /// Until 2026-10-05 it suppressed slouch nudges until a new nudge fired or the
+    /// engine was reset. The app never resets the engine, and a suppressed slouch
+    /// can't fire, so one corrected nudge silenced slouch nudges until the app was
+    /// quit. Dave expects to be nudged again when he slouches again.
     ///
     /// This flag is cleared when:
-    /// - A new nudge fires (new episode)
+    /// - A new nudge fires
     /// - The engine is reset
     private var hasBeenAcknowledged: Bool = false
 
@@ -155,7 +160,7 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// Evaluate whether a nudge should fire right now.
     ///
     /// This method runs through the suppression checklist (tracking quality,
-    /// task mode, cooldown, hourly limit, acknowledgement) and then checks
+    /// task mode, cooldown, hourly limit) and then checks
     /// whether the bad-posture duration exceeds the threshold.
     ///
     /// When a nudge fires or is pending, the engine determines the specific
@@ -243,16 +248,8 @@ final class NudgeEngine: NudgeEngineProtocol {
             return decision
         }
 
-        // 2e. Recent acknowledgement — user already corrected after last nudge.
-        //     If the user fixed their posture after the last nudge but then
-        //     slumped again, we suppress to avoid re-nudging for the same episode.
-        //     The acknowledgement flag is cleared when a new nudge fires.
-        //     It's about the slouch: a head held turned can still be nudged.
-        if hasBeenAcknowledged && headTurnedSince == nil {
-            let decision = NudgeDecision.suppressed(reason: .recentAcknowledgement)
-            lastDecisionDescription = "suppressed: recentAcknowledgement"
-            return decision
-        }
+        // An acknowledged nudge (the user sat up after it) suppresses nothing: a slouch after
+        // sitting up is timed from its own start like any other (2026-10-05).
 
         // ──────────────────────────────────────────────
         // STEP 3: The head held turned
@@ -275,10 +272,9 @@ final class NudgeEngine: NudgeEngineProtocol {
         // STEP 4: Check if posture is actually bad
         // ──────────────────────────────────────────────
         //
-        // Only `.bad(since:)` state can trigger a slouch nudge, and not once that slouch
-        // nudge was acknowledged. `.good`, `.drifting`, `.absent`, and `.calibrating` leave
-        // only the head turn, if any, counting down.
-        guard !hasBeenAcknowledged, case .bad(let since) = state else {
+        // Only `.bad(since:)` state can trigger a slouch nudge. `.good`, `.drifting`,
+        // `.absent`, and `.calibrating` leave only the head turn, if any, counting down.
+        guard case .bad(let since) = state else {
             if let remaining = headTurnRemaining {
                 lastDecisionDescription = "pending (headTurned): \(String(format: "%.0f", remaining))s remaining"
                 return .pending(reason: .headTurned, timeRemaining: remaining)
@@ -349,9 +345,8 @@ final class NudgeEngine: NudgeEngineProtocol {
 
     /// Record that the user corrected their posture after a nudge.
     ///
-    /// Sets the acknowledgement flag, which suppresses further nudges
-    /// for the same slouch episode. This prevents re-nudging if the user
-    /// briefly corrects then slumps again within the same session.
+    /// Sets the acknowledgement flag: the nudge worked. It suppresses nothing; a
+    /// slouch after this is nudged once it's held long enough.
     ///
     /// The flag is automatically cleared when:
     /// - A new nudge fires (`recordNudgeFired`)

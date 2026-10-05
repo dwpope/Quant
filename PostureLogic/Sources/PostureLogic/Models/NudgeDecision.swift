@@ -21,5 +21,7 @@ public enum SuppressionReason: String, Codable {
     case maxNudgesReached
     case userStretching
     case lowTrackingQuality
+    /// No longer produced: sitting up after a nudge stopped suppressing the next one on
+    /// 2026-10-05. Kept so a stored decision still decodes.
     case recentAcknowledgement
 }

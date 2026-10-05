@@ -512,7 +512,9 @@ final class NudgeEngineTests: XCTestCase {
     // After the user corrects their posture (acknowledges the nudge),
     // we don't re-nudge for the same episode.
 
-    func test_suppressesAfterAcknowledgement() {
+    /// Correcting a nudged slouch no longer silences the next one (2026-10-05): a slouch after
+    /// sitting up is nudged once held long enough. See `NudgeEngineAcknowledgementTests`.
+    func test_afterAcknowledgement_aReSlumpIsStillNudged() {
         let engine = makeEngine(slouchDuration: 10, cooldown: 5)
 
         // Fire a nudge
@@ -522,16 +524,13 @@ final class NudgeEngineTests: XCTestCase {
         // User corrects posture — acknowledged!
         engine.recordAcknowledgement()
 
-        // User slumps again after cooldown expires.
-        // Even though duration threshold is met and cooldown expired,
-        // the acknowledgement flag should suppress it.
+        // User slumps again after cooldown expires, and holds it past the duration threshold.
         let decision = evaluate(engine, state: .bad(since: 22), currentTime: 40)
 
-        if case .suppressed(let reason) = decision {
-            XCTAssertEqual(reason, .recentAcknowledgement,
-                "Should suppress after user acknowledged the previous nudge")
+        if case .fire = decision {
+            // Expected — a new slouch gets a new nudge
         } else {
-            XCTFail("Expected .suppressed(.recentAcknowledgement), got: \(decision)")
+            XCTFail("Expected the re-slump to be nudged, got: \(decision)")
         }
     }
 
@@ -740,13 +739,12 @@ final class NudgeEngineTests: XCTestCase {
         // ── Phase 4: User corrects posture ──
         engine.recordAcknowledgement()
 
-        // ── Phase 5: User slouches again after cooldown, but acknowledged ──
+        // ── Phase 5: User slouches again after cooldown: nudged again ──
         decision = evaluate(engine, state: .bad(since: 40), currentTime: 55)
-        if case .suppressed(let reason) = decision {
-            XCTAssertEqual(reason, .recentAcknowledgement,
-                "Phase 5: Should be suppressed after acknowledgement")
+        if case .fire = decision {
+            engine.recordNudgeFired(at: 55)
         } else {
-            XCTFail("Phase 5: Should be suppressed (ack), got: \(decision)")
+            XCTFail("Phase 5: Should fire for the new slouch, got: \(decision)")
         }
 
         // ── Phase 6: After reset, fire again ──
