@@ -59,6 +59,9 @@ final class WatchConnectivityService: NSObject {
     /// Fires when the Watch, used as a remote for Jev captures, asks for something.
     let jevRemoteCommand = PassthroughSubject<JevRemote.Command, Never>()
 
+    /// Fires when the Watch asks to silence nudges, with the minutes, 0 to resume.
+    let silenceRequested = PassthroughSubject<Int, Never>()
+
     /// Fires with the new value whenever the Watch app becomes reachable or stops being so.
     let reachabilityChanged = PassthroughSubject<Bool, Never>()
 
@@ -135,6 +138,33 @@ final class WatchConnectivityService: NSObject {
             lastSentTime = Date()
             totalSent += 1
             logger.info("⌚ Nudge queued via transferUserInfo (total: \(self.totalSent))")
+        }
+    }
+
+    /// How many minutes the Watch asked to silence nudges for, 0 to resume, or nil when the
+    /// message isn't a well-formed request. The Watch's `NudgeSilence.request` writes it.
+    static func silenceMinutes(from message: [String: Any]) -> Int? {
+        guard message["type"] as? String == "silenceNudges",
+              let minutes = (message["minutes"] as? NSNumber)?.intValue, minutes >= 0
+        else { return nil }
+        return minutes
+    }
+
+    /// Tells the Watch when the silence ends, 0 when nudges aren't silenced. Calendar seconds.
+    static func nudgeSilenceMessage(until: Date?) -> [String: Any] {
+        ["type": "nudgeSilence", "until": until?.timeIntervalSince1970 ?? 0]
+    }
+
+    /// Send the silence to the Watch while its app is open. Like the Jev status, no queued
+    /// fallback: the Watch asks again when it next connects.
+    func sendNudgeSilence(until: Date?) {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.isPaired, session.isReachable else { return }
+        session.sendMessage(Self.nudgeSilenceMessage(until: until), replyHandler: nil) { [weak self] error in
+            Task { @MainActor in
+                self?.logger.error("Nudge silence send failed: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -259,6 +289,10 @@ extension WatchConnectivityService: WCSessionDelegate {
         case "settings":
             logger.info("⌚ Settings received from Watch")
             settingsReceived.send(message)
+        case "silenceNudges":
+            if let minutes = Self.silenceMinutes(from: message) {
+                silenceRequested.send(minutes)
+            }
         default:
             if let command = JevRemote.Command(message: message) {
                 jevRemoteCommand.send(command)

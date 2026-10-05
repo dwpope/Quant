@@ -45,6 +45,8 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    silenceSection
+
                     Divider()
 
                     // Remote for Jev captures, so tapping never moves the posture being captured.
@@ -73,6 +75,50 @@ struct ContentView: View {
                 .padding()
             }
         }
+    }
+}
+
+extension ContentView {
+    /// Silence nudges for a while, or resume them. The phone holds the silence.
+    @ViewBuilder
+    var silenceSection: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            if NudgeSilence.isSilenced(until: sessionDelegate.nudgesSilencedUntil, now: context.date),
+               let until = sessionDelegate.nudgesSilencedUntil {
+                VStack(spacing: 4) {
+                    Label("Silenced until \(until.formatted(date: .omitted, time: .shortened))",
+                          systemImage: "bell.slash.fill")
+                        .font(.caption2)
+                    Button("Resume nudges") { sessionDelegate.resumeNudges() }
+                        .font(.caption2)
+                        .buttonStyle(.bordered)
+                        .disabled(!sessionDelegate.isPhoneReachable)
+                }
+            } else {
+                NavigationLink {
+                    SilenceNudgesView(sessionDelegate: sessionDelegate)
+                } label: {
+                    Label("Silence nudges", systemImage: "bell.slash")
+                }
+                .disabled(!sessionDelegate.isPhoneReachable)
+            }
+        }
+    }
+}
+
+/// How long to silence nudges for.
+struct SilenceNudgesView: View {
+    @ObservedObject var sessionDelegate: WatchSessionDelegate
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        List(NudgeSilence.options, id: \.minutes) { option in
+            Button(option.label) {
+                sessionDelegate.silenceNudges(minutes: option.minutes)
+                dismiss()
+            }
+        }
+        .navigationTitle("Silence for")
     }
 }
 

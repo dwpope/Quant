@@ -181,6 +181,7 @@ final class NudgeEngine: NudgeEngineProtocol {
     ///     nudge reason. Pass `nil` to default to `.sustainedSlouch`.
     ///   - headTurnedSince: When the head was last turned and held there (`HeadTurnTracker`),
     ///     or nil. A second thing to nudge for, sharing the cooldown and the hourly cap.
+    ///   - silenced: Whether the user has silenced nudges for now. Every nudge waits.
     /// - Returns: A `NudgeDecision` indicating what the caller should do.
     func evaluate(
         state: PostureState,
@@ -189,7 +190,8 @@ final class NudgeEngine: NudgeEngineProtocol {
         taskMode: TaskMode,
         currentTime: TimeInterval,
         metrics: RawMetrics? = nil,
-        headTurnedSince: TimeInterval? = nil
+        headTurnedSince: TimeInterval? = nil,
+        silenced: Bool = false
     ) -> NudgeDecision {
 
         // ──────────────────────────────────────────────
@@ -210,6 +212,14 @@ final class NudgeEngine: NudgeEngineProtocol {
         //
         // These are checked in order of "cheapest first" — simple
         // enum comparisons before timestamp math.
+
+        // 2·. Silenced — the user asked for quiet for a while, from the phone or the Watch.
+        //     Every nudge waits. Timers keep running, so a slouch still going when the
+        //     silence ends is nudged straight away.
+        if silenced {
+            lastDecisionDescription = "suppressed: silenced"
+            return .suppressed(reason: .silenced)
+        }
 
         // 2a. Low tracking quality — camera can't see the user clearly.
         //     This is the same safety rule the PostureEngine uses:
@@ -242,7 +252,8 @@ final class NudgeEngine: NudgeEngineProtocol {
         // 2d. Hourly limit reached — too many nudges this hour.
         //     Even if cooldown has expired, cap total nudges per hour
         //     (default: 2) to prevent annoyance.
-        if nudgeTimestamps.count >= thresholds.maxNudgesPerHour {
+        if thresholds.maxNudgesPerHour > 0,
+           nudgeTimestamps.count >= thresholds.maxNudgesPerHour {
             let decision = NudgeDecision.suppressed(reason: .maxNudgesReached)
             lastDecisionDescription = "suppressed: maxNudgesReached (\(nudgeTimestamps.count)/\(thresholds.maxNudgesPerHour))"
             return decision

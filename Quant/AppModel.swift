@@ -271,7 +271,10 @@ class AppModel: ObservableObject {
         static let shoulderRoundingThreshold = "com.quant.posture.shoulderRounding"
         static let slouchDurationBeforeNudge = "com.quant.posture.slouchDuration"
         static let nudgeCooldown = "com.quant.posture.nudgeCooldown"
-        static let maxNudgesPerHour = "com.quant.posture.maxNudgesPerHour"
+        /// `.v2` since 2026-10-05, when the default became 0 (no hourly cap): a 2 stored under
+        /// the old key was only ever the old default, and would otherwise keep the cap on.
+        static let maxNudgesPerHour = "com.quant.posture.maxNudgesPerHour.v2"
+        static let nudgesSilencedUntil = "com.quant.nudges.silencedUntil"
         static let isTrainingModeEnabled = "com.quant.training.enabled"
     }
 
@@ -368,10 +371,59 @@ class AppModel: ObservableObject {
 
         loadBaseline()
         setupPipeline()
+        loadNudgeSilence()
         loadSipThresholds()
         setupWatchSubscriptions()
         updatePipelineThresholds()
         setupLabelQueue()
+    }
+
+    // MARK: - Silencing nudges
+
+    /// How long nudges can be silenced for, from the phone or the Watch.
+    static let silenceOptionsMinutes = [30, 60, 120]
+
+    /// Nudges are held back until then, or nil. Set from the phone or the Watch; kept across
+    /// launches. On the calendar clock, which the pipeline compares with the calendar clock.
+    @Published private(set) var nudgesSilencedUntil: Date?
+
+    /// What the pipeline is holding nudges back until. For the tests and the diagnostics panel.
+    var pipelineNudgesSilencedUntil: Date? { pipeline.nudgesSilencedUntil }
+
+    func silenceNudges(forMinutes minutes: Int, now: Date = Date()) {
+        setNudgeSilence(until: now.addingTimeInterval(TimeInterval(minutes) * 60))
+    }
+
+    func resumeNudges() {
+        setNudgeSilence(until: nil)
+    }
+
+    /// The Watch's request: minutes to silence for, 0 to resume.
+    func handleSilenceRequest(minutes: Int) {
+        if minutes > 0 { silenceNudges(forMinutes: minutes) } else { resumeNudges() }
+    }
+
+    private func setNudgeSilence(until: Date?) {
+        nudgesSilencedUntil = until
+        pipeline.nudgesSilencedUntil = until
+        if let until {
+            UserDefaults.standard.set(until.timeIntervalSince1970, forKey: Keys.nudgesSilencedUntil)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Keys.nudgesSilencedUntil)
+        }
+        watchService.sendNudgeSilence(until: until)
+    }
+
+    /// A silence still running when the app was quit carries on; one that has ended is dropped.
+    private func loadNudgeSilence() {
+        let stored = UserDefaults.standard.object(forKey: Keys.nudgesSilencedUntil) as? Double
+        guard let stored, stored > Date().timeIntervalSince1970 else {
+            UserDefaults.standard.removeObject(forKey: Keys.nudgesSilencedUntil)
+            return
+        }
+        let until = Date(timeIntervalSince1970: stored)
+        nudgesSilencedUntil = until
+        pipeline.nudgesSilencedUntil = until
     }
 
     // MARK: - Pipeline Setup
@@ -575,6 +627,19 @@ class AppModel: ObservableObject {
         watchService.settingsReceived
             .sink { [weak self] settings in
                 self?.applySettingsFromWatch(settings)
+            }
+            .store(in: &cancellables)
+
+        // Silencing nudges from the Watch, and telling it when a silence ends.
+        watchService.silenceRequested
+            .sink { [weak self] minutes in self?.handleSilenceRequest(minutes: minutes) }
+            .store(in: &cancellables)
+
+        watchService.reachabilityChanged
+            .filter { $0 }
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.watchService.sendNudgeSilence(until: self.nudgesSilencedUntil)
             }
             .store(in: &cancellables)
 

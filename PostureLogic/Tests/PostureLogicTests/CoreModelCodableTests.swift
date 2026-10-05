@@ -68,7 +68,7 @@ final class CoreModelCodableTests: XCTestCase {
         XCTAssertEqual(t.headDropThreshold, 0.15)   // device-derived 2026-07-03: mild 0.10 / bad 0.22, flicker 0.001
         XCTAssertEqual(t.shoulderRoundingThreshold, 10.0)
         XCTAssertEqual(t.nudgeCooldown, 600)
-        XCTAssertEqual(t.maxNudgesPerHour, 2)
+        XCTAssertEqual(t.maxNudgesPerHour, 0, "no hourly cap since 2026-10-05")
         XCTAssertEqual(t.absentThreshold, 1.0)
     }
 

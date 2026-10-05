@@ -114,7 +114,7 @@ struct ThresholdsSettingsView: View {
                     HStack {
                         Text("Max Nudges/Hour")
                         Spacer()
-                        Text("\(appModel.maxNudgesPerHour)")
+                        Text(appModel.maxNudgesPerHour == 0 ? "No limit" : "\(appModel.maxNudgesPerHour)")
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
@@ -123,10 +123,10 @@ struct ThresholdsSettingsView: View {
                             get: { Double(appModel.maxNudgesPerHour) },
                             set: { appModel.maxNudgesPerHour = Int($0) }
                         ),
-                        in: 1...10,
+                        in: 0...10,
                         step: 1
                     )
-                    Text("Maximum nudge alerts per hour")
+                    Text("Maximum nudge alerts per hour. 0 is no limit: the cooldown spaces them.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

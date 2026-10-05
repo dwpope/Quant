@@ -55,6 +55,7 @@ protocol NudgeEngineProtocol: DebugDumpable {
     ///     nudge reason. Pass `nil` to default to `.sustainedSlouch`.
     ///   - headTurnedSince: When the head was turned and held there, or nil. A head held
     ///     turned long enough fires `.headTurned`, sharing the cooldown and the hourly cap.
+    ///   - silenced: Whether the user has silenced nudges for now; every nudge waits.
     /// - Returns: A `NudgeDecision` telling the caller what to do.
     func evaluate(
         state: PostureState,
@@ -63,7 +64,8 @@ protocol NudgeEngineProtocol: DebugDumpable {
         taskMode: TaskMode,
         currentTime: TimeInterval,
         metrics: RawMetrics?,
-        headTurnedSince: TimeInterval?
+        headTurnedSince: TimeInterval?,
+        silenced: Bool
     ) -> NudgeDecision
 
     /// Record that a nudge was just fired and delivered to the user.

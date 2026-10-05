@@ -23,6 +23,9 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     /// Timestamp of the last nudge received, for debug display.
     @Published var lastNudgeTime: Date?
 
+    /// When the phone says silenced nudges resume, or nil.
+    @Published var nudgesSilencedUntil: Date?
+
     /// Whether the WCSession is currently activated and reachable.
     @Published var isConnected: Bool = false
 
@@ -201,6 +204,20 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         return true
     }
 
+    /// Ask the phone to silence nudges for `minutes`. Shown straight away; the phone's answer
+    /// corrects it if it differs.
+    func silenceNudges(minutes: Int) {
+        if sendToPhone(NudgeSilence.request(minutes: minutes), what: "silence") {
+            nudgesSilencedUntil = Date().addingTimeInterval(TimeInterval(minutes) * 60)
+        }
+    }
+
+    func resumeNudges() {
+        if sendToPhone(NudgeSilence.request(minutes: 0), what: "resume") {
+            nudgesSilencedUntil = nil
+        }
+    }
+
     /// Reset posture thresholds to defaults and sync to iPhone.
     func resetPostureSettings() {
         forwardCreepThreshold = 0.03
@@ -348,6 +365,11 @@ extension WatchSessionDelegate: WCSessionDelegate {
             let body = NudgeMessage.body(from: message)
             DispatchQueue.main.async {
                 self.handleNudge(haptic, body: body)
+            }
+        case "nudgeSilence":
+            let until = NudgeSilence.until(from: message)
+            DispatchQueue.main.async {
+                self.nudgesSilencedUntil = until
             }
         case "jevStatus":
             guard let status = JevRemoteStatus(message: message) else {

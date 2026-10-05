@@ -24,4 +24,6 @@ public enum SuppressionReason: String, Codable {
     /// No longer produced: sitting up after a nudge stopped suppressing the next one on
     /// 2026-10-05. Kept so a stored decision still decodes.
     case recentAcknowledgement
+    /// Silenced for a while from the phone or the Watch (2026-10-05). Every nudge waits.
+    case silenced
 }

@@ -48,7 +48,7 @@ final class ConfigAndDecisionModelTests: XCTestCase {
     func testNudgeDecision_suppressed_roundTripsAllReasons() throws {
         let allReasons: [SuppressionReason] = [
             .cooldownActive, .maxNudgesReached, .userStretching,
-            .lowTrackingQuality, .recentAcknowledgement
+            .lowTrackingQuality, .recentAcknowledgement, .silenced
         ]
         for reason in allReasons {
             let original = NudgeDecision.suppressed(reason: reason)
@@ -104,7 +104,7 @@ final class ConfigAndDecisionModelTests: XCTestCase {
 
         // Nudge behavior
         XCTAssertEqual(t.nudgeCooldown, 600)
-        XCTAssertEqual(t.maxNudgesPerHour, 2)
+        XCTAssertEqual(t.maxNudgesPerHour, 0, "no hourly cap since 2026-10-05")
         XCTAssertEqual(t.acknowledgementWindow, 30)
 
         // Mode switching

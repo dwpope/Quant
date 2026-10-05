@@ -43,6 +43,18 @@ public class Pipeline {
     /// only once calibrated: forward creep is what tells a turned neck from a turned chair.
     @Published public private(set) var headTurnedSince: TimeInterval?
 
+    /// Nudges are held back until this moment, on the calendar clock: the user silenced them
+    /// from the phone or the Watch. Compared with `now()`, never with the frame clock.
+    public var nudgesSilencedUntil: Date?
+
+    /// The calendar clock `nudgesSilencedUntil` is compared with. Swappable for tests.
+    var now: () -> Date = Date.init
+
+    private var nudgesSilenced: Bool {
+        guard let until = nudgesSilencedUntil else { return false }
+        return now() < until
+    }
+
     /// The inferred activity classification based on recent movement patterns.
     /// Updated each frame after smoothing using a rolling window of metrics.
     @Published public var taskMode: TaskMode = .unknown
@@ -428,7 +440,8 @@ public class Pipeline {
                             taskMode: inferredTaskMode,
                             currentTime: smoothedMetrics.timestamp,
                             metrics: smoothedMetrics,
-                            headTurnedSince: turnedSince
+                            headTurnedSince: turnedSince,
+                            silenced: self.nudgesSilenced
                         )
 
                         // Periodic staleness check (every 60s, not every frame)
@@ -530,7 +543,8 @@ public class Pipeline {
                 taskMode: inferredTaskMode,
                 currentTime: smoothedMetrics.timestamp,
                 metrics: smoothedMetrics,
-                headTurnedSince: turnedSince
+                headTurnedSince: turnedSince,
+                silenced: self.nudgesSilenced
             )
 
             // Periodic staleness check (every 60s, not every frame)

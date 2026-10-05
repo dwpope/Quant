@@ -23,6 +23,37 @@ struct ContentView: View {
     /// covers the cards on purpose. Pushing the cards below it put them under the bottom icons.
     @AppStorage(DiagnosticsPanel.expandedKey) private var panelExpanded = true
 
+    /// Silence nudges for a while, or resume them. The bell is struck through while silenced.
+    /// Checked every 30 s, so the icon comes back on its own when the silence ends.
+    private var silenceMenu: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            let until = appModel.nudgesSilencedUntil.flatMap { $0 > context.date ? $0 : nil }
+            Menu {
+                if let until {
+                    Text("Nudges silenced until \(until.formatted(date: .omitted, time: .shortened))")
+                    Button("Resume nudges", systemImage: "bell") { appModel.resumeNudges() }
+                }
+                ForEach(AppModel.silenceOptionsMinutes, id: \.self) { minutes in
+                    Button(Self.silenceLabel(minutes: minutes)) {
+                        appModel.silenceNudges(forMinutes: minutes)
+                    }
+                }
+            } label: {
+                Image(systemName: until == nil ? "bell" : "bell.slash.fill")
+                    .font(.title2)
+                    .padding(10)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+            }
+            .accessibilityLabel(until == nil ? "Silence nudges" : "Nudges silenced")
+        }
+    }
+
+    private static func silenceLabel(minutes: Int) -> String {
+        minutes < 60 ? "Silence for \(minutes) min"
+            : minutes == 60 ? "Silence for 1 hour" : "Silence for \(minutes / 60) hours"
+    }
+
     var body: some View {
         ZStack {
             // Thermal warning overlays
@@ -83,6 +114,8 @@ struct ContentView: View {
             .safeAreaInset(edge: .bottom, spacing: 12) {
                 HStack(spacing: 12) {
                     Spacer(minLength: 0)
+
+                    silenceMenu
 
                     Button {
                         showSipCalibration = true

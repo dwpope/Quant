@@ -33,7 +33,10 @@ public struct PostureThresholds: Codable {
     
     // MARK: - Nudge Behavior
     public var nudgeCooldown: TimeInterval = 600
-    public var maxNudgesPerHour: Int = 2
+    /// The most nudges in any hour, or 0 for no cap: the gap between nudges is then the only
+    /// limit. No cap by default since 2026-10-05 (Dave: "don't worry about limiting the number of
+    /// nudges in an hour yet"); silencing for a while replaces it.
+    public var maxNudgesPerHour: Int = 0
     public var acknowledgementWindow: TimeInterval = 30
     
     // MARK: - Mode Switching
