@@ -9,10 +9,10 @@ import Testing
 /// chair swivels, then two optional head turns.
 struct JevTestPlanTests {
 
-    @Test func runsSixteenCoreCapturesThenTwoOptionalOnes_withSinkingAndLeaningBack() {
+    @Test func runsEighteenCoreCapturesThenTwoOptionalOnes() {
         let steps = JevTestPlan.steps
-        #expect(steps.count == 18)
-        #expect(steps.prefix(16).allSatisfy { !$0.optional })
+        #expect(steps.count == 20)
+        #expect(steps.prefix(18).allSatisfy { !$0.optional })
         #expect(steps.suffix(2).allSatisfy { $0.optional })
     }
 
@@ -21,11 +21,12 @@ struct JevTestPlanTests {
         #expect(names == [
             "Upright", "Upright", "Upright",
             "Slouch", "Slouch",
-            "Sink", "Sink", "Sink",
+            "Sink", "Sink",
             "Small slouch", "Small slouch",
             "Lean", "Lean",
             "Chair swivel", "Chair swivel",
-            "Lean back", "Lean back",
+            "Lean back", "Lean back", "Lean back",
+            "Slumped recline", "Slumped recline",
             "Head turned", "Head turned",
         ])
     }
@@ -68,11 +69,11 @@ struct JevTestPlanTests {
     @Test func numbersStepsFromOne_andCountsWithinAPosture() throws {
         let fourth = try #require(JevTestPlan.progress(at: 3))
         #expect(fourth.number == 4)
-        #expect(fourth.total == 18)
+        #expect(fourth.total == 20)
         #expect(fourth.step.posture == .slouch)
         #expect(fourth.repeatNumber == 1)
         #expect(fourth.repeatCount == 2)
-        #expect(try #require(JevTestPlan.progress(at: 7)).repeatNumber == 3, "the third sink")
+        #expect(try #require(JevTestPlan.progress(at: 6)).repeatNumber == 2, "the second sink")
     }
 
     @Test func nextAndPrevious_stayInsideThePlan() {
@@ -308,6 +309,26 @@ struct JevTestPlanTests {
         let instruction = JevTestPlan.Posture.leanBack.instruction
         #expect(instruction.contains("backrest"))
         #expect(instruction.contains("Don't slide"))
+    }
+
+    // MARK: - Slumped recline (2026-10-06)
+    //
+    // Leaning back is excused when the shoulders move 15% or more back (session 9). Sliding the
+    // hips forward while leaning back, the classic slump, may move them as far. It's here to see
+    // whether the camera can tell the two apart.
+
+    @Test func slumpedRecline_isASlouch_worthANudge() {
+        #expect(JevTestPlan.Posture.slumpedRecline.worthANudge)
+        #expect(JevTestPlan.Posture.slumpedRecline.trueClass == "slouch")
+    }
+
+    @Test func slumpedRecline_asksForTheHipsForward() {
+        #expect(JevTestPlan.Posture.slumpedRecline.instruction.contains("hips forward"))
+    }
+
+    @Test func slumpedRecline_saysAMissIsPossible() throws {
+        let note = try #require(JevTestPlan.Posture.slumpedRecline.note)
+        #expect(note.contains("lean back"))
     }
 }
 

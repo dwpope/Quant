@@ -10,8 +10,9 @@ import Foundation
 
 /// The protocol for a device session, revised 2026-10-04 to what matters for soreness and
 /// 2026-10-05 for sinking: three uprights, two slouches leaning in, three sinking down in the
-/// chair, two small slouches, two leans, two chair swivels, two leaning back (to check the sink
-/// line doesn't flag reclining), then two optional head turns. Each step is one capture.
+/// chair, two small slouches, two leans, two chair swivels, three leaning back (excused since
+/// 2026-10-06), two slumped reclines (to see if the camera can tell them apart), then two
+/// optional head turns. Each step is one capture.
 /// Session 7's slouches sank, and nothing measured saw them.
 ///
 /// Only slouch and lean are worth a nudge. The swivel and the head turn are here as false-alarm
@@ -23,13 +24,13 @@ import Foundation
 enum JevTestPlan {
 
     enum Posture: Equatable {
-        case upright, slouch, sink, smallSlouch, lean, chairSwivel, leanBack, headTurned
+        case upright, slouch, sink, smallSlouch, lean, chairSwivel, leanBack, slumpedRecline, headTurned
 
         /// Slouch and lean, the postures a nudge is for. For the others what matters is that
         /// nothing nudges.
         var worthANudge: Bool {
             switch self {
-            case .slouch, .sink, .smallSlouch, .lean: return true
+            case .slouch, .sink, .smallSlouch, .lean, .slumpedRecline: return true
             case .upright, .chairSwivel, .leanBack, .headTurned: return false
             }
         }
@@ -43,6 +44,7 @@ enum JevTestPlan {
             case .lean: return "Lean"
             case .chairSwivel: return "Chair swivel"
             case .leanBack: return "Lean back"
+            case .slumpedRecline: return "Slumped recline"
             case .headTurned: return "Head turned"
             }
         }
@@ -63,6 +65,8 @@ enum JevTestPlan {
                 return "Sit upright and turn the whole chair 30° or more. Not just your head."
             case .leanBack:
                 return "Sit back against the backrest, reclined a little, head over your shoulders. Don't slide down."
+            case .slumpedRecline:
+                return "Lean back and slide your hips forward, so your lower back rounds and your head comes forward."
             case .headTurned:
                 return "Stay upright and look 30–40° to one side. Keep your shoulders still."
             }
@@ -77,6 +81,8 @@ enum JevTestPlan {
                 return "Jev judges posture: a straight back with your head turned is good posture. The phone times the turn itself: watch Head turned below count up."
             case .sink:
                 return "Being recorded first: neither Jev nor the thresholds can see sinking yet, so a miss is expected. Judge it anyway."
+            case .slumpedRecline:
+                return "Checks whether the camera can tell this from a healthy lean back, which is excused. A miss is possible."
             case .upright, .slouch, .smallSlouch, .lean, .chairSwivel, .leanBack:
                 return nil
             }
@@ -86,7 +92,7 @@ enum JevTestPlan {
         var jevShouldSay: String {
             switch self {
             case .upright: return "good posture"
-            case .slouch, .sink, .smallSlouch: return "slouch"
+            case .slouch, .sink, .smallSlouch, .slumpedRecline: return "slouch"
             case .lean: return "lean"
             case .chairSwivel, .leanBack, .headTurned: return "not slouch or lean"
             }
@@ -97,7 +103,7 @@ enum JevTestPlan {
         var thresholdsShouldSay: String {
             switch self {
             case .upright, .chairSwivel, .leanBack, .headTurned: return "good"
-            case .slouch, .sink, .smallSlouch, .lean: return "drifting or bad"
+            case .slouch, .sink, .smallSlouch, .lean, .slumpedRecline: return "drifting or bad"
             }
         }
 
@@ -105,7 +111,7 @@ enum JevTestPlan {
         var trueClass: String {
             switch self {
             case .upright, .leanBack, .headTurned: return "good_posture"
-            case .slouch, .sink, .smallSlouch: return "slouch"
+            case .slouch, .sink, .smallSlouch, .slumpedRecline: return "slouch"
             case .lean: return "lean"
             case .chairSwivel: return "chair_swivel"
             }
@@ -145,11 +151,12 @@ enum JevTestPlan {
     static let steps: [Step] =
         Array(repeating: Step(posture: .upright, optional: false), count: 3)
         + Array(repeating: Step(posture: .slouch, optional: false), count: 2)
-        + Array(repeating: Step(posture: .sink, optional: false), count: 3)
+        + Array(repeating: Step(posture: .sink, optional: false), count: 2)
         + Array(repeating: Step(posture: .smallSlouch, optional: false), count: 2)
         + Array(repeating: Step(posture: .lean, optional: false), count: 2)
         + Array(repeating: Step(posture: .chairSwivel, optional: false), count: 2)
-        + Array(repeating: Step(posture: .leanBack, optional: false), count: 2)
+        + Array(repeating: Step(posture: .leanBack, optional: false), count: 3)
+        + Array(repeating: Step(posture: .slumpedRecline, optional: false), count: 2)
         + Array(repeating: Step(posture: .headTurned, optional: true), count: 2)
 
     /// The step at `index`, or nil once the plan is finished (or for a nonsense index).
