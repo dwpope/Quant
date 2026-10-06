@@ -411,9 +411,10 @@ final class PostureEngine: PostureEngineProtocol {
             // while watching the screen tips the head towards the shoulders too (2026-10-06).
             || (!chairTurned && !reclined && metrics.forwardCreep > thresholds.headDropMinForwardCreep
                 && -metrics.headDrop >= headDropLimit)
-            // Sinking down in the chair: the shoulders lower in the frame (2026-10-05). Not while
-            // leaning back, which lowers them too.
-            || (!reclined && metrics.shoulderSink >= thresholds.shoulderSinkThreshold)
+            // Sinking down in the chair: the shoulders lower in the frame (2026-10-05). Leaning back
+            // lowers them too, so while reclined only a slumped recline's much bigger sink counts.
+            || metrics.shoulderSink >= (reclined ? thresholds.reclinedSinkThreshold
+                                                 : thresholds.shoulderSinkThreshold)
             || metrics.shoulderRounding > shoulderRoundingThreshold
     }
 

@@ -29,10 +29,16 @@ public struct PostureThresholds: Codable {
     /// swivels and head turns +0.018 or below.
     public var shoulderSinkThreshold: Float = 0.05
     /// Forward creep at or below this, with the head not turned, is leaning back against the
-    /// backrest (2026-10-05): the shoulders 15% or more further from the camera. Reclining lowers
-    /// the shoulders like a sink and reads as a head drop, so neither counts then. Session 9's
-    /// two lean-backs read -0.232 and -0.233; every sink -0.03 to -0.10.
-    public var reclineMaxForwardCreep: Float = -0.15
+    /// backrest (2026-10-05): the shoulders 12.5% or more further from the camera. Reclining
+    /// lowers the shoulders like a sink and reads as a head drop, so neither counts then, short of
+    /// `reclinedSinkThreshold`. Lean-backs so far read -0.129 to -0.233 (the deeper ones, with a
+    /// real sink, -0.150 or lower); sinks -0.10 at most. -0.15 until session 11, when a lean-back
+    /// sat at -0.150.
+    public var reclineMaxForwardCreep: Float = -0.125
+    /// While reclined, a shoulder sink at or above this still counts: a slumped recline, the hips
+    /// slid forward while leaning back (2026-10-06). Session 11's two slumped reclines sank
+    /// +0.142; the seven lean-backs so far +0.020 to +0.083.
+    public var reclinedSinkThreshold: Float = 0.11
     /// Head drop counts only while forward creep is above this: with the shoulders 5% or more
     /// back, a dropping head is the eyes staying on the screen while leaning back (2026-10-06).
     /// Session 10's gentle lean-backs read -0.129 and -0.097 with head drop -0.059 and -0.045;
@@ -67,7 +73,7 @@ public struct PostureThresholds: Codable {
     // if present and falls back to its default; encoding stays complete.
 
     private enum CodingKeys: String, CodingKey {
-        case slouchDurationBeforeNudge, recoveryGracePeriod, driftingToBadThreshold, forwardCreepThreshold, twistThreshold, sideLeanThreshold, headDropThreshold, shoulderRoundingThreshold, shoulderSinkThreshold, reclineMaxForwardCreep, headDropMinForwardCreep, minTrackingQuality, minKeypointVisibility, depthConfidenceThreshold, nudgeCooldown, maxNudgesPerHour, acknowledgementWindow, depthRecoveryDelay, absentThreshold, absentResumeThreshold, returnValidationWindow
+        case slouchDurationBeforeNudge, recoveryGracePeriod, driftingToBadThreshold, forwardCreepThreshold, twistThreshold, sideLeanThreshold, headDropThreshold, shoulderRoundingThreshold, shoulderSinkThreshold, reclineMaxForwardCreep, reclinedSinkThreshold, headDropMinForwardCreep, minTrackingQuality, minKeypointVisibility, depthConfidenceThreshold, nudgeCooldown, maxNudgesPerHour, acknowledgementWindow, depthRecoveryDelay, absentThreshold, absentResumeThreshold, returnValidationWindow
     }
 
     public init(from decoder: Decoder) throws {
@@ -83,6 +89,7 @@ public struct PostureThresholds: Codable {
         shoulderRoundingThreshold = try c.decodeIfPresent(Float.self, forKey: .shoulderRoundingThreshold) ?? defaults.shoulderRoundingThreshold
         shoulderSinkThreshold = try c.decodeIfPresent(Float.self, forKey: .shoulderSinkThreshold) ?? defaults.shoulderSinkThreshold
         reclineMaxForwardCreep = try c.decodeIfPresent(Float.self, forKey: .reclineMaxForwardCreep) ?? defaults.reclineMaxForwardCreep
+        reclinedSinkThreshold = try c.decodeIfPresent(Float.self, forKey: .reclinedSinkThreshold) ?? defaults.reclinedSinkThreshold
         headDropMinForwardCreep = try c.decodeIfPresent(Float.self, forKey: .headDropMinForwardCreep) ?? defaults.headDropMinForwardCreep
         minTrackingQuality = try c.decodeIfPresent(Float.self, forKey: .minTrackingQuality) ?? defaults.minTrackingQuality
         minKeypointVisibility = try c.decodeIfPresent(Float.self, forKey: .minKeypointVisibility) ?? defaults.minKeypointVisibility

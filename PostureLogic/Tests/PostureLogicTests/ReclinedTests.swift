@@ -11,8 +11,9 @@ import Combine
 /// Reclined, sink and head drop don't count.
 final class ReclinedTests: XCTestCase {
 
-    func test_theLine_isShoulders15PercentFurtherBack() {
-        XCTAssertEqual(PostureThresholds().reclineMaxForwardCreep, -0.15)
+    /// -0.15 at first; -0.125 since session 11, where a lean-back sat at -0.150 (SlumpedReclineTests).
+    func test_theLine_isShoulders12AndAHalfPercentFurtherBack() {
+        XCTAssertEqual(PostureThresholds().reclineMaxForwardCreep, -0.125)
     }
 
     func test_theRule_overEveryCaptureSoFar() {
