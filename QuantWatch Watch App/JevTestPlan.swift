@@ -66,7 +66,7 @@ enum JevTestPlan {
             case .leanBack:
                 return "Sit back against the backrest, reclined a little, head over your shoulders. Don't slide down."
             case .slumpedRecline:
-                return "Lean back and slide your hips forward, so your lower back rounds and your head comes forward."
+                return "Lean back and slide your hips forward, so your lower back rounds and your head comes forward. Keep your eyes on the screen."
             case .headTurned:
                 return "Stay upright and look 30–40° to one side. Keep your shoulders still."
             }

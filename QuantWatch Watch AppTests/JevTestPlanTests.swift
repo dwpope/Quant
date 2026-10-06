@@ -326,6 +326,11 @@ struct JevTestPlanTests {
         #expect(JevTestPlan.Posture.slumpedRecline.instruction.contains("hips forward"))
     }
 
+    /// Session 10's were done with the head turned, so they read as head turns (2026-10-06).
+    @Test func slumpedRecline_asksToKeepTheEyesOnTheScreen() {
+        #expect(JevTestPlan.Posture.slumpedRecline.instruction.contains("Keep your eyes on the screen"))
+    }
+
     @Test func slumpedRecline_saysAMissIsPossible() throws {
         let note = try #require(JevTestPlan.Posture.slumpedRecline.note)
         #expect(note.contains("lean back"))
