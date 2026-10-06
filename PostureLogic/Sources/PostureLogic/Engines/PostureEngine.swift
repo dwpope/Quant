@@ -407,7 +407,10 @@ final class PostureEngine: PostureEngineProtocol {
             || metrics.lateralLean > sideLeanThreshold
             // The head dropped towards the shoulders, which reads NEGATIVE on the device.
             // See `PostureThresholds.headDropThreshold` for why it's this way round.
-            || (!chairTurned && !reclined && -metrics.headDrop >= headDropLimit)
+            // Not with the chair turned, reclined, or the shoulders 5% or more back: leaning back
+            // while watching the screen tips the head towards the shoulders too (2026-10-06).
+            || (!chairTurned && !reclined && metrics.forwardCreep > thresholds.headDropMinForwardCreep
+                && -metrics.headDrop >= headDropLimit)
             // Sinking down in the chair: the shoulders lower in the frame (2026-10-05). Not while
             // leaning back, which lowers them too.
             || (!reclined && metrics.shoulderSink >= thresholds.shoulderSinkThreshold)

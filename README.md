@@ -15,7 +15,7 @@ Built with SwiftUI, ARKit, and Vision. Targeting iOS 17+.
 
 Aware sits on your desk (phone on a stand) and watches your upper body through the front camera. It continuously compares your posture against a personal baseline you calibrate at the start of each session.
 
-**Posture monitoring** — Tracks six metrics (forward lean, head drop, shoulder sink, shoulder rounding, lateral lean, twist) with a traffic-light state machine that gives you a grace period to self-correct before nudging. Nudges are spaced by a cooldown (an hourly cap is available in settings, off by default), and can be silenced for 30 minutes to 2 hours from the phone's bell button or the Watch. Sitting up after a nudge is recorded, and slouching again gets a fresh nudge once it's held long enough. Shoulder sink catches sinking down in the chair, where the head and shoulders drop together and nothing else changes. Leaning back against the backrest lowers the shoulders too, so with the shoulders 15% or more further back (and the head facing ahead) neither sink nor head drop counts.
+**Posture monitoring** — Tracks six metrics (forward lean, head drop, shoulder sink, shoulder rounding, lateral lean, twist) with a traffic-light state machine that gives you a grace period to self-correct before nudging. Nudges are spaced by a cooldown (an hourly cap is available in settings, off by default), and can be silenced for 30 minutes to 2 hours from the phone's bell button or the Watch. Sitting up after a nudge is recorded, and slouching again gets a fresh nudge once it's held long enough. Shoulder sink catches sinking down in the chair, where the head and shoulders drop together and nothing else changes. Leaning back against the backrest lowers the shoulders too, so with the shoulders 15% or more further back (and the head facing ahead) neither sink nor head drop counts; and head drop doesn't count once the shoulders are 5% back, since watching the screen while leaning back tips the head too.
 
 **Head-turn nudge** — Working on a second screen off to the side twists the neck, and holding it gets uncomfortable. A head turned past 45° while the shoulders still face the phone, held for five minutes, gets its own nudge: turn the chair to face that screen. Turning the chair narrows the shoulders in view, which is how the app tells a turned chair from a turned neck. Turns are measured from where you looked while calibrating, and the panel asks you to move the phone if that was more than 20° to one side: every posture rule assumes the phone is in front of you. It shares the slouch nudge's cooldown and hourly cap, and every nudge shows its own one-line advice on the Apple Watch.
 
@@ -80,7 +80,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~38,000 lines of Swift** across 214 files, tests included. All tests pass: **696** in the `PostureLogic` package (`cd PostureLogic && swift test`), **343** in the app target and **69** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
+**~38,000 lines of Swift** across 215 files, tests included. All tests pass: **701** in the `PostureLogic` package (`cd PostureLogic && swift test`), **343** in the app target and **70** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
 
 ## Technical Decisions
 
