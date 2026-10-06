@@ -145,13 +145,16 @@ final class PostureEngine: PostureEngineProtocol {
     ///   - trackingQuality: How reliable the current camera data is.
     ///   - chairTurned: The whole chair is turned, so a head drop isn't counted as a slouch
     ///     (`HeadTurnTracker.isChairTurned`).
+    ///   - reclined: Leaning back against the backrest (`isReclined`), so neither a shoulder
+    ///     sink nor a head drop is counted as a slouch.
     /// - Returns: The updated PostureState.
     @discardableResult
     func update(
         metrics: RawMetrics,
         taskMode: TaskMode,
         trackingQuality: TrackingQuality,
-        chairTurned: Bool = false
+        chairTurned: Bool = false,
+        reclined: Bool = false
     ) -> PostureState {
         // ──────────────────────────────────────────────
         // SAFETY GATE: Don't judge posture with bad data
@@ -204,7 +207,8 @@ final class PostureEngine: PostureEngineProtocol {
         lastGoodUpdateTimestamp = metrics.timestamp
 
         // Check whether current posture exceeds thresholds
-        let isPostureBad = checkPostureBad(metrics: metrics, taskMode: taskMode, chairTurned: chairTurned)
+        let isPostureBad = checkPostureBad(metrics: metrics, taskMode: taskMode,
+                                           chairTurned: chairTurned, reclined: reclined)
 
         // ──────────────────────────────────────
         // STATE MACHINE TRANSITIONS
@@ -332,7 +336,17 @@ final class PostureEngine: PostureEngineProtocol {
     ///   - metrics: The current smoothed metrics.
     ///   - taskMode: The current activity classification.
     /// - Returns: `true` if posture exceeds at least one threshold.
-    private func checkPostureBad(metrics: RawMetrics, taskMode: TaskMode, chairTurned: Bool) -> Bool {
+    /// Leaning back against the backrest: the shoulders well back (forward creep at or below
+    /// `reclineMaxForwardCreep`) with the head facing where it did at calibration. A swivel moves
+    /// the shoulders back too, with the head turned.
+    static func isReclined(forwardCreep: Float, headYawFromCalibration: Float,
+                           thresholds: PostureThresholds, headTurn: HeadTurnThresholds) -> Bool {
+        forwardCreep <= thresholds.reclineMaxForwardCreep
+            && abs(headYawFromCalibration) < headTurn.turnedDegrees
+    }
+
+    private func checkPostureBad(metrics: RawMetrics, taskMode: TaskMode, chairTurned: Bool,
+                                 reclined: Bool) -> Bool {
         // Stretching mode disables posture judgement entirely.
         // The user is intentionally moving around — that's a good thing!
         if taskMode == .stretching {
@@ -393,9 +407,10 @@ final class PostureEngine: PostureEngineProtocol {
             || metrics.lateralLean > sideLeanThreshold
             // The head dropped towards the shoulders, which reads NEGATIVE on the device.
             // See `PostureThresholds.headDropThreshold` for why it's this way round.
-            || (!chairTurned && -metrics.headDrop >= headDropLimit)
-            // Sinking down in the chair: the shoulders lower in the frame (2026-10-05).
-            || metrics.shoulderSink >= thresholds.shoulderSinkThreshold
+            || (!chairTurned && !reclined && -metrics.headDrop >= headDropLimit)
+            // Sinking down in the chair: the shoulders lower in the frame (2026-10-05). Not while
+            // leaning back, which lowers them too.
+            || (!reclined && metrics.shoulderSink >= thresholds.shoulderSinkThreshold)
             || metrics.shoulderRounding > shoulderRoundingThreshold
     }
 

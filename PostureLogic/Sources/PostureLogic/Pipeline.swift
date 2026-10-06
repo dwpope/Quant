@@ -405,7 +405,8 @@ public class Pipeline {
                             metrics: smoothedMetrics,
                             taskMode: inferredTaskMode,
                             trackingQuality: finalQuality,
-                            chairTurned: self.isChairTurned(sample: sample, metrics: smoothedMetrics)
+                            chairTurned: self.isChairTurned(sample: sample, metrics: smoothedMetrics),
+                reclined: self.isReclined(sample: sample, metrics: smoothedMetrics)
                         )
                         self.postureState = newPostureState
 
@@ -470,6 +471,14 @@ public class Pipeline {
             thresholds: headTurnThresholds)
     }
 
+    /// Leaning back against the backrest (`PostureEngine.isReclined`). Only once calibrated.
+    private func isReclined(sample: PoseSample, metrics: RawMetrics) -> Bool {
+        guard let baseline else { return false }
+        return PostureEngine.isReclined(
+            forwardCreep: metrics.forwardCreep, headYawFromCalibration: sample.headYaw - baseline.headYaw,
+            thresholds: thresholds, headTurn: headTurnThresholds)
+    }
+
     /// Times a head held turned. Not before calibrating: without a baseline forward creep reads
     /// zero, and it's what tells a turned neck from a turned chair.
     private func updateHeadTurn(sample: PoseSample, metrics: RawMetrics,
@@ -525,7 +534,8 @@ public class Pipeline {
                 metrics: smoothedMetrics,
                 taskMode: inferredTaskMode,
                 trackingQuality: sample.trackingQuality,
-                chairTurned: self.isChairTurned(sample: sample, metrics: smoothedMetrics)
+                chairTurned: self.isChairTurned(sample: sample, metrics: smoothedMetrics),
+                reclined: self.isReclined(sample: sample, metrics: smoothedMetrics)
             )
             self.postureState = newPostureState
 

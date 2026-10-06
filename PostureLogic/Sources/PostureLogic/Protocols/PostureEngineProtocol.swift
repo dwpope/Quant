@@ -15,12 +15,15 @@ protocol PostureEngineProtocol: DebugDumpable {
     ///   - trackingQuality: How reliable the current pose data is.
     ///   - chairTurned: The whole chair is turned (head and shoulders), so a head drop
     ///     isn't counted as a slouch.
+    ///   - reclined: Leaning back against the backrest, so neither a shoulder sink nor a head
+    ///     drop is counted as a slouch.
     /// - Returns: The new `PostureState` after this update.
     func update(
         metrics: RawMetrics,
         taskMode: TaskMode,
         trackingQuality: TrackingQuality,
-        chairTurned: Bool
+        chairTurned: Bool,
+        reclined: Bool
     ) -> PostureState
 
     /// Reset the state machine back to `.absent`. Call this when calibration

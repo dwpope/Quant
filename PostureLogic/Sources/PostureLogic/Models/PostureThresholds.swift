@@ -28,6 +28,11 @@ public struct PostureThresholds: Codable {
     /// in the chair (2026-10-05). Session 8: sinks +0.086 to +0.103, uprights +0.005 to +0.020,
     /// swivels and head turns +0.018 or below.
     public var shoulderSinkThreshold: Float = 0.05
+    /// Forward creep at or below this, with the head not turned, is leaning back against the
+    /// backrest (2026-10-05): the shoulders 15% or more further from the camera. Reclining lowers
+    /// the shoulders like a sink and reads as a head drop, so neither counts then. Session 9's
+    /// two lean-backs read -0.232 and -0.233; every sink -0.03 to -0.10.
+    public var reclineMaxForwardCreep: Float = -0.15
 
     // MARK: - Confidence Gates
     public var minTrackingQuality: Float = 0.7
@@ -57,7 +62,7 @@ public struct PostureThresholds: Codable {
     // if present and falls back to its default; encoding stays complete.
 
     private enum CodingKeys: String, CodingKey {
-        case slouchDurationBeforeNudge, recoveryGracePeriod, driftingToBadThreshold, forwardCreepThreshold, twistThreshold, sideLeanThreshold, headDropThreshold, shoulderRoundingThreshold, shoulderSinkThreshold, minTrackingQuality, minKeypointVisibility, depthConfidenceThreshold, nudgeCooldown, maxNudgesPerHour, acknowledgementWindow, depthRecoveryDelay, absentThreshold, absentResumeThreshold, returnValidationWindow
+        case slouchDurationBeforeNudge, recoveryGracePeriod, driftingToBadThreshold, forwardCreepThreshold, twistThreshold, sideLeanThreshold, headDropThreshold, shoulderRoundingThreshold, shoulderSinkThreshold, reclineMaxForwardCreep, minTrackingQuality, minKeypointVisibility, depthConfidenceThreshold, nudgeCooldown, maxNudgesPerHour, acknowledgementWindow, depthRecoveryDelay, absentThreshold, absentResumeThreshold, returnValidationWindow
     }
 
     public init(from decoder: Decoder) throws {
@@ -72,6 +77,7 @@ public struct PostureThresholds: Codable {
         headDropThreshold = try c.decodeIfPresent(Float.self, forKey: .headDropThreshold) ?? defaults.headDropThreshold
         shoulderRoundingThreshold = try c.decodeIfPresent(Float.self, forKey: .shoulderRoundingThreshold) ?? defaults.shoulderRoundingThreshold
         shoulderSinkThreshold = try c.decodeIfPresent(Float.self, forKey: .shoulderSinkThreshold) ?? defaults.shoulderSinkThreshold
+        reclineMaxForwardCreep = try c.decodeIfPresent(Float.self, forKey: .reclineMaxForwardCreep) ?? defaults.reclineMaxForwardCreep
         minTrackingQuality = try c.decodeIfPresent(Float.self, forKey: .minTrackingQuality) ?? defaults.minTrackingQuality
         minKeypointVisibility = try c.decodeIfPresent(Float.self, forKey: .minKeypointVisibility) ?? defaults.minKeypointVisibility
         depthConfidenceThreshold = try c.decodeIfPresent(Float.self, forKey: .depthConfidenceThreshold) ?? defaults.depthConfidenceThreshold
