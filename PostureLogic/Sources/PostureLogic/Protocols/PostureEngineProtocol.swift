@@ -17,13 +17,15 @@ protocol PostureEngineProtocol: DebugDumpable {
     ///     isn't counted as a slouch.
     ///   - reclined: Leaning back against the backrest, so neither a shoulder sink nor a head
     ///     drop is counted as a slouch.
+    ///   - neckTurned: The head turned with the shoulders square, so forward creep isn't counted.
     /// - Returns: The new `PostureState` after this update.
     func update(
         metrics: RawMetrics,
         taskMode: TaskMode,
         trackingQuality: TrackingQuality,
         chairTurned: Bool,
-        reclined: Bool
+        reclined: Bool,
+        neckTurned: Bool
     ) -> PostureState
 
     /// Reset the state machine back to `.absent`. Call this when calibration

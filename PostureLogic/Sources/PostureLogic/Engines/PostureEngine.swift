@@ -147,6 +147,8 @@ final class PostureEngine: PostureEngineProtocol {
     ///     (`HeadTurnTracker.isChairTurned`).
     ///   - reclined: Leaning back against the backrest (`isReclined`), so neither a shoulder
     ///     sink nor a head drop is counted as a slouch.
+    ///   - neckTurned: The head turned past 45° with the shoulders square
+    ///     (`HeadTurnTracker.isNeckTurned`), so the shoulders' wider look isn't forward creep.
     /// - Returns: The updated PostureState.
     @discardableResult
     func update(
@@ -154,7 +156,8 @@ final class PostureEngine: PostureEngineProtocol {
         taskMode: TaskMode,
         trackingQuality: TrackingQuality,
         chairTurned: Bool = false,
-        reclined: Bool = false
+        reclined: Bool = false,
+        neckTurned: Bool = false
     ) -> PostureState {
         // ──────────────────────────────────────────────
         // SAFETY GATE: Don't judge posture with bad data
@@ -208,7 +211,8 @@ final class PostureEngine: PostureEngineProtocol {
 
         // Check whether current posture exceeds thresholds
         let isPostureBad = checkPostureBad(metrics: metrics, taskMode: taskMode,
-                                           chairTurned: chairTurned, reclined: reclined)
+                                           chairTurned: chairTurned, reclined: reclined,
+                                           neckTurned: neckTurned)
 
         // ──────────────────────────────────────
         // STATE MACHINE TRANSITIONS
@@ -346,7 +350,7 @@ final class PostureEngine: PostureEngineProtocol {
     }
 
     private func checkPostureBad(metrics: RawMetrics, taskMode: TaskMode, chairTurned: Bool,
-                                 reclined: Bool) -> Bool {
+                                 reclined: Bool, neckTurned: Bool) -> Bool {
         // Stretching mode disables posture judgement entirely.
         // The user is intentionally moving around — that's a good thing!
         if taskMode == .stretching {
@@ -402,9 +406,12 @@ final class PostureEngine: PostureEngineProtocol {
         let headDropLimit = thresholds.headDropThreshold
         let shoulderRoundingThreshold = thresholds.shoulderRoundingThreshold * shoulderRoundingMultiplier
 
-        return metrics.forwardCreep > forwardThreshold
+        // Turning isn't slouching or leaning (2026-10-07): a turned head reads the shoulders
+        // wider, and a turned chair shifts their midpoint sideways. Simulated over 163 captures,
+        // false alarms 18 -> 6, one lean lost.
+        return (!neckTurned && metrics.forwardCreep > forwardThreshold)
             || metrics.twist > twistThreshold
-            || metrics.lateralLean > sideLeanThreshold
+            || (!chairTurned && metrics.lateralLean > sideLeanThreshold)
             // The head dropped towards the shoulders, which reads NEGATIVE on the device.
             // See `PostureThresholds.headDropThreshold` for why it's this way round.
             // Not with the chair turned, reclined, or the shoulders 5% or more back: leaning back

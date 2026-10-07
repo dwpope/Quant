@@ -406,7 +406,8 @@ public class Pipeline {
                             taskMode: inferredTaskMode,
                             trackingQuality: finalQuality,
                             chairTurned: self.isChairTurned(sample: sample, metrics: smoothedMetrics),
-                reclined: self.isReclined(sample: sample, metrics: smoothedMetrics)
+                reclined: self.isReclined(sample: sample, metrics: smoothedMetrics),
+                neckTurned: self.isNeckTurned(sample: sample, metrics: smoothedMetrics)
                         )
                         self.postureState = newPostureState
 
@@ -467,6 +468,15 @@ public class Pipeline {
     private func isChairTurned(sample: PoseSample, metrics: RawMetrics) -> Bool {
         guard let baseline else { return false }
         return HeadTurnTracker.isChairTurned(
+            headYaw: sample.headYaw - baseline.headYaw, forwardCreep: metrics.forwardCreep,
+            thresholds: headTurnThresholds)
+    }
+
+    /// The head turned with the shoulders square (`HeadTurnTracker.isNeckTurned`), from the
+    /// calibrated angle. Only once calibrated.
+    private func isNeckTurned(sample: PoseSample, metrics: RawMetrics) -> Bool {
+        guard let baseline else { return false }
+        return HeadTurnTracker.isNeckTurned(
             headYaw: sample.headYaw - baseline.headYaw, forwardCreep: metrics.forwardCreep,
             thresholds: headTurnThresholds)
     }
@@ -535,7 +545,8 @@ public class Pipeline {
                 taskMode: inferredTaskMode,
                 trackingQuality: sample.trackingQuality,
                 chairTurned: self.isChairTurned(sample: sample, metrics: smoothedMetrics),
-                reclined: self.isReclined(sample: sample, metrics: smoothedMetrics)
+                reclined: self.isReclined(sample: sample, metrics: smoothedMetrics),
+                neckTurned: self.isNeckTurned(sample: sample, metrics: smoothedMetrics)
             )
             self.postureState = newPostureState
 
