@@ -202,17 +202,16 @@ final class NudgeEngineTests: XCTestCase {
         }
     }
 
-    func test_returnsNone_whenPostureIsDrifting() {
-        let engine = makeEngine()
+    /// Drifting counts as slouched since 2026-10-07: the posture engine restarts drifting on one
+    /// good frame, so in real work a slouch could stay "drifting" and never earn a nudge.
+    func test_drifting_countsAsSlouched() {
+        let engine = makeEngine()   // 10 s to nudge
 
-        // Drifting is a "yellow light" — not bad enough for a nudge yet.
-        // The PostureEngine will eventually transition to .bad if drifting persists.
-        let decision = evaluate(engine, state: .drifting(since: 0), currentTime: 100)
-
-        if case .none = decision {
-            // Expected
-        } else {
-            XCTFail("Should return .none for .drifting posture, got: \(decision)")
+        guard case .pending = evaluate(engine, state: .drifting(since: 0), currentTime: 5) else {
+            return XCTFail("5 s of drifting should be pending")
+        }
+        guard case .fire = evaluate(engine, state: .drifting(since: 0), currentTime: 10) else {
+            return XCTFail("10 s of drifting should fire")
         }
     }
 
@@ -348,7 +347,10 @@ final class NudgeEngineTests: XCTestCase {
 
         // At t=3616: first nudge (t=15) is older than 1 hour (3600s).
         // The rolling window prunes it, so only 1 nudge counts.
-        // New slouch from t=3600, duration = 3616 - 3600 = 16s > 10s.
+        // New slouch from t=3600, a frame a second (slouched time is counted frame to frame).
+        for t in stride(from: 3600.0, to: 3616, by: 1) {
+            _ = evaluate(engine, state: .bad(since: 3600), currentTime: t)
+        }
         let decision = evaluate(engine, state: .bad(since: 3600), currentTime: 3616)
 
         if case .fire = decision {
@@ -963,24 +965,25 @@ final class NudgeEngineTests: XCTestCase {
     // Verify the engine works with the default PostureThresholds
     // (the real production values).
 
-    func test_defaultThresholds_requiresFiveMinutesOfBadPosture() {
+    /// Two minutes of slouched time since 2026-10-07 (it was five of unbroken slouching).
+    func test_defaultThresholds_requiresTwoMinutesOfSlouching() {
         // Use default thresholds (no customization)
         let engine = NudgeEngine()
 
-        // 4 minutes of bad posture — not enough (need 5 min = 300s)
-        let decision1 = evaluate(engine, state: .bad(since: 0), currentTime: 240)
+        // 100 s slouched — not enough (need 120 s)
+        let decision1 = evaluate(engine, state: .bad(since: 0), currentTime: 100)
         if case .pending = decision1 {
-            // Expected — 240s < 300s
+            // Expected — 100s < 120s
         } else {
-            XCTFail("Should be .pending at 4 minutes with default thresholds, got: \(decision1)")
+            XCTFail("Should be .pending at 100 s with default thresholds, got: \(decision1)")
         }
 
-        // 5 minutes of bad posture — should fire
-        let decision2 = evaluate(engine, state: .bad(since: 0), currentTime: 300)
+        // 2 minutes slouched — should fire
+        let decision2 = evaluate(engine, state: .bad(since: 0), currentTime: 120)
         if case .fire = decision2 {
-            // Expected — 300s >= 300s
+            // Expected — 120s >= 120s
         } else {
-            XCTFail("Should fire at exactly 5 minutes with default thresholds, got: \(decision2)")
+            XCTFail("Should fire at exactly 2 minutes with default thresholds, got: \(decision2)")
         }
     }
 
@@ -991,16 +994,26 @@ final class NudgeEngineTests: XCTestCase {
         _ = evaluate(engine, state: .bad(since: 0), currentTime: 300)
         engine.recordNudgeFired(at: 300)
 
+        // Slouched throughout, a frame every 10 s: slouched time is counted frame to frame
+        // since 2026-10-07, so a long jump between frames would read as a break.
+        for t in stride(from: 310.0, to: 840, by: 10) {
+            _ = evaluate(engine, state: .bad(since: 300), currentTime: t)
+        }
+
         // 9 minutes later (t=840) — cooldown still active (300 + 600 = 900)
-        let decision1 = evaluate(engine, state: .bad(since: 540), currentTime: 840)
+        let decision1 = evaluate(engine, state: .bad(since: 300), currentTime: 840)
         if case .suppressed(.cooldownActive) = decision1 {
             // Expected
         } else {
             XCTFail("Should still be in cooldown at 9 min after nudge, got: \(decision1)")
         }
 
+        for t in stride(from: 850.0, to: 901, by: 10) {
+            _ = evaluate(engine, state: .bad(since: 300), currentTime: t)
+        }
+
         // 10 minutes later (t=900+) — cooldown expired
-        let decision2 = evaluate(engine, state: .bad(since: 600), currentTime: 901)
+        let decision2 = evaluate(engine, state: .bad(since: 300), currentTime: 901)
         if case .fire = decision2 {
             // Expected — cooldown expired
         } else {

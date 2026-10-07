@@ -91,7 +91,7 @@ struct ThresholdsSettingsView: View {
                             .monospacedDigit()
                     }
                     Slider(value: $appModel.slouchDurationBeforeNudge, in: 60...600, step: 10)
-                    Text("Seconds of bad posture before a nudge fires")
+                    Text("Slouched seconds before a nudge, added up: brief sit-ups pause the count, 30 s sitting well resets it")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

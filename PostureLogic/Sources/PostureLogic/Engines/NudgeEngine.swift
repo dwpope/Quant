@@ -87,6 +87,7 @@ final class NudgeEngine: NudgeEngineProtocol {
             "cooldownRemaining": lastCooldownRemaining,
             "acknowledged": hasBeenAcknowledged,
             "lastDecision": lastDecisionDescription,
+            "slouchedTime": slouchedTime,
         ]
     }
 
@@ -142,6 +143,26 @@ final class NudgeEngine: NudgeEngineProtocol {
 
     /// Human-readable description of the last decision for debugging.
     private var lastDecisionDescription: String = "none"
+
+    // MARK: - Slouched time (2026-10-07)
+    //
+    // Dave worked for an hour and got no nudge: it took `slouchDurationBeforeNudge` of unbroken
+    // slouching, and the posture engine restarts its episode on one good frame while drifting or
+    // 5 s of good once bad. Reaching for the mouse was enough. So slouched time is added up here
+    // instead: frames while drifting or bad add to it, brief good moments pause it, and
+    // `slouchEpisodeEndsAfterGood` of good posture ends the episode.
+
+    /// How long sitting well ends a slouch episode. Shorter is a sit-up or a reach.
+    var slouchEpisodeEndsAfterGood: TimeInterval = 30
+
+    /// A gap between frames longer than this (the app paused) is a break, not slouching.
+    private let maxFrameGap: TimeInterval = 60
+
+    /// Slouched seconds in the current episode.
+    private var slouchedTime: TimeInterval = 0
+    /// Good seconds since the last slouched frame.
+    private var goodStreak: TimeInterval = 0
+    private var lastEvaluationTime: TimeInterval?
 
     // MARK: - Initialization
 
@@ -202,6 +223,11 @@ final class NudgeEngine: NudgeEngineProtocol {
         // This implements the "rolling hour" window — nudges from
         // 61 minutes ago no longer count toward the hourly limit.
         pruneOldNudges(currentTime: currentTime)
+
+        // Add up slouched time, before any early return so it keeps counting through a cooldown.
+        let slouchedNow = isSlouched(state)
+        countSlouchedTime(state: state, slouched: slouchedNow, trackingQuality: trackingQuality,
+                          currentTime: currentTime)
 
         // Update cached cooldown for debug overlay
         lastCooldownRemaining = cooldownRemaining(at: currentTime)
@@ -283,9 +309,9 @@ final class NudgeEngine: NudgeEngineProtocol {
         // STEP 4: Check if posture is actually bad
         // ──────────────────────────────────────────────
         //
-        // Only `.bad(since:)` state can trigger a slouch nudge. `.good`, `.drifting`,
-        // `.absent`, and `.calibrating` leave only the head turn, if any, counting down.
-        guard case .bad(let since) = state else {
+        // Only a slouch going on now can trigger a slouch nudge: `.drifting` or `.bad`.
+        // `.good`, `.absent` and `.calibrating` leave only the head turn, if any, counting down.
+        guard slouchedNow else {
             if let remaining = headTurnRemaining {
                 lastDecisionDescription = "pending (headTurned): \(String(format: "%.0f", remaining))s remaining"
                 return .pending(reason: .headTurned, timeRemaining: remaining)
@@ -299,11 +325,9 @@ final class NudgeEngine: NudgeEngineProtocol {
         // STEP 5: Check slouch duration
         // ──────────────────────────────────────────────
         //
-        // Calculate how long the user has been in sustained bad posture.
-        // The `since` timestamp comes from the PostureEngine — it's when
-        // the state first transitioned to `.bad` (which preserves the
-        // original `.drifting(since:)` timestamp).
-        let duration = currentTime - since
+        // How long the user has been slouched in this episode, added up across brief
+        // sit-ups (see "Slouched time" above).
+        let duration = slouchedTime
 
         // Determine the dominant violation from the current metrics.
         // Compare each metric against its threshold as a ratio — the
@@ -319,7 +343,7 @@ final class NudgeEngine: NudgeEngineProtocol {
             // 1. Deliver feedback (audio cue, watch haptic)
             // 2. Call `Pipeline.recordNudgeFired()` to start cooldown, on the frame clock
             let decision = NudgeDecision.fire(reason: reason)
-            lastDecisionDescription = "FIRE: \(reason.rawValue) (bad for \(String(format: "%.0f", duration))s)"
+            lastDecisionDescription = "FIRE: \(reason.rawValue) (slouched \(String(format: "%.0f", duration))s)"
             return decision
         }
 
@@ -352,6 +376,8 @@ final class NudgeEngine: NudgeEngineProtocol {
         lastNudgeTime = currentTime
         nudgeTimestamps.append(currentTime)
         hasBeenAcknowledged = false  // New nudge episode
+        slouchedTime = 0  // the next nudge needs its own slouched time
+        goodStreak = 0
     }
 
     /// Record that the user corrected their posture after a nudge.
@@ -378,6 +404,53 @@ final class NudgeEngine: NudgeEngineProtocol {
         hasBeenAcknowledged = false
         lastCooldownRemaining = 0
         lastDecisionDescription = "none"
+        slouchedTime = 0
+        goodStreak = 0
+        lastEvaluationTime = nil
+    }
+
+    // MARK: - Slouched time
+
+    private func isSlouched(_ state: PostureState) -> Bool {
+        switch state {
+        case .drifting, .bad: return true
+        case .good, .absent, .calibrating: return false
+        }
+    }
+
+    /// Adds this frame's time to the slouched total or the good streak. Nothing counts without a
+    /// clear view; a long gap between frames is a break. On the very first frame there's no
+    /// interval yet, so a slouch already under way counts from the posture engine's start.
+    private func countSlouchedTime(state: PostureState, slouched: Bool, trackingQuality: TrackingQuality,
+                                   currentTime: TimeInterval) {
+        defer { lastEvaluationTime = currentTime }
+        guard let last = lastEvaluationTime else {
+            switch state {
+            case .drifting(let since), .bad(let since): slouchedTime = max(0, currentTime - since)
+            default: slouchedTime = 0
+            }
+            return
+        }
+        let dt = currentTime - last
+        guard dt >= 0, dt <= maxFrameGap else {
+            slouchedTime = 0
+            goodStreak = 0
+            return
+        }
+        guard trackingQuality.allowsPostureJudgement else { return }
+        if slouched {
+            // Only the part of the interval since the slouch began: frames can be sparse.
+            let since: TimeInterval
+            switch state {
+            case .drifting(let s), .bad(let s): since = s
+            default: since = last
+            }
+            slouchedTime += currentTime - max(last, min(since, currentTime))
+            goodStreak = 0
+        } else {
+            goodStreak += dt
+            if goodStreak >= slouchEpisodeEndsAfterGood { slouchedTime = 0 }
+        }
     }
 
     // MARK: - Private Helpers

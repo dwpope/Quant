@@ -59,7 +59,7 @@ final class CoreModelCodableTests: XCTestCase {
 
     func testPostureThresholds_defaultValues() {
         let t = PostureThresholds()
-        XCTAssertEqual(t.slouchDurationBeforeNudge, 300)
+        XCTAssertEqual(t.slouchDurationBeforeNudge, 120)
         XCTAssertEqual(t.recoveryGracePeriod, 5)
         XCTAssertEqual(t.driftingToBadThreshold, 60)
         XCTAssertEqual(t.forwardCreepThreshold, 0.03)
@@ -83,7 +83,7 @@ final class CoreModelCodableTests: XCTestCase {
         XCTAssertEqual(decoded.twistThreshold, 20.0)
         XCTAssertEqual(decoded.maxNudgesPerHour, 5)
         // Unchanged fields keep defaults
-        XCTAssertEqual(decoded.slouchDurationBeforeNudge, 300)
+        XCTAssertEqual(decoded.slouchDurationBeforeNudge, 120)
     }
 
     // MARK: - DepthMode
@@ -455,7 +455,7 @@ final class CoreModelCodableTests: XCTestCase {
         let decoded = try decoder.decode(SessionMetadata.self, from: data)
         XCTAssertEqual(decoded.deviceModel, "iPhone15,2")
         XCTAssertTrue(decoded.depthAvailable)
-        XCTAssertEqual(decoded.thresholds.slouchDurationBeforeNudge, 300)
+        XCTAssertEqual(decoded.thresholds.slouchDurationBeforeNudge, 120)
     }
 
     func testRecordedSession_codableRoundTrip() throws {
