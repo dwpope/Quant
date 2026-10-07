@@ -26,6 +26,9 @@ struct DebugOverlayView: View {
     /// Asks before "start fresh" sets every Jev record so far aside.
     @State private var confirmingStartFresh = false
 
+    /// The posture log's export, written on tap like the Jev export.
+    @State private var postureLogURL: URL?
+
     /// Whether the detail rows are shown. Persisted per device as a convenience only: losing it
     /// just reopens the panel expanded, which is how it always used to look.
     @AppStorage(DiagnosticsPanel.expandedKey) private var isExpanded = true
@@ -281,6 +284,23 @@ struct DebugOverlayView: View {
             if let lastExport {
                 Text("saved \(lastExport.lastPathComponent)")
                     .foregroundStyle(.green)
+            }
+
+            // The posture log: one line per change in posture, nudge decision and task mode, so a
+            // real-use hour can be read back (2026-10-07). Written on tap, then shared.
+            HStack(spacing: 6) {
+                Button("prepare log (\(appModel.postureLogStore.count))") {
+                    postureLogURL = try? appModel.postureLogStore.exportJSONL()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+                if let postureLogURL {
+                    ShareLink(item: postureLogURL) {
+                        Text("share log")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                }
             }
 
             Divider()

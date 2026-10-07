@@ -500,6 +500,20 @@ class AppModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // The posture log: one line per change, checked once per frame (the nudge decision is
+        // published every frame, after the posture state and metrics it was decided from).
+        pipeline.$nudgeDecision
+            .sink { [weak self] decision in
+                guard let self else { return }
+                let events = self.postureLogRecorder.events(
+                    state: self.pipeline.postureState, decision: decision,
+                    taskMode: self.pipeline.taskMode, metrics: self.pipeline.latestMetrics,
+                    headYaw: self.pipeline.latestSample.map { $0.headYaw - (self.baseline?.headYaw ?? 0) },
+                    now: Date())
+                self.postureLogStore.append(events)
+            }
+            .store(in: &cancellables)
+
         // Detect acknowledgement: when posture transitions from .bad to .good
         // within the acknowledgement window after a nudge fired, tell the
         // NudgeEngine the user responded to the nudge.
@@ -860,6 +874,11 @@ class AppModel: ObservableObject {
 
     /// Step 3c's dataset.
     let jevComparisonStore = JevComparisonStore()
+
+    /// One line per change in posture state, nudge decision and task mode, for reading back a
+    /// real-use hour (2026-10-07). Local; it leaves the phone only through its export.
+    let postureLogStore = PostureLogStore()
+    private var postureLogRecorder = PostureLogRecorder()
 
     /// Minimum seconds between calls. Never per frame: 130ms p50 near the provider, 475ms p50
     /// and 715ms p99 from Europe via a gateway.
