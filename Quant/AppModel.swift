@@ -470,6 +470,22 @@ class AppModel: ObservableObject {
         pipeline.$thermalLevel
             .assign(to: &$thermalLevel)
 
+        // The posture log: one line per change, checked once per frame (the nudge decision is
+        // published every frame, after the posture state and metrics it was decided from).
+        // Subscribed before the nudge handler below, so a fire's line comes before its "watch"
+        // line.
+        pipeline.$nudgeDecision
+            .sink { [weak self] decision in
+                guard let self else { return }
+                let events = self.postureLogRecorder.events(
+                    state: self.pipeline.postureState, decision: decision,
+                    taskMode: self.pipeline.taskMode, metrics: self.pipeline.latestMetrics,
+                    headYaw: self.pipeline.latestSample.map { $0.headYaw - (self.baseline?.headYaw ?? 0) },
+                    now: Date())
+                self.postureLogStore.append(events)
+            }
+            .store(in: &cancellables)
+
         // React to nudge fire decisions — deliver feedback and record.
         //
         // When the NudgeEngine decides to fire, we:
@@ -487,8 +503,13 @@ class AppModel: ObservableObject {
                     // Play the audio feedback cue (subtle tone)
                     self.audioService.playNudgeCue()
 
-                    // Send haptic nudge to Apple Watch, with what to do about it
-                    self.watchService.sendNudge(body: reason.coachingMessage)
+                    // Send haptic nudge to Apple Watch, with what to do about it, and log how
+                    // it went: straight to the open Watch app, or queued for a closed one.
+                    let delivery = self.watchService.sendNudge(body: reason.coachingMessage) { [weak self] in
+                        self?.postureLogStore.append([
+                            PostureLogRecorder.watchEvent(.queuedAfterFailedSend, now: Date())])
+                    }
+                    self.postureLogStore.append([PostureLogRecorder.watchEvent(delivery, now: Date())])
 
                     // Record that the nudge was delivered so the NudgeEngine
                     // can start its cooldown timer and increment the hourly counter.
@@ -500,20 +521,6 @@ class AppModel: ObservableObject {
                     self.lastNudgeFiredTime = now
                     print("🔔 Nudge fired at \(now)")
                 }
-            }
-            .store(in: &cancellables)
-
-        // The posture log: one line per change, checked once per frame (the nudge decision is
-        // published every frame, after the posture state and metrics it was decided from).
-        pipeline.$nudgeDecision
-            .sink { [weak self] decision in
-                guard let self else { return }
-                let events = self.postureLogRecorder.events(
-                    state: self.pipeline.postureState, decision: decision,
-                    taskMode: self.pipeline.taskMode, metrics: self.pipeline.latestMetrics,
-                    headYaw: self.pipeline.latestSample.map { $0.headYaw - (self.baseline?.headYaw ?? 0) },
-                    now: Date())
-                self.postureLogStore.append(events)
             }
             .store(in: &cancellables)
 

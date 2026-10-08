@@ -113,32 +113,47 @@ final class WatchConnectivityService: NSObject {
     ///
     /// `body` is the line the Watch shows: the nudge reason's coaching line. Every nudge used to
     /// say "Straighten up!", the wrong advice for a head held turned (2026-10-04).
-    func sendNudge(hapticType: String = "failure", body: String? = nil) {
-        guard WCSession.isSupported() else { return }
-
-        let session = WCSession.default
+    ///
+    /// Returns how it left, for the posture log; `onQueuedAfterFailedSend` runs if a straight
+    /// send fails and the nudge is queued instead.
+    @discardableResult
+    func sendNudge(hapticType: String = "failure", body: String? = nil,
+                   onQueuedAfterFailedSend: (@MainActor () -> Void)? = nil) -> NudgeDelivery {
+        let supported = WCSession.isSupported()
+        let session: WCSession? = supported ? WCSession.default : nil
+        let route = Self.nudgeRoute(isSupported: supported, isPaired: session?.isPaired ?? false,
+                                    isReachable: session?.isReachable ?? false)
+        guard let session, route != .noWatch else {
+            logger.debug("No Watch paired — skipping nudge send")
+            return .noWatch
+        }
         let message = Self.nudgeMessage(hapticType: hapticType, body: body)
 
-        guard session.isPaired else {
-            logger.debug("No Watch paired — skipping nudge send")
-            return
-        }
-
-        if session.isReachable {
+        if route == .sent {
             session.sendMessage(message, replyHandler: nil) { [weak self] error in
+                // The app closed between the check and the send: queue it, so the Watch app is
+                // woken to show it, rather than lose it (2026-10-08).
+                session.transferUserInfo(message)
                 Task { @MainActor in
-                    self?.logger.error("sendMessage failed: \(error.localizedDescription)")
+                    self?.logger.error("sendMessage failed, nudge queued: \(error.localizedDescription)")
+                    onQueuedAfterFailedSend?()
                 }
             }
-            lastSentTime = Date()
-            totalSent += 1
-            logger.info("⌚ Nudge sent via sendMessage (total: \(self.totalSent))")
+            logger.info("⌚ Nudge sent via sendMessage (total: \(self.totalSent + 1))")
         } else {
             session.transferUserInfo(message)
-            lastSentTime = Date()
-            totalSent += 1
-            logger.info("⌚ Nudge queued via transferUserInfo (total: \(self.totalSent))")
+            logger.info("⌚ Nudge queued via transferUserInfo (total: \(self.totalSent + 1))")
         }
+        lastSentTime = Date()
+        totalSent += 1
+        return route
+    }
+
+    /// How a nudge leaves for the Watch: straight to its app when open, queued when closed (the
+    /// Watch app is woken to show it), or not at all without a paired Watch.
+    static func nudgeRoute(isSupported: Bool, isPaired: Bool, isReachable: Bool) -> NudgeDelivery {
+        guard isSupported, isPaired else { return .noWatch }
+        return isReachable ? .sent : .queued
     }
 
     /// How many minutes the Watch asked to silence nudges for, 0 to resume, or nil when the
@@ -301,4 +316,17 @@ extension WatchConnectivityService: WCSessionDelegate {
             }
         }
     }
+}
+
+/// How a nudge left for the Watch, for the posture log (2026-10-08). In Dave's second real-use
+/// hour the phone fired twice and he felt one buzz, and nothing recorded which way each went.
+enum NudgeDelivery: String {
+    /// Straight to the Watch app, which was open.
+    case sent
+    /// Queued: the Watch app was closed, and is woken to show it.
+    case queued
+    /// Sent straight, but the Watch app had closed, so it was queued.
+    case queuedAfterFailedSend
+    /// No paired Watch.
+    case noWatch
 }

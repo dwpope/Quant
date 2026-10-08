@@ -18,10 +18,17 @@ import os.log
 /// messages. When one arrives, plays a `.notification` haptic on the Watch.
 final class WatchSessionDelegate: NSObject, ObservableObject {
 
+    /// The one the app uses. Shared so that a background wake for a queued nudge, which may come
+    /// before any screen is shown, reaches the same activated session (2026-10-08).
+    static let shared = WatchSessionDelegate()
+
     // MARK: - Published State
 
     /// Timestamp of the last nudge received, for debug display.
     @Published var lastNudgeTime: Date?
+
+    /// The last nudge's line, shown under its time (2026-10-08: the screen only showed the time).
+    @Published var lastNudgeBody: String?
 
     /// When the phone says silenced nudges resume, or nil.
     @Published var nudgesSilencedUntil: Date?
@@ -80,8 +87,15 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
 
     // MARK: - Initialization
 
-    override init() {
+    /// Posted notifications not yet added, so a background wake isn't ended before they are.
+    private let notificationsBeingAdded = DispatchGroup()
+
+    /// `activatesSession: false` is for tests: no WCSession, no notification delegate.
+    init(activatesSession: Bool = true) {
         super.init()
+        guard activatesSession else { return }
+        // Before launch finishes, so a nudge arriving with the app open shows as a banner.
+        UNUserNotificationCenter.current().delegate = self
         guard WCSession.isSupported() else {
             logger.info("WCSession not supported on this device")
             return
@@ -260,29 +274,53 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
 
     // MARK: - Private Methods
 
-    private func handleNudge(_ hapticType: WKHapticType = .notification, body: String) {
-        WKInterfaceDevice.current().play(hapticType)
+    /// A nudge from the phone, on WatchConnectivity's queue. The notification is posted here,
+    /// not on the main queue: woken in the background for a queued nudge, the app can be
+    /// suspended again before the main queue runs.
+    private func receiveNudge(_ message: [String: Any]) {
+        let haptic = parseHapticType(from: message)
+        let body = NudgeMessage.body(from: message)
         scheduleNudgeNotification(body: body)
+        DispatchQueue.main.async {
+            self.showNudge(haptic, body: body)
+        }
+    }
+
+    /// Buzz (only felt while the app is open; closed, the notification buzzes) and show the line.
+    func showNudge(_ hapticType: WKHapticType = .notification, body: String) {
+        WKInterfaceDevice.current().play(hapticType)
         lastNudgeTime = Date()
+        lastNudgeBody = body
         logger.info("⌚ Haptic nudge delivered")
     }
 
     private func scheduleNudgeNotification(body: String) {
-        let content = UNMutableNotificationContent()
-        content.title = "Posture Check"
-        content.body = body
-        content.sound = .default
-
         let request = UNNotificationRequest(
-            identifier: "nudge-\(UUID().uuidString)",
-            content: content,
+            identifier: NudgeMessage.notificationIdentifier(),
+            content: NudgeMessage.notificationContent(body: body),
             trigger: nil  // Deliver immediately
         )
 
+        notificationsBeingAdded.enter()
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
                 self.logger.error("Failed to schedule notification: \(error.localizedDescription)")
             }
+            self.notificationsBeingAdded.leave()
+        }
+    }
+
+    /// Woken in the background because the phone queued something (a nudge, while the app was
+    /// closed): hold the wake until the session has handed it over and its notification is
+    /// posted. Gives up after 10 s, so the wake always ends.
+    func finishBackgroundDelivery() async {
+        let session = WCSession.default
+        for _ in 0..<100 {
+            if session.activationState == .activated && !session.hasContentPending { break }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            notificationsBeingAdded.notify(queue: .global()) { done.resume() }
         }
     }
 
@@ -361,11 +399,7 @@ extension WatchSessionDelegate: WCSessionDelegate {
         guard let type = message["type"] as? String else { return }
         switch type {
         case "nudge":
-            let haptic = parseHapticType(from: message)
-            let body = NudgeMessage.body(from: message)
-            DispatchQueue.main.async {
-                self.handleNudge(haptic, body: body)
-            }
+            receiveNudge(message)
         case "nudgeSilence":
             let until = NudgeSilence.until(from: message)
             DispatchQueue.main.async {
@@ -394,16 +428,27 @@ extension WatchSessionDelegate: WCSessionDelegate {
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         guard userInfo["type"] as? String == "nudge" else { return }
-        let haptic = parseHapticType(from: userInfo)
-        let body = NudgeMessage.body(from: userInfo)
-        DispatchQueue.main.async {
-            self.handleNudge(haptic, body: body)
-        }
+        receiveNudge(userInfo)
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         DispatchQueue.main.async {
             self.applySettings(from: applicationContext)
         }
+    }
+}
+
+// MARK: - UNUserNotificationCenterDelegate
+
+extension WatchSessionDelegate: UNUserNotificationCenterDelegate {
+
+    /// A notification arriving while the app is open. Without this, watchOS hides it, which is
+    /// why a nudge buzzed with no message (2026-10-08).
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler(NudgeMessage.presentationOptions(forIdentifier: notification.request.identifier))
     }
 }

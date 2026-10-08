@@ -39,6 +39,11 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                         Text(lastNudge, style: .time)
                             .font(.caption)
+                        if let line = sessionDelegate.lastNudgeBody {
+                            Text(line)
+                                .font(.caption)
+                                .multilineTextAlignment(.center)
+                        }
                     } else {
                         Text("No nudges received")
                             .font(.caption2)

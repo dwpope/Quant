@@ -11,10 +11,11 @@ import PostureLogic
 struct PostureLogEvent: Codable, Equatable {
     /// Seconds since 1970.
     var t: TimeInterval
-    /// "state", "nudge" or "task".
+    /// "state", "nudge", "task" or "watch".
     var kind: String
     /// "good", "drifting", "bad", "absent", "calibrating"; "none", "pending:<reason>",
-    /// "fire:<reason>", "suppressed:<reason>"; or a task mode.
+    /// "fire:<reason>", "suppressed:<reason>"; a task mode; or how a nudge left for the Watch
+    /// (`NudgeDelivery`).
     var value: String
     var forwardCreep: Float? = nil
     var headDrop: Float? = nil
@@ -60,6 +61,12 @@ struct PostureLogRecorder {
             out.append(PostureLogEvent(t: t, kind: "task", value: taskName))
         }
         return out
+    }
+
+    /// How a fired nudge left for the Watch (2026-10-08): the phone fired twice in Dave's second
+    /// hour and he felt one buzz, and nothing said which way each went.
+    static func watchEvent(_ delivery: NudgeDelivery, now: Date) -> PostureLogEvent {
+        PostureLogEvent(t: now.timeIntervalSince1970, kind: "watch", value: delivery.rawValue)
     }
 
     static func name(of state: PostureState) -> String {
