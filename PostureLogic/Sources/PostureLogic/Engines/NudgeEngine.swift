@@ -17,7 +17,9 @@ import Foundation
 /// PostureState.bad(since: X)
 ///     │
 ///     ▼
-/// ┌─ Is tracking quality good enough? ──── No ──→ .suppressed(.lowTrackingQuality)
+/// ┌─ Anything to nudge for? ────────────── No ──→ .none  (sitting well or away)
+/// │
+/// ├─ Is tracking quality good enough? ──── No ──→ .suppressed(.lowTrackingQuality)
 /// │
 /// ├─ Is user stretching? ──────────────── Yes ──→ .suppressed(.userStretching)
 /// │
@@ -33,8 +35,9 @@ import Foundation
 /// ### Cooldown System
 ///
 /// After a nudge fires, a cooldown period starts (default: 10 minutes).
-/// During this time, no new nudges will fire even if posture is still bad.
-/// This prevents the app from nagging the user repeatedly.
+/// A slouch left uncorrected isn't nudged again until it ends, so the app
+/// doesn't nag. Sitting well for 30 s (or leaving the desk) ends it early: the
+/// next slouch is nudged like any other (2026-10-08).
 ///
 /// ### Hourly Limit
 ///
@@ -164,6 +167,12 @@ final class NudgeEngine: NudgeEngineProtocol {
     private var goodStreak: TimeInterval = 0
     private var lastEvaluationTime: TimeInterval?
 
+    /// Whether a slouch episode has ended (sitting well for `slouchEpisodeEndsAfterGood`) since
+    /// the last nudge. The cooldown only holds back the slouch that was nudged, left uncorrected;
+    /// after sitting up, the next slouch is nudged like any other (2026-10-08). Dave saw the
+    /// cooldown hold back slouches that began after he'd sat up.
+    private var correctedSinceLastNudge = false
+
     // MARK: - Initialization
 
     /// Creates a new NudgeEngine with the given thresholds.
@@ -247,6 +256,14 @@ final class NudgeEngine: NudgeEngineProtocol {
             return .suppressed(reason: .silenced)
         }
 
+        // Nothing to nudge for — sitting well, or nobody in view, and no head held turned:
+        // say so. "Suppressed" means a nudge is being held back, and Dave saw it while sitting
+        // well through a cooldown (2026-10-08).
+        if !slouchedNow && headTurnedSince == nil {
+            lastDecisionDescription = "none (nothing to nudge for)"
+            return .none
+        }
+
         // 2a. Low tracking quality — camera can't see the user clearly.
         //     This is the same safety rule the PostureEngine uses:
         //     if we're not sure what we're seeing, don't act on it.
@@ -264,12 +281,11 @@ final class NudgeEngine: NudgeEngineProtocol {
             return decision
         }
 
-        // 2c. Cooldown active — a nudge was recently fired.
-        //     We don't want to nag the user. Wait at least `nudgeCooldown`
-        //     seconds (default: 10 minutes) between nudges.
-        if let lastTime = lastNudgeTime,
-           currentTime - lastTime <= thresholds.nudgeCooldown
-        {
+        // 2c. Cooldown active — a nudge was recently fired and the slouch it was for goes on.
+        //     We don't want to nag the user: an uncorrected slouch waits `nudgeCooldown`
+        //     (default: 10 minutes) to be nudged again. Sitting up ends that slouch and the
+        //     wait with it (2026-10-08).
+        if isCoolingDown(at: currentTime) {
             let decision = NudgeDecision.suppressed(reason: .cooldownActive)
             lastDecisionDescription = "suppressed: cooldownActive (\(String(format: "%.0f", lastCooldownRemaining))s remaining)"
             return decision
@@ -378,6 +394,7 @@ final class NudgeEngine: NudgeEngineProtocol {
         hasBeenAcknowledged = false  // New nudge episode
         slouchedTime = 0  // the next nudge needs its own slouched time
         goodStreak = 0
+        correctedSinceLastNudge = false
     }
 
     /// Record that the user corrected their posture after a nudge.
@@ -407,6 +424,7 @@ final class NudgeEngine: NudgeEngineProtocol {
         slouchedTime = 0
         goodStreak = 0
         lastEvaluationTime = nil
+        correctedSinceLastNudge = false
     }
 
     // MARK: - Slouched time
@@ -437,6 +455,11 @@ final class NudgeEngine: NudgeEngineProtocol {
             goodStreak = 0
             return
         }
+        // Away from the desk ends a slouch like sitting well does, though nothing can be seen.
+        if state == .absent {
+            endsTheSlouch(after: dt)
+            return
+        }
         guard trackingQuality.allowsPostureJudgement else { return }
         if slouched {
             // Only the part of the interval since the slouch began: frames can be sparse.
@@ -448,8 +471,17 @@ final class NudgeEngine: NudgeEngineProtocol {
             slouchedTime += currentTime - max(last, min(since, currentTime))
             goodStreak = 0
         } else {
-            goodStreak += dt
-            if goodStreak >= slouchEpisodeEndsAfterGood { slouchedTime = 0 }
+            endsTheSlouch(after: dt)
+        }
+    }
+
+    /// Good time, toward ending the slouch: `slouchEpisodeEndsAfterGood` of it does, and with it
+    /// the cooldown after a nudge.
+    private func endsTheSlouch(after dt: TimeInterval) {
+        goodStreak += dt
+        if goodStreak >= slouchEpisodeEndsAfterGood {
+            slouchedTime = 0
+            correctedSinceLastNudge = true
         }
     }
 
@@ -502,9 +534,14 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// - Parameter currentTime: The current timestamp.
     /// - Returns: Seconds remaining in cooldown (0 if none).
     private func cooldownRemaining(at currentTime: TimeInterval) -> TimeInterval {
-        guard let lastTime = lastNudgeTime else { return 0 }
-        let elapsed = currentTime - lastTime
-        return max(0, thresholds.nudgeCooldown - elapsed)
+        guard isCoolingDown(at: currentTime), let lastTime = lastNudgeTime else { return 0 }
+        return max(0, thresholds.nudgeCooldown - (currentTime - lastTime))
+    }
+
+    /// Within `nudgeCooldown` of the last nudge, and the slouch it was for hasn't ended.
+    private func isCoolingDown(at currentTime: TimeInterval) -> Bool {
+        guard let lastTime = lastNudgeTime, !correctedSinceLastNudge else { return false }
+        return currentTime - lastTime <= thresholds.nudgeCooldown
     }
 
     /// Remove nudge timestamps older than 1 hour from the rolling window.

@@ -966,24 +966,24 @@ final class NudgeEngineTests: XCTestCase {
     // (the real production values).
 
     /// Two minutes of slouched time since 2026-10-07 (it was five of unbroken slouching).
-    func test_defaultThresholds_requiresTwoMinutesOfSlouching() {
+    func test_defaultThresholds_requiresOneMinuteOfSlouching() {
         // Use default thresholds (no customization)
         let engine = NudgeEngine()
 
-        // 100 s slouched — not enough (need 120 s)
-        let decision1 = evaluate(engine, state: .bad(since: 0), currentTime: 100)
+        // 50 s slouched — not enough (need 60 s)
+        let decision1 = evaluate(engine, state: .bad(since: 0), currentTime: 50)
         if case .pending = decision1 {
-            // Expected — 100s < 120s
+            // Expected — 50s < 60s
         } else {
-            XCTFail("Should be .pending at 100 s with default thresholds, got: \(decision1)")
+            XCTFail("Should be .pending at 50 s with default thresholds, got: \(decision1)")
         }
 
-        // 2 minutes slouched — should fire
-        let decision2 = evaluate(engine, state: .bad(since: 0), currentTime: 120)
+        // 1 minute slouched — should fire
+        let decision2 = evaluate(engine, state: .bad(since: 0), currentTime: 60)
         if case .fire = decision2 {
-            // Expected — 120s >= 120s
+            // Expected — 60s >= 60s
         } else {
-            XCTFail("Should fire at exactly 2 minutes with default thresholds, got: \(decision2)")
+            XCTFail("Should fire at exactly 1 minute with default thresholds, got: \(decision2)")
         }
     }
 

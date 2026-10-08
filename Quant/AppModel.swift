@@ -271,7 +271,10 @@ class AppModel: ObservableObject {
         /// (negative, 0.015 default). A value stored under the old meaning (+0.15) would silence it.
         static let headDropThreshold = "com.quant.posture.headDrop.v2"
         static let shoulderRoundingThreshold = "com.quant.posture.shoulderRounding"
-        static let slouchDurationBeforeNudge = "com.quant.posture.slouchDuration"
+        /// `.v2` since 2026-10-08, when the default became a minute of slouching added up. A
+        /// value stored before then (300 s unbroken, or 120 from "Reset to defaults") would hold
+        /// the minute back.
+        static let slouchDurationBeforeNudge = "com.quant.posture.slouchDuration.v2"
         static let nudgeCooldown = "com.quant.posture.nudgeCooldown"
         /// `.v2` since 2026-10-05, when the default became 0 (no hourly cap): a 2 stored under
         /// the old key was only ever the old default, and would otherwise keep the cap on.

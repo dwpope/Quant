@@ -3,8 +3,9 @@ import Foundation
 public struct PostureThresholds: Codable {
     // MARK: - Detection Timing
     /// Slouched time, added up within an episode, before a nudge (2026-10-07: was 300 s of
-    /// unbroken slouching, which real work never produced; see `NudgeEngine`).
-    public var slouchDurationBeforeNudge: TimeInterval = 120
+    /// unbroken slouching, which real work never produced; see `NudgeEngine`). One minute since
+    /// 2026-10-08: two still felt too long in Dave's second real-use hour.
+    public var slouchDurationBeforeNudge: TimeInterval = 60
     public var recoveryGracePeriod: TimeInterval = 5
     public var driftingToBadThreshold: TimeInterval = 60
     

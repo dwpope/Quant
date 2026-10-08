@@ -86,7 +86,7 @@ final class ConfigAndDecisionModelTests: XCTestCase {
         let t = PostureThresholds()
 
         // Detection timing
-        XCTAssertEqual(t.slouchDurationBeforeNudge, 120)
+        XCTAssertEqual(t.slouchDurationBeforeNudge, 60)
         XCTAssertEqual(t.recoveryGracePeriod, 5)
         XCTAssertEqual(t.driftingToBadThreshold, 60)
 

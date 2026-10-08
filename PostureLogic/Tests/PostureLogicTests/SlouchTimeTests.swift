@@ -9,7 +9,12 @@ import XCTest
 /// sit-ups pause it, sitting well for 30 s ends the episode, and 2 minutes of it earns a nudge.
 final class SlouchTimeTests: XCTestCase {
 
-    private func engine() -> NudgeEngine { NudgeEngine() }   // the defaults under test
+    /// The 2-minute setting these were written for; the default is now 1 minute (2026-10-08).
+    private func engine() -> NudgeEngine {
+        var thresholds = PostureThresholds()
+        thresholds.slouchDurationBeforeNudge = 120
+        return NudgeEngine(thresholds: thresholds)
+    }
 
     /// Feeds one frame a second; returns the times a nudge fired (each recorded, as the app does).
     @discardableResult
@@ -26,10 +31,17 @@ final class SlouchTimeTests: XCTestCase {
         return last
     }
 
+    /// Two minutes still felt too long in the second real-use hour (2026-10-08): one minute.
     func test_theDefaults() {
         let t = PostureThresholds()
-        XCTAssertEqual(t.slouchDurationBeforeNudge, 120, "2 minutes, Dave's figure")
+        XCTAssertEqual(t.slouchDurationBeforeNudge, 60, "1 minute, after Dave's second hour")
         XCTAssertEqual(NudgeEngine().slouchEpisodeEndsAfterGood, 30)
+    }
+
+    func test_byDefault_aMinuteOfSlouching_earnsANudge() {
+        let e = NudgeEngine(); var fires: [TimeInterval] = []
+        run(e, from: 0, seconds: 70, slouched: true, fires: &fires)
+        XCTAssertEqual(fires.first ?? -1, 60, accuracy: 1.5)
     }
 
     func test_twoMinutesOfSlouching_earnsANudge() {
@@ -93,9 +105,10 @@ final class SlouchTimeTests: XCTestCase {
         XCTAssertGreaterThan(remaining, 100)
     }
 
-    /// After a nudge, the next one needs its own 2 minutes (and the cooldown).
+    /// After a nudge, the next one needs its own slouched time (and, uncorrected, the cooldown).
     func test_afterANudge_theCountStartsAgain() {
         var thresholds = PostureThresholds()
+        thresholds.slouchDurationBeforeNudge = 120
         thresholds.nudgeCooldown = 1
         let e = NudgeEngine(thresholds: thresholds); var fires: [TimeInterval] = []
         run(e, from: 0, seconds: 250, slouched: true, fires: &fires)
