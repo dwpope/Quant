@@ -427,6 +427,16 @@ final class PostureEngine: PostureEngineProtocol {
 
     // MARK: - Absence Handling
 
+    /// A frame with nobody in it: lost tracking, so after `absentThreshold` the state is
+    /// `.absent` (2026-10-08). Such frames have no metrics; until then they never reached the
+    /// engine, and walking away froze the state.
+    @discardableResult
+    func updateNobodyInView(at timestamp: TimeInterval) -> PostureState {
+        lastGoodUpdateTimestamp = nil
+        handleNonGoodQuality(quality: .lost, at: timestamp)
+        return currentState
+    }
+
     /// Freezes based on non-good quality, managing the lost-dwell timer.
     ///
     /// - `.degraded`: user is present but tracking is struggling. We freeze the

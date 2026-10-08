@@ -458,9 +458,51 @@ public class Pipeline {
                             )
                         }
                     }
+                } else {
+                    self.nobodyInView(at: frame.timestamp)
                 }
             }
         }
+    }
+
+    /// A frame with nobody in it: Vision found no person (2026-10-08).
+    ///
+    /// Until then such frames never reached the posture engine, only a pose with too few joints
+    /// counted as lost, so walking away froze the panel on its last words. In Dave's second
+    /// real-use hour it said "suppressed" from when he left his desk until he stopped. Now they
+    /// count as lost tracking: after `absentThreshold` the state is `.absent`, and there's
+    /// nothing to nudge for.
+    private func nobodyInView(at timestamp: TimeInterval) {
+        let previousPostureState = postureState
+        let newPostureState = postureEngine.updateNobodyInView(at: timestamp)
+        postureState = newPostureState
+
+        // Track absence segments (internal telemetry).
+        if newPostureState == .absent && previousPostureState != .absent {
+            absenceSegments.append((start: timestamp, end: nil))
+        }
+
+        // No head to be turned: the head-turn timer winds down through its grace period.
+        let turnedSince: TimeInterval?
+        if baseline != nil {
+            turnedSince = headTurnTracker.update(headYaw: 0, forwardCreep: 0, trackingQuality: .lost,
+                                                 timestamp: timestamp)
+        } else {
+            turnedSince = nil
+        }
+        headTurnedSince = turnedSince
+
+        lastNudgeEvaluationTime = timestamp
+        nudgeDecision = nudgeEngine.evaluate(
+            state: newPostureState,
+            trackingQuality: .lost,
+            movementLevel: 0,
+            taskMode: taskMode,
+            currentTime: timestamp,
+            metrics: nil,
+            headTurnedSince: turnedSince,
+            silenced: nudgesSilenced
+        )
     }
 
     /// The whole chair turned: head and shoulders together. Only once calibrated, like the head
