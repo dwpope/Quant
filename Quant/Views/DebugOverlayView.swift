@@ -284,6 +284,13 @@ struct DebugOverlayView: View {
             if let lastExport {
                 Text("saved \(lastExport.lastPathComponent)")
                     .foregroundStyle(.green)
+                // The recording was written when it stopped, so the link only shares that file.
+                // Until 2026-10-10 there was no way to get it off the phone short of Xcode.
+                ShareLink(item: lastExport) {
+                    Text("share recording")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
             }
 
             // The posture log: one line per change in posture, nudge decision and task mode, so a
