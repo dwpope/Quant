@@ -277,12 +277,33 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     /// A nudge from the phone, on WatchConnectivity's queue. The notification is posted here,
     /// not on the main queue: woken in the background for a queued nudge, the app can be
     /// suspended again before the main queue runs.
-    private func receiveNudge(_ message: [String: Any]) {
+    private func receiveNudge(_ message: [String: Any], via: String) {
+        let arrivedAt = Date()
         let haptic = parseHapticType(from: message)
         let body = NudgeMessage.body(from: message)
         scheduleNudgeNotification(body: body)
+        if let sentAt = NudgeMessage.sentAt(from: message) {
+            reportArrival(NudgeMessage.arrivalReport(
+                sentAt: sentAt, arrivedAt: arrivedAt, via: via,
+                wristSession: WristNudgeSession.shared.isOn))
+        }
         DispatchQueue.main.async {
             self.showNudge(haptic, body: body)
+        }
+    }
+
+    /// Tells the phone when a nudge arrived, for its posture log: straight away if it can take a
+    /// message, queued if not.
+    private func reportArrival(_ report: [String: Any]) {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        if session.isReachable {
+            session.sendMessage(report, replyHandler: nil) { _ in
+                session.transferUserInfo(report)
+            }
+        } else {
+            session.transferUserInfo(report)
         }
     }
 
@@ -399,7 +420,7 @@ extension WatchSessionDelegate: WCSessionDelegate {
         guard let type = message["type"] as? String else { return }
         switch type {
         case "nudge":
-            receiveNudge(message)
+            receiveNudge(message, via: "message")
         case "nudgeSilence":
             let until = NudgeSilence.until(from: message)
             DispatchQueue.main.async {
@@ -428,7 +449,7 @@ extension WatchSessionDelegate: WCSessionDelegate {
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         guard userInfo["type"] as? String == "nudge" else { return }
-        receiveNudge(userInfo)
+        receiveNudge(userInfo, via: "queued")
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {

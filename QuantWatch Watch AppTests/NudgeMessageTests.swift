@@ -51,3 +51,26 @@ struct NudgeNotificationTests {
         #expect(delegate.lastNudgeTime != nil)
     }
 }
+
+/// The Watch tells the phone when each nudge arrived, for the posture log (2026-10-10): session 3's
+/// nudges arrived late and nothing said how late. The dictionaries are the golden copies the
+/// phone's `NudgeArrivalTests` assert.
+struct NudgeArrivalReportTests {
+
+    @Test func readsWhenThePhoneSentIt() {
+        #expect(NudgeMessage.sentAt(from: ["type": "nudge", "sentAt": 1_791_640_000.0])
+                == Date(timeIntervalSince1970: 1_791_640_000))
+        #expect(NudgeMessage.sentAt(from: ["type": "nudge"]) == nil, "an older phone build")
+    }
+
+    @Test func reportsWhenItArrived_andHow() {
+        let report = NudgeMessage.arrivalReport(
+            sentAt: Date(timeIntervalSince1970: 1_791_640_000),
+            arrivedAt: Date(timeIntervalSince1970: 1_791_640_002.5),
+            via: "message", wristSession: true)
+        #expect(report as NSDictionary == [
+            "type": "nudgeArrived", "sentAt": 1_791_640_000.0, "arrivedAt": 1_791_640_002.5,
+            "via": "message", "wristSession": true,
+        ] as NSDictionary)
+    }
+}

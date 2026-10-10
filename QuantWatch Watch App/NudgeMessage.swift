@@ -47,3 +47,22 @@ extension NudgeMessage {
         identifier.hasPrefix(identifierPrefix) ? [.banner, .list] : []
     }
 }
+
+// MARK: - The arrival report (2026-10-10)
+//
+// Session 3's nudges arrived late and nothing said how late. The phone stamps each nudge with when
+// it was sent; the Watch reports when it arrived, how, and whether the app was being kept running.
+
+extension NudgeMessage {
+    /// When the phone sent it, or nil from a phone build that doesn't say.
+    static func sentAt(from message: [String: Any]) -> Date? {
+        (message["sentAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
+    }
+
+    /// `via` is "message" (straight to the running app) or "queued".
+    static func arrivalReport(sentAt: Date, arrivedAt: Date, via: String,
+                              wristSession: Bool) -> [String: Any] {
+        ["type": "nudgeArrived", "sentAt": sentAt.timeIntervalSince1970,
+         "arrivedAt": arrivedAt.timeIntervalSince1970, "via": via, "wristSession": wristSession]
+    }
+}

@@ -75,6 +75,16 @@
 		C1A2B3002F4A000000000001 /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A7C3E1F0B2D4C6E8A0B1C2D3 /* Exceptions for "QuantWatch Watch App" folder in "QuantWatch Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B425EA112F3FB05D007AA86A /* QuantWatch Watch App */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B0329A822EFF739800DA5BDB /* Quant */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -93,6 +103,9 @@
 		};
 		B425EA132F3FB05D007AA86A /* QuantWatch Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A7C3E1F0B2D4C6E8A0B1C2D3 /* Exceptions for "QuantWatch Watch App" folder in "QuantWatch Watch App" target */,
+			);
 			path = "QuantWatch Watch App";
 			sourceTree = "<group>";
 		};
@@ -805,6 +818,7 @@
 				DEVELOPMENT_TEAM = FHC8TY7TG6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "QuantWatch Watch App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Aware Watch";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -836,6 +850,7 @@
 				DEVELOPMENT_TEAM = FHC8TY7TG6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "QuantWatch Watch App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Aware Watch";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";

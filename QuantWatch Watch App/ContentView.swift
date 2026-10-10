@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var sessionDelegate: WatchSessionDelegate
+    @ObservedObject var wristSession = WristNudgeSession.shared
 
     var body: some View {
         NavigationStack {
@@ -30,6 +31,19 @@ struct ContentView: View {
                             .frame(width: 8, height: 8)
                         Text(sessionDelegate.isConnected ? "Connected" : "Disconnected")
                             .font(.caption)
+                    }
+
+                    // Whether nudges arrive on time: the app kept running an hour at a time.
+                    Text(WristNudgeSession.statusLine(for: wristSession.state))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    switch wristSession.state {
+                    case .off, .unavailable:
+                        Button("Keep nudges on time") { wristSession.appBecameActive() }
+                            .font(.caption)
+                    case .starting, .on:
+                        EmptyView()
                     }
 
                     // Last nudge received

@@ -62,6 +62,9 @@ final class WatchConnectivityService: NSObject {
     /// Fires when the Watch asks to silence nudges, with the minutes, 0 to resume.
     let silenceRequested = PassthroughSubject<Int, Never>()
 
+    /// Fires when the Watch reports a nudge arrived, for the posture log.
+    let nudgeArrived = PassthroughSubject<NudgeArrival, Never>()
+
     /// Fires with the new value whenever the Watch app becomes reachable or stops being so.
     let reachabilityChanged = PassthroughSubject<Bool, Never>()
 
@@ -127,7 +130,7 @@ final class WatchConnectivityService: NSObject {
             logger.debug("No Watch paired — skipping nudge send")
             return .noWatch
         }
-        let message = Self.nudgeMessage(hapticType: hapticType, body: body)
+        let message = Self.nudgeMessage(hapticType: hapticType, body: body, sentAt: Date())
 
         if route == .sent {
             session.sendMessage(message, replyHandler: nil) { [weak self] error in
@@ -184,10 +187,24 @@ final class WatchConnectivityService: NSObject {
     }
 
     /// The nudge message, `body` only when there is one. The Watch's `NudgeMessage` reads it.
-    static func nudgeMessage(hapticType: String, body: String?) -> [String: Any] {
+    /// `sentAt` lets the Watch report how late it arrived (2026-10-10).
+    static func nudgeMessage(hapticType: String, body: String?, sentAt: Date? = nil) -> [String: Any] {
         var message: [String: Any] = ["type": "nudge", "haptic": hapticType]
         if let body, !body.isEmpty { message["body"] = body }
+        if let sentAt { message["sentAt"] = sentAt.timeIntervalSince1970 }
         return message
+    }
+
+    /// The Watch's report of when a nudge arrived (its `NudgeMessage.arrivalReport`), or nil.
+    nonisolated static func nudgeArrival(from message: [String: Any]) -> NudgeArrival? {
+        guard message["type"] as? String == "nudgeArrived",
+              let sentAt = (message["sentAt"] as? NSNumber)?.doubleValue,
+              let arrivedAt = (message["arrivedAt"] as? NSNumber)?.doubleValue,
+              let via = message["via"] as? String
+        else { return nil }
+        return NudgeArrival(sentAt: Date(timeIntervalSince1970: sentAt),
+                            arrivedAt: Date(timeIntervalSince1970: arrivedAt), via: via,
+                            wristSession: message["wristSession"] as? Bool ?? false)
     }
 
     /// Send the Jev remote's status to the Watch.
@@ -292,12 +309,23 @@ extension WatchConnectivityService: WCSessionDelegate {
         }
     }
 
+    /// Queued from the Watch: its report of a nudge's arrival, when the phone couldn't take a
+    /// message.
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        guard let arrival = Self.nudgeArrival(from: userInfo) else { return }
+        Task { @MainActor in
+            nudgeArrived.send(arrival)
+        }
+    }
+
     // MARK: - Message Handling
 
     private func handleReceivedMessage(_ message: [String: Any]) {
         guard let type = message["type"] as? String else { return }
 
         switch type {
+        case "nudgeArrived":
+            if let arrival = Self.nudgeArrival(from: message) { nudgeArrived.send(arrival) }
         case "calibrate":
             logger.info("⌚ Calibration request received from Watch")
             calibrationRequested.send()
@@ -329,4 +357,14 @@ enum NudgeDelivery: String {
     case queuedAfterFailedSend
     /// No paired Watch.
     case noWatch
+}
+
+/// When a nudge reached the Watch, as the Watch reported it (2026-10-10).
+struct NudgeArrival: Equatable {
+    let sentAt: Date
+    let arrivedAt: Date
+    /// "message" (straight to the running app) or "queued".
+    let via: String
+    /// Whether the Watch app was being kept running (`WristNudgeSession`).
+    let wristSession: Bool
 }

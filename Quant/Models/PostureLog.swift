@@ -24,6 +24,11 @@ struct PostureLogEvent: Codable, Equatable {
     var headYaw: Float? = nil
     /// Seconds left on a pending nudge when it started counting.
     var remaining: TimeInterval? = nil
+    /// For a nudge's arrival on the Watch: seconds after it was sent, how it came ("message" or
+    /// "queued"), and whether the Watch app was being kept running.
+    var delay: TimeInterval? = nil
+    var via: String? = nil
+    var wristSession: Bool? = nil
 }
 
 /// Decides what's worth a line: only changes. The countdown ticks every frame and is not one.
@@ -67,6 +72,14 @@ struct PostureLogRecorder {
     /// hour and he felt one buzz, and nothing said which way each went.
     static func watchEvent(_ delivery: NudgeDelivery, now: Date) -> PostureLogEvent {
         PostureLogEvent(t: now.timeIntervalSince1970, kind: "watch", value: delivery.rawValue)
+    }
+
+    /// When a nudge reached the Watch, as the Watch reported it (2026-10-10): session 3's nudges
+    /// arrived late, and nothing said how late.
+    static func arrivalEvent(_ arrival: NudgeArrival) -> PostureLogEvent {
+        PostureLogEvent(t: arrival.arrivedAt.timeIntervalSince1970, kind: "watch", value: "arrived",
+                        delay: arrival.arrivedAt.timeIntervalSince(arrival.sentAt), via: arrival.via,
+                        wristSession: arrival.wristSession)
     }
 
     static func name(of state: PostureState) -> String {

@@ -659,6 +659,13 @@ class AppModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // When each nudge reached the Watch, as the Watch reports it (2026-10-10).
+        watchService.nudgeArrived
+            .sink { [weak self] arrival in
+                self?.postureLogStore.append([PostureLogRecorder.arrivalEvent(arrival)])
+            }
+            .store(in: &cancellables)
+
         // Silencing nudges from the Watch, and telling it when a silence ends.
         watchService.silenceRequested
             .sink { [weak self] minutes in self?.handleSilenceRequest(minutes: minutes) }
