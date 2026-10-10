@@ -62,7 +62,7 @@ final class CoreModelCodableTests: XCTestCase {
         XCTAssertEqual(t.slouchDurationBeforeNudge, 60)
         XCTAssertEqual(t.recoveryGracePeriod, 5)
         XCTAssertEqual(t.driftingToBadThreshold, 60)
-        XCTAssertEqual(t.forwardCreepThreshold, 0.03)
+        XCTAssertEqual(t.forwardCreepThreshold, 0.06)
         XCTAssertEqual(t.twistThreshold, 15.0)
         XCTAssertEqual(t.sideLeanThreshold, 0.08)
         XCTAssertEqual(t.headDropThreshold, 0.015, "a head drop, negative on the device, since 2026-10-05")   // device-derived 2026-07-03: mild 0.10 / bad 0.22, flicker 0.001

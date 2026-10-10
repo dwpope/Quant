@@ -134,7 +134,7 @@ final class AppModelTests: XCTestCase {
         model.stopMonitoring()
         model.watchService.settingsReceived.send([
             "type": "settings",
-            "com.quant.posture.forwardCreep": newForwardCreepThreshold
+            "com.quant.posture.forwardCreep.v2": newForwardCreepThreshold
         ])
 
         XCTAssertEqual(model.forwardCreepThreshold, newForwardCreepThreshold, accuracy: 0.0001)

@@ -10,7 +10,12 @@ public struct PostureThresholds: Codable {
     public var driftingToBadThreshold: TimeInterval = 60
     
     // MARK: - Posture Metrics
-    public var forwardCreepThreshold: Float = 0.03
+    /// Forward creep, as a fraction of the calibrated shoulder width, past which leaning in counts.
+    /// 6% since 2026-10-10 (was 3%): at the keyboard Dave sits well at +2% to +5% even freshly
+    /// calibrated, so 3% (3.9% while reading) flickered and added up to nudges for sitting well.
+    /// In the posed captures every slouch between 3% and 6% also had a head drop or a sink, which
+    /// count on their own, and slouches by forward creep alone began at +9.2%.
+    public var forwardCreepThreshold: Float = 0.06
     public var twistThreshold: Float = 15.0
     public var sideLeanThreshold: Float = 0.08
     /// Head-drop trip point, in shoulder widths: posture is off when `headDrop` is at or below

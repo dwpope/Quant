@@ -76,7 +76,7 @@ final class WatchConnectivityService: NSObject {
         "com.quant.cal.maxAngleVariance",
         "com.quant.cal.samplingDuration",
         "com.quant.cal.countdownDuration",
-        "com.quant.posture.forwardCreep",
+        "com.quant.posture.forwardCreep.v2",
         "com.quant.posture.twist",
         "com.quant.posture.sideLean",
         "com.quant.posture.driftingToBad"

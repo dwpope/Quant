@@ -263,7 +263,10 @@ class AppModel: ObservableObject {
         static let maxAngleVariance = "com.quant.cal.maxAngleVariance"
         static let samplingDuration = "com.quant.cal.samplingDuration"
         static let countdownDuration = "com.quant.cal.countdownDuration"
-        static let forwardCreepThreshold = "com.quant.posture.forwardCreep"
+        /// `.v2` since 2026-10-10, when the line moved from 3% to 6%. Also the key the Watch
+        /// syncs it under, so a 0.03 stored on either, or sent by an older Watch build, can't
+        /// hold the new line back.
+        static let forwardCreepThreshold = "com.quant.posture.forwardCreep.v2"
         static let twistThreshold = "com.quant.posture.twist"
         static let sideLeanThreshold = "com.quant.posture.sideLean"
         static let driftingToBadThreshold = "com.quant.posture.driftingToBad"

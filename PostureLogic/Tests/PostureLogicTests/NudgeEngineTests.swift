@@ -870,10 +870,10 @@ final class NudgeEngineTests: XCTestCase {
         let engine = makeEngine(slouchDuration: 10)
 
         // Both at exactly the same ratio above threshold
-        // forwardCreep = 0.06 / 0.03 = 2.0
+        // forwardCreep = 0.12 / 0.06 = 2.0 (the line is 6% since 2026-10-10)
         // head drop    = 0.03 / 0.015 = 2.0 (reads -0.03 on the device)
         // Equal → falls back to .sustainedSlouch
-        let metrics = makeMetrics(forwardCreep: 0.06, headDrop: -0.03)
+        let metrics = makeMetrics(forwardCreep: 0.12, headDrop: -0.03)
 
         let decision = evaluate(
             engine, state: .bad(since: 0), currentTime: 15, metrics: metrics

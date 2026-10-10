@@ -13,7 +13,7 @@ import simd
 final class JevCaptureContextTests: XCTestCase {
 
     private let baselineKey = "com.quant.savedBaseline"
-    private let forwardCreepKey = "com.quant.posture.forwardCreep"
+    private let forwardCreepKey = "com.quant.posture.forwardCreep.v2"
 
     private var comparisonsFile: URL {
         let c = Calendar.current.dateComponents([.year, .month, .day], from: Date())
