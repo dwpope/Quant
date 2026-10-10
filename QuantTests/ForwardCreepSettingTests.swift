@@ -9,13 +9,21 @@ import PostureLogic
 @MainActor
 final class ForwardCreepSettingTests: XCTestCase {
 
+    /// Other tests save the setting (the Watch-settings test leaves 0.19), and the suite's order
+    /// isn't fixed, so start and end with neither key stored.
+    private func clean() {
+        UserDefaults.standard.removeObject(forKey: "com.quant.posture.forwardCreep")
+        UserDefaults.standard.removeObject(forKey: "com.quant.posture.forwardCreep.v2")
+    }
+    override func setUp() async throws { clean() }
+    override func tearDown() async throws { clean() }
+
     func test_theDefault_isSixPercent() {
         XCTAssertEqual(AppModel.defaultForwardCreepThreshold, 0.06)
     }
 
     func test_aValueStoredBeforeTheMove_isIgnored() {
         UserDefaults.standard.set(Float(0.03), forKey: "com.quant.posture.forwardCreep")
-        defer { UserDefaults.standard.removeObject(forKey: "com.quant.posture.forwardCreep") }
         XCTAssertEqual(AppModel().forwardCreepThreshold, 0.06)
     }
 

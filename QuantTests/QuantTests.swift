@@ -130,6 +130,8 @@ final class AppModelTests: XCTestCase {
     func test_stopMonitoring_preservesWatchSettingsSubscription() {
         let model = AppModel()
         let newForwardCreepThreshold: Float = 0.19
+        // Applying it saves it; don't leave it for the tests that read the default.
+        defer { UserDefaults.standard.removeObject(forKey: "com.quant.posture.forwardCreep.v2") }
 
         model.stopMonitoring()
         model.watchService.settingsReceived.send([
