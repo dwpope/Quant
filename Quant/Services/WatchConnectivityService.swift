@@ -223,6 +223,20 @@ final class WatchConnectivityService: NSObject {
         }
     }
 
+    /// Send your posture to the Watch while its app is open (2026-10-11). Like the Jev status, no
+    /// queued fallback: it's only worth anything while someone is looking, and it's resent every
+    /// 15 s.
+    func sendPostureGlance(_ glance: PostureGlance) {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isReachable else { return }
+        session.sendMessage(glance.message, replyHandler: nil) { [weak self] error in
+            Task { @MainActor in
+                self?.logger.error("Posture send failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// Push calibration settings to the Watch via applicationContext.
     func sendSettings(_ settings: [String: Any]) {
         guard WCSession.isSupported() else { return }

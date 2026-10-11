@@ -36,6 +36,11 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     /// Whether the WCSession is currently activated and reachable.
     @Published var isConnected: Bool = false
 
+    /// Your posture as the phone last reported it, and when that came (2026-10-11). See
+    /// `PostureGlance`.
+    @Published var postureGlance: PostureGlance?
+    @Published var postureGlanceReceivedAt: Date?
+
     // MARK: - Jev capture remote
 
     /// The phone's latest report. Nil until the phone answers.
@@ -421,6 +426,16 @@ extension WatchSessionDelegate: WCSessionDelegate {
         switch type {
         case "nudge":
             receiveNudge(message, via: "message")
+        case "posture":
+            guard let glance = PostureGlance(message: message) else {
+                logger.error("Malformed posture from iPhone")
+                return
+            }
+            let receivedAt = Date()
+            DispatchQueue.main.async {
+                self.postureGlance = glance
+                self.postureGlanceReceivedAt = receivedAt
+            }
         case "nudgeSilence":
             let until = NudgeSilence.until(from: message)
             DispatchQueue.main.async {

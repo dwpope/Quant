@@ -688,15 +688,50 @@ class AppModel: ObservableObject {
 
         watchService.reachabilityChanged
             .filter { $0 }
-            .sink { [weak self] _ in self?.pushJevStatusToWatch(force: true) }
+            .sink { [weak self] _ in
+                self?.pushJevStatusToWatch(force: true)
+                self?.pushPostureGlanceToWatch(force: true)
+            }
             .store(in: &cancellables)
 
         // Tracking and the thresholds' state change on their own while someone is getting into
         // position, so the status is re-checked once a second and sent only when it changed.
+        // Your posture on the Watch the same way, and resent every 15 s while it holds.
         Timer.publish(every: 1, on: .main, in: .common)
             .autoconnect()
-            .sink { [weak self] _ in self?.pushJevStatusToWatch(force: false) }
+            .sink { [weak self] _ in
+                self?.pushJevStatusToWatch(force: false)
+                self?.pushPostureGlanceToWatch(force: false)
+            }
             .store(in: &cancellables)
+    }
+
+    // MARK: - Posture on the Watch
+
+    /// The last posture sent to the Watch, and when.
+    private var lastPostureGlanceSent: (glance: PostureGlance, at: Date)?
+
+    /// Your posture as the Watch shows it: slouching or not, and since when (2026-10-11). Pure.
+    func postureGlance(wallNow: Date = Date()) -> PostureGlance {
+        let frameNow = latestMetrics?.timestamp
+        return PostureGlance(
+            state: postureState,
+            since: DriftClock.wallClockStart(postureState, frameNow: frameNow, wallNow: wallNow),
+            headTurnedSince: pipeline.headTurnedSince.flatMap {
+                DriftClock.wallClock(of: $0, frameNow: frameNow, wallNow: wallNow)
+            })
+    }
+
+    /// Sends your posture if the Watch app is open and it changed or is due again, or always if
+    /// forced.
+    private func pushPostureGlanceToWatch(force: Bool, now: Date = Date()) {
+        guard watchService.isReachable else { return }
+        let glance = postureGlance(wallNow: now)
+        guard force || PostureGlance.isDue(glance, lastSent: lastPostureGlanceSent?.glance,
+                                           sentAt: lastPostureGlanceSent?.at, now: now)
+        else { return }
+        lastPostureGlanceSent = (glance, now)
+        watchService.sendPostureGlance(glance)
     }
 
     // MARK: - Public Methods

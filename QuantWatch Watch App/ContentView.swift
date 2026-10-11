@@ -15,12 +15,14 @@ struct ContentView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 12) {
-                    Image(systemName: "figure.stand")
-                        .imageScale(.large)
-                        .foregroundStyle(.tint)
-
-                    Text("Quant")
-                        .font(.headline)
+                    // Slouching or not. Re-read every few seconds, so a phone that has gone
+                    // quiet stops showing its last word as now.
+                    TimelineView(.periodic(from: .now, by: 5)) { context in
+                        PostureGlanceView(look: PostureLook(
+                            sessionDelegate.postureGlance,
+                            receivedAt: sessionDelegate.postureGlanceReceivedAt,
+                            now: context.date))
+                    }
 
                     Divider()
 
@@ -121,6 +123,59 @@ extension ContentView {
                 }
                 .disabled(!sessionDelegate.isPhoneReachable)
             }
+        }
+    }
+}
+
+/// Your posture, as the phone last reported it (2026-10-11).
+struct PostureGlanceView: View {
+    let look: PostureLook
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.title2)
+                .foregroundStyle(color)
+            Text(look.headline)
+                .font(.headline)
+                .foregroundStyle(color)
+            if let since {
+                // Counts up on its own.
+                Text("for \(Text(since, style: .timer))")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var since: Date? {
+        switch look {
+        case .slouching(let since, _): return since
+        case .headTurned(let since): return since
+        default: return nil
+        }
+    }
+
+    private var symbol: String {
+        switch look {
+        case .sittingWell: return "checkmark.circle.fill"
+        case .slouching: return "exclamationmark.circle.fill"
+        case .headTurned: return "arrow.left.arrow.right.circle.fill"
+        case .notInView: return "person.slash"
+        case .calibrating: return "scope"
+        case .waitingForPhone: return "iphone.slash"
+        }
+    }
+
+    /// The phone's colours: green, yellow while slouching, red once it's long enough to nudge.
+    private var color: Color {
+        switch look {
+        case .sittingWell: return .green
+        case .slouching(_, let sustained): return sustained ? .red : .yellow
+        case .headTurned: return .yellow
+        case .notInView, .calibrating, .waitingForPhone: return .secondary
         }
     }
 }
