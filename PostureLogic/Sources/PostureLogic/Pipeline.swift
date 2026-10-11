@@ -330,6 +330,7 @@ public class Pipeline {
             // Apply temporal smoothing to prevent flickering
             // Update on main thread to ensure thread-safe access to recentQualities
             await MainActor.run {
+                guard self.takesFrame(at: frame.timestamp) else { return }
                 // Add to sliding window
                 self.recentQualities.append(rawQuality)
                 if self.recentQualities.count > self.qualityWindowSize {
@@ -465,6 +466,23 @@ public class Pipeline {
         }
     }
 
+    /// Whether to take a frame: not one that finished after a newer one (2026-10-10).
+    ///
+    /// Pose detection runs concurrently, so now and then a frame's result lands after a newer
+    /// frame's: Dave's session-4 recording has four in seven minutes, each 0.1 s back. Taken, it
+    /// stepped every timer backwards; the nudge engine read that as a break and wiped the
+    /// slouched time and the good streak. A step back of `newTimelineAfter` or more is a new
+    /// timeline (a replay after live frames), not a late frame, so it's taken.
+    private func takesFrame(at timestamp: TimeInterval) -> Bool {
+        let isLate = timestamp <= lastTakenFrameTime
+            && lastTakenFrameTime - timestamp < Self.newTimelineAfter
+        if !isLate { lastTakenFrameTime = timestamp }
+        return !isLate
+    }
+
+    private var lastTakenFrameTime: TimeInterval = -.infinity
+    private static let newTimelineAfter: TimeInterval = 5
+
     /// A frame with nobody in it: Vision found no person (2026-10-08).
     ///
     /// Until then such frames never reached the posture engine, only a pose with too few joints
@@ -556,6 +574,7 @@ public class Pipeline {
 
         Task { @MainActor [weak self] in
             guard let self = self else { return }
+            guard self.takesFrame(at: timestamp) else { return }
             self.fps = currentFPS
             self.trackingQuality = sample.trackingQuality
             self.currentTrackingQuality = sample.trackingQuality

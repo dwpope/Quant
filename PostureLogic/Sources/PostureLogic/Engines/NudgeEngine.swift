@@ -441,8 +441,8 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// interval yet, so a slouch already under way counts from the posture engine's start.
     private func countSlouchedTime(state: PostureState, slouched: Bool, trackingQuality: TrackingQuality,
                                    currentTime: TimeInterval) {
-        defer { lastEvaluationTime = currentTime }
         guard let last = lastEvaluationTime else {
+            lastEvaluationTime = currentTime
             switch state {
             case .drifting(let since), .bad(let since): slouchedTime = max(0, currentTime - since)
             default: slouchedTime = 0
@@ -450,7 +450,12 @@ final class NudgeEngine: NudgeEngineProtocol {
             return
         }
         let dt = currentTime - last
-        guard dt >= 0, dt <= maxFrameGap else {
+        // A frame that finished after a newer one (frames are processed concurrently) adds
+        // nothing, and the newer frame stays the reference. Until 2026-10-10 it read as a break
+        // and wiped the slouched time and the good streak.
+        guard dt >= 0 else { return }
+        defer { lastEvaluationTime = currentTime }
+        guard dt <= maxFrameGap else {
             slouchedTime = 0
             goodStreak = 0
             return
