@@ -41,7 +41,7 @@ import Foundation
 ///
 /// ### Hourly Limit
 ///
-/// There's also a cap on total nudges per hour (default: 2). Even if cooldown
+/// There can also be a cap on total nudges per hour (off by default). Even if cooldown
 /// has expired, once you've hit 2 nudges in the current hour, no more will fire.
 /// The hour window rolls forward — it tracks nudge timestamps and only counts
 /// nudges from the last 60 minutes.
@@ -98,9 +98,9 @@ final class NudgeEngine: NudgeEngineProtocol {
 
     /// The thresholds that control nudge timing and limits.
     /// These come from PostureThresholds and include:
-    /// - `slouchDurationBeforeNudge` (default: 300s = 5 minutes)
+    /// - `slouchDurationBeforeNudge` (default: 60 s)
     /// - `nudgeCooldown` (default: 600s = 10 minutes)
-    /// - `maxNudgesPerHour` (default: 2)
+    /// - `maxNudgesPerHour` (default: 0, no cap)
     /// - `acknowledgementWindow` (default: 30s)
     ///
     /// Settable so `Pipeline.thresholds` can pass changes on. Until 2026-10-01 this was fixed
@@ -173,6 +173,19 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// cooldown hold back slouches that began after he'd sat up.
     private var correctedSinceLastNudge = false
 
+    /// The reason of the last fire returned, and of the last nudge recorded. A head-turn nudge's
+    /// cooldown is ended by the head turning back, not by sitting well (2026-10-11): sitting well
+    /// doesn't correct a turned neck, and the code review's probe nudged a head held turned every
+    /// 30 s.
+    private var lastFireReason: NudgeReason?
+    private var lastNudgeReason: NudgeReason?
+    /// When the nudged head turn began, and whether that turn has since ended.
+    private var nudgedTurnStartedAt: TimeInterval?
+    private var turnEndedSinceLastNudge = false
+
+    /// A step back this far is a new timeline (a replay after live frames), not a late frame.
+    private let newTimelineAfter: TimeInterval = 5
+
     // MARK: - Initialization
 
     /// Creates a new NudgeEngine with the given thresholds.
@@ -212,6 +225,8 @@ final class NudgeEngine: NudgeEngineProtocol {
     ///   - headTurnedSince: When the head was last turned and held there (`HeadTurnTracker`),
     ///     or nil. A second thing to nudge for, sharing the cooldown and the hourly cap.
     ///   - silenced: Whether the user has silenced nudges for now. Every nudge waits.
+    ///   - slouchSignals: Which slouch signals the posture engine counted this frame
+    ///     (`PostureEngine.slouchSignals`). Only those can be the reason; nil compares them all.
     /// - Returns: A `NudgeDecision` indicating what the caller should do.
     func evaluate(
         state: PostureState,
@@ -221,7 +236,8 @@ final class NudgeEngine: NudgeEngineProtocol {
         currentTime: TimeInterval,
         metrics: RawMetrics? = nil,
         headTurnedSince: TimeInterval? = nil,
-        silenced: Bool = false
+        silenced: Bool = false,
+        slouchSignals: Set<NudgeReason>? = nil
     ) -> NudgeDecision {
 
         // ──────────────────────────────────────────────
@@ -237,6 +253,9 @@ final class NudgeEngine: NudgeEngineProtocol {
         let slouchedNow = isSlouched(state)
         countSlouchedTime(state: state, slouched: slouchedNow, trackingQuality: trackingQuality,
                           currentTime: currentTime)
+        if lastNudgeReason == .headTurned, headTurnedSince != nudgedTurnStartedAt {
+            turnEndedSinceLastNudge = true
+        }
 
         // Update cached cooldown for debug overlay
         lastCooldownRemaining = cooldownRemaining(at: currentTime)
@@ -248,20 +267,20 @@ final class NudgeEngine: NudgeEngineProtocol {
         // These are checked in order of "cheapest first" — simple
         // enum comparisons before timestamp math.
 
+        // Nothing to nudge for — sitting well, or nobody in view, and no head held turned:
+        // say so. "Suppressed" means a nudge is being held back, and Dave saw it while sitting
+        // well through a cooldown (2026-10-08), and through a silence (2026-10-11).
+        if !slouchedNow && headTurnedSince == nil {
+            lastDecisionDescription = "none (nothing to nudge for)"
+            return .none
+        }
+
         // 2·. Silenced — the user asked for quiet for a while, from the phone or the Watch.
         //     Every nudge waits. Timers keep running, so a slouch still going when the
         //     silence ends is nudged straight away.
         if silenced {
             lastDecisionDescription = "suppressed: silenced"
             return .suppressed(reason: .silenced)
-        }
-
-        // Nothing to nudge for — sitting well, or nobody in view, and no head held turned:
-        // say so. "Suppressed" means a nudge is being held back, and Dave saw it while sitting
-        // well through a cooldown (2026-10-08).
-        if !slouchedNow && headTurnedSince == nil {
-            lastDecisionDescription = "none (nothing to nudge for)"
-            return .none
         }
 
         // 2a. Low tracking quality — camera can't see the user clearly.
@@ -293,7 +312,7 @@ final class NudgeEngine: NudgeEngineProtocol {
 
         // 2d. Hourly limit reached — too many nudges this hour.
         //     Even if cooldown has expired, cap total nudges per hour
-        //     (default: 2) to prevent annoyance.
+        //     (off by default) to prevent annoyance.
         if thresholds.maxNudgesPerHour > 0,
            nudgeTimestamps.count >= thresholds.maxNudgesPerHour {
             let decision = NudgeDecision.suppressed(reason: .maxNudgesReached)
@@ -316,6 +335,8 @@ final class NudgeEngine: NudgeEngineProtocol {
             let turnedFor = currentTime - turnedSince
             if turnedFor >= headTurnThresholds.durationBeforeNudge {
                 lastDecisionDescription = "FIRE: headTurned (turned for \(String(format: "%.0f", turnedFor))s)"
+                lastFireReason = .headTurned
+                nudgedTurnStartedAt = turnedSince
                 return .fire(reason: .headTurned)
             }
             headTurnRemaining = headTurnThresholds.durationBeforeNudge - turnedFor
@@ -348,7 +369,7 @@ final class NudgeEngine: NudgeEngineProtocol {
         // Determine the dominant violation from the current metrics.
         // Compare each metric against its threshold as a ratio — the
         // metric with the highest ratio is the primary reason.
-        let reason = dominantReason(from: metrics)
+        let reason = dominantReason(from: metrics, signals: slouchSignals)
 
         if duration >= thresholds.slouchDurationBeforeNudge {
             // ──────────────────────────────────────────
@@ -359,6 +380,7 @@ final class NudgeEngine: NudgeEngineProtocol {
             // 1. Deliver feedback (audio cue, watch haptic)
             // 2. Call `Pipeline.recordNudgeFired()` to start cooldown, on the frame clock
             let decision = NudgeDecision.fire(reason: reason)
+            lastFireReason = reason
             lastDecisionDescription = "FIRE: \(reason.rawValue) (slouched \(String(format: "%.0f", duration))s)"
             return decision
         }
@@ -395,6 +417,8 @@ final class NudgeEngine: NudgeEngineProtocol {
         slouchedTime = 0  // the next nudge needs its own slouched time
         goodStreak = 0
         correctedSinceLastNudge = false
+        lastNudgeReason = lastFireReason
+        turnEndedSinceLastNudge = false
     }
 
     /// Record that the user corrected their posture after a nudge.
@@ -425,6 +449,10 @@ final class NudgeEngine: NudgeEngineProtocol {
         goodStreak = 0
         lastEvaluationTime = nil
         correctedSinceLastNudge = false
+        lastFireReason = nil
+        lastNudgeReason = nil
+        nudgedTurnStartedAt = nil
+        turnEndedSinceLastNudge = false
     }
 
     // MARK: - Slouched time
@@ -453,7 +481,16 @@ final class NudgeEngine: NudgeEngineProtocol {
         // A frame that finished after a newer one (frames are processed concurrently) adds
         // nothing, and the newer frame stays the reference. Until 2026-10-10 it read as a break
         // and wiped the slouched time and the good streak.
-        guard dt >= 0 else { return }
+        guard dt >= 0 else {
+            // A step back of seconds or more is a new timeline (a replay after live frames):
+            // start counting from it, as after a break.
+            if -dt >= newTimelineAfter {
+                lastEvaluationTime = currentTime
+                slouchedTime = 0
+                goodStreak = 0
+            }
+            return
+        }
         defer { lastEvaluationTime = currentTime }
         guard dt <= maxFrameGap else {
             slouchedTime = 0
@@ -499,9 +536,11 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// Falls back to `.sustainedSlouch` when no metrics are provided or no
     /// single metric clearly dominates.
     ///
-    /// - Parameter metrics: The current posture metrics, or `nil`.
+    /// - Parameters:
+    ///   - metrics: The current posture metrics, or `nil`.
+    ///   - signals: The slouch signals the posture engine counted, or nil to compare them all.
     /// - Returns: The `NudgeReason` for the dominant violation.
-    private func dominantReason(from metrics: RawMetrics?) -> NudgeReason {
+    private func dominantReason(from metrics: RawMetrics?, signals: Set<NudgeReason>?) -> NudgeReason {
         guard let metrics = metrics else { return .sustainedSlouch }
 
         // Compute ratio of each metric to its threshold.
@@ -522,9 +561,11 @@ final class NudgeEngine: NudgeEngineProtocol {
 
         // Pick the metric with the highest ratio, if it's past its line and alone at the top.
         // A tie, or nothing past its line, falls back to the general reason.
+        // Only a signal the posture engine counted can be the reason (2026-10-11): it applies
+        // exceptions (reclined, chair turned, the reading line) that a plain comparison doesn't.
         let ratios: [(NudgeReason, Float)] = [
             (.forwardCreep, forwardCreepRatio), (.headDrop, headDropRatio), (.sink, sinkRatio),
-        ]
+        ].filter { signals?.contains($0.0) ?? true }
         guard let top = ratios.map(\.1).max(), top > 1.0,
               ratios.filter({ $0.1 == top }).count == 1,
               let winner = ratios.first(where: { $0.1 == top })
@@ -543,9 +584,11 @@ final class NudgeEngine: NudgeEngineProtocol {
         return max(0, thresholds.nudgeCooldown - (currentTime - lastTime))
     }
 
-    /// Within `nudgeCooldown` of the last nudge, and the slouch it was for hasn't ended.
+    /// Within `nudgeCooldown` of the last nudge, and what it was for hasn't ended: a slouch ends
+    /// with sitting well, a head turn with the head turning back.
     private func isCoolingDown(at currentTime: TimeInterval) -> Bool {
-        guard let lastTime = lastNudgeTime, !correctedSinceLastNudge else { return false }
+        let ended = lastNudgeReason == .headTurned ? turnEndedSinceLastNudge : correctedSinceLastNudge
+        guard let lastTime = lastNudgeTime, !ended else { return false }
         return currentTime - lastTime <= thresholds.nudgeCooldown
     }
 

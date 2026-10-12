@@ -12,7 +12,7 @@ import Foundation
 /// There are many reasons to delay or suppress a nudge:
 /// - **Cooldown**: Don't spam the user — wait at least `nudgeCooldown` seconds
 ///   between nudges (default: 10 minutes).
-/// - **Hourly limit**: Cap total nudges per hour (default: 2) to avoid annoyance.
+/// - **Hourly limit**: Cap total nudges per hour (default: 0, no cap) to avoid annoyance.
 /// - **Duration threshold**: Only nudge after sustained bad posture for
 ///   `slouchDurationBeforeNudge` seconds (default: 5 minutes).
 /// - **Stretching**: If the user is intentionally stretching, don't fire.
@@ -65,7 +65,8 @@ protocol NudgeEngineProtocol: DebugDumpable {
         currentTime: TimeInterval,
         metrics: RawMetrics?,
         headTurnedSince: TimeInterval?,
-        silenced: Bool
+        silenced: Bool,
+        slouchSignals: Set<NudgeReason>?
     ) -> NudgeDecision
 
     /// Record that a nudge was just fired and delivered to the user.

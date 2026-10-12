@@ -9,13 +9,13 @@ import Foundation
 /// confirmation popup or by the explicit label action on an existing row. It
 /// is `nil` when the detector's output has not been reviewed. Labels do not
 /// affect hydration totals — they exist purely to produce training data.
-public struct SipEvent: Identifiable, Codable {
+public struct SipEvent: Identifiable, Codable, Sendable {
 
     /// Training-mode annotation attached to a sip event.
     ///
     /// Added as part of the false-positive logging workflow. All categories
     /// except `confirmed` and `missed` indicate the detector was wrong.
-    public enum Label: String, Codable, CaseIterable {
+    public enum Label: String, Codable, CaseIterable, Sendable {
         /// The user explicitly confirmed this was a real sip.
         case confirmed
         /// The popup timed out or the app was backgrounded — detector's

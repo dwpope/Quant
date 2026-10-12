@@ -79,6 +79,16 @@ final class PostureEngine: PostureEngineProtocol {
     /// at irregular intervals.
     private var lastGoodUpdateTimestamp: TimeInterval?
 
+    /// The slouch signals that counted on the last judged frame: leaning in, the head dropped,
+    /// sinking (2026-10-11). The nudge's reason is picked from these, so its advice can't name a
+    /// signal an exception left out, such as a sink while reclined. Twist, sideways lean and
+    /// rounding count towards a slouch but have no advice of their own.
+    private(set) var slouchSignals: Set<NudgeReason> = []
+
+    /// A gap between judged frames longer than this (the app paused) is a break, not drift time,
+    /// as in the nudge engine (2026-10-11).
+    private let maxFrameGap: TimeInterval = 60
+
     /// When the user starts recovering from `.bad` posture, we record the
     /// timestamp here. The user must maintain good posture for at least
     /// `thresholds.recoveryGracePeriod` seconds before we transition back
@@ -203,7 +213,9 @@ final class PostureEngine: PostureEngineProtocol {
         // even if frames arrive at irregular intervals.
         let elapsed: TimeInterval
         if let lastTimestamp = lastGoodUpdateTimestamp {
-            elapsed = metrics.timestamp - lastTimestamp
+            // A long pause, or a step back (a new timeline), adds nothing.
+            let gap = metrics.timestamp - lastTimestamp
+            elapsed = (0...maxFrameGap).contains(gap) ? gap : 0
         } else {
             elapsed = 0  // First good frame after a gap — don't count any time
         }
@@ -354,6 +366,7 @@ final class PostureEngine: PostureEngineProtocol {
         // Stretching mode disables posture judgement entirely.
         // The user is intentionally moving around — that's a good thing!
         if taskMode == .stretching {
+            slouchSignals = []
             return false
         }
 
@@ -409,19 +422,26 @@ final class PostureEngine: PostureEngineProtocol {
         // Turning isn't slouching or leaning (2026-10-07): a turned head reads the shoulders
         // wider, and a turned chair shifts their midpoint sideways. Simulated over 163 captures,
         // false alarms 18 -> 6, one lean lost.
-        return (!neckTurned && metrics.forwardCreep > forwardThreshold)
+        let leaningIn = !neckTurned && metrics.forwardCreep > forwardThreshold
+        // The head dropped towards the shoulders, which reads NEGATIVE on the device.
+        // See `PostureThresholds.headDropThreshold` for why it's this way round.
+        // Not with the chair turned, reclined, or the shoulders 5% or more back: leaning back
+        // while watching the screen tips the head towards the shoulders too (2026-10-06).
+        let headDropped = !chairTurned && !reclined
+            && metrics.forwardCreep > thresholds.headDropMinForwardCreep
+            && -metrics.headDrop >= headDropLimit
+        // Sinking down in the chair: the shoulders lower in the frame (2026-10-05). Leaning back
+        // lowers them too, so while reclined only a slumped recline's much bigger sink counts.
+        let sinking = metrics.shoulderSink >= (reclined ? thresholds.reclinedSinkThreshold
+                                                        : thresholds.shoulderSinkThreshold)
+        slouchSignals = Set([
+            leaningIn ? NudgeReason.forwardCreep : nil, headDropped ? .headDrop : nil, sinking ? .sink : nil,
+        ].compactMap { $0 })
+        return leaningIn
             || metrics.twist > twistThreshold
             || (!chairTurned && metrics.lateralLean > sideLeanThreshold)
-            // The head dropped towards the shoulders, which reads NEGATIVE on the device.
-            // See `PostureThresholds.headDropThreshold` for why it's this way round.
-            // Not with the chair turned, reclined, or the shoulders 5% or more back: leaning back
-            // while watching the screen tips the head towards the shoulders too (2026-10-06).
-            || (!chairTurned && !reclined && metrics.forwardCreep > thresholds.headDropMinForwardCreep
-                && -metrics.headDrop >= headDropLimit)
-            // Sinking down in the chair: the shoulders lower in the frame (2026-10-05). Leaning back
-            // lowers them too, so while reclined only a slumped recline's much bigger sink counts.
-            || metrics.shoulderSink >= (reclined ? thresholds.reclinedSinkThreshold
-                                                 : thresholds.shoulderSinkThreshold)
+            || headDropped
+            || sinking
             || metrics.shoulderRounding > shoulderRoundingThreshold
     }
 
@@ -432,8 +452,16 @@ final class PostureEngine: PostureEngineProtocol {
     /// engine, and walking away froze the state.
     @discardableResult
     func updateNobodyInView(at timestamp: TimeInterval) -> PostureState {
+        updateWithoutPose(at: timestamp, quality: .lost)
+    }
+
+    /// A frame with no pose to judge: `.lost` (nobody in view) or `.degraded` (a person, but no
+    /// pose could be built, 2026-10-11). Like low-quality metrics: the state holds, timers pause.
+    @discardableResult
+    func updateWithoutPose(at timestamp: TimeInterval, quality: TrackingQuality) -> PostureState {
         lastGoodUpdateTimestamp = nil
-        handleNonGoodQuality(quality: .lost, at: timestamp)
+        slouchSignals = []
+        handleNonGoodQuality(quality: quality == .good ? .degraded : quality, at: timestamp)
         return currentState
     }
 

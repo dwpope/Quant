@@ -132,4 +132,11 @@ final class NudgeSilenceTests: XCTestCase {
         let count = try await fires(silencedUntil: Date().addingTimeInterval(-60))
         XCTAssertGreaterThan(count, 0)
     }
+
+    /// Sitting well during a silence: nothing is held back, so it isn't "suppressed" (2026-10-11).
+    func test_sittingWell_whileSilenced_isNothingToNudgeFor() {
+        guard case .none = evaluate(engine(), .good, at: 30, silenced: true) else {
+            return XCTFail("nothing is held back while sitting well")
+        }
+    }
 }

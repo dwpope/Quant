@@ -5,7 +5,7 @@ final class DepthServiceTests: XCTestCase {
 
     func test_depthConfidence_returnsUnavailable_whenNoDepthMap() {
         // Given
-        var service = DepthService()
+        let service = DepthService()
         let frame = InputFrame(
             timestamp: 0,
             pixelBuffer: nil,
@@ -22,7 +22,7 @@ final class DepthServiceTests: XCTestCase {
 
     func test_sampleDepth_returnsZeroConfidence_whenNoDepthMap() {
         // Given
-        var service = DepthService()
+        let service = DepthService()
         let frame = InputFrame(
             timestamp: 0,
             pixelBuffer: nil,
@@ -47,7 +47,7 @@ final class DepthServiceTests: XCTestCase {
 
     func test_sampleDepth_returnsZeroConfidence_forOutOfBoundsPoints() {
         // Given
-        var service = DepthService()
+        let service = DepthService()
         let frame = InputFrame(
             timestamp: 0,
             pixelBuffer: nil,
@@ -73,7 +73,7 @@ final class DepthServiceTests: XCTestCase {
 
     func test_debugState_includesLastConfidence() {
         // Given
-        var service = DepthService()
+        let service = DepthService()
         let frame = InputFrame(
             timestamp: 0,
             pixelBuffer: nil,

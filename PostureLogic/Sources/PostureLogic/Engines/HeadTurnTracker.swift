@@ -38,6 +38,10 @@ final class HeadTurnTracker {
     /// When the current episode began, on the frame clock, or nil when the head isn't turned.
     private(set) var turnedSince: TimeInterval?
     private var lastTurnedAt: TimeInterval?
+    /// The last frame seen, for the frame-gap rule.
+    private var lastUpdateAt: TimeInterval?
+    /// A gap between frames longer than this is a break, as in the nudge engine.
+    static let maxFrameGap: TimeInterval = 60
 
     init(thresholds: HeadTurnThresholds = HeadTurnThresholds()) {
         self.thresholds = thresholds
@@ -63,6 +67,13 @@ final class HeadTurnTracker {
     @discardableResult
     func update(headYaw: Float, forwardCreep: Float, trackingQuality: TrackingQuality,
                 timestamp: TimeInterval) -> TimeInterval? {
+        // A long pause between frames (the app paused), or a step back to a new timeline, ends
+        // the episode, as it's a break for the nudge engine (2026-10-11). Without this a head
+        // still turned after a pause was nudged on the first frame back.
+        if let last = lastUpdateAt, timestamp - last > Self.maxFrameGap || last - timestamp >= 5 {
+            reset()
+        }
+        lastUpdateAt = timestamp
         let turned = trackingQuality.allowsPostureJudgement
             && Self.isNeckTurned(headYaw: headYaw, forwardCreep: forwardCreep, thresholds: thresholds)
         if turned {
@@ -78,5 +89,6 @@ final class HeadTurnTracker {
     func reset() {
         turnedSince = nil
         lastTurnedAt = nil
+        lastUpdateAt = nil
     }
 }

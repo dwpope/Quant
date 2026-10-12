@@ -74,6 +74,8 @@ final class HeadTurnTrackerTests: XCTestCase {
         XCTAssertNil(update(t, yaw: 0, at: 100))
         XCTAssertEqual(update(t, yaw: 70, at: 101), 101)
         XCTAssertEqual(update(t, yaw: 72, at: 160), 101)
+        // Frames keep coming (a gap over a minute is a break, 2026-10-11).
+        for time in stride(from: 190.0, to: 400, by: 30) { update(t, yaw: 72, at: time) }
         XCTAssertEqual(update(t, yaw: -70, at: 400), 101, "either side")
     }
 

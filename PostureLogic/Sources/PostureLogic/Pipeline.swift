@@ -375,92 +375,9 @@ public class Pipeline {
                         intrinsics: frame.cameraIntrinsics,
                         trackingQuality: finalQuality
                     )
-                    self.latestSample = sample
-
-                    if let sample = sample {
-                        self.recorder?.record(sample: sample)
-
-                        let rawMetrics = self.metricsEngine.compute(
-                            from: sample,
-                            baseline: self.baseline
-                        )
-                        let smoothedMetrics = self.metricsSmoother.smooth(
-                            rawMetrics,
-                            sample: sample
-                        )
-                        self.latestMetrics = smoothedMetrics
-
-                        // Infer task mode from rolling window of recent metrics
-                        self.recentMetricsBuffer.append(smoothedMetrics)
-                        if self.recentMetricsBuffer.count > self.metricsBufferMaxSize {
-                            self.recentMetricsBuffer.removeFirst()
-                        }
-                        let inferredTaskMode = self.taskModeEngine.infer(from: self.recentMetricsBuffer)
-                        self.taskMode = inferredTaskMode
-
-                        // Update the posture state machine with the latest metrics.
-                        // The engine decides good/drifting/bad based on thresholds
-                        // and pauses its timers when tracking quality is low.
-                        let previousPostureState = self.postureState
-                        let newPostureState = self.postureEngine.update(
-                            metrics: smoothedMetrics,
-                            taskMode: inferredTaskMode,
-                            trackingQuality: finalQuality,
-                            chairTurned: self.isChairTurned(sample: sample, metrics: smoothedMetrics),
-                reclined: self.isReclined(sample: sample, metrics: smoothedMetrics),
-                neckTurned: self.isNeckTurned(sample: sample, metrics: smoothedMetrics)
-                        )
-                        self.postureState = newPostureState
-
-                        // Track absence segments (internal telemetry).
-                        let wasAbsent = previousPostureState == .absent
-                        let isAbsent = newPostureState == .absent
-                        if isAbsent && !wasAbsent {
-                            self.absenceSegments.append((start: smoothedMetrics.timestamp, end: nil))
-                        } else if wasAbsent && !isAbsent {
-                            if let idx = self.absenceSegments.indices.last,
-                               self.absenceSegments[idx].end == nil {
-                                self.absenceSegments[idx].end = smoothedMetrics.timestamp
-                            }
-                        }
-
-                        // Forward recalibration prompt from engine to UI.
-                        if self.postureEngine.consumeRecalibrationPrompt() {
-                            self.showRecalibrationPrompt = true
-                        }
-
-                        // Evaluate nudge decision based on the updated posture state.
-                        // The NudgeEngine checks: Is posture bad long enough?
-                        // Is cooldown active? Is the hourly limit reached?
-                        // The metrics are passed so the engine can determine the
-                        // specific nudge reason (forwardCreep, headDrop, etc.).
-                        self.lastNudgeEvaluationTime = smoothedMetrics.timestamp
-                        let turnedSince = self.updateHeadTurn(
-                            sample: sample, metrics: smoothedMetrics, trackingQuality: finalQuality)
-                        self.nudgeDecision = self.nudgeEngine.evaluate(
-                            state: newPostureState,
-                            trackingQuality: finalQuality,
-                            movementLevel: smoothedMetrics.movementLevel,
-                            taskMode: inferredTaskMode,
-                            currentTime: smoothedMetrics.timestamp,
-                            metrics: smoothedMetrics,
-                            headTurnedSince: turnedSince,
-                            silenced: self.nudgesSilenced
-                        )
-
-                        // Periodic staleness check (every 60s, not every frame)
-                        if let baseline = self.baseline,
-                           smoothedMetrics.timestamp - self.lastStalenessCheckTime >= 60 {
-                            self.lastStalenessCheckTime = smoothedMetrics.timestamp
-                            self.baselineStaleness = self.staleBaselineDetector.check(
-                                current: sample,
-                                baseline: baseline,
-                                baselineAge: Date().timeIntervalSince(baseline.timestamp)
-                            )
-                        }
-                    }
+                    self.ingest(sample, quality: finalQuality, at: frame.timestamp)
                 } else {
-                    self.nobodyInView(at: frame.timestamp)
+                    self.judgeWithoutPose(at: frame.timestamp, quality: .lost)
                 }
             }
         }
@@ -473,37 +390,162 @@ public class Pipeline {
     /// stepped every timer backwards; the nudge engine read that as a break and wiped the
     /// slouched time and the good streak. A step back of `newTimelineAfter` or more is a new
     /// timeline (a replay after live frames), not a late frame, so it's taken.
+    ///
+    /// A new timeline starts the engines afresh (2026-10-11): their clocks were left behind, and
+    /// the nudge engine took every replay frame after live frames for a late one.
     private func takesFrame(at timestamp: TimeInterval) -> Bool {
-        let isLate = timestamp <= lastTakenFrameTime
-            && lastTakenFrameTime - timestamp < Self.newTimelineAfter
-        if !isLate { lastTakenFrameTime = timestamp }
-        return !isLate
+        let stepBack = lastTakenFrameTime - timestamp
+        if stepBack >= Self.newTimelineAfter {
+            startNewTimeline()
+        } else if stepBack >= 0 {
+            return false  // late
+        }
+        lastTakenFrameTime = timestamp
+        return true
+    }
+
+    /// Starts every engine afresh, as for a new timeline: a replay after live frames, or live
+    /// frames after a replay. The app calls it when it starts or stops a replay, so a recording
+    /// that begins less than `newTimelineAfter` before the last frame isn't dropped as late.
+    public func resetTimeline() {
+        lastTakenFrameTime = -.infinity
+        startNewTimeline()
+    }
+
+    private func startNewTimeline() {
+        postureEngine.reset()
+        nudgeEngine.reset()
+        headTurnTracker.reset()
+        metricsSmoother.reset()
+        recentMetricsBuffer.removeAll()
+        recentQualities.removeAll()
+        headTurnedSince = nil
+        lastNudgeEvaluationTime = nil
     }
 
     private var lastTakenFrameTime: TimeInterval = -.infinity
     private static let newTimelineAfter: TimeInterval = 5
 
-    /// A frame with nobody in it: Vision found no person (2026-10-08).
-    ///
-    /// Until then such frames never reached the posture engine, only a pose with too few joints
-    /// counted as lost, so walking away froze the panel on its last words. In Dave's second
-    /// real-use hour it said "suppressed" from when he left his desk until he stopped. Now they
-    /// count as lost tracking: after `absentThreshold` the state is `.absent`, and there's
-    /// nothing to nudge for.
-    private func nobodyInView(at timestamp: TimeInterval) {
+    /// One frame's pose through every engine, from a camera or a replay (2026-10-11: the two
+    /// paths had their own copies of this). A pose that couldn't be built is judged without one.
+    /// Internal so tests can drive it.
+    @MainActor
+    func ingest(_ sample: PoseSample?, quality: TrackingQuality, at timestamp: TimeInterval) {
+        latestSample = sample
+        guard let sample else {
+            judgeWithoutPose(at: timestamp, quality: quality == .lost ? .lost : .degraded)
+            return
+        }
+        recorder?.record(sample: sample)
+
+        let rawMetrics = metricsEngine.compute(from: sample, baseline: baseline)
+        let smoothedMetrics = metricsSmoother.smooth(rawMetrics, sample: sample)
+        latestMetrics = smoothedMetrics
+
+        // Infer task mode from rolling window of recent metrics
+        recentMetricsBuffer.append(smoothedMetrics)
+        if recentMetricsBuffer.count > metricsBufferMaxSize {
+            recentMetricsBuffer.removeFirst()
+        }
+        let inferredTaskMode = taskModeEngine.infer(from: recentMetricsBuffer)
+        taskMode = inferredTaskMode
+
+        // Update the posture state machine with the latest metrics.
+        // The engine decides good/drifting/bad based on thresholds
+        // and pauses its timers when tracking quality is low.
         let previousPostureState = postureState
-        let newPostureState = postureEngine.updateNobodyInView(at: timestamp)
+        let newPostureState = postureEngine.update(
+            metrics: smoothedMetrics,
+            taskMode: inferredTaskMode,
+            trackingQuality: quality,
+            chairTurned: isChairTurned(sample: sample, metrics: smoothedMetrics),
+            reclined: isReclined(sample: sample, metrics: smoothedMetrics),
+            neckTurned: isNeckTurned(sample: sample, metrics: smoothedMetrics)
+        )
+        postureState = newPostureState
+
+        // Track absence segments (internal telemetry).
+        let wasAbsent = previousPostureState == .absent
+        let isAbsent = newPostureState == .absent
+        if isAbsent && !wasAbsent {
+            recordAbsenceStart(at: smoothedMetrics.timestamp)
+        } else if wasAbsent && !isAbsent {
+            if let idx = absenceSegments.indices.last, absenceSegments[idx].end == nil {
+                absenceSegments[idx].end = smoothedMetrics.timestamp
+            }
+        }
+
+        // Forward recalibration prompt from engine to UI.
+        if postureEngine.consumeRecalibrationPrompt() {
+            showRecalibrationPrompt = true
+        }
+
+        // Evaluate nudge decision based on the updated posture state.
+        // The NudgeEngine checks: Is posture bad long enough?
+        // Is cooldown active? Is the hourly limit reached?
+        // The metrics and the signals that counted are passed so the engine can name the
+        // specific nudge reason (forwardCreep, headDrop, sink).
+        lastNudgeEvaluationTime = smoothedMetrics.timestamp
+        let turnedSince = updateHeadTurn(sample: sample, metrics: smoothedMetrics, trackingQuality: quality)
+        nudgeDecision = nudgeEngine.evaluate(
+            state: newPostureState,
+            trackingQuality: quality,
+            movementLevel: smoothedMetrics.movementLevel,
+            taskMode: inferredTaskMode,
+            currentTime: smoothedMetrics.timestamp,
+            metrics: smoothedMetrics,
+            headTurnedSince: turnedSince,
+            silenced: nudgesSilenced,
+            slouchSignals: postureEngine.slouchSignals
+        )
+
+        // Periodic staleness check (every 60s, not every frame)
+        if let baseline, smoothedMetrics.timestamp - lastStalenessCheckTime >= 60 {
+            lastStalenessCheckTime = smoothedMetrics.timestamp
+            baselineStaleness = staleBaselineDetector.check(
+                current: sample,
+                baseline: baseline,
+                baselineAge: Date().timeIntervalSince(baseline.timestamp)
+            )
+        }
+    }
+
+    /// Opens an absence segment, keeping only the most recent `maxAbsenceSegments`: nothing
+    /// reads them yet, and they grew for as long as the app ran.
+    private func recordAbsenceStart(at timestamp: TimeInterval) {
+        absenceSegments.append((start: timestamp, end: nil))
+        if absenceSegments.count > Self.maxAbsenceSegments {
+            absenceSegments.removeFirst(absenceSegments.count - Self.maxAbsenceSegments)
+        }
+    }
+
+    private static let maxAbsenceSegments = 200
+
+    /// A frame without a pose to judge (2026-10-08, 2026-10-11).
+    ///
+    /// `.lost`: Vision found no person. Until 2026-10-08 such frames never reached the posture
+    /// engine, so walking away froze the panel on its last words; now after `absentThreshold`
+    /// the state is `.absent`, and there's nothing to nudge for.
+    ///
+    /// `.degraded`: a person, but no pose could be built from them, as with one shoulder hidden
+    /// by an arm (a pose needs both). Until 2026-10-11 nothing ran on such a frame either, and the
+    /// state, the nudge decision and the Watch froze; now the timers pause and the decision says
+    /// tracking is too poor to judge.
+    private func judgeWithoutPose(at timestamp: TimeInterval, quality: TrackingQuality) {
+        if quality != .lost { trackingQuality = quality }
+        let previousPostureState = postureState
+        let newPostureState = postureEngine.updateWithoutPose(at: timestamp, quality: quality)
         postureState = newPostureState
 
         // Track absence segments (internal telemetry).
         if newPostureState == .absent && previousPostureState != .absent {
-            absenceSegments.append((start: timestamp, end: nil))
+            recordAbsenceStart(at: timestamp)
         }
 
-        // No head to be turned: the head-turn timer winds down through its grace period.
+        // No head to be judged turned: the head-turn timer winds down through its grace period.
         let turnedSince: TimeInterval?
         if baseline != nil {
-            turnedSince = headTurnTracker.update(headYaw: 0, forwardCreep: 0, trackingQuality: .lost,
+            turnedSince = headTurnTracker.update(headYaw: 0, forwardCreep: 0, trackingQuality: quality,
                                                  timestamp: timestamp)
         } else {
             turnedSince = nil
@@ -513,7 +555,7 @@ public class Pipeline {
         lastNudgeEvaluationTime = timestamp
         nudgeDecision = nudgeEngine.evaluate(
             state: newPostureState,
-            trackingQuality: .lost,
+            trackingQuality: quality,
             movementLevel: 0,
             taskMode: taskMode,
             currentTime: timestamp,
@@ -578,80 +620,7 @@ public class Pipeline {
             self.fps = currentFPS
             self.trackingQuality = sample.trackingQuality
             self.currentTrackingQuality = sample.trackingQuality
-            self.latestSample = sample
-
-            self.recorder?.record(sample: sample)
-
-            let rawMetrics = self.metricsEngine.compute(
-                from: sample,
-                baseline: self.baseline
-            )
-            let smoothedMetrics = self.metricsSmoother.smooth(
-                rawMetrics,
-                sample: sample
-            )
-            self.latestMetrics = smoothedMetrics
-
-            // Infer task mode from rolling window of recent metrics
-            self.recentMetricsBuffer.append(smoothedMetrics)
-            if self.recentMetricsBuffer.count > self.metricsBufferMaxSize {
-                self.recentMetricsBuffer.removeFirst()
-            }
-            let inferredTaskMode = self.taskModeEngine.infer(from: self.recentMetricsBuffer)
-            self.taskMode = inferredTaskMode
-
-            let previousPostureState = self.postureState
-            let newPostureState = self.postureEngine.update(
-                metrics: smoothedMetrics,
-                taskMode: inferredTaskMode,
-                trackingQuality: sample.trackingQuality,
-                chairTurned: self.isChairTurned(sample: sample, metrics: smoothedMetrics),
-                reclined: self.isReclined(sample: sample, metrics: smoothedMetrics),
-                neckTurned: self.isNeckTurned(sample: sample, metrics: smoothedMetrics)
-            )
-            self.postureState = newPostureState
-
-            // Track absence segments (internal telemetry).
-            let wasAbsent = previousPostureState == .absent
-            let isAbsent = newPostureState == .absent
-            if isAbsent && !wasAbsent {
-                self.absenceSegments.append((start: smoothedMetrics.timestamp, end: nil))
-            } else if wasAbsent && !isAbsent {
-                if let idx = self.absenceSegments.indices.last,
-                   self.absenceSegments[idx].end == nil {
-                    self.absenceSegments[idx].end = smoothedMetrics.timestamp
-                }
-            }
-
-            // Forward recalibration prompt from engine to UI.
-            if self.postureEngine.consumeRecalibrationPrompt() {
-                self.showRecalibrationPrompt = true
-            }
-
-            self.lastNudgeEvaluationTime = smoothedMetrics.timestamp
-            let turnedSince = self.updateHeadTurn(
-                sample: sample, metrics: smoothedMetrics, trackingQuality: sample.trackingQuality)
-            self.nudgeDecision = self.nudgeEngine.evaluate(
-                state: newPostureState,
-                trackingQuality: sample.trackingQuality,
-                movementLevel: smoothedMetrics.movementLevel,
-                taskMode: inferredTaskMode,
-                currentTime: smoothedMetrics.timestamp,
-                metrics: smoothedMetrics,
-                headTurnedSince: turnedSince,
-                silenced: self.nudgesSilenced
-            )
-
-            // Periodic staleness check (every 60s, not every frame)
-            if let baseline = self.baseline,
-               smoothedMetrics.timestamp - self.lastStalenessCheckTime >= 60 {
-                self.lastStalenessCheckTime = smoothedMetrics.timestamp
-                self.baselineStaleness = self.staleBaselineDetector.check(
-                    current: sample,
-                    baseline: baseline,
-                    baselineAge: Date().timeIntervalSince(baseline.timestamp)
-                )
-            }
+            self.ingest(sample, quality: sample.trackingQuality, at: timestamp)
         }
     }
 
@@ -744,7 +713,7 @@ public class Pipeline {
     /// delivered. This starts the cooldown timer and counts toward the hourly limit.
     ///
     /// It takes no time on purpose. The NudgeEngine measures the cooldown and the hourly window
-    /// on the frame clock, which on a device counts seconds since boot. This used to take a
+    /// on the frame clock (seconds since boot until 2026-10-05, since 1970 now). This used to take a
     /// time, and the documented production value was `Date().timeIntervalSince1970`, about
     /// 1.79 billion against ~670,000. `currentTime - lastNudgeTime` was then always far below
     /// the cooldown, so the cooldown never ended and the app nudged once per launch. The fire
