@@ -7,6 +7,7 @@ import PostureLogic
 ///
 /// Follows the same pattern as `SipInsightsTests`: deterministic inputs,
 /// no side effects, no file system or clock dependencies.
+@MainActor
 final class PostureSessionSummaryTests: XCTestCase {
 
     // MARK: - Helpers

@@ -3,6 +3,7 @@ import Combine
 import PostureLogic
 @testable import Quant
 
+@MainActor
 final class SwitchablePoseProviderTests: XCTestCase {
 
     func test_forwardsFramesFromAttachedSource() async throws {

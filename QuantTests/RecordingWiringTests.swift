@@ -86,4 +86,14 @@ final class RecordingWiringTests: XCTestCase {
 
         XCTAssertFalse(model.isRecording)
     }
+
+    /// The app reads back what it records (2026-10-11): recordings are written with ISO-8601
+    /// dates and were read expecting numbers, so loading one failed.
+    func test_aRecording_canBeLoadedBackForReplay() throws {
+        let model = AppModel()
+        model.startRecording()
+        let url = try XCTUnwrap(model.stopRecording())
+        exported.append(url)
+        XCTAssertNoThrow(try model.loadSession(url))
+    }
 }

@@ -290,7 +290,7 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         if let sentAt = NudgeMessage.sentAt(from: message) {
             reportArrival(NudgeMessage.arrivalReport(
                 sentAt: sentAt, arrivedAt: arrivedAt, via: via,
-                wristSession: WristNudgeSession.shared.isOn))
+                wristSession: WristNudgeSession.shared.isOn), queued: via == "queued")
         }
         DispatchQueue.main.async {
             self.showNudge(haptic, body: body)
@@ -299,11 +299,15 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
 
     /// Tells the phone when a nudge arrived, for its posture log: straight away if it can take a
     /// message, queued if not.
-    private func reportArrival(_ report: [String: Any]) {
+    ///
+    /// A queued nudge's report is always queued (2026-10-11): it arrives in a background wake
+    /// that can end before a straight send is delivered, and then neither it nor its fallback
+    /// goes. A queued transfer is handed to the system, which finishes it.
+    private func reportArrival(_ report: [String: Any], queued: Bool) {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         guard session.activationState == .activated else { return }
-        if session.isReachable {
+        if NudgeMessage.reportsArrivalStraightAway(nudgeWasQueued: queued, phoneReachable: session.isReachable) {
             session.sendMessage(report, replyHandler: nil) { _ in
                 session.transferUserInfo(report)
             }

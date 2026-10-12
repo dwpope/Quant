@@ -48,6 +48,10 @@ final class ARSessionService: NSObject, PoseProvider {
     private var isRecovering = false
     private var recoveryAttempts = 0
     private var depthEnabled = false
+    /// Between `sessionWasInterrupted` and `sessionInterruptionEnded` (a phone call, Siri):
+    /// no frames is expected then, not a resource problem (2026-10-11). The timeout used to
+    /// "recover" through the interruption and, on its third try, switched depth off for good.
+    private var isInterrupted = false
 
     func start() async throws {
         // Use ARWorldTrackingConfiguration for depth support
@@ -103,6 +107,11 @@ final class ARSessionService: NSObject, PoseProvider {
         }
     }
 
+    /// Whether a silence is a frame timeout worth recovering from: not during an interruption.
+    static func isFrameTimeout(secondsSinceFrame: TimeInterval, interrupted: Bool) -> Bool {
+        !interrupted && secondsSinceFrame > 2.0
+    }
+
     private func checkFrameTimeout() {
         guard let lastFrame = lastFrameTime else {
             // Once, not every 2 s: past the grace period it becomes a screen, not a log line.
@@ -121,7 +130,7 @@ final class ARSessionService: NSObject, PoseProvider {
         }
 
         let timeSinceLastFrame = Date().timeIntervalSince(lastFrame)
-        if timeSinceLastFrame > 2.0 {
+        if Self.isFrameTimeout(secondsSinceFrame: timeSinceLastFrame, interrupted: isInterrupted) {
             logger.error("⛔️ Frame timeout: No frames for \(String(format: "%.1f", timeSinceLastFrame))s - resource constraints detected")
             attemptResourceRecovery()
         } else if timeSinceLastFrame < 0.5 && recoveryAttempts > 0 {
@@ -235,11 +244,15 @@ extension ARSessionService: ARSessionDelegate {
 
     func sessionWasInterrupted(_ session: ARSession) {
         logger.info("ARSession was interrupted")
+        isInterrupted = true
         sessionStateSubject.send(.interrupted)
     }
 
     func sessionInterruptionEnded(_ session: ARSession) {
         logger.info("ARSession interruption ended - resuming")
+        isInterrupted = false
+        lastFrameTime = Date()  // a fresh 2 s before the timeout looks again
+        recoveryAttempts = 0
 
         guard let config = currentConfig else {
             logger.error("No configuration available for resume")

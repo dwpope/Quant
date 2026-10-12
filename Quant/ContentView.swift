@@ -77,7 +77,8 @@ struct ContentView: View {
                 }
             }
 
-            if appModel.cameraMode == .front2D && appModel.frontCameraBlocked {
+            if (appModel.cameraMode == .front2D && appModel.frontCameraBlocked)
+                || (appModel.cameraMode == .frontFace && appModel.faceCameraBlocked) {
                 CameraPermissionView {
                     Task { await appModel.retryFrontCamera() }
                 }

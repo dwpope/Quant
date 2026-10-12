@@ -1,4 +1,5 @@
 import ARKit
+import AVFoundation
 import Combine
 import PostureLogic
 import os.log
@@ -75,6 +76,14 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
     private var frameTimeoutTimer: Timer?
     private var isRecovering = false
     private var recoveryAttempts = 0
+    /// See `ARSessionService.isInterrupted`: no frames during an interruption isn't a timeout.
+    private var isInterrupted = false
+
+    /// Whether the camera is refused (2026-10-11). Until then a refusal was retried every 0.5 s
+    /// for as long as the app ran, and face mode, the default on Face ID phones, had no screen
+    /// saying so.
+    var blockedPublisher: AnyPublisher<Bool, Never> { blockedSubject.eraseToAnyPublisher() }
+    private let blockedSubject = CurrentValueSubject<Bool, Never>(false)
 
     // MARK: - Head-pose dropout smoothing (hold-last-good)
 
@@ -116,6 +125,13 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
             logger.error("ARFaceTracking unsupported on this device — caller should have gated on isFaceTrackingSupported")
             throw ARFaceTrackingError.unsupported
         }
+
+        guard !CameraAccess.isRefused(AVCaptureDevice.authorizationStatus(for: .video)) else {
+            logger.warning("Camera access refused — not starting face tracking")
+            blockedSubject.send(true)
+            return
+        }
+        blockedSubject.send(false)
 
         let config = ARFaceTrackingConfiguration()
         config.maximumNumberOfTrackedFaces = 1
@@ -161,7 +177,7 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
             return
         }
         let elapsed = Date().timeIntervalSince(lastFrame)
-        if elapsed > 2.0 {
+        if ARSessionService.isFrameTimeout(secondsSinceFrame: elapsed, interrupted: isInterrupted) {
             logger.error("⛔️ ARFaceTracking frame timeout (\(String(format: "%.1f", elapsed))s) — restarting")
             attemptRecovery()
         } else if elapsed < 0.5 && recoveryAttempts > 0 {
@@ -268,14 +284,30 @@ extension ARFaceTrackingService: ARSessionDelegate {
 
     func session(_ session: ARSession, didFailWithError error: Error) {
         logger.error("ARFaceTracking session failed: \(error.localizedDescription)")
+        guard Self.isRetryable(error) else {
+            frameTimeoutTimer?.invalidate()
+            frameTimeoutTimer = nil
+            blockedSubject.send(true)
+            return
+        }
         attemptRecovery()
+    }
+
+    /// A refused camera can't be fixed by trying again; anything else might be.
+    static func isRetryable(_ error: Error) -> Bool {
+        let error = error as NSError
+        return !(error.domain == ARError.errorDomain
+                 && error.code == ARError.Code.cameraUnauthorized.rawValue)
     }
 
     func sessionWasInterrupted(_ session: ARSession) {
         logger.info("ARFaceTracking session interrupted")
+        isInterrupted = true
     }
 
     func sessionInterruptionEnded(_ session: ARSession) {
+        isInterrupted = false
+        lastFrameTime = Date()
         guard let config = currentConfig else { return }
         logger.info("ARFaceTracking interruption ended — resuming")
         session.run(config, options: [.resetTracking, .removeExistingAnchors])

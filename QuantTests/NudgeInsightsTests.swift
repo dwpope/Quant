@@ -7,6 +7,7 @@ import PostureLogic
 /// All timestamps use `Date.timeIntervalSince1970` because that's
 /// what `NudgeEvent.timestamp` stores (one clock for the app since 2026-10-05). Tests pin a known reference date
 /// (2026-05-15 at 08:00 UTC) so hourly distributions are deterministic.
+@MainActor
 final class NudgeInsightsTests: XCTestCase {
 
     // MARK: - Helpers

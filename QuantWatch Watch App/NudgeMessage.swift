@@ -55,6 +55,12 @@ extension NudgeMessage {
 
 extension NudgeMessage {
     /// When the phone sent it, or nil from a phone build that doesn't say.
+    /// Whether a nudge's arrival report goes straight to the phone: only for a nudge that came
+    /// straight, with the phone able to take it. A queued nudge's report is queued too.
+    static func reportsArrivalStraightAway(nudgeWasQueued: Bool, phoneReachable: Bool) -> Bool {
+        !nudgeWasQueued && phoneReachable
+    }
+
     static func sentAt(from message: [String: Any]) -> Date? {
         (message["sentAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
     }

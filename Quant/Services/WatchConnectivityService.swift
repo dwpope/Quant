@@ -246,7 +246,7 @@ final class WatchConnectivityService: NSObject {
             return
         }
 
-        var context = (try? session.applicationContext) ?? [:]
+        var context = session.applicationContext
         context["type"] = "settings"
         for (key, value) in settings {
             context[key] = value

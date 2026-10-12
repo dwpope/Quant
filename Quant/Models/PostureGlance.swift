@@ -32,6 +32,30 @@ struct PostureGlance: Equatable {
         self.headTurnedSince = headTurnedSince?.timeIntervalSince1970.rounded()
     }
 
+    private init(state: String, since: Double?, headTurnedSince: Double?) {
+        self.state = state
+        self.since = since
+        self.headTurnedSince = headTurnedSince
+    }
+
+    /// This glance with the last sent one's times where they differ by a second or less
+    /// (2026-10-11). A start is worked out afresh each second from the frame clock, and its
+    /// rounding can flip between neighbouring seconds, which sent a glance every second and
+    /// made the Watch's timer jump back and forth. The Watch only shows the head turn while
+    /// sitting well, so it isn't sent while slouching either.
+    func steadied(against last: PostureGlance?) -> PostureGlance {
+        func hold(_ new: Double?, _ old: Double?) -> Double? {
+            guard let new, let old, abs(new - old) <= 1 else { return new }
+            return old
+        }
+        let sameState = last?.state == state
+        let turned = state == "good" ? headTurnedSince : nil
+        return PostureGlance(
+            state: state,
+            since: sameState ? hold(since, last?.since) : since,
+            headTurnedSince: hold(turned, last?.headTurnedSince))
+    }
+
     var message: [String: Any] {
         var m: [String: Any] = ["type": "posture", "state": state]
         if let since { m["since"] = since }

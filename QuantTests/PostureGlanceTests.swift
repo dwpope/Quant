@@ -95,4 +95,33 @@ final class PostureGlanceTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(glance.since), start.timeIntervalSince1970 - 12, accuracy: 0.5)
         XCTAssertNil(glance.headTurnedSince)
     }
+
+    // MARK: - Steady times (2026-10-11)
+
+    /// The start is worked out each second and its rounding can flip a second either way:
+    /// that sent a glance every second and made the Watch's timer jump.
+    func test_aStartThatJitters_byASecond_keepsTheOneSent() {
+        let sent = PostureGlance(state: .drifting(since: 5), since: start, headTurnedSince: nil)
+        let now = PostureGlance(state: .drifting(since: 5), since: start.addingTimeInterval(1), headTurnedSince: nil)
+            .steadied(against: sent)
+        XCTAssertEqual(now, sent)
+        XCTAssertFalse(PostureGlance.isDue(now, lastSent: sent, sentAt: start, now: start.addingTimeInterval(2)))
+    }
+
+    func test_aNewSlouch_sendsItsOwnStart() {
+        let sent = PostureGlance(state: .drifting(since: 5), since: start, headTurnedSince: nil)
+        let later = PostureGlance(state: .drifting(since: 5), since: start.addingTimeInterval(30), headTurnedSince: nil)
+        XCTAssertEqual(later.steadied(against: sent).since, start.timeIntervalSince1970 + 30)
+        let fromGood = PostureGlance(state: .bad(since: 5), since: start.addingTimeInterval(1), headTurnedSince: nil)
+            .steadied(against: PostureGlance(state: .good, since: nil, headTurnedSince: nil))
+        XCTAssertEqual(fromGood.since, start.timeIntervalSince1970 + 1)
+    }
+
+    /// The Watch shows a head turn only while sitting well, so it isn't sent otherwise.
+    func test_aHeadTurn_isOnlySentWhileSittingWell() {
+        let slouching = PostureGlance(state: .drifting(since: 5), since: start, headTurnedSince: start)
+        XCTAssertNil(slouching.steadied(against: nil).headTurnedSince)
+        let sittingWell = PostureGlance(state: .good, since: nil, headTurnedSince: start)
+        XCTAssertEqual(sittingWell.steadied(against: nil).headTurnedSince, start.timeIntervalSince1970)
+    }
 }

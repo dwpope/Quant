@@ -151,7 +151,10 @@ final class FrontCameraSessionService: NSObject, PoseProvider {
         // existing pipeline expectations.
         if let connection = videoOutput.connection(with: .video) {
             connection.isVideoMirrored = false
-            connection.videoOrientation = .portrait
+            // Portrait: the sensor's landscape frames turned 90°.
+            if connection.isVideoRotationAngleSupported(90) {
+                connection.videoRotationAngle = 90
+            }
         }
 
         isConfigured = true

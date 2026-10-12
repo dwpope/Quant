@@ -74,3 +74,17 @@ struct NudgeArrivalReportTests {
         ] as NSDictionary)
     }
 }
+
+/// A queued nudge's arrival report is queued too (2026-10-11): it arrives in a background wake
+/// that can end before a straight send gets through, and then the report was lost.
+struct ArrivalReportRouteTests {
+
+    @Test func aQueuedNudge_isReportedQueued_evenWithThePhoneReachable() {
+        #expect(!NudgeMessage.reportsArrivalStraightAway(nudgeWasQueued: true, phoneReachable: true))
+    }
+
+    @Test func aNudgeThatCameStraight_isReportedStraight_whenThePhoneCanTakeIt() {
+        #expect(NudgeMessage.reportsArrivalStraightAway(nudgeWasQueued: false, phoneReachable: true))
+        #expect(!NudgeMessage.reportsArrivalStraightAway(nudgeWasQueued: false, phoneReachable: false))
+    }
+}

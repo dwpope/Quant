@@ -77,6 +77,7 @@ class AppModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(forwardCreepThreshold, forKey: Keys.forwardCreepThreshold)
             updatePipelineThresholds()
+            syncSettingsToWatch()  // the Watch has this slider too (2026-10-11)
         }
     }
 
@@ -84,6 +85,7 @@ class AppModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(twistThreshold, forKey: Keys.twistThreshold)
             updatePipelineThresholds()
+            syncSettingsToWatch()  // the Watch has this slider too (2026-10-11)
         }
     }
 
@@ -91,6 +93,7 @@ class AppModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(sideLeanThreshold, forKey: Keys.sideLeanThreshold)
             updatePipelineThresholds()
+            syncSettingsToWatch()  // the Watch has this slider too (2026-10-11)
         }
     }
 
@@ -98,6 +101,7 @@ class AppModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(driftingToBadThreshold, forKey: Keys.driftingToBadThreshold)
             updatePipelineThresholds()
+            syncSettingsToWatch()  // the Watch has this slider too (2026-10-11)
         }
     }
 
@@ -142,6 +146,8 @@ class AppModel: ObservableObject {
     /// True when the front camera cannot start due to denied or restricted permission.
     /// The UI shows a permission-recovery screen when this is true and cameraMode is .front2D.
     @Published var frontCameraBlocked: Bool = false
+    /// The same for face tracking, the default on Face ID phones (2026-10-11).
+    @Published var faceCameraBlocked: Bool = false
 
     /// Whether the rear camera can run, for the recovery screen. Follows `arService`.
     @Published var rearCameraStatus: RearCameraStatus = .ok
@@ -368,9 +374,12 @@ class AppModel: ObservableObject {
         // recovery screen when permission is denied or restricted.
         // Uses assign(to:) so the subscription is tied to this object's lifetime.
         frontService.$permissionStatus
-            .map { $0 == .denied || $0 == .restricted }
+            .map { CameraAccess.isRefused($0) }
             .receive(on: RunLoop.main)
             .assign(to: &$frontCameraBlocked)
+        arFaceService.blockedPublisher
+            .receive(on: RunLoop.main)
+            .assign(to: &$faceCameraBlocked)
 
         // The rear camera's equivalent, so a failure shows a screen instead of only logs.
         arService.statusPublisher
@@ -472,6 +481,13 @@ class AppModel: ObservableObject {
 
         pipeline.$thermalLevel
             .assign(to: &$thermalLevel)
+
+        // Too hot: stop the camera too, not just the pipeline (2026-10-11).
+        pipeline.$thermalLevel
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] level in self?.applyHeatPause(level) }
+            .store(in: &cancellables)
 
         // The posture log: one line per change, checked once per frame (the nudge decision is
         // published every frame, after the posture state and metrics it was decided from).
@@ -644,6 +660,25 @@ class AppModel: ObservableObject {
             .store(in: &cancellables)
     }
 
+    // MARK: - Heat
+
+    /// Whether the camera is stopped because the phone is too hot.
+    private(set) var cameraStoppedForHeat = false
+
+    private func applyHeatPause(_ level: ThermalLevel) {
+        guard !isReplaying else { return }
+        switch HeatPause.action(for: level, cameraStoppedForHeat: cameraStoppedForHeat) {
+        case .stopCamera:
+            cameraStoppedForHeat = true
+            activeService.stop()
+        case .startCamera:
+            cameraStoppedForHeat = false
+            Task { try? await activeService.start() }
+        case .none:
+            break
+        }
+    }
+
     // MARK: - Watch Subscriptions
 
     private func setupWatchSubscriptions() {
@@ -726,7 +761,7 @@ class AppModel: ObservableObject {
     /// forced.
     private func pushPostureGlanceToWatch(force: Bool, now: Date = Date()) {
         guard watchService.isReachable else { return }
-        let glance = postureGlance(wallNow: now)
+        let glance = postureGlance(wallNow: now).steadied(against: lastPostureGlanceSent?.glance)
         guard force || PostureGlance.isDue(glance, lastSent: lastPostureGlanceSent?.glance,
                                            sentAt: lastPostureGlanceSent?.at, now: now)
         else { return }
@@ -839,9 +874,9 @@ class AppModel: ObservableObject {
 
     /// Re-attempt starting the front camera after the user grants permission in Settings.
     func retryFrontCamera() async {
-        guard cameraMode == .front2D else { return }
+        guard cameraMode == .front2D || cameraMode == .frontFace else { return }
         do {
-            try await frontService.start()
+            try await (cameraMode == .frontFace ? arFaceService : frontService as any PoseProvider).start()
         } catch {
             print("Failed to start front camera: \(error)")
         }
@@ -1147,12 +1182,16 @@ class AppModel: ObservableObject {
 
     func loadSession(_ url: URL) throws {
         let data = try Data(contentsOf: url)
-        let session = try JSONDecoder().decode(RecordedSession.self, from: data)
+        // The same date format `exportSession` writes (2026-10-11: it couldn't read them back).
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let session = try decoder.decode(RecordedSession.self, from: data)
         replayService.load(session: session)
     }
 
     func startReplay() {
         let provider = ReplayPoseProvider(replayService: replayService)
+        pipeline.resetTimeline()  // the recording runs on its own clock
         switchableProvider.attach(source: provider)
         isReplaying = true
         Task {
@@ -1166,6 +1205,7 @@ class AppModel: ObservableObject {
         replayService.stop()
         switchableProvider.detach()
         switchableProvider.attach(source: providerForMode(cameraMode))
+        pipeline.resetTimeline()
         isReplaying = false
     }
 
@@ -1179,7 +1219,8 @@ class AppModel: ObservableObject {
         sipCalibrationTimer?.invalidate()
         let countdownStart = Date()
         sipCalibrationTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
-            Task { @MainActor [weak self] in
+            // A timer scheduled here fires on the main run loop.
+            MainActor.assumeIsolated {
                 guard let self = self else { timer.invalidate(); return }
                 let elapsed = Date().timeIntervalSince(countdownStart)
                 let remaining = 5.0 - elapsed
@@ -1207,7 +1248,7 @@ class AppModel: ObservableObject {
 
         sipCalibrationTimer?.invalidate()
         sipCalibrationTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
-            Task { @MainActor [weak self] in
+            MainActor.assumeIsolated {
                 guard let self = self, let start = self.sipCalibrationStartTime else {
                     timer.invalidate()
                     return
@@ -1345,7 +1386,7 @@ class AppModel: ObservableObject {
     /// back-to-back — each re-triggering a sync, i.e. an echo straight back at
     /// the watch. Coalescing to one WCSession message after the burst settles
     /// keeps the channel quiet without changing what the watch eventually sees.
-    private var settingsSyncTask: Task<Void, Never>?
+    private(set) var settingsSyncTask: Task<Void, Never>?
 
     func syncSettingsToWatch() {
         settingsSyncTask?.cancel()
@@ -1436,7 +1477,7 @@ class AppModel: ObservableObject {
         calibrationStatus = .countdown(countdownRemaining)
 
         countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 guard let self = self else {
                     timer.invalidate()
                     return
