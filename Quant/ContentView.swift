@@ -176,6 +176,14 @@ struct ContentView: View {
         }
     }
 
+    @State private var showStoredData = false
+    @State private var storedDataNoticeDismissed = false
+
+    private var olderStoredBytes: Int64 {
+        StoredData.olderThan(days: AppModel.storedDataNoticeDays, in: appModel.storedData)
+            .reduce(0) { $0 + $1.bytes }
+    }
+
     private var monitoringView: some View {
         ScrollView {
             VStack(spacing: 12) {
@@ -189,6 +197,13 @@ struct ContentView: View {
                     lastSipTimestamp: appModel.sipStore.lastSipTimestamp,
                     onTap: { showSipTimeline = true }
                 )
+
+                // From the scan at launch: data older than a month, until dismissed.
+                if !storedDataNoticeDismissed, olderStoredBytes > 0 {
+                    StoredDataCard(olderBytes: olderStoredBytes,
+                                   onTap: { showStoredData = true },
+                                   onDismiss: { storedDataNoticeDismissed = true })
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 24)
@@ -196,6 +211,9 @@ struct ContentView: View {
         // Clears the collapsed panel: it sits 16pt below the safe area, and the cards keep a
         // 12pt gap under it after their own 24pt of padding.
         .contentMargins(.top, panelExpanded ? 0 : panelHeight + 4, for: .scrollContent)
+        .sheet(isPresented: $showStoredData) {
+            NavigationStack { StoredDataView() }
+        }
         .sheet(isPresented: $showSipTimeline) {
             SipTimelineView(appModel: appModel, sipStore: appModel.sipStore)
         }

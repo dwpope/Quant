@@ -18,6 +18,7 @@ struct QuantApp: App {
                 .task {
                     guard NSClassFromString("XCTestCase") == nil else { return }
                     await appModel.startMonitoring()
+                    await appModel.scanStoredData()
                 }
         }
     }

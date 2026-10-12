@@ -205,6 +205,14 @@ struct CalibrationSettingsView: View {
                 }
 
                 Section {
+                    NavigationLink("Stored Data") {
+                        StoredDataView()
+                    }
+                } footer: {
+                    Text("What the app keeps on this iPhone, and deleting older data.")
+                }
+
+                Section {
                     Toggle("Training mode", isOn: $appModel.isTrainingModeEnabled)
                 } footer: {
                     Text("Captures labeling data for detector tuning.")

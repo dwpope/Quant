@@ -660,6 +660,31 @@ class AppModel: ObservableObject {
             .store(in: &cancellables)
     }
 
+    // MARK: - Stored data (2026-10-11)
+
+    /// The app's daily data in Documents, from the scan at launch and after each delete.
+    @Published private(set) var storedData: [StoredData.Item] = []
+
+    /// How old data has to be before the main screen mentions it.
+    static let storedDataNoticeDays = 30
+
+    /// Scans Documents off the main thread. Runs at launch.
+    func scanStoredData() async {
+        storedData = await Task.detached(priority: .utility) { StoredData.scan() }.value
+    }
+
+    /// Deletes the app's daily data from before the last `days` days, then scans again.
+    /// Returns the bytes freed.
+    @discardableResult
+    func deleteStoredData(olderThan days: Int) async -> Int64 {
+        let old = StoredData.olderThan(days: days, in: storedData)
+        let freed = await Task.detached(priority: .utility) { StoredData.delete(old) }.value
+        jevComparisonStore.reloadEarlierDays()
+        postureLogStore.recount()
+        await scanStoredData()
+        return freed
+    }
+
     // MARK: - Heat
 
     /// Whether the camera is stopped because the phone is too hot.

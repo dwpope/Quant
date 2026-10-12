@@ -365,6 +365,9 @@ final class JevComparisonStore: ObservableObject {
     /// (`….unreadable-<epoch>.json`) is skipped: it's evidence for a person, not data. An
     /// unreadable record inside a good file costs only itself, as in ``load()``. Read-only:
     /// earlier days' files are never written back.
+    /// Reads earlier days again, after older ones were deleted (2026-10-11).
+    func reloadEarlierDays() { loadEarlierDays() }
+
     private func loadEarlierDays() {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let names = (try? FileManager.default.contentsOfDirectory(atPath: documents.path)) ?? []

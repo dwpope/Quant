@@ -115,6 +115,11 @@ final class PostureLogStore: ObservableObject {
     private let calendar = Calendar.current
 
     init() {
+        recount()
+    }
+
+    /// Counts the lines again, after older days were deleted (2026-10-11).
+    func recount() {
         count = Self.dayFiles().reduce(0) { total, url in
             total + ((try? String(contentsOf: url, encoding: .utf8))?
                 .split(separator: "\n").count ?? 0)
