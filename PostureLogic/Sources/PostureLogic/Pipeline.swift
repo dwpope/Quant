@@ -273,7 +273,9 @@ public class Pipeline {
         let mode = modeSwitcher.update(confidence: confidence, timestamp: frame.timestamp)
 
         // Update published properties on main thread (now at ~10 FPS).
-        Task { @MainActor [weak self] in
+        framesInFlight.begin()
+        Task { @MainActor [weak self, framesInFlight] in
+            defer { framesInFlight.end() }
             guard let self = self else { return }
             self.fps = currentFPS
             self.depthConfidence = confidence
@@ -287,7 +289,9 @@ public class Pipeline {
         let currentQuality = currentTrackingQuality
 
         // Process pose asynchronously at ~10 FPS
-        Task { [weak self, poseService, frame] in
+        framesInFlight.begin()
+        Task { [weak self, poseService, frame, framesInFlight] in
+            defer { framesInFlight.end() }
             guard let self = self else { return }
 
             // Extract pose keypoints using Vision
@@ -611,10 +615,22 @@ public class Pipeline {
 
     /// Fast path for precomputed samples (replay / test).
     /// Skips pose detection, depth, mode switching, and throttle.
+    /// Frames handed to tasks and not yet finished. See `settled()`.
+    private let framesInFlight = FramesInFlight()
+
+    /// Returns once every frame handed in so far has been processed (2026-10-12). For tests,
+    /// which used to sleep a fixed time per frame and hope; also for a caller that must read the
+    /// results of a burst of replayed frames.
+    public func settled() async {
+        await framesInFlight.settled()
+    }
+
     private func processPrecomputed(_ sample: PoseSample, timestamp: TimeInterval) {
         let currentFPS = computeFPS(timestamp: timestamp)
 
-        Task { @MainActor [weak self] in
+        framesInFlight.begin()
+        Task { @MainActor [weak self, framesInFlight] in
+            defer { framesInFlight.end() }
             guard let self = self else { return }
             guard self.takesFrame(at: timestamp) else { return }
             self.fps = currentFPS

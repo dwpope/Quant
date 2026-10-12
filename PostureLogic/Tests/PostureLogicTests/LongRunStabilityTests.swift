@@ -187,14 +187,10 @@ final class LongRunStabilityTests: XCTestCase {
             let chunkEnd = min(chunkStart + chunkSize, totalFrames)
             emitFrames(samples: samples, range: chunkStart..<chunkEnd, via: provider)
 
-            // Yield to let MainActor tasks drain
-            await Task.yield()
-            try await Task.sleep(for: .milliseconds(5))
+            // Let this chunk finish before the next
+            await pipeline.settled()
         }
 
-        // Give final frames time to process
-        try await Task.sleep(nanoseconds: 200_000_000)
-        try await Task.sleep(for: .milliseconds(50))
 
         let endMemory = currentMemoryBytes()
         let memoryDelta = Int64(bitPattern: endMemory) - Int64(bitPattern: startMemory)
@@ -261,13 +257,9 @@ final class LongRunStabilityTests: XCTestCase {
         for chunkStart in stride(from: 0, to: frameCount, by: chunkSize) {
             let chunkEnd = min(chunkStart + chunkSize, frameCount)
             emitFrames(samples: samples, range: chunkStart..<chunkEnd, via: provider)
-            await Task.yield()
-            try await Task.sleep(for: .milliseconds(5))
+            await pipeline.settled()
         }
 
-        // Let final frames drain
-        try await Task.sleep(nanoseconds: 200_000_000)
-        try await Task.sleep(for: .milliseconds(50))
 
         // Verify multiple posture states were observed
         XCTAssertTrue(sawGood, "Expected .good posture state during run")

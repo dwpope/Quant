@@ -82,8 +82,7 @@ final class PipelineThermalTests: XCTestCase {
 
         // First emit some frames at nominal — should process
         emitPrecomputed(count: 5, via: provider)
-        await Task.yield()
-        try await Task.sleep(for: .milliseconds(50))
+        await pipeline.settled()
 
         let sampleBeforePause = pipeline.latestSample
         XCTAssertNotNil(sampleBeforePause, "Should have processed frames at nominal")
@@ -101,8 +100,7 @@ final class PipelineThermalTests: XCTestCase {
 
         // Recover to nominal
         mock.setLevel(.nominal)
-        await Task.yield()
-        try await Task.sleep(for: .milliseconds(50))
+        await pipeline.settled()
         XCTAssertEqual(pipeline.thermalLevel, .nominal)
     }
 
@@ -116,8 +114,7 @@ final class PipelineThermalTests: XCTestCase {
 
         // Process at nominal
         emitPrecomputed(count: 5, via: provider)
-        await Task.yield()
-        try await Task.sleep(for: .milliseconds(50))
+        await pipeline.settled()
         XCTAssertNotNil(pipeline.latestSample)
 
         // Go critical then back to nominal
@@ -129,8 +126,7 @@ final class PipelineThermalTests: XCTestCase {
         // Should still process new frames after recovery
         let newTimestamp = 100.0
         emitPrecomputed(count: 5, startTimestamp: newTimestamp, via: provider)
-        await Task.yield()
-        try await Task.sleep(for: .milliseconds(50))
+        await pipeline.settled()
 
         XCTAssertNotNil(pipeline.latestSample)
         XCTAssertEqual(pipeline.thermalLevel, .nominal)
@@ -146,8 +142,7 @@ final class PipelineThermalTests: XCTestCase {
 
         // Should work normally
         emitPrecomputed(count: 5, via: provider)
-        await Task.yield()
-        try await Task.sleep(for: .milliseconds(50))
+        await pipeline.settled()
 
         XCTAssertNotNil(pipeline.latestSample)
         XCTAssertEqual(pipeline.thermalLevel, .nominal)

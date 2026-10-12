@@ -85,12 +85,8 @@ final class PipelineIntegrationTests: XCTestCase {
         )
     }
 
-    /// Emit a precomputed sample through the pipeline and wait for processing.
-    func emitAndWait(
-        _ mock: MockPoseProvider,
-        sample: PoseSample,
-        waitNanos: UInt64 = 100_000_000
-    ) async throws {
+    /// Emit a precomputed sample through the pipeline and wait until it's processed.
+    func emitAndWait(_ mock: MockPoseProvider, _ pipeline: Pipeline, sample: PoseSample) async {
         let frame = InputFrame(
             timestamp: sample.timestamp,
             pixelBuffer: nil,
@@ -99,7 +95,7 @@ final class PipelineIntegrationTests: XCTestCase {
             precomputedSample: sample
         )
         mock.emit(frame: frame)
-        try await Task.sleep(nanoseconds: waitNanos)
+        await pipeline.settled()
     }
 
     // MARK: - Tests
@@ -110,11 +106,10 @@ final class PipelineIntegrationTests: XCTestCase {
         let pipeline = Pipeline(provider: mock)
         pipeline.baseline = Self.makeBaseline()
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
         for i in 0..<5 {
-            try await emitAndWait(mock, sample: Self.goodSample(at: t + Double(i) * 0.1))
+            await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t + Double(i) * 0.1))
         }
 
         XCTAssertEqual(pipeline.postureState, .good, "Good posture samples should produce .good state")
@@ -142,11 +137,10 @@ final class PipelineIntegrationTests: XCTestCase {
         let pipeline = Pipeline(provider: mock)
         pipeline.baseline = Self.makeBaseline()
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
-        try await emitAndWait(mock, sample: Self.goodSample(at: t))
-        try await emitAndWait(mock, sample: Self.badSample(at: t + 0.2))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t))
+        await emitAndWait(mock, pipeline, sample: Self.badSample(at: t + 0.2))
 
         if let metrics = pipeline.latestMetrics {
             XCTAssertGreaterThan(metrics.forwardCreep, 0.03, "Bad posture should produce forward creep above threshold")
@@ -171,13 +165,12 @@ final class PipelineIntegrationTests: XCTestCase {
         let pipeline = Pipeline(provider: mock, thresholds: thresholds)
         pipeline.baseline = Self.makeBaseline()
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
-        try await emitAndWait(mock, sample: Self.goodSample(at: t))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t))
 
         for i in 1...30 {
-            try await emitAndWait(mock, sample: Self.badSample(at: t + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.badSample(at: t + Double(i) * 0.1))
         }
 
         XCTAssertTrue(pipeline.postureState.isBad, "Sustained bad posture (3s) should transition to .bad with 2s threshold")
@@ -192,22 +185,21 @@ final class PipelineIntegrationTests: XCTestCase {
         let pipeline = Pipeline(provider: mock, thresholds: thresholds)
         pipeline.baseline = Self.makeBaseline()
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
-        try await emitAndWait(mock, sample: Self.goodSample(at: t))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t))
         for i in 1...10 {
-            try await emitAndWait(mock, sample: Self.badSample(at: t + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.badSample(at: t + Double(i) * 0.1))
         }
         XCTAssertTrue(pipeline.postureState.isBad, "Should be in .bad state before recovery test")
 
         // One good frame should not recover
-        try await emitAndWait(mock, sample: Self.goodSample(at: t + 1.5))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t + 1.5))
         XCTAssertTrue(pipeline.postureState.isBad, "One good frame should not recover from .bad (grace period not elapsed)")
 
         // Good frames spanning the full grace period
         for i in 0...15 {
-            try await emitAndWait(mock, sample: Self.goodSample(at: t + 1.6 + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t + 1.6 + Double(i) * 0.1))
         }
 
         XCTAssertEqual(pipeline.postureState, .good, "Good posture sustained beyond grace period should recover to .good")
@@ -221,14 +213,13 @@ final class PipelineIntegrationTests: XCTestCase {
         let pipeline = Pipeline(provider: mock, thresholds: thresholds)
         pipeline.baseline = Self.makeBaseline()
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
-        try await emitAndWait(mock, sample: Self.goodSample(at: t))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t))
         XCTAssertEqual(pipeline.postureState, .good)
 
         for i in 1...10 {
-            try await emitAndWait(mock, sample: Self.lostSample(at: t + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.lostSample(at: t + Double(i) * 0.1))
         }
 
         XCTAssertEqual(pipeline.postureState, .absent, "Lost tracking beyond absent threshold should produce .absent")
@@ -240,10 +231,9 @@ final class PipelineIntegrationTests: XCTestCase {
         let pipeline = Pipeline(provider: mock)
         // Intentionally NOT setting pipeline.baseline
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
-        try await emitAndWait(mock, sample: Self.badSample(at: t))
+        await emitAndWait(mock, pipeline, sample: Self.badSample(at: t))
 
         if let metrics = pipeline.latestMetrics {
             XCTAssertEqual(metrics.forwardCreep, 0, "Without baseline, forwardCreep should be 0")
@@ -262,11 +252,10 @@ final class PipelineIntegrationTests: XCTestCase {
         let pipeline = Pipeline(provider: mock)
         pipeline.baseline = Self.makeBaseline()
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
         // First sample passes through MetricsSmoother unsmoothed
-        try await emitAndWait(mock, sample: Self.badSample(at: t))
+        await emitAndWait(mock, pipeline, sample: Self.badSample(at: t))
 
         guard let metrics = pipeline.latestMetrics else {
             XCTFail("Should have metrics")
@@ -286,11 +275,10 @@ final class PipelineIntegrationTests: XCTestCase {
         let mock = MockPoseProvider()
         let pipeline = Pipeline(provider: mock)
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
         for i in 0..<10 {
-            try await emitAndWait(mock, sample: Self.goodSample(at: t + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t + Double(i) * 0.1))
         }
 
         XCTAssertGreaterThan(pipeline.fps, 0, "FPS should be computed after multiple frames")
@@ -305,12 +293,11 @@ final class PipelineIntegrationTests: XCTestCase {
         let pipeline = Pipeline(provider: mock, thresholds: thresholds)
         pipeline.baseline = Self.makeBaseline()
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
-        try await emitAndWait(mock, sample: Self.goodSample(at: t))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t))
         for i in 1...50 {
-            try await emitAndWait(mock, sample: Self.badSample(at: t + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.badSample(at: t + Double(i) * 0.1))
         }
 
         XCTAssertTrue(pipeline.postureState.isBad, "Should be in .bad state")
@@ -328,13 +315,12 @@ final class PipelineIntegrationTests: XCTestCase {
         let mock = MockPoseProvider()
         let pipeline = Pipeline(provider: mock)
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
-        try await emitAndWait(mock, sample: Self.goodSample(at: t))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t))
         XCTAssertEqual(pipeline.trackingQuality, .good, "Good sample should publish .good tracking")
 
-        try await emitAndWait(mock, sample: Self.lostSample(at: t + 1.0))
+        await emitAndWait(mock, pipeline, sample: Self.lostSample(at: t + 1.0))
         XCTAssertEqual(pipeline.trackingQuality, .lost, "Lost sample should publish .lost tracking")
     }
 
@@ -345,12 +331,11 @@ final class PipelineIntegrationTests: XCTestCase {
         let recorder = MockRecorder()
         pipeline.recorder = recorder
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
-        try await emitAndWait(mock, sample: Self.goodSample(at: t))
-        try await emitAndWait(mock, sample: Self.goodSample(at: t + 0.1))
-        try await emitAndWait(mock, sample: Self.goodSample(at: t + 0.2))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t + 0.1))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t + 0.2))
 
         XCTAssertEqual(recorder.recordedSamples.count, 3, "Recorder should capture all precomputed samples")
     }
@@ -364,14 +349,13 @@ final class PipelineIntegrationTests: XCTestCase {
         let pipeline = Pipeline(provider: mock, thresholds: thresholds)
         pipeline.baseline = Self.makeBaseline()
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
         for i in 0..<3 {
-            try await emitAndWait(mock, sample: Self.goodSample(at: t + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t + Double(i) * 0.1))
         }
         for i in 0...5 {
-            try await emitAndWait(mock, sample: Self.lostSample(at: t + 0.5 + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.lostSample(at: t + 0.5 + Double(i) * 0.1))
         }
 
         XCTAssertFalse(pipeline.absenceSegments.isEmpty, "Should have at least one absence segment after going absent")
@@ -387,18 +371,17 @@ final class PipelineIntegrationTests: XCTestCase {
         let pipeline = Pipeline(provider: mock, thresholds: thresholds)
         pipeline.baseline = Self.makeBaseline()
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
-        try await emitAndWait(mock, sample: Self.goodSample(at: t))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t))
         for i in 1...5 {
-            try await emitAndWait(mock, sample: Self.lostSample(at: t + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.lostSample(at: t + Double(i) * 0.1))
         }
         XCTAssertEqual(pipeline.postureState, .absent)
 
         // Return after long gap (>2s)
         for i in 0...5 {
-            try await emitAndWait(mock, sample: Self.goodSample(at: t + 5.0 + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t + 5.0 + Double(i) * 0.1))
         }
 
         XCTAssertTrue(pipeline.showRecalibrationPrompt, "Long absence should trigger recalibration prompt")
@@ -414,15 +397,14 @@ final class PipelineIntegrationTests: XCTestCase {
         let pipeline = Pipeline(provider: mock, thresholds: thresholds)
         pipeline.baseline = Self.makeBaseline()
         try await mock.start()
-        try await Task.sleep(nanoseconds: 50_000_000)
 
         let t = Date().timeIntervalSince1970
-        try await emitAndWait(mock, sample: Self.goodSample(at: t))
+        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t))
         for i in 1...5 {
-            try await emitAndWait(mock, sample: Self.lostSample(at: t + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.lostSample(at: t + Double(i) * 0.1))
         }
         for i in 0...5 {
-            try await emitAndWait(mock, sample: Self.goodSample(at: t + 5.0 + Double(i) * 0.1), waitNanos: 20_000_000)
+            await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t + 5.0 + Double(i) * 0.1))
         }
 
         pipeline.dismissRecalibrationPrompt()

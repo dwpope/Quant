@@ -75,7 +75,6 @@ final class NobodyInViewTests: XCTestCase {
             let t = bootClockStart + Double(i) * 0.2
             provider.emit(frame: InputFrame(timestamp: t, pixelBuffer: nil, depthMap: nil,
                                             cameraIntrinsics: nil, precomputedSample: nil))
-            try await Task.sleep(nanoseconds: 20_000_000)   // let each frame's pose task land in order
         }
 
         await fulfillment(of: [away], timeout: 5)

@@ -9,14 +9,10 @@ final class IntegrationTests: XCTestCase {
 
         try await mock.start()
 
-        // Wait for pipeline to subscribe (async safety)
-        try await Task.sleep(nanoseconds: 100_000_000)
-
         // When — emit a frame with no pixel buffer (PoseService can't extract keypoints)
         mock.emit(frame: TestScenarios.goodPosture.frames[0])
 
-        // Wait for pipeline to process
-        try await Task.sleep(nanoseconds: 100_000_000)
+        await pipeline.settled()
 
         // Then — no valid pose observation means fusion returns nil, so no sample published
         let output = pipeline.latestSample
@@ -39,14 +35,10 @@ final class IntegrationTests: XCTestCase {
             cameraIntrinsics: nil // ARKit camera intrinsics
         )
 
-        // Wait for pipeline subscription
-        try await Task.sleep(nanoseconds: 50_000_000)
-
         // Emit frame like ARSessionService does
         mock.emit(frame: testFrame)
 
-        // Wait for processing
-        try await Task.sleep(nanoseconds: 50_000_000)
+        await pipeline.settled()
 
         // Without a pixel buffer, PoseService returns nil, so PoseDepthFusion
         // has no observation to work with — latestSample remains nil
