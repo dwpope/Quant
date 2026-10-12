@@ -160,3 +160,6 @@ secrets.*
 # contain resolved secrets in plaintext, so keep them unaddable too.
 *.xcresult/
 *.log
+
+# Blender autosaves (the .blend itself is the figure's source, kept)
+*.blend1

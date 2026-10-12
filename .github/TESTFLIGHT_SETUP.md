@@ -8,7 +8,9 @@ happens on Apple's infrastructure — nothing runs on your Mac.
 | Stage | Mechanism | Automatic |
 |---|---|---|
 | Push to `main` | git | ✅ |
-| PostureLogic package tests | GitHub Actions (`tests.yml`, macos-15) | ✅ |
+| PostureLogic package tests | GitHub Actions (`tests.yml`, macos-26) | ✅ |
+| App and Watch tests | GitHub Actions (`app-tests.yml`, macos-26: `QuantNoWatchTests` on an iOS simulator, the Watch app's tests on a watchOS simulator) | ✅ |
+| Secrets Guard | GitHub Actions (`secrets-guard.yml`, `scripts/secrets-check.sh`) | ✅ |
 | Archive iOS app | **Xcode Cloud** workflow "TestFlight" → action `Archive - iOS` | ✅ ~5 min |
 | Upload to App Store Connect | Xcode Cloud | ✅ |
 | Processing | Apple | ✅ minutes–1h |
@@ -121,9 +123,9 @@ git show 31fe577:.github/ExportOptions.plist
 ## Known gaps
 
 - **Xcode Cloud has no test action.** Its only action is `Archive - iOS`, so the
-  shipping path is ungated. The `swift test` gate lives in `tests.yml`, which does
-  not block the archive. Neither pipeline runs `QuantTests`/`QuantUITests` — only
-  the PostureLogic SwiftPM package. Consider adding a `Test - iOS` action.
+  shipping path is ungated: the GitHub Actions tests (`tests.yml`, `app-tests.yml`)
+  run on the same push but don't block the archive. `QuantUITests` runs nowhere.
+  Consider adding a `Test - iOS` action.
 - **`main` is not branch-protected**, so anything pushed ships with no required
   checks.
 - **`MARKETING_VERSION` is pinned at `1.0`** and never bumped. Fine for TestFlight;

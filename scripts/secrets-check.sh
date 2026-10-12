@@ -26,13 +26,21 @@ ok()  { printf '  \033[32mok\033[0m    %s\n' "$1"; }
 bad() { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAIL=1; }
 
 # 1. The TypeSafe/Jev key belongs in the Cloudflare Worker's environment and nowhere
-#    else. Nothing in this repo should assign it a value.
+#    else. Nothing in this repo should assign it a value. Also the Swift spelling
+#    (`let jevToken = "..."`, 20+ characters without dots so a UserDefaults key isn't one),
+#    a bearer header set in code, and the common credential shapes: GitHub tokens, AWS
+#    access keys, private keys (2026-10-11 review: only uppercase Jev names were caught).
 hits=$(git grep -nE \
   -e '(JEV|TYPESAFE)[A-Z_]*(TOKEN|KEY|SECRET)[[:space:]]*[=:][[:space:]]*['"'"'"]?[A-Za-z0-9_.-]{12,}' \
+  -e '([Jj][Ee][Vv]|[Tt][Yy][Pp][Ee][Ss][Aa][Ff][Ee])[A-Za-z_]*([Tt][Oo][Kk][Ee][Nn]|[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt])[[:space:]]*[=:][[:space:]]*['"'"'"]?[A-Za-z0-9_-]{20,}' \
   -e 'Authorization[[:space:]]*:[[:space:]]*.?[Bb]earer[[:space:]]+[A-Za-z0-9_.-]{16,}' \
+  -e '"Bearer [A-Za-z0-9_.-]{16,}' \
+  -e 'ghp_[A-Za-z0-9]{36}' \
+  -e 'AKIA[0-9A-Z]{16}' \
+  -e 'BEGIN ([A-Z]+ )?PRIVATE KEY-----' \
   HEAD 2>/dev/null || true)
 if [ -n "$hits" ]; then bad "credential assignment in tracked content:"; echo "$hits" | sed 's/^/        /'; \
-else ok "no Jev/TypeSafe credential assignment in tracked content"; fi
+else ok "no credential assignment or credential-shaped value in tracked content"; fi
 
 # 2. No credential-shaped file may be tracked, whatever it is called internally.
 paths=$(git ls-files | grep -iE '(^|/)(\.env($|\.)|\.dev\.vars|secrets?\.|.*\.(xcconfig|pem|p8|p12|key|keystore|mobileprovision)$)' || true)

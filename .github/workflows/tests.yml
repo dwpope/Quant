@@ -12,6 +12,9 @@ on:
       - 'PostureLogic/**'
       - '.github/workflows/tests.yml'
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -19,7 +22,9 @@ concurrency:
 jobs:
   test:
     name: Swift Package Tests
-    runs-on: macos-15
+    # The same toolchain as the app's tests (app-tests.yml), so the package is built by one Swift.
+    runs-on: macos-26
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: PostureLogic
