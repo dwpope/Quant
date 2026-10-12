@@ -69,31 +69,84 @@ final class WristNudgeSession: NSObject, ObservableObject {
     private let makeRuntime: (WristNudgeSession) -> ExtendedRuntime
     private let notifyRenewal: () -> Void
     private let isAppActive: () -> Bool
+    private let now: () -> Date
+    private let scheduleCheck: (TimeInterval, @escaping () -> Void) -> Void
+    /// When the current start was asked for.
+    private var startingSince: Date?
+
+    /// How long a start may go unanswered before it's taken as stalled (2026-10-11).
+    static let startTimeout: TimeInterval = 15
 
     init(makeRuntime: @escaping (WristNudgeSession) -> ExtendedRuntime,
          notifyRenewal: @escaping () -> Void,
-         isAppActive: @escaping () -> Bool) {
+         isAppActive: @escaping () -> Bool,
+         now: @escaping () -> Date = Date.init,
+         scheduleCheck: @escaping (TimeInterval, @escaping () -> Void) -> Void = { delay, check in
+             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: check)
+         }) {
         self.makeRuntime = makeRuntime
         self.notifyRenewal = notifyRenewal
         self.isAppActive = isAppActive
+        self.now = now
+        self.scheduleCheck = scheduleCheck
     }
 
     // MARK: - Events
 
-    /// The app came to the front: start an hour, unless one is running or starting.
+    /// The app came to the front: start an hour, unless one is running or starting. A start
+    /// that has gone unanswered for `startTimeout` is abandoned and asked for again.
     func appBecameActive() {
         switch state {
-        case .starting, .on: return
+        case .on: return
+        case .starting:
+            guard startHasStalled else { return }
+            abandonStart()
         case .off, .unavailable: break
         }
         let runtime = makeRuntime(self)
         self.runtime = runtime
+        startingSince = now()
         state = .starting
         runtime.start()
+        scheduleCheck(Self.startTimeout + 1) { [weak self] in self?.checkStarting() }
+    }
+
+    /// A start still unanswered after `startTimeout`: say so, so the button comes back.
+    func checkStarting() {
+        guard case .starting = state, startHasStalled else { return }
+        abandonStart()
+        state = .unavailable("it didn't start")
+    }
+
+    private var startHasStalled: Bool {
+        guard let startingSince else { return true }
+        return now().timeIntervalSince(startingSince) > Self.startTimeout
+    }
+
+    private func abandonStart() {
+        runtime?.invalidate()
+        runtime = nil
+        startingSince = nil
+    }
+
+    /// Whether `runtime` is the current one. Answers from an abandoned start are ignored.
+    private func isCurrent(_ runtime: ExtendedRuntime) -> Bool {
+        self.runtime === runtime
     }
 
     func didStart(until end: Date) {
+        startingSince = nil
         state = .on(until: end)
+    }
+
+    func didStart(until end: Date, from runtime: ExtendedRuntime) {
+        guard isCurrent(runtime) else { return }
+        didStart(until: end)
+    }
+
+    func didEnd(error: String?, from runtime: ExtendedRuntime) {
+        guard isCurrent(runtime) else { return }
+        didEnd(error: error)
     }
 
     /// Shortly before the hour ends.
@@ -104,6 +157,7 @@ final class WristNudgeSession: NSObject, ObservableObject {
     /// The session ended: `error` when watchOS refused or stopped it with one.
     func didEnd(error: String?) {
         runtime = nil
+        startingSince = nil
         if let error {
             state = .unavailable(error)
             return
@@ -142,7 +196,7 @@ extension WristNudgeSession: WKExtendedRuntimeSessionDelegate {
 
     func extendedRuntimeSessionDidStart(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
         let end = extendedRuntimeSession.expirationDate ?? Date().addingTimeInterval(3600)
-        DispatchQueue.main.async { self.didStart(until: end) }
+        DispatchQueue.main.async { self.didStart(until: end, from: extendedRuntimeSession) }
     }
 
     func extendedRuntimeSessionWillExpire(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
@@ -163,6 +217,6 @@ extension WristNudgeSession: WKExtendedRuntimeSessionDelegate {
         case .suppressedBySystem: message = "watchOS paused it"
         @unknown default: message = "it ended"
         }
-        DispatchQueue.main.async { self.didEnd(error: message) }
+        DispatchQueue.main.async { self.didEnd(error: message, from: extendedRuntimeSession) }
     }
 }

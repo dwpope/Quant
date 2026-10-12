@@ -115,3 +115,62 @@ struct WristSessionTests {
         #expect(modes?.contains("physical-therapy") == true)
     }
 }
+
+/// A start that never answers doesn't leave the screen on "Keeping nudges on time…" for good
+/// (2026-10-11 review). watchOS is meant to answer every start, but nothing guarantees it; after
+/// 15 s the screen says it didn't start and offers the button, and opening the app tries again.
+struct WristSessionStallTests {
+
+    final class Harness {
+        var runtimes: [WristSessionTests.FakeRuntime] = []
+        var clock = Date(timeIntervalSince1970: 1_791_640_000)
+        lazy var session = WristNudgeSession(
+            makeRuntime: { [unowned self] _ in
+                let r = WristSessionTests.FakeRuntime(); self.runtimes.append(r); return r
+            },
+            notifyRenewal: {},
+            isAppActive: { true },
+            now: { [unowned self] in self.clock },
+            scheduleCheck: { _, _ in })
+    }
+
+    @Test func aStartWithNoAnswer_isShownAsNotStarted_after15Seconds() {
+        let h = Harness()
+        h.session.appBecameActive()
+        h.clock += 10
+        h.session.checkStarting()
+        #expect(h.session.state == .starting, "still waiting at 10 s")
+        h.clock += 6
+        h.session.checkStarting()
+        #expect(h.session.state == .unavailable("it didn't start"))
+        #expect(h.runtimes.first?.invalidated == 1)
+    }
+
+    @Test func openingTheApp_afterAStall_startsAgain() {
+        let h = Harness()
+        h.session.appBecameActive()
+        h.clock += 20
+        h.session.appBecameActive()
+        #expect(h.runtimes.count == 2)
+        #expect(h.runtimes.first?.invalidated == 1)
+    }
+
+    @Test func openingTheApp_whileAStartIsYoung_startsNothingNew() {
+        let h = Harness()
+        h.session.appBecameActive()
+        h.clock += 5
+        h.session.appBecameActive()
+        #expect(h.runtimes.count == 1)
+    }
+
+    /// Something the stalled session says late changes nothing.
+    @Test func anAnswerFromAnAbandonedStart_isIgnored() {
+        let h = Harness()
+        h.session.appBecameActive()
+        let abandoned = h.runtimes[0]
+        h.clock += 20
+        h.session.appBecameActive()
+        h.session.didEnd(error: "late", from: abandoned)
+        #expect(h.session.state == .starting)
+    }
+}
