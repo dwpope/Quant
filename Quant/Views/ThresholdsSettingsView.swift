@@ -98,14 +98,14 @@ struct ThresholdsSettingsView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("Nudge Cooldown")
+                        Text("Repeat While Slouched")
                         Spacer()
                         Text(String(format: "%.0f sec", appModel.nudgeCooldown))
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
-                    Slider(value: $appModel.nudgeCooldown, in: 60...1800, step: 30)
-                    Text("Minimum seconds between nudges")
+                    Slider(value: $appModel.nudgeCooldown, in: 30...600, step: 10)
+                    Text("Still slouched after a nudge: nudged again after this much more slouching. 30 s sitting well ends it")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

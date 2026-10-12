@@ -987,7 +987,8 @@ final class NudgeEngineTests: XCTestCase {
         }
     }
 
-    func test_defaultThresholds_tenMinuteCooldown() {
+    /// A slouch left uncorrected is nudged again a minute later (10 minutes until 2026-10-12).
+    func test_defaultThresholds_oneMinuteRepeat() {
         let engine = NudgeEngine()
 
         // Fire at 5 minutes
@@ -996,28 +997,28 @@ final class NudgeEngineTests: XCTestCase {
 
         // Slouched throughout, a frame every 10 s: slouched time is counted frame to frame
         // since 2026-10-07, so a long jump between frames would read as a break.
-        for t in stride(from: 310.0, to: 840, by: 10) {
+        for t in stride(from: 310.0, to: 350, by: 10) {
             _ = evaluate(engine, state: .bad(since: 300), currentTime: t)
         }
 
-        // 9 minutes later (t=840) — cooldown still active (300 + 600 = 900)
-        let decision1 = evaluate(engine, state: .bad(since: 300), currentTime: 840)
+        // 50 s later — the repeat is still waiting
+        let decision1 = evaluate(engine, state: .bad(since: 300), currentTime: 350)
         if case .suppressed(.cooldownActive) = decision1 {
             // Expected
         } else {
-            XCTFail("Should still be in cooldown at 9 min after nudge, got: \(decision1)")
+            XCTFail("Should still wait 50 s after the nudge, got: \(decision1)")
         }
 
-        for t in stride(from: 850.0, to: 901, by: 10) {
+        for t in stride(from: 360.0, to: 361, by: 10) {
             _ = evaluate(engine, state: .bad(since: 300), currentTime: t)
         }
 
-        // 10 minutes later (t=900+) — cooldown expired
-        let decision2 = evaluate(engine, state: .bad(since: 300), currentTime: 901)
+        // Just over a minute later — nudged again
+        let decision2 = evaluate(engine, state: .bad(since: 300), currentTime: 361)
         if case .fire = decision2 {
-            // Expected — cooldown expired
+            // Expected
         } else {
-            XCTFail("Should fire after 10-minute cooldown expires, got: \(decision2)")
+            XCTFail("Should fire again a minute after the nudge, got: \(decision2)")
         }
     }
 }

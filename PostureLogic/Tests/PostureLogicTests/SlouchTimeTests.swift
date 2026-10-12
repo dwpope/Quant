@@ -105,14 +105,16 @@ final class SlouchTimeTests: XCTestCase {
         XCTAssertGreaterThan(remaining, 100)
     }
 
-    /// After a nudge, the next one needs its own slouched time (and, uncorrected, the cooldown).
+    /// After a nudge the count starts again: a slouch left uncorrected needs the repeat's worth
+    /// of slouched time (`nudgeCooldown`, since 2026-10-12), not the whole first duration.
     func test_afterANudge_theCountStartsAgain() {
         var thresholds = PostureThresholds()
         thresholds.slouchDurationBeforeNudge = 120
-        thresholds.nudgeCooldown = 1
+        thresholds.nudgeCooldown = 60
         let e = NudgeEngine(thresholds: thresholds); var fires: [TimeInterval] = []
         run(e, from: 0, seconds: 250, slouched: true, fires: &fires)
-        XCTAssertEqual(fires.count, 2)
-        XCTAssertEqual((fires.last ?? 0) - (fires.first ?? 0), 120, accuracy: 2)
+        XCTAssertEqual(fires.count, 3)
+        XCTAssertEqual(fires[1] - fires[0], 60, accuracy: 2)
+        XCTAssertEqual(fires[2] - fires[1], 60, accuracy: 2)
     }
 }

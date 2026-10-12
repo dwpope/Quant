@@ -59,7 +59,11 @@ public struct PostureThresholds: Codable {
     public var depthConfidenceThreshold: Float = 0.6
     
     // MARK: - Nudge Behavior
-    public var nudgeCooldown: TimeInterval = 600
+    /// How long a slouch left uncorrected after its nudge waits to be nudged again, in slouched
+    /// time; sitting well for 30 s ends the slouch and the repeats. A minute since 2026-10-12
+    /// (was 10 minutes): Dave stayed slouched, writing, after a nudge and asked for faster
+    /// follow-ups. A head held turned has its own repeat (`HeadTurnThresholds.repeatAfter`).
+    public var nudgeCooldown: TimeInterval = 60
     /// The most nudges in any hour, or 0 for no cap: the gap between nudges is then the only
     /// limit. No cap by default since 2026-10-05 (Dave: "don't worry about limiting the number of
     /// nudges in an hour yet"); silencing for a while replaces it.

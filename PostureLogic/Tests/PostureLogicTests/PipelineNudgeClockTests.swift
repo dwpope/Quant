@@ -114,7 +114,7 @@ final class PipelineNudgeClockTests: XCTestCase {
     /// engine kept the limits it was created with, so a changed cooldown silently didn't apply.
     func test_nudgeLimitsSetAfterInit_apply() async throws {
         let provider = MockPoseProvider()
-        let pipeline = Pipeline(provider: provider)  // defaults: 300 s to nudge, 600 s cooldown
+        let pipeline = Pipeline(provider: provider)  // defaults: 60 s to nudge, 60 s repeat
         pipeline.baseline = GoldenRecordings.baselineForGoodPosture()
         var t = pipeline.thresholds
         t.driftingToBadThreshold = 1
@@ -139,7 +139,7 @@ final class PipelineNudgeClockTests: XCTestCase {
 
         try XCTSkipIf(fireTimes.count < 2)  // already reported by the expectation above
         let gap = fireTimes[1] - fireTimes[0]
-        XCTAssertGreaterThan(gap, 5, "the new 5 s cooldown, not the 600 s default")
+        XCTAssertGreaterThan(gap, 5, "the new 5 s cooldown, not the 60 s default")
         XCTAssertLessThan(gap, 7)
     }
 }

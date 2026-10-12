@@ -34,10 +34,11 @@ import Foundation
 ///
 /// ### Cooldown System
 ///
-/// After a nudge fires, a cooldown period starts (default: 10 minutes).
-/// A slouch left uncorrected isn't nudged again until it ends, so the app
-/// doesn't nag. Sitting well for 30 s (or leaving the desk) ends it early: the
-/// next slouch is nudged like any other (2026-10-08).
+/// After a nudge fires, a cooldown period starts. A slouch left uncorrected is
+/// nudged again after a minute more of slouching (`nudgeCooldown`, 10 minutes
+/// until 2026-10-12); a head held turned after 10 minutes. Sitting well for 30 s
+/// (or leaving the desk) ends it early: the next slouch is nudged like any other
+/// (2026-10-08).
 ///
 /// ### Hourly Limit
 ///
@@ -59,14 +60,13 @@ import Foundation
 ///
 /// ```
 /// t=0:     User starts with good posture
-/// t=60:    Posture degrades → PostureEngine: .drifting
-/// t=120:   Still bad → PostureEngine: .bad(since: 60)
-/// t=360:   Bad for 5 min → NudgeEngine: .fire! → Audio plays, watch taps
-/// t=361:   NudgeEngine: recordNudgeFired() → cooldown starts
-/// t=365:   User sits up → PostureEngine: .good → recordAcknowledgement()
-/// t=380:   User slouches again...
-/// t=680:   Bad for 5 min BUT cooldown active (need 10 min) → .suppressed
-/// t=961:   Cooldown expired + 5 min bad → .fire! (if within hourly limit)
+/// t=60:    Posture degrades → PostureEngine: .drifting(since: 60)
+/// t=120:   Slouched a minute → NudgeEngine: .fire! → Audio plays, watch taps
+/// t=120:   NudgeEngine: recordNudgeFired() → the repeat starts
+/// t=181:   Still slouched a minute later → .fire! again, and every minute after
+/// t=190:   User sits up → PostureEngine: .good
+/// t=220:   30 s sitting well → the slouch and its repeats end
+/// t=300:   User slouches again → nudged after its own minute, at t=360
 /// ```
 final class NudgeEngine: NudgeEngineProtocol {
 
@@ -99,7 +99,7 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// The thresholds that control nudge timing and limits.
     /// These come from PostureThresholds and include:
     /// - `slouchDurationBeforeNudge` (default: 60 s)
-    /// - `nudgeCooldown` (default: 600s = 10 minutes)
+    /// - `nudgeCooldown` (default: 60 s, the repeat for a slouch left uncorrected)
     /// - `maxNudgesPerHour` (default: 0, no cap)
     /// - `acknowledgementWindow` (default: 30s)
     ///
@@ -301,9 +301,9 @@ final class NudgeEngine: NudgeEngineProtocol {
         }
 
         // 2c. Cooldown active — a nudge was recently fired and the slouch it was for goes on.
-        //     We don't want to nag the user: an uncorrected slouch waits `nudgeCooldown`
-        //     (default: 10 minutes) to be nudged again. Sitting up ends that slouch and the
-        //     wait with it (2026-10-08).
+        //     An uncorrected slouch waits `nudgeCooldown` (a minute since 2026-10-12) to be
+        //     nudged again, a head held turned `HeadTurnThresholds.repeatAfter` (10 minutes).
+        //     Sitting up ends that slouch and the wait with it (2026-10-08).
         if isCoolingDown(at: currentTime) {
             let decision = NudgeDecision.suppressed(reason: .cooldownActive)
             lastDecisionDescription = "suppressed: cooldownActive (\(String(format: "%.0f", lastCooldownRemaining))s remaining)"
@@ -365,13 +365,16 @@ final class NudgeEngine: NudgeEngineProtocol {
         // How long the user has been slouched in this episode, added up across brief
         // sit-ups (see "Slouched time" above).
         let duration = slouchedTime
+        // A slouch left uncorrected after its nudge is nudged again after `nudgeCooldown` of
+        // slouching, a minute by default, not the first nudge's duration (2026-10-12).
+        let needed = isFollowingUpASlouch ? thresholds.nudgeCooldown : thresholds.slouchDurationBeforeNudge
 
         // Determine the dominant violation from the current metrics.
         // Compare each metric against its threshold as a ratio — the
         // metric with the highest ratio is the primary reason.
         let reason = dominantReason(from: metrics, signals: slouchSignals)
 
-        if duration >= thresholds.slouchDurationBeforeNudge {
+        if duration >= needed {
             // ──────────────────────────────────────────
             // FIRE! All conditions met.
             // ──────────────────────────────────────────
@@ -392,7 +395,7 @@ final class NudgeEngine: NudgeEngineProtocol {
         // Posture is bad but hasn't been bad long enough.
         // Return `.pending` with the time remaining so the UI can
         // show a countdown if desired: whichever nudge is sooner.
-        let remaining = thresholds.slouchDurationBeforeNudge - duration
+        let remaining = needed - duration
         if let turnRemaining = headTurnRemaining, turnRemaining < remaining {
             lastDecisionDescription = "pending (headTurned): \(String(format: "%.0f", turnRemaining))s remaining"
             return .pending(reason: .headTurned, timeRemaining: turnRemaining)
@@ -581,15 +584,27 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// - Returns: Seconds remaining in cooldown (0 if none).
     private func cooldownRemaining(at currentTime: TimeInterval) -> TimeInterval {
         guard isCoolingDown(at: currentTime), let lastTime = lastNudgeTime else { return 0 }
-        return max(0, thresholds.nudgeCooldown - (currentTime - lastTime))
+        return max(0, cooldown - (currentTime - lastTime))
     }
 
-    /// Within `nudgeCooldown` of the last nudge, and what it was for hasn't ended: a slouch ends
+    /// Within the repeat of the last nudge, and what it was for hasn't ended: a slouch ends
     /// with sitting well, a head turn with the head turning back.
     private func isCoolingDown(at currentTime: TimeInterval) -> Bool {
         let ended = lastNudgeReason == .headTurned ? turnEndedSinceLastNudge : correctedSinceLastNudge
         guard let lastTime = lastNudgeTime, !ended else { return false }
-        return currentTime - lastTime <= thresholds.nudgeCooldown
+        return currentTime - lastTime <= cooldown
+    }
+
+    /// The repeat for what the last nudge was for: a minute for a slouch, ten for a head turn
+    /// (2026-10-12).
+    private var cooldown: TimeInterval {
+        lastNudgeReason == .headTurned ? headTurnThresholds.repeatAfter : thresholds.nudgeCooldown
+    }
+
+    /// Whether the slouch going on is the one last nudged, not yet corrected: its next nudge
+    /// follows the repeat, not the first nudge's duration (2026-10-12).
+    private var isFollowingUpASlouch: Bool {
+        lastNudgeTime != nil && lastNudgeReason != .headTurned && !correctedSinceLastNudge
     }
 
     /// Remove nudge timestamps older than 1 hour from the rolling window.

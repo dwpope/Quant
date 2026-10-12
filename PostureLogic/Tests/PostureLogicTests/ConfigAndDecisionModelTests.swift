@@ -103,7 +103,7 @@ final class ConfigAndDecisionModelTests: XCTestCase {
         XCTAssertEqual(t.depthConfidenceThreshold, 0.6)
 
         // Nudge behavior
-        XCTAssertEqual(t.nudgeCooldown, 600)
+        XCTAssertEqual(t.nudgeCooldown, 60, "a minute between nudges for a slouch left uncorrected since 2026-10-12")
         XCTAssertEqual(t.maxNudgesPerHour, 0, "no hourly cap since 2026-10-05")
         XCTAssertEqual(t.acknowledgementWindow, 30)
 

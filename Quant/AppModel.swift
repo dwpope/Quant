@@ -284,7 +284,10 @@ class AppModel: ObservableObject {
         /// value stored before then (300 s unbroken, or 120 from "Reset to defaults") would hold
         /// the minute back.
         static let slouchDurationBeforeNudge = "com.quant.posture.slouchDuration.v2"
-        static let nudgeCooldown = "com.quant.posture.nudgeCooldown"
+        /// `.v2` since 2026-10-12, when the default became a minute (a slouch left uncorrected is
+        /// nudged again every minute). A value stored before then (600 s, from "Reset to
+        /// defaults") would hold the minute back.
+        static let nudgeCooldown = "com.quant.posture.nudgeCooldown.v2"
         /// `.v2` since 2026-10-05, when the default became 0 (no hourly cap): a 2 stored under
         /// the old key was only ever the old default, and would otherwise keep the cap on.
         static let maxNudgesPerHour = "com.quant.posture.maxNudgesPerHour.v2"

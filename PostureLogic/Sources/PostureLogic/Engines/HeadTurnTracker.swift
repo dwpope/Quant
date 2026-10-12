@@ -23,6 +23,11 @@ public struct HeadTurnThresholds: Equatable {
     /// the face tracker dropped, not a rest for the neck.
     public var gracePeriod: TimeInterval = 5
 
+    /// How long a head still held turned after its nudge waits to be nudged again. Its own value
+    /// since 2026-10-12, when a slouch left uncorrected began repeating every minute
+    /// (`PostureThresholds.nudgeCooldown`): the turn kept the 10 minutes it had.
+    public var repeatAfter: TimeInterval = 600
+
     public init() {}
 }
 
