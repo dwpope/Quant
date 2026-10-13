@@ -14,6 +14,7 @@
 import WatchConnectivity
 import Combine
 import os.log
+import PostureLogic
 
 /// Sends nudge events to the paired Apple Watch for haptic delivery.
 ///
@@ -121,6 +122,7 @@ final class WatchConnectivityService: NSObject {
     /// send fails and the nudge is queued instead.
     @discardableResult
     func sendNudge(hapticType: String = "failure", body: String? = nil,
+                   reason: NudgeReason? = nil, repeat repeatCount: Int = 0,
                    onQueuedAfterFailedSend: (@MainActor () -> Void)? = nil) -> NudgeDelivery {
         let supported = WCSession.isSupported()
         let session: WCSession? = supported ? WCSession.default : nil
@@ -130,7 +132,8 @@ final class WatchConnectivityService: NSObject {
             logger.debug("No Watch paired — skipping nudge send")
             return .noWatch
         }
-        let message = Self.nudgeMessage(hapticType: hapticType, body: body, sentAt: Date())
+        let message = Self.nudgeMessage(hapticType: hapticType, body: body, reason: reason,
+                                        repeat: repeatCount, sentAt: Date())
 
         if route == .sent {
             session.sendMessage(message, replyHandler: nil) { [weak self] error in
@@ -187,10 +190,17 @@ final class WatchConnectivityService: NSObject {
     }
 
     /// The nudge message, `body` only when there is one. The Watch's `NudgeMessage` reads it.
-    /// `sentAt` lets the Watch report how late it arrived (2026-10-10).
-    static func nudgeMessage(hapticType: String, body: String?, sentAt: Date? = nil) -> [String: Any] {
+    /// `sentAt` lets the Watch report how late it arrived (2026-10-10). `reason` and `repeat`
+    /// let it play its own taps, firmer as a slouch goes on uncorrected (2026-10-13); a Watch on
+    /// an older build ignores them and plays `haptic`.
+    static func nudgeMessage(hapticType: String, body: String?, reason: NudgeReason? = nil,
+                             repeat repeatCount: Int = 0, sentAt: Date? = nil) -> [String: Any] {
         var message: [String: Any] = ["type": "nudge", "haptic": hapticType]
         if let body, !body.isEmpty { message["body"] = body }
+        if let reason {
+            message["reason"] = reason.rawValue
+            message["repeat"] = repeatCount
+        }
         if let sentAt { message["sentAt"] = sentAt.timeIntervalSince1970 }
         return message
     }

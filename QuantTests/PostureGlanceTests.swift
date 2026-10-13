@@ -124,4 +124,50 @@ final class PostureGlanceTests: XCTestCase {
         let sittingWell = PostureGlance(state: .good, since: nil, headTurnedSince: start)
         XCTAssertEqual(sittingWell.steadied(against: nil).headTurnedSince, start.timeIntervalSince1970)
     }
+
+    // MARK: - The countdown to the nudge (2026-10-13)
+
+    /// While slouching, when the nudge is due, in whole calendar seconds.
+    func test_slouching_saysWhenTheNudgeIsDue() {
+        let glance = PostureGlance(state: .drifting(since: 5), since: start, headTurnedSince: nil,
+                                   nudgeAt: start.addingTimeInterval(42.4))
+        XCTAssertEqual(glance.message as NSDictionary,
+                       ["type": "posture", "state": "drifting", "since": 1_791_640_000.0,
+                        "nudgeAt": 1_791_640_042.0] as NSDictionary)
+    }
+
+    /// A head held turned counts down too; sitting well with no turn has nothing coming.
+    func test_onlyASlouchOrAHeadTurn_countsDown() {
+        let turned = PostureGlance(state: .good, since: nil, headTurnedSince: start,
+                                   nudgeAt: start.addingTimeInterval(300))
+        XCTAssertEqual(turned.nudgeAt, 1_791_640_300)
+        let sittingWell = PostureGlance(state: .good, since: nil, headTurnedSince: nil,
+                                        nudgeAt: start.addingTimeInterval(300))
+        XCTAssertNil(sittingWell.nudgeAt)
+        let away = PostureGlance(state: .absent, since: nil, headTurnedSince: nil, nudgeAt: start)
+        XCTAssertNil(away.nudgeAt)
+    }
+
+    /// Worked out afresh each second, like the start: a second's jitter keeps the one sent.
+    func test_aDueTimeThatJitters_keepsTheOneSent() {
+        let sent = PostureGlance(state: .bad(since: 5), since: start, headTurnedSince: nil,
+                                 nudgeAt: start.addingTimeInterval(60))
+        let now = PostureGlance(state: .bad(since: 5), since: start, headTurnedSince: nil,
+                                nudgeAt: start.addingTimeInterval(61)).steadied(against: sent)
+        XCTAssertEqual(now, sent)
+        let paused = PostureGlance(state: .bad(since: 5), since: start, headTurnedSince: nil,
+                                   nudgeAt: start.addingTimeInterval(65)).steadied(against: sent)
+        XCTAssertEqual(paused.nudgeAt, 1_791_640_065, "a pause moves it, and it's sent")
+    }
+
+    /// The pipeline's due time is a frame time; the Watch counts down to a calendar time.
+    func test_theApp_sendsTheDueTime_asACalendarTime() throws {
+        let model = AppModel()
+        model.postureState = .drifting(since: 670_636)
+        model.latestMetrics = RawMetrics(
+            timestamp: 670_648, forwardCreep: 0, headDrop: 0, shoulderRounding: 0,
+            lateralLean: 0, twist: 0, movementLevel: 0, headMovementPattern: .still)
+        let glance = model.postureGlance(wallNow: start, nudgeDueAt: 670_696)
+        XCTAssertEqual(try XCTUnwrap(glance.nudgeAt), start.timeIntervalSince1970 + 48, accuracy: 0.5)
+    }
 }

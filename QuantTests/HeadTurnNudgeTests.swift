@@ -22,6 +22,21 @@ final class HeadTurnNudgeTests: XCTestCase {
         ] as NSDictionary)
     }
 
+    /// The reason and which repeat it is, so the Watch can play its own taps, firmer as a slouch
+    /// goes on (2026-10-13). A Watch on an older build ignores them and plays `haptic`.
+    func test_aNudgeSaysItsReasonAndWhichRepeat() {
+        let message = WatchConnectivityService.nudgeMessage(
+            hapticType: "failure", body: "Lift your head — ease your neck back",
+            reason: .headDrop, repeat: 2) as NSDictionary
+        XCTAssertEqual(message, [
+            "type": "nudge",
+            "haptic": "failure",
+            "body": "Lift your head — ease your neck back",
+            "reason": "headDrop",
+            "repeat": 2,
+        ] as NSDictionary)
+    }
+
     func test_aSlouchNudge_saysWhatToFix() {
         let message = WatchConnectivityService.nudgeMessage(
             hapticType: "failure", body: NudgeReason.forwardCreep.coachingMessage)

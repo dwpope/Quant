@@ -33,6 +33,14 @@ enum DriftClock {
         return wallNow.addingTimeInterval(-max(0, frameNow - frameTime))
     }
 
+    /// A frame time still to come as a calendar time, counted on from now, never before now:
+    /// for when the next nudge is due (2026-10-13). Nil without a frame to measure against.
+    static func wallClockAhead(of frameTime: TimeInterval, frameNow: TimeInterval?,
+                               wallNow: Date = Date()) -> Date? {
+        guard let frameNow else { return nil }
+        return wallNow.addingTimeInterval(max(0, frameTime - frameNow))
+    }
+
     /// When the current drifting or bad state began, as a calendar time, for a display that
     /// counts up from a date, such as the Watch's.
     static func wallClockStart(_ state: PostureState, frameNow: TimeInterval?,

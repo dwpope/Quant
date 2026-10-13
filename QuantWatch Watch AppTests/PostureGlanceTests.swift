@@ -102,4 +102,30 @@ struct PostureGlanceTests {
         #expect(look(["type": "posture", "state": "good"], receivedSecondsAgo: 46) == .waitingForPhone)
         #expect(PostureGlance.staleAfter == 45)
     }
+
+    // MARK: - The countdown to the nudge (2026-10-13)
+
+    @Test func readsWhenTheNudgeIsDue() throws {
+        let glance = try #require(PostureGlance(message: [
+            "type": "posture", "state": "drifting", "since": 1_791_640_000.0, "nudgeAt": 1_791_640_060.0]))
+        #expect(glance.nudgeAt == start.addingTimeInterval(60))
+        #expect(look(["type": "posture", "state": "drifting", "since": 1_791_640_000.0,
+                      "nudgeAt": 1_791_640_160.0])
+                == .slouching(since: start, sustained: false, nudgeAt: start.addingTimeInterval(160)))
+        #expect(look(["type": "posture", "state": "good", "headTurned": 1_791_640_000.0,
+                      "nudgeAt": 1_791_640_300.0])
+                == .headTurned(since: start, nudgeAt: start.addingTimeInterval(300)))
+    }
+
+    /// Counts down to the nudge; once it's due, says so rather than counting below zero; with
+    /// nothing coming (silenced), says nothing.
+    @Test func theCountdownLine() {
+        let now = start.addingTimeInterval(100)
+        let coming = PostureLook.slouching(since: start, sustained: false, nudgeAt: now.addingTimeInterval(42))
+        #expect(coming.countdown(now: now) == .until(now.addingTimeInterval(42)))
+        let due = PostureLook.slouching(since: start, sustained: true, nudgeAt: now)
+        #expect(due.countdown(now: now) == .due)
+        #expect(PostureLook.slouching(since: start, sustained: true).countdown(now: now) == nil)
+        #expect(PostureLook.sittingWell.countdown(now: now) == nil)
+    }
 }

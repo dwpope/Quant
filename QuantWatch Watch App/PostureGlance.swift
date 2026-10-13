@@ -24,6 +24,8 @@ struct PostureGlance: Equatable {
     let since: Date?
     /// When the head turned, or nil when it isn't turned.
     let headTurnedSince: Date?
+    /// When the next nudge is due, or nil when none is coming (2026-10-13).
+    let nudgeAt: Date?
 
     init?(message: [String: Any]) {
         guard message["type"] as? String == "posture",
@@ -33,6 +35,7 @@ struct PostureGlance: Equatable {
         since = (message["since"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
         headTurnedSince = (message["headTurned"] as? NSNumber)
             .map { Date(timeIntervalSince1970: $0.doubleValue) }
+        nudgeAt = (message["nudgeAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
     }
 
     /// The phone resends every 15 s. With nothing for three of those it has stopped (Aware closed
@@ -43,9 +46,10 @@ struct PostureGlance: Equatable {
 /// What the top of the screen shows.
 enum PostureLook: Equatable {
     case sittingWell
-    /// `sustained` once it has gone on long enough to be nudged (the phone's "bad").
-    case slouching(since: Date?, sustained: Bool)
-    case headTurned(since: Date)
+    /// `sustained` once it has gone on long enough to be nudged (the phone's "bad"). `nudgeAt`,
+    /// when the nudge is due, if one is coming.
+    case slouching(since: Date?, sustained: Bool, nudgeAt: Date? = nil)
+    case headTurned(since: Date, nudgeAt: Date? = nil)
     case notInView
     case calibrating
     /// Nothing from the phone yet, or nothing lately.
@@ -58,11 +62,11 @@ enum PostureLook: Equatable {
         switch glance.state {
         case .calibrating: self = .calibrating
         case .absent: self = .notInView
-        case .drifting: self = .slouching(since: glance.since, sustained: false)
-        case .bad: self = .slouching(since: glance.since, sustained: true)
+        case .drifting: self = .slouching(since: glance.since, sustained: false, nudgeAt: glance.nudgeAt)
+        case .bad: self = .slouching(since: glance.since, sustained: true, nudgeAt: glance.nudgeAt)
         case .good:
             if let turned = glance.headTurnedSince {
-                self = .headTurned(since: turned)
+                self = .headTurned(since: turned, nudgeAt: glance.nudgeAt)
             } else {
                 self = .sittingWell
             }
@@ -78,5 +82,25 @@ enum PostureLook: Equatable {
         case .calibrating: return "Calibrating"
         case .waitingForPhone: return "Waiting for iPhone"
         }
+    }
+
+    /// The countdown under the headline (2026-10-13).
+    enum Countdown: Equatable {
+        /// Counting down to the nudge.
+        case until(Date)
+        /// Due now: the phone fires on its next frame.
+        case due
+    }
+
+    /// The countdown to the nudge, or nil with none coming (sitting well, away, silenced).
+    func countdown(now: Date) -> Countdown? {
+        let nudgeAt: Date?
+        switch self {
+        case .slouching(_, _, let at): nudgeAt = at
+        case .headTurned(_, let at): nudgeAt = at
+        default: nudgeAt = nil
+        }
+        guard let nudgeAt else { return nil }
+        return nudgeAt > now ? .until(nudgeAt) : .due
     }
 }

@@ -285,6 +285,8 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     private func receiveNudge(_ message: [String: Any], via: String) {
         let arrivedAt = Date()
         let haptic = parseHapticType(from: message)
+        let pattern = NudgeHaptics.pattern(reason: NudgeMessage.reason(from: message),
+                                           repeat: NudgeMessage.repeatCount(from: message))
         let body = NudgeMessage.body(from: message)
         scheduleNudgeNotification(body: body)
         if let sentAt = NudgeMessage.sentAt(from: message) {
@@ -293,7 +295,7 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
                 wristSession: WristNudgeSession.shared.isOn), queued: via == "queued")
         }
         DispatchQueue.main.async {
-            self.showNudge(haptic, body: body)
+            self.showNudge(haptic, pattern: pattern, body: body)
         }
     }
 
@@ -317,8 +319,10 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     }
 
     /// Buzz (only felt while the app is open; closed, the notification buzzes) and show the line.
-    func showNudge(_ hapticType: WKHapticType = .notification, body: String) {
-        WKInterfaceDevice.current().play(hapticType)
+    /// The nudge's own taps when the phone said why (`NudgeHaptics`), else the single tap.
+    func showNudge(_ hapticType: WKHapticType = .notification, pattern: [WKHapticType]? = nil,
+                   body: String) {
+        NudgeHaptics.play(pattern ?? [hapticType])
         lastNudgeTime = Date()
         lastNudgeBody = body
         logger.info("⌚ Haptic nudge delivered")

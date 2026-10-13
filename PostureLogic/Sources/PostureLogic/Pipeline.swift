@@ -43,6 +43,15 @@ public class Pipeline {
     /// only once calibrated: forward creep is what tells a turned neck from a turned chair.
     @Published public private(set) var headTurnedSince: TimeInterval?
 
+    /// When the next nudge is due, on the frame clock, or nil when none is coming (2026-10-13):
+    /// for the Watch's countdown. Set before `nudgeDecision` each frame, so its subscribers read
+    /// this frame's.
+    public private(set) var nudgeDueAt: TimeInterval?
+
+    /// Which repeat a fired nudge is: 0 for a slouch's first, then 1, 2, … while it goes on
+    /// uncorrected. Read when `nudgeDecision` fires, before `recordNudgeFired()`.
+    public var nudgeRepeat: Int { nudgeEngine.repeatOfLastFire }
+
     /// Nudges are held back until this moment, on the calendar clock: the user silenced them
     /// from the phone or the Watch. Compared with `now()`, never with the frame clock.
     public var nudgesSilencedUntil: Date?
@@ -424,6 +433,7 @@ public class Pipeline {
         recentMetricsBuffer.removeAll()
         recentQualities.removeAll()
         headTurnedSince = nil
+        nudgeDueAt = nil
         lastNudgeEvaluationTime = nil
     }
 
@@ -491,7 +501,7 @@ public class Pipeline {
         // specific nudge reason (forwardCreep, headDrop, sink).
         lastNudgeEvaluationTime = smoothedMetrics.timestamp
         let turnedSince = updateHeadTurn(sample: sample, metrics: smoothedMetrics, trackingQuality: quality)
-        nudgeDecision = nudgeEngine.evaluate(
+        let decision = nudgeEngine.evaluate(
             state: newPostureState,
             trackingQuality: quality,
             movementLevel: smoothedMetrics.movementLevel,
@@ -502,6 +512,8 @@ public class Pipeline {
             silenced: nudgesSilenced,
             slouchSignals: postureEngine.slouchSignals
         )
+        nudgeDueAt = nudgeEngine.nudgeDueIn.map { smoothedMetrics.timestamp + $0 }
+        nudgeDecision = decision
 
         // Periodic staleness check (every 60s, not every frame)
         if let baseline, smoothedMetrics.timestamp - lastStalenessCheckTime >= 60 {
@@ -557,7 +569,7 @@ public class Pipeline {
         headTurnedSince = turnedSince
 
         lastNudgeEvaluationTime = timestamp
-        nudgeDecision = nudgeEngine.evaluate(
+        let decision = nudgeEngine.evaluate(
             state: newPostureState,
             trackingQuality: quality,
             movementLevel: 0,
@@ -567,6 +579,8 @@ public class Pipeline {
             headTurnedSince: turnedSince,
             silenced: nudgesSilenced
         )
+        nudgeDueAt = nudgeEngine.nudgeDueIn.map { timestamp + $0 }
+        nudgeDecision = decision
     }
 
     /// The whole chair turned: head and shoulders together. Only once calibrated, like the head

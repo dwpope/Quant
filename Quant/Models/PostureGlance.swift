@@ -14,10 +14,13 @@ struct PostureGlance: Equatable {
     let since: Double?
     /// When the head turned, calendar seconds, or nil when it isn't turned.
     let headTurnedSince: Double?
+    /// When the next nudge is due, calendar seconds, for the Watch's countdown (2026-10-13):
+    /// while slouching or with the head turned, and only when one is coming.
+    let nudgeAt: Double?
 
     /// Times in whole seconds, so a glance checked once a second doesn't differ only by frame
     /// jitter.
-    init(state: PostureState, since: Date?, headTurnedSince: Date?) {
+    init(state: PostureState, since: Date?, headTurnedSince: Date?, nudgeAt: Date? = nil) {
         switch state {
         case .absent: self.state = "absent"
         case .calibrating: self.state = "calibrating"
@@ -30,19 +33,29 @@ struct PostureGlance: Equatable {
         case .absent, .calibrating, .good: self.since = nil
         }
         self.headTurnedSince = headTurnedSince?.timeIntervalSince1970.rounded()
+        // Only what the Watch counts down beside: a slouch, or a head turned while sitting well.
+        let countsDown: Bool
+        switch state {
+        case .drifting, .bad: countsDown = true
+        case .good: countsDown = headTurnedSince != nil
+        case .absent, .calibrating: countsDown = false
+        }
+        self.nudgeAt = countsDown ? nudgeAt?.timeIntervalSince1970.rounded() : nil
     }
 
-    private init(state: String, since: Double?, headTurnedSince: Double?) {
+    private init(state: String, since: Double?, headTurnedSince: Double?, nudgeAt: Double?) {
         self.state = state
         self.since = since
         self.headTurnedSince = headTurnedSince
+        self.nudgeAt = nudgeAt
     }
 
     /// This glance with the last sent one's times where they differ by a second or less
     /// (2026-10-11). A start is worked out afresh each second from the frame clock, and its
     /// rounding can flip between neighbouring seconds, which sent a glance every second and
     /// made the Watch's timer jump back and forth. The Watch only shows the head turn while
-    /// sitting well, so it isn't sent while slouching either.
+    /// sitting well, so it isn't sent while slouching either. The nudge's due time is held the
+    /// same way (2026-10-13); a pause in the slouch moves it further, and that is sent.
     func steadied(against last: PostureGlance?) -> PostureGlance {
         func hold(_ new: Double?, _ old: Double?) -> Double? {
             guard let new, let old, abs(new - old) <= 1 else { return new }
@@ -53,13 +66,15 @@ struct PostureGlance: Equatable {
         return PostureGlance(
             state: state,
             since: sameState ? hold(since, last?.since) : since,
-            headTurnedSince: hold(turned, last?.headTurnedSince))
+            headTurnedSince: hold(turned, last?.headTurnedSince),
+            nudgeAt: hold(nudgeAt, last?.nudgeAt))
     }
 
     var message: [String: Any] {
         var m: [String: Any] = ["type": "posture", "state": state]
         if let since { m["since"] = since }
         if let headTurnedSince { m["headTurned"] = headTurnedSince }
+        if let nudgeAt { m["nudgeAt"] = nudgeAt }
         return m
     }
 

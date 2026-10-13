@@ -18,6 +18,17 @@ enum NudgeMessage {
         guard let body = message["body"] as? String, !body.isEmpty else { return fallbackBody }
         return body
     }
+
+    /// The nudge's reason (the phone's `NudgeReason`), or nil from a phone build that doesn't
+    /// say (2026-10-13).
+    static func reason(from message: [String: Any]) -> String? {
+        message["reason"] as? String
+    }
+
+    /// Which repeat it is: 0 for a slouch's first nudge, 1 for the next while it goes on.
+    static func repeatCount(from message: [String: Any]) -> Int {
+        (message["repeat"] as? NSNumber)?.intValue ?? 0
+    }
 }
 
 // MARK: - The notification (2026-10-08)

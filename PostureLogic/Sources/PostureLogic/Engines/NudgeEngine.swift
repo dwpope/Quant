@@ -186,6 +186,22 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// A step back this far is a new timeline (a replay after live frames), not a late frame.
     private let newTimelineAfter: TimeInterval = 5
 
+    // MARK: - The countdown and the repeat (2026-10-13)
+    //
+    // Dave asked for a countdown to the nudge on the Watch, and for a nudge to feel different
+    // from a notification, firmer as it repeats.
+
+    /// Seconds until the next nudge as of the last evaluation, if one is coming: the pending
+    /// time, or after a nudge the wait for its repeat. Nil when there's nothing to nudge for, or
+    /// nudges are held back (silenced, stretching, the hourly cap).
+    private(set) var nudgeDueIn: TimeInterval?
+
+    /// Which repeat the last fire returned is: 0 for a slouch's first nudge, 1 for the next while
+    /// it goes on uncorrected, and so on. Read when it fires, before it's recorded.
+    private(set) var repeatOfLastFire = 0
+    /// Repeats recorded for the slouch going on.
+    private var repeatsRecorded = 0
+
     // MARK: - Initialization
 
     /// Creates a new NudgeEngine with the given thresholds.
@@ -238,6 +254,49 @@ final class NudgeEngine: NudgeEngineProtocol {
         headTurnedSince: TimeInterval? = nil,
         silenced: Bool = false,
         slouchSignals: Set<NudgeReason>? = nil
+    ) -> NudgeDecision {
+        let decision = decide(state: state, trackingQuality: trackingQuality, taskMode: taskMode,
+                              currentTime: currentTime, metrics: metrics,
+                              headTurnedSince: headTurnedSince, silenced: silenced,
+                              slouchSignals: slouchSignals)
+        switch decision {
+        case .fire(let reason):
+            nudgeDueIn = 0
+            repeatOfLastFire = reason != .headTurned && isFollowingUpASlouch ? repeatsRecorded + 1 : 0
+        case .pending, .suppressed(.cooldownActive), .suppressed(.lowTrackingQuality):
+            nudgeDueIn = timeToNudge(at: currentTime, slouched: isSlouched(state),
+                                     headTurnedSince: headTurnedSince)
+        case .none, .suppressed:
+            nudgeDueIn = nil
+        }
+        return decision
+    }
+
+    /// The soonest nudge, slouch or head turn, waiting out the cooldown if it's on. Nil with
+    /// neither going on.
+    private func timeToNudge(at now: TimeInterval, slouched: Bool,
+                             headTurnedSince: TimeInterval?) -> TimeInterval? {
+        var waits: [TimeInterval] = []
+        if slouched {
+            let needed = isFollowingUpASlouch ? thresholds.nudgeCooldown : thresholds.slouchDurationBeforeNudge
+            waits.append(max(0, needed - slouchedTime))
+        }
+        if let turnedSince = headTurnedSince {
+            waits.append(max(0, headTurnThresholds.durationBeforeNudge - (now - turnedSince)))
+        }
+        guard let soonest = waits.min() else { return nil }
+        return max(soonest, cooldownRemaining(at: now))
+    }
+
+    private func decide(
+        state: PostureState,
+        trackingQuality: TrackingQuality,
+        taskMode: TaskMode,
+        currentTime: TimeInterval,
+        metrics: RawMetrics?,
+        headTurnedSince: TimeInterval?,
+        silenced: Bool,
+        slouchSignals: Set<NudgeReason>?
     ) -> NudgeDecision {
 
         // ──────────────────────────────────────────────
@@ -422,6 +481,7 @@ final class NudgeEngine: NudgeEngineProtocol {
         correctedSinceLastNudge = false
         lastNudgeReason = lastFireReason
         turnEndedSinceLastNudge = false
+        repeatsRecorded = repeatOfLastFire
     }
 
     /// Record that the user corrected their posture after a nudge.
@@ -456,6 +516,9 @@ final class NudgeEngine: NudgeEngineProtocol {
         lastNudgeReason = nil
         nudgedTurnStartedAt = nil
         turnEndedSinceLastNudge = false
+        nudgeDueIn = nil
+        repeatOfLastFire = 0
+        repeatsRecorded = 0
     }
 
     // MARK: - Slouched time

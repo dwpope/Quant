@@ -527,7 +527,10 @@ class AppModel: ObservableObject {
 
                     // Send haptic nudge to Apple Watch, with what to do about it, and log how
                     // it went: straight to the open Watch app, or queued for a closed one.
-                    let delivery = self.watchService.sendNudge(body: reason.coachingMessage) { [weak self] in
+                    // With its reason and which repeat it is, for the Watch's taps (2026-10-13).
+                    let delivery = self.watchService.sendNudge(
+                        body: reason.coachingMessage, reason: reason,
+                        repeat: self.pipeline.nudgeRepeat) { [weak self] in
                         self?.postureLogStore.append([
                             PostureLogRecorder.watchEvent(.queuedAfterFailedSend, now: Date())])
                     }
@@ -774,14 +777,18 @@ class AppModel: ObservableObject {
     /// The last posture sent to the Watch, and when.
     private var lastPostureGlanceSent: (glance: PostureGlance, at: Date)?
 
-    /// Your posture as the Watch shows it: slouching or not, and since when (2026-10-11). Pure.
-    func postureGlance(wallNow: Date = Date()) -> PostureGlance {
+    /// Your posture as the Watch shows it: slouching or not, since when (2026-10-11), and when
+    /// the nudge is due (2026-10-13), from the pipeline's `nudgeDueAt`. Pure.
+    func postureGlance(wallNow: Date = Date(), nudgeDueAt: TimeInterval? = nil) -> PostureGlance {
         let frameNow = latestMetrics?.timestamp
         return PostureGlance(
             state: postureState,
             since: DriftClock.wallClockStart(postureState, frameNow: frameNow, wallNow: wallNow),
             headTurnedSince: pipeline.headTurnedSince.flatMap {
                 DriftClock.wallClock(of: $0, frameNow: frameNow, wallNow: wallNow)
+            },
+            nudgeAt: nudgeDueAt.flatMap {
+                DriftClock.wallClockAhead(of: $0, frameNow: frameNow, wallNow: wallNow)
             })
     }
 
@@ -789,7 +796,8 @@ class AppModel: ObservableObject {
     /// forced.
     private func pushPostureGlanceToWatch(force: Bool, now: Date = Date()) {
         guard watchService.isReachable else { return }
-        let glance = postureGlance(wallNow: now).steadied(against: lastPostureGlanceSent?.glance)
+        let glance = postureGlance(wallNow: now, nudgeDueAt: pipeline.nudgeDueAt)
+            .steadied(against: lastPostureGlanceSent?.glance)
         guard force || PostureGlance.isDue(glance, lastSent: lastPostureGlanceSent?.glance,
                                            sentAt: lastPostureGlanceSent?.at, now: now)
         else { return }

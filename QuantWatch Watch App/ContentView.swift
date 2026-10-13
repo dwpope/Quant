@@ -21,7 +21,7 @@ struct ContentView: View {
                         PostureGlanceView(look: PostureLook(
                             sessionDelegate.postureGlance,
                             receivedAt: sessionDelegate.postureGlanceReceivedAt,
-                            now: context.date))
+                            now: context.date), now: context.date)
                     }
 
                     Divider()
@@ -130,6 +130,7 @@ extension ContentView {
 /// Your posture, as the phone last reported it (2026-10-11).
 struct PostureGlanceView: View {
     let look: PostureLook
+    var now: Date = Date()
 
     var body: some View {
         VStack(spacing: 4) {
@@ -146,14 +147,29 @@ struct PostureGlanceView: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
+            // The countdown to the nudge (2026-10-13). Counts down on its own between the
+            // phone's messages; the view is re-read every few seconds, which turns it to "due".
+            switch look.countdown(now: now) {
+            case .until(let nudgeAt):
+                Text("nudge in \(Text(timerInterval: now...nudgeAt, countsDown: true))")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(color)
+            case .due:
+                Text("nudge due")
+                    .font(.caption)
+                    .foregroundStyle(color)
+            case nil:
+                EmptyView()
+            }
         }
         .accessibilityElement(children: .combine)
     }
 
     private var since: Date? {
         switch look {
-        case .slouching(let since, _): return since
-        case .headTurned(let since): return since
+        case .slouching(let since, _, _): return since
+        case .headTurned(let since, _): return since
         default: return nil
         }
     }
@@ -173,7 +189,7 @@ struct PostureGlanceView: View {
     private var color: Color {
         switch look {
         case .sittingWell: return .green
-        case .slouching(_, let sustained): return sustained ? .red : .yellow
+        case .slouching(_, let sustained, _): return sustained ? .red : .yellow
         case .headTurned: return .yellow
         case .notInView, .calibrating, .waitingForPhone: return .secondary
         }
