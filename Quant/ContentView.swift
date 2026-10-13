@@ -192,6 +192,9 @@ struct ContentView: View {
                     trackingQuality: appModel.trackingQuality
                 )
 
+                // When you sat well and when you slouched, today (2026-10-13).
+                PostureTimelineCard()
+
                 HydrationCard(
                     sipCount: appModel.sipStore.sipCount,
                     lastSipTimestamp: appModel.sipStore.lastSipTimestamp,

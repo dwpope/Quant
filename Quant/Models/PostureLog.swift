@@ -8,7 +8,7 @@ import PostureLogic
 /// Asked for on 2026-10-07: Dave worked for an hour, saw a countdown, and got no nudge, and nothing
 /// recorded why. A state change carries the numbers behind it; a nudge decision carries its reason
 /// and, while pending, how long was left.
-struct PostureLogEvent: Codable, Equatable {
+nonisolated struct PostureLogEvent: Codable, Equatable {
     /// Seconds since 1970.
     var t: TimeInterval
     /// "state", "nudge", "task" or "watch".
@@ -168,12 +168,40 @@ final class PostureLogStore: ObservableObject {
     private nonisolated static let persistQueue = DispatchQueue(label: "com.quant.postureLog.persist",
                                                                 qos: .utility)
 
-    private nonisolated static var documents: URL {
+    nonisolated static var documents: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
 
     private nonisolated static func fileURL(for key: String) -> URL {
         documents.appendingPathComponent("posture-log-\(key).jsonl")
+    }
+
+    // MARK: - Reading a day back (2026-10-13), for the timeline
+
+    /// The days with a log, newest first, as `YYYY-MM-DD`.
+    nonisolated static func dayKeys(in folder: URL = documents) -> [String] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        return names
+            .filter { $0.hasPrefix("posture-log-") && $0.hasSuffix(".jsonl") && !$0.hasPrefix("posture-log-to-") }
+            .map { String($0.dropFirst("posture-log-".count).dropLast(".jsonl".count)) }
+            .sorted(by: >)
+    }
+
+    /// A day's lines, skipping any that don't read. Waits for queued writes first.
+    nonisolated static func events(dayKey: String, in folder: URL = documents) -> [PostureLogEvent] {
+        if folder == documents { flushPendingWrites() }
+        let url = folder.appendingPathComponent("posture-log-\(dayKey).jsonl")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        let decoder = JSONDecoder()
+        return text.split(separator: "\n").compactMap {
+            try? decoder.decode(PostureLogEvent.self, from: Data($0.utf8))
+        }
+    }
+
+    /// `YYYY-MM-DD` for a day, as the files are named.
+    nonisolated static func dayKey(for date: Date, calendar: Calendar = .current) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
     private nonisolated static func dayFiles() -> [URL] {
