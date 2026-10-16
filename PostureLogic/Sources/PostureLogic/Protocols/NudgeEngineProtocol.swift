@@ -66,7 +66,8 @@ protocol NudgeEngineProtocol: DebugDumpable {
         metrics: RawMetrics?,
         headTurnedSince: TimeInterval?,
         silenced: Bool,
-        slouchSignals: Set<NudgeReason>?
+        slouchSignals: Set<NudgeReason>?,
+        recovering: Bool
     ) -> NudgeDecision
 
     /// Record that a nudge was just fired and delivered to the user.

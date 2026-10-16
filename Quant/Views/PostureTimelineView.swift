@@ -12,38 +12,66 @@ final class PostureTimelineLoader: ObservableObject {
     @Published private(set) var timeline: PostureTimeline?
     @Published private(set) var dayKeys: [String] = []
 
+    typealias Read = @Sendable (_ dayKey: String) -> (events: [PostureLogEvent], dayKeys: [String])
+    private let read: Read
+
+    init(read: @escaping Read = { (PostureLogStore.events(dayKey: $0), PostureLogStore.dayKeys()) }) {
+        self.read = read
+    }
+
     func load(dayKey: String, now: Date = Date()) async {
-        let (events, keys) = await Task.detached(priority: .utility) {
-            (PostureLogStore.events(dayKey: dayKey), PostureLogStore.dayKeys())
-        }.value
+        let read = self.read
+        let (events, keys) = await Task.detached(priority: .utility) { read(dayKey) }.value
         timeline = PostureTimeline(events: events, now: now)
         dayKeys = keys
+    }
+
+    /// Today's, now and then every `interval` until the task is cancelled (2026-10-16): run from
+    /// the card's `.task`, which lasts as long as the card. Its timer used to be a property of
+    /// the view, rebuilt with the main screen about ten times a second, and it never fired.
+    func keepLoadingToday(every interval: Duration = .seconds(30)) async {
+        while !Task.isCancelled {
+            await load(dayKey: PostureLogStore.dayKey(for: Date()))
+            try? await Task.sleep(for: interval)
+        }
     }
 }
 
 extension PostureTimeline.Band {
-    /// The phone's posture colours (`PostureCard`), grey for away.
+    /// The phone's posture colours (`PosturePalette`), grey for away.
     var color: Color {
         switch self {
-        case .good: return .green
-        case .drifting: return .yellow
-        case .bad: return .red
+        case .good: return Color(PosturePalette.good)
+        case .drifting: return Color(PosturePalette.slouching)
+        case .bad: return Color(PosturePalette.stillSlouching)
         case .away: return .gray.opacity(0.35)
         }
     }
 
+    /// How tall the band stands, of its full height: it dips while you slouch, lower the longer
+    /// it goes on, so it reads without its colours (2026-10-16).
+    var height: Double {
+        switch self {
+        case .good: return 1
+        case .drifting: return 0.6
+        case .bad: return 0.3
+        case .away: return 0.12
+        }
+    }
+
+    /// The posture card's words (`PostureCard.label(for:)`).
     var label: String {
         switch self {
-        case .good: return "Sat well"
+        case .good: return "Sitting well"
         case .drifting: return "Slouching"
-        case .bad: return "Slouched long enough to nudge"
+        case .bad: return "Still slouching"
         case .away: return "Away"
         }
     }
 }
 
-/// The band across the day: green when you sat well, yellow and red while slouched, grey while
-/// away, with a mark at each nudge.
+/// The band across the day: full height and green when you sat well, lower and yellow then red
+/// while slouched, a grey sliver while away, with a mark at each nudge.
 struct PostureTimelineChart: View {
     let timeline: PostureTimeline
     var showsAxis = false
@@ -55,7 +83,7 @@ struct PostureTimelineChart: View {
                     xStart: .value("Start", segment.start),
                     xEnd: .value("End", segment.end),
                     yStart: .value("Bottom", 0),
-                    yEnd: .value("Top", 1))
+                    yEnd: .value("Top", segment.band.height))
                     .foregroundStyle(segment.band.color)
             }
             ForEach(Array(timeline.nudges.enumerated()), id: \.offset) { _, nudge in
@@ -77,9 +105,6 @@ struct PostureTimelineChart: View {
 struct PostureTimelineCard: View {
     @StateObject private var loader = PostureTimelineLoader()
     @State private var showDetail = false
-
-    /// Reloaded this often while the screen is up: the log only grows when something changes.
-    private let refresh = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
         Button { showDetail = true } label: {
@@ -112,10 +137,7 @@ struct PostureTimelineCard: View {
             }
         }
         .buttonStyle(.plain)
-        .task { await loader.load(dayKey: PostureLogStore.dayKey(for: Date())) }
-        .onReceive(refresh) { _ in
-            Task { await loader.load(dayKey: PostureLogStore.dayKey(for: Date())) }
-        }
+        .task { await loader.keepLoadingToday() }
         .sheet(isPresented: $showDetail) {
             PostureTimelineView()
         }

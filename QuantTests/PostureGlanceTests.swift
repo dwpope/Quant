@@ -85,11 +85,9 @@ final class PostureGlanceTests: XCTestCase {
     func test_theApp_sendsTheSlouchStart_asACalendarTime() throws {
         let model = AppModel()
         model.postureState = .drifting(since: 670_636)
-        model.latestMetrics = RawMetrics(
-            timestamp: 670_648, forwardCreep: 0, headDrop: 0, shoulderRounding: 0,
-            lateralLean: 0, twist: 0, movementLevel: 0, headMovementPattern: .still)
 
-        let glance = model.postureGlance(wallNow: start)
+        let glance = model.postureGlance(wallNow: start,
+                                         latestFrame: .init(time: 670_648, judgedAt: start))
 
         XCTAssertEqual(glance.state, "drifting")
         XCTAssertEqual(try XCTUnwrap(glance.since), start.timeIntervalSince1970 - 12, accuracy: 0.5)
@@ -164,10 +162,54 @@ final class PostureGlanceTests: XCTestCase {
     func test_theApp_sendsTheDueTime_asACalendarTime() throws {
         let model = AppModel()
         model.postureState = .drifting(since: 670_636)
+        let glance = model.postureGlance(wallNow: start, latestFrame: .init(time: 670_648, judgedAt: start),
+                                         nudgeDueAt: 670_696)
+        XCTAssertEqual(try XCTUnwrap(glance.nudgeAt), start.timeIntervalSince1970 + 48, accuracy: 0.5)
+    }
+
+    // MARK: - The frame the times are on (2026-10-16 audit)
+
+    /// Times are converted against the latest frame judged, with a pose or without. With one
+    /// shoulder hidden there's no pose and no new metrics, and converted against the last
+    /// metrics the countdown climbed: "nudge in 0:40", 0:41, 0:42.
+    func test_aFrameWithoutAPose_isTheClockTheTimesAreOn() throws {
+        let model = AppModel()
+        model.postureState = .drifting(since: 670_636)
         model.latestMetrics = RawMetrics(
             timestamp: 670_648, forwardCreep: 0, headDrop: 0, shoulderRounding: 0,
             lateralLean: 0, twist: 0, movementLevel: 0, headMovementPattern: .still)
-        let glance = model.postureGlance(wallNow: start, nudgeDueAt: 670_696)
-        XCTAssertEqual(try XCTUnwrap(glance.nudgeAt), start.timeIntervalSince1970 + 48, accuracy: 0.5)
+        let glance = model.postureGlance(wallNow: start.addingTimeInterval(3),
+                                         latestFrame: .init(time: 670_660, judgedAt: start),
+                                         nudgeDueAt: 670_700)
+        XCTAssertEqual(try XCTUnwrap(glance.nudgeAt), start.timeIntervalSince1970 + 40, accuracy: 0.5)
+        XCTAssertEqual(try XCTUnwrap(glance.since), start.timeIntervalSince1970 - 24, accuracy: 0.5)
+    }
+
+    // MARK: - The camera stopped (2026-10-16 audit)
+
+    /// No frame for 5 s (too hot, the camera interrupted, a replay over): the Watch is told the
+    /// camera is paused. It showed the last posture as live, with timers running and a nudge
+    /// counting down that would never come.
+    func test_noFrameLately_tellsTheWatchTheCameraIsPaused() {
+        let model = AppModel()
+        model.postureState = .bad(since: 670_600)
+        let glance = model.postureGlance(wallNow: start.addingTimeInterval(PostureGlance.framesStopAfter + 1),
+                                         latestFrame: .init(time: 670_648, judgedAt: start),
+                                         nudgeDueAt: 670_660)
+        XCTAssertEqual(glance.message as NSDictionary, ["type": "posture", "state": "paused"] as NSDictionary)
+    }
+
+    func test_aFrameJustNow_isLive() {
+        let model = AppModel()
+        model.postureState = .good
+        let glance = model.postureGlance(wallNow: start.addingTimeInterval(PostureGlance.framesStopAfter - 1),
+                                         latestFrame: .init(time: 670_648, judgedAt: start))
+        XCTAssertEqual(glance.state, "good")
+    }
+
+    /// Before the first frame, too: nothing is watching yet.
+    func test_beforeTheFirstFrame_theCameraIsPaused() {
+        let model = AppModel()
+        XCTAssertEqual(model.postureGlance(wallNow: start, latestFrame: nil).state, "paused")
     }
 }

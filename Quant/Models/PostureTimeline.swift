@@ -10,6 +10,10 @@ import PostureLogic
 /// any kind for `maxGap` means it had, and the state is taken to end at its last line; within an
 /// hour of real use the longest quiet was 7 minutes (12 Oct). Until then, the state going on runs
 /// to now.
+///
+/// Since 2026-10-16 the log also writes a tick a minute while nothing changes, so a log with
+/// ticks in it has gone quiet only when the camera stopped: `maxGapWithTicks` is enough. Before,
+/// sitting well for over 10 minutes read as the app having closed.
 nonisolated struct PostureTimeline: Equatable {
 
     /// What a stretch of time is drawn as.
@@ -33,14 +37,19 @@ nonisolated struct PostureTimeline: Equatable {
     let segments: [Segment]
     let nudges: [Nudge]
 
-    /// No line for this long and the app had closed (drawn up to its last line).
+    /// No line for this long and the app had closed (drawn up to its last line), in a log
+    /// written before ticks (2026-10-16).
     static let maxGap: TimeInterval = 600
+    /// The same in a log with ticks: a line comes at least every `PostureLogRecorder.tickEvery`
+    /// while the camera runs.
+    static let maxGapWithTicks: TimeInterval = 150
 
     init(events: [PostureLogEvent], now: Date) {
         var segments: [Segment] = []
         var nudges: [Nudge] = []
         var current: (band: Band, since: TimeInterval)?
         var lastLine: TimeInterval?
+        let maxGap = events.contains { $0.kind == "tick" } ? Self.maxGapWithTicks : Self.maxGap
 
         func close(at end: TimeInterval) {
             guard let open = current, end > open.since else { current = nil; return }
@@ -53,13 +62,17 @@ nonisolated struct PostureTimeline: Equatable {
             current = nil
         }
 
-        for event in events.sorted(by: { $0.t < $1.t }) {
-            if let last = lastLine, event.t - last > Self.maxGap {
+        // Only lines written from camera frames say the camera was running: how a nudge reached
+        // the Watch doesn't, and a replay's nudges still send one (2026-10-16).
+        for event in events.sorted(by: { $0.t < $1.t }) where event.kind != "watch" {
+            if let last = lastLine, event.t - last > maxGap {
                 close(at: last)
             }
             lastLine = event.t
             switch event.kind {
-            case "state":
+            // A tick says the state too, so the band picks up again after a gap with the posture
+            // unchanged: only a change writes a state line.
+            case "state", "tick":
                 let band = Self.band(of: event.value)
                 if current?.band != band {
                     close(at: event.t)
@@ -75,7 +88,7 @@ nonisolated struct PostureTimeline: Equatable {
             }
         }
         if let last = lastLine {
-            let stillWriting = now.timeIntervalSince1970 - last <= Self.maxGap
+            let stillWriting = now.timeIntervalSince1970 - last <= maxGap
             close(at: stillWriting ? now.timeIntervalSince1970 : last)
         }
         self.segments = segments

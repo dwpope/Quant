@@ -34,25 +34,31 @@ struct PostureCard: View {
 
                 Spacer()
             }
+            // One element for VoiceOver, "Posture, Sitting well", not "POSTURE" then the state.
+            .accessibilityElement(children: .combine)
         }
     }
 
-    private var stateLabel: String {
+    private var stateLabel: String { Self.label(for: postureState) }
+
+    /// The posture in the words used everywhere: here, on the Watch and under the timeline
+    /// (2026-10-16). This card said "Good / Drifting / Poor posture / Not detected".
+    static func label(for postureState: PostureState) -> String {
         switch postureState {
-        case .absent:        return "Not detected"
+        case .absent:        return "Away"
         case .calibrating:   return "Calibrating…"
-        case .good:          return "Good"
-        case .drifting:      return "Drifting"
-        case .bad:           return "Poor posture"
+        case .good:          return "Sitting well"
+        case .drifting:      return "Slouching"
+        case .bad:           return "Still slouching"
         }
     }
 
     private var stateColor: Color {
         switch postureState {
         case .absent, .calibrating: return .secondary
-        case .good:                 return .green
-        case .drifting:             return .yellow
-        case .bad:                  return .red
+        case .good:                 return Color(PosturePalette.good)
+        case .drifting:             return Color(PosturePalette.slouching)
+        case .bad:                  return Color(PosturePalette.stillSlouching)
         }
     }
 

@@ -96,6 +96,10 @@ final class PostureEngine: PostureEngineProtocol {
     /// briefly straightens up then slumps again.
     private var recoveryStartTime: TimeInterval?
 
+    /// Sitting up from `.bad`, not yet for `recoveryGracePeriod`: the state still says `.bad`
+    /// (2026-10-16). The nudge engine counts it as sitting well.
+    var isRecovering: Bool { recoveryStartTime != nil }
+
     // MARK: - Absence Tracking (internal)
 
     /// Timestamp when `.lost` quality was first observed in the current run.

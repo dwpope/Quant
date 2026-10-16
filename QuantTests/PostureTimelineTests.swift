@@ -114,6 +114,55 @@ final class PostureTimelineTests: XCTestCase {
         XCTAssertEqual(timeline.segments.map(\.band), [.good, .bad])
     }
 
+    // MARK: - A log with ticks (2026-10-16)
+
+    /// Since 2026-10-16 the log has a line at least every minute while the camera runs, so
+    /// sitting well for 25 minutes is no longer read as the app having closed, and a silence of
+    /// `maxGapWithTicks` is: the camera had stopped.
+    func test_ticks_keepAStateGoing_andItEndsWhenTheyStop() {
+        let ticks = stride(from: 60.0, through: 1_500, by: 60).map {
+            PostureLogEvent(t: t0 + $0, kind: "tick", value: "good")
+        }
+        let timeline = PostureTimeline(events: [state("good", at: 0)] + ticks + [
+            state("bad", at: 1_800),
+        ], now: date(1_860))
+        XCTAssertEqual(timeline.segments, [
+            .init(start: date(0), end: date(1_500), band: .good),
+            .init(start: date(1_800), end: date(1_860), band: .bad),
+        ])
+    }
+
+    /// A tick says the state too, so after the camera stops and starts again with the posture
+    /// unchanged, the band picks up at the first tick. Only a change writes a state line, and
+    /// the band stayed blank until the next one (review of the fix, 2026-10-16).
+    func test_aTickAfterAGap_startsTheBandAgain() {
+        let tick = { (s: TimeInterval) in PostureLogEvent(t: self.t0 + s, kind: "tick", value: "good") }
+        let timeline = PostureTimeline(events: [state("good", at: 0), tick(60), tick(600), tick(660)],
+                                       now: date(700))
+        XCTAssertEqual(timeline.segments, [
+            .init(start: date(0), end: date(60), band: .good),
+            .init(start: date(600), end: date(700), band: .good),
+        ])
+    }
+
+    /// How a nudge reached the Watch isn't a camera frame, so it doesn't keep a state going: a
+    /// replay's nudges (not logged themselves) still send one, about once a minute.
+    func test_watchLines_dontKeepAStateGoing() {
+        let watch = { (s: TimeInterval) in PostureLogEvent(t: self.t0 + s, kind: "watch", value: "message") }
+        let timeline = PostureTimeline(events: [
+            state("good", at: 0), PostureLogEvent(t: t0 + 60, kind: "tick", value: "good"),
+            watch(120), watch(180), watch(240),
+        ], now: date(250))
+        XCTAssertEqual(timeline.segments, [.init(start: date(0), end: date(60), band: .good)])
+    }
+
+    /// And the last state runs to now only while the ticks keep coming.
+    func test_withTicks_theLastStateEnds_whenTheyStop() {
+        let events = [state("good", at: 0), PostureLogEvent(t: t0 + 60, kind: "tick", value: "good")]
+        XCTAssertEqual(PostureTimeline(events: events, now: date(150)).segments.last?.end, date(150))
+        XCTAssertEqual(PostureTimeline(events: events, now: date(400)).segments.last?.end, date(60))
+    }
+
     // MARK: - Reading the day's file
 
     func test_readsTheLinesOfADayFile() throws {
@@ -134,5 +183,35 @@ final class PostureTimelineTests: XCTestCase {
                        "newest first; an export isn't a day")
         let events = PostureLogStore.events(dayKey: "2026-10-13", in: folder)
         XCTAssertEqual(events.map(\.value), ["good", "fire:sink"], "a bad line is skipped")
+    }
+}
+
+/// The TODAY card reloads on its own while it's up (2026-10-16 audit). Its timer was a property
+/// of the view, and the main screen rebuilds the card about ten times a second, so the timer
+/// restarted every frame and never fired: the card kept what it read when the screen appeared.
+@MainActor
+final class PostureTimelineLoaderTests: XCTestCase {
+
+    nonisolated final class Reads: @unchecked Sendable {
+        private let lock = NSLock()
+        private var n = 0
+        func add() { lock.lock(); n += 1; lock.unlock() }
+        var count: Int { lock.lock(); defer { lock.unlock() }; return n }
+    }
+
+    func test_today_isReadAgainAndAgain_untilTheCardGoes() async throws {
+        let reads = Reads()
+        let loader = PostureTimelineLoader(read: { _ in reads.add(); return ([], []) })
+        let card = Task { await loader.keepLoadingToday(every: .milliseconds(20)) }
+
+        let deadline = Date().addingTimeInterval(5)
+        while reads.count < 3 && Date() < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertGreaterThanOrEqual(reads.count, 3)
+
+        card.cancel()
+        await card.value
+        let after = reads.count
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(reads.count, after, "stops when the card goes")
     }
 }

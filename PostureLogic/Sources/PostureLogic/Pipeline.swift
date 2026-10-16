@@ -48,6 +48,13 @@ public class Pipeline {
     /// this frame's.
     public private(set) var nudgeDueAt: TimeInterval?
 
+    /// The latest frame judged, with a pose or without, and when on the calendar clock
+    /// (2026-10-16). `nudgeDueAt`, `headTurnedSince` and a slouch's start are on this frame's
+    /// clock, so it's what they're converted against. `latestMetrics` stops at the last frame
+    /// with a pose: converted against that, the Watch's countdown climbed while a shoulder was
+    /// hidden. Nil before the first frame and on a new timeline. Set before `nudgeDecision`.
+    public private(set) var latestFrame: JudgedFrame?
+
     /// Which repeat a fired nudge is: 0 for a slouch's first, then 1, 2, … while it goes on
     /// uncorrected. Read when `nudgeDecision` fires, before `recordNudgeFired()`.
     public var nudgeRepeat: Int { nudgeEngine.repeatOfLastFire }
@@ -55,6 +62,16 @@ public class Pipeline {
     /// Nudges are held back until this moment, on the calendar clock: the user silenced them
     /// from the phone or the Watch. Compared with `now()`, never with the frame clock.
     public var nudgesSilencedUntil: Date?
+
+    /// A frame's time, on the frame clock, and when it was judged, on the calendar clock.
+    public struct JudgedFrame: Equatable, Sendable {
+        public let time: TimeInterval
+        public let judgedAt: Date
+        public init(time: TimeInterval, judgedAt: Date) {
+            self.time = time
+            self.judgedAt = judgedAt
+        }
+    }
 
     /// The calendar clock `nudgesSilencedUntil` is compared with. Swappable for tests.
     var now: () -> Date = Date.init
@@ -124,9 +141,6 @@ public class Pipeline {
     }
     private let headTurnTracker: HeadTurnTracker
 
-    /// Frame timestamp of the latest nudge evaluation, on the clock the NudgeEngine measures
-    /// with. ``recordNudgeFired()`` records the fire at this time.
-    private var lastNudgeEvaluationTime: TimeInterval?
     private var taskModeEngine = TaskModeEngine()
     private var staleBaselineDetector = StaleBaselineDetector()
     private var recentMetricsBuffer: [RawMetrics] = []
@@ -434,7 +448,7 @@ public class Pipeline {
         recentQualities.removeAll()
         headTurnedSince = nil
         nudgeDueAt = nil
-        lastNudgeEvaluationTime = nil
+        latestFrame = nil
     }
 
     private var lastTakenFrameTime: TimeInterval = -.infinity
@@ -499,7 +513,7 @@ public class Pipeline {
         // Is cooldown active? Is the hourly limit reached?
         // The metrics and the signals that counted are passed so the engine can name the
         // specific nudge reason (forwardCreep, headDrop, sink).
-        lastNudgeEvaluationTime = smoothedMetrics.timestamp
+        latestFrame = JudgedFrame(time: smoothedMetrics.timestamp, judgedAt: now())
         let turnedSince = updateHeadTurn(sample: sample, metrics: smoothedMetrics, trackingQuality: quality)
         let decision = nudgeEngine.evaluate(
             state: newPostureState,
@@ -510,7 +524,8 @@ public class Pipeline {
             metrics: smoothedMetrics,
             headTurnedSince: turnedSince,
             silenced: nudgesSilenced,
-            slouchSignals: postureEngine.slouchSignals
+            slouchSignals: postureEngine.slouchSignals,
+            recovering: postureEngine.isRecovering
         )
         nudgeDueAt = nudgeEngine.nudgeDueIn.map { smoothedMetrics.timestamp + $0 }
         nudgeDecision = decision
@@ -568,7 +583,7 @@ public class Pipeline {
         }
         headTurnedSince = turnedSince
 
-        lastNudgeEvaluationTime = timestamp
+        latestFrame = JudgedFrame(time: timestamp, judgedAt: now())
         let decision = nudgeEngine.evaluate(
             state: newPostureState,
             trackingQuality: quality,
@@ -577,7 +592,8 @@ public class Pipeline {
             currentTime: timestamp,
             metrics: nil,
             headTurnedSince: turnedSince,
-            silenced: nudgesSilenced
+            silenced: nudgesSilenced,
+            recovering: postureEngine.isRecovering
         )
         nudgeDueAt = nudgeEngine.nudgeDueIn.map { timestamp + $0 }
         nudgeDecision = decision
@@ -749,7 +765,7 @@ public class Pipeline {
     /// the cooldown, so the cooldown never ended and the app nudged once per launch. The fire
     /// is now recorded at the frame that produced it, so the clocks can't be mixed.
     public func recordNudgeFired() {
-        guard let frameTime = lastNudgeEvaluationTime else { return }  // no frame, no fire
+        guard let frameTime = latestFrame?.time else { return }  // no frame, no fire
         nudgeEngine.recordNudgeFired(at: frameTime)
     }
 

@@ -11,7 +11,8 @@ import PostureLogic
 nonisolated struct PostureLogEvent: Codable, Equatable {
     /// Seconds since 1970.
     var t: TimeInterval
-    /// "state", "nudge", "task" or "watch".
+    /// "state", "nudge", "task", "watch", or "tick": the state again, a minute after the last
+    /// line, while nothing changes (2026-10-16).
     var kind: String
     /// "good", "drifting", "bad", "absent", "calibrating"; "none", "pending:<reason>",
     /// "fire:<reason>", "suppressed:<reason>"; a task mode; or how a nudge left for the Watch
@@ -31,16 +32,37 @@ nonisolated struct PostureLogEvent: Codable, Equatable {
     var wristSession: Bool? = nil
 }
 
-/// Decides what's worth a line: only changes. The countdown ticks every frame and is not one.
+/// Decides what's worth a line: changes, and a tick a minute while nothing changes. The
+/// countdown ticks every frame and is not one.
+///
+/// The tick (2026-10-16): with only changes written, sitting well for 25 minutes wrote nothing,
+/// and the timeline read 10 minutes of nothing as the app having closed. Each day's file also
+/// starts with where things stand, so it reads on its own.
 struct PostureLogRecorder {
+    /// Which day's file a line goes in, as `PostureLogStore` names them.
+    var calendar = Calendar.current
     private var lastState: String?
     private var lastNudge: String?
     private var lastTask: String?
+    private var lastDay: String?
+    private var lastLineAt: TimeInterval?
+
+    /// A line at least this often while frames come in.
+    static let tickEvery: TimeInterval = 60
 
     mutating func events(state: PostureState, decision: NudgeDecision, taskMode: TaskMode,
                          metrics: RawMetrics?, headYaw: Float?, now: Date) -> [PostureLogEvent] {
         let t = now.timeIntervalSince1970
         var out: [PostureLogEvent] = []
+        defer { if !out.isEmpty { lastLineAt = t } }
+
+        let day = PostureLogStore.dayKey(for: now, calendar: calendar)
+        if day != lastDay {
+            lastDay = day
+            lastState = nil
+            lastNudge = nil
+            lastTask = nil
+        }
 
         let stateName = Self.name(of: state)
         if stateName != lastState {
@@ -64,6 +86,14 @@ struct PostureLogRecorder {
         if taskName != lastTask {
             lastTask = taskName
             out.append(PostureLogEvent(t: t, kind: "task", value: taskName))
+        }
+
+        if out.isEmpty, let last = lastLineAt, t - last >= Self.tickEvery {
+            out.append(PostureLogEvent(
+                t: t, kind: "tick", value: stateName,
+                forwardCreep: metrics?.forwardCreep, headDrop: metrics?.headDrop,
+                shoulderSink: metrics?.shoulderSink, lateralShift: metrics?.lateralLeanSigned,
+                headYaw: headYaw))
         }
         return out
     }

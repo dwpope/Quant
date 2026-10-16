@@ -42,6 +42,37 @@ final class PipelineTimelineTests: XCTestCase {
         }
     }
 
+    /// The latest frame judged, with or without a pose, and when (2026-10-16). The Watch's times
+    /// are converted against it. `latestMetrics` stops at the last frame with a pose, and the
+    /// Watch's countdown climbed while a shoulder was hidden: the due time was on the new frame's
+    /// clock and converted against the old one's.
+    @MainActor
+    func test_aFrameWithoutAPose_isTheLatestFrame() throws {
+        let pipeline = Pipeline(provider: MockPoseProvider())
+        pipeline.baseline = GoldenRecordings.baselineForGoodPosture()
+        let judged = Date(timeIntervalSince1970: 1_800_000_000)
+        pipeline.now = { judged }
+        let start: TimeInterval = 1_791_640_000
+        for i in 0..<200 {
+            let t = start + Double(i) * 0.1
+            pipeline.ingest(sample(at: t, slouched: true), quality: .good, at: t)
+        }
+        for i in 200..<230 {
+            pipeline.ingest(nil, quality: .good, at: start + Double(i) * 0.1)
+        }
+
+        let frame = try XCTUnwrap(pipeline.latestFrame)
+        XCTAssertEqual(frame.time, start + 22.9, accuracy: 1e-6)
+        XCTAssertEqual(frame.judgedAt, judged)
+        XCTAssertEqual(try XCTUnwrap(pipeline.latestMetrics?.timestamp), start + 19.9, accuracy: 1e-6,
+                       "the metrics stop at the last pose")
+        // The slouch clock is paused, so the time left is the same 40 s as at the last pose.
+        XCTAssertEqual(try XCTUnwrap(pipeline.nudgeDueAt) - frame.time, 40, accuracy: 0.5)
+
+        pipeline.resetTimeline()
+        XCTAssertNil(pipeline.latestFrame, "a new timeline has no frame yet")
+    }
+
     // MARK: - A new timeline
 
     /// Live frames, then a recording from an hour earlier through the same pipeline. The step

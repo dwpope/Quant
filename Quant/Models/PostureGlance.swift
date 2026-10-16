@@ -8,7 +8,7 @@ import PostureLogic
 /// posture that's held. The Watch's `PostureGlance` reads it. The two targets share no code, so
 /// the dictionaries in `PostureGlanceTests` are golden copies, asserted from each side.
 struct PostureGlance: Equatable {
-    /// "good", "drifting", "bad", "absent" or "calibrating".
+    /// "good", "drifting", "bad", "absent", "calibrating", or "paused" with the camera stopped.
     let state: String
     /// When the slouch began, calendar seconds: drifting and bad only.
     let since: Double?
@@ -77,6 +77,13 @@ struct PostureGlance: Equatable {
         if let nudgeAt { m["nudgeAt"] = nudgeAt }
         return m
     }
+
+    /// The camera has stopped: no frame for `framesStopAfter` (2026-10-16).
+    static let paused = PostureGlance(state: "paused", since: nil, headTurnedSince: nil, nudgeAt: nil)
+
+    /// No frame judged for this long and the camera has stopped. Frames are judged about ten
+    /// times a second, and a few a second when the phone is hot.
+    static let framesStopAfter: TimeInterval = 5
 
     /// Sent again this often while nothing changes. The Watch takes three missed to mean the
     /// phone has stopped.

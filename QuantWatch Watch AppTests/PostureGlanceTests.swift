@@ -67,6 +67,11 @@ struct PostureGlanceTests {
         #expect(PostureLook.slouching(since: start, sustained: false).headline == "Slouching")
     }
 
+    /// Bad has its own word, as on the phone (2026-10-16): yellow and red differed by colour alone.
+    @Test func slouchingLongEnoughToNudge_saysSo() {
+        #expect(PostureLook.slouching(since: start, sustained: true).headline == "Still slouching")
+    }
+
     @Test func headTurned() {
         #expect(look(["type": "posture", "state": "good", "headTurned": 1_791_640_000.0])
                 == .headTurned(since: start))
@@ -82,12 +87,21 @@ struct PostureGlanceTests {
 
     @Test func notInView() {
         #expect(look(["type": "posture", "state": "absent", "headTurned": 1_791_640_000.0]) == .notInView)
-        #expect(PostureLook.notInView.headline == "Not in view")
+        #expect(PostureLook.notInView.headline == "Away")
     }
 
     @Test func calibrating() {
         #expect(look(["type": "posture", "state": "calibrating"]) == .calibrating)
         #expect(PostureLook.calibrating.headline == "Calibrating")
+    }
+
+    /// The phone's camera has stopped (too hot, interrupted, a replay over), so its last posture
+    /// isn't now (2026-10-16 audit). It was shown as live, timers running.
+    @Test func cameraPaused() {
+        #expect(PostureGlance(message: ["type": "posture", "state": "paused"])?.state == .paused)
+        #expect(look(["type": "posture", "state": "paused"]) == .cameraPaused)
+        #expect(PostureLook.cameraPaused.headline == "Camera paused")
+        #expect(PostureLook.cameraPaused.countdown(now: start) == nil)
     }
 
     @Test func beforeThePhoneSaysAnything() {

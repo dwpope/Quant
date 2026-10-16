@@ -177,10 +177,12 @@ struct PostureGlanceView: View {
     private var symbol: String {
         switch look {
         case .sittingWell: return "checkmark.circle.fill"
-        case .slouching: return "exclamationmark.circle.fill"
+        case .slouching(_, let sustained, _):
+            return sustained ? "exclamationmark.triangle.fill" : "exclamationmark.circle.fill"
         case .headTurned: return "arrow.left.arrow.right.circle.fill"
         case .notInView: return "person.slash"
         case .calibrating: return "scope"
+        case .cameraPaused: return "video.slash"
         case .waitingForPhone: return "iphone.slash"
         }
     }
@@ -191,7 +193,7 @@ struct PostureGlanceView: View {
         case .sittingWell: return .green
         case .slouching(_, let sustained, _): return sustained ? .red : .yellow
         case .headTurned: return .yellow
-        case .notInView, .calibrating, .waitingForPhone: return .secondary
+        case .notInView, .calibrating, .cameraPaused, .waitingForPhone: return .secondary
         }
     }
 }

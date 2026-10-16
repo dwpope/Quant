@@ -14,9 +14,9 @@ import Foundation
 /// `PostureGlanceTests` asserts the same dictionaries.
 struct PostureGlance: Equatable {
 
-    /// The phone's posture states.
+    /// The phone's posture states, and `paused` when its camera has stopped (2026-10-16).
     enum State: String {
-        case good, drifting, bad, absent, calibrating
+        case good, drifting, bad, absent, calibrating, paused
     }
 
     let state: State
@@ -52,6 +52,8 @@ enum PostureLook: Equatable {
     case headTurned(since: Date, nudgeAt: Date? = nil)
     case notInView
     case calibrating
+    /// The phone's camera has stopped: too hot, interrupted, or a replay over (2026-10-16).
+    case cameraPaused
     /// Nothing from the phone yet, or nothing lately.
     case waitingForPhone
 
@@ -61,6 +63,7 @@ enum PostureLook: Equatable {
         else { self = .waitingForPhone; return }
         switch glance.state {
         case .calibrating: self = .calibrating
+        case .paused: self = .cameraPaused
         case .absent: self = .notInView
         case .drifting: self = .slouching(since: glance.since, sustained: false, nudgeAt: glance.nudgeAt)
         case .bad: self = .slouching(since: glance.since, sustained: true, nudgeAt: glance.nudgeAt)
@@ -73,13 +76,15 @@ enum PostureLook: Equatable {
         }
     }
 
+    /// In the phone's words, the same on its card and timeline (2026-10-16).
     var headline: String {
         switch self {
         case .sittingWell: return "Sitting well"
-        case .slouching: return "Slouching"
+        case .slouching(_, let sustained, _): return sustained ? "Still slouching" : "Slouching"
         case .headTurned: return "Head turned"
-        case .notInView: return "Not in view"
+        case .notInView: return "Away"
         case .calibrating: return "Calibrating"
+        case .cameraPaused: return "Camera paused"
         case .waitingForPhone: return "Waiting for iPhone"
         }
     }

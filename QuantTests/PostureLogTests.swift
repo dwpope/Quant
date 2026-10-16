@@ -85,6 +85,77 @@ final class PostureLogTests: XCTestCase {
         XCTAssertEqual(held.map(\.value), ["suppressed:cooldownActive"])
     }
 
+    // MARK: - Ticks and days (2026-10-16)
+
+    /// A posture held writes a line a minute, with the numbers, so the timeline can tell sitting
+    /// well for 25 minutes from the app having closed. Only changes were written before, and 10
+    /// minutes of nothing was read as closed.
+    func test_aPostureHeld_writesATickEachMinute() throws {
+        var recorder = PostureLogRecorder()
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        _ = recorder.events(state: .good, decision: .none, taskMode: .reading, metrics: metrics(),
+                            headYaw: 0, now: t0)
+        XCTAssertEqual(recorder.events(state: .good, decision: .none, taskMode: .reading, metrics: metrics(),
+                                       headYaw: 0, now: t0.addingTimeInterval(59)), [])
+        let tick = recorder.events(state: .good, decision: .none, taskMode: .reading,
+                                   metrics: metrics(creep: 0.03), headYaw: 0, now: t0.addingTimeInterval(60))
+        XCTAssertEqual(tick.map(\.kind), ["tick"])
+        XCTAssertEqual(tick.first?.value, "good")
+        XCTAssertEqual(try XCTUnwrap(tick.first?.forwardCreep), 0.03, accuracy: 1e-6)
+        XCTAssertEqual(recorder.events(state: .good, decision: .none, taskMode: .reading, metrics: metrics(),
+                                       headYaw: 0, now: t0.addingTimeInterval(61)), [])
+    }
+
+    /// Any line counts as one: the next tick is a minute after the last line of any kind.
+    func test_aChange_putsTheNextTickOff() {
+        var recorder = PostureLogRecorder()
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        _ = recorder.events(state: .good, decision: .none, taskMode: .reading, metrics: metrics(),
+                            headYaw: 0, now: t0)
+        _ = recorder.events(state: .drifting(since: 1), decision: .pending(reason: .sink, timeRemaining: 60),
+                            taskMode: .reading, metrics: metrics(), headYaw: 0, now: t0.addingTimeInterval(40))
+        XCTAssertEqual(recorder.events(state: .drifting(since: 1), decision: .pending(reason: .sink, timeRemaining: 40),
+                                       taskMode: .reading, metrics: metrics(), headYaw: 0,
+                                       now: t0.addingTimeInterval(60)), [])
+    }
+
+    /// A day's file starts with where things stand, so the timeline reads each day on its own:
+    /// a posture held over midnight wasn't in the new day's file at all.
+    func test_aNewDay_startsWithTheStateTheDecisionAndTheTaskMode() {
+        var recorder = PostureLogRecorder()
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        recorder.calendar = utc
+        let midnight = Date(timeIntervalSince1970: 1_800_057_600)   // 2027-01-16 00:00 UTC
+        _ = recorder.events(state: .good, decision: .none, taskMode: .reading, metrics: metrics(),
+                            headYaw: 0, now: midnight.addingTimeInterval(-10))
+        let newDay = recorder.events(state: .good, decision: .none, taskMode: .reading, metrics: metrics(),
+                                     headYaw: 0, now: midnight.addingTimeInterval(5))
+        XCTAssertEqual(newDay.map(\.kind), ["state", "nudge", "task"])
+        XCTAssertEqual(newDay.map(\.value), ["good", "none", "reading"])
+    }
+
+    // MARK: - Replays (2026-10-16)
+
+    /// A replayed recording isn't your posture today: its frames aren't logged, or the TODAY
+    /// card would draw its slouches and nudges as real.
+    func test_aReplay_isNotLogged() throws {
+        let model = AppModel()
+        model.startRecording()
+        let url = try XCTUnwrap(model.stopRecording())
+        defer { try? FileManager.default.removeItem(at: url) }
+        try model.loadSession(url)
+
+        model.startReplay()
+        let before = model.postureLogStore.count
+        model.logFrame(decision: .fire(reason: .sink))
+        XCTAssertEqual(model.postureLogStore.count, before, "a replay's nudge isn't logged")
+
+        model.stopReplay()
+        model.logFrame(decision: .fire(reason: .sink))
+        XCTAssertEqual(model.postureLogStore.count, before + 1, "a live one is")
+    }
+
     // MARK: - On disk and in the export
 
     func test_linesAreKept_andCountedAfterARelaunch() {

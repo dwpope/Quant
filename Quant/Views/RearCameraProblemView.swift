@@ -25,6 +25,7 @@ struct RearCameraProblemView: View {
                 Image(systemName: "camera.badge.ellipsis")
                     .font(.system(size: 48))
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)  // the title says it; VoiceOver read the symbol's name
 
                 Text("Rear Camera Not Available")
                     .font(.title2)

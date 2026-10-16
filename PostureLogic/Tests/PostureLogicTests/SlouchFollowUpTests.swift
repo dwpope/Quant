@@ -78,6 +78,22 @@ final class SlouchFollowUpTests: XCTestCase {
         XCTAssertEqual(e.debugState["cooldownRemaining"] as? TimeInterval ?? -1, 20, accuracy: 1)
     }
 
+    /// A break of over a minute between frames (the app paused, the camera stopped) ends the
+    /// slouch's follow-up, as sitting well does (2026-10-16 audit): the next nudge waits its own
+    /// full time and is a first, not a repeat. It used to come after the repeat's minute, with
+    /// the repeat's firmer taps.
+    func test_aBreak_endsTheFollowUp() {
+        var t = PostureThresholds()
+        t.slouchDurationBeforeNudge = 120
+        let e = NudgeEngine(thresholds: t)
+        var fires: [TimeInterval] = []
+        run(e, from: 0, to: 121, state: { _ in .bad(since: 0) }, fires: &fires)
+        // No frames from 121 to 300.
+        run(e, from: 300, to: 430, state: { _ in .bad(since: 0) }, fires: &fires)
+        XCTAssertEqual(fires, [120, 420])
+        XCTAssertEqual(e.repeatOfLastFire, 0)
+    }
+
     /// A head held turned keeps its 10-minute repeat: the minute is for slouches.
     func test_aHeadHeldTurned_stillRepeatsEvery10Minutes() {
         XCTAssertEqual(HeadTurnThresholds().repeatAfter, 600)

@@ -37,8 +37,8 @@ import Foundation
 /// After a nudge fires, a cooldown period starts. A slouch left uncorrected is
 /// nudged again after a minute more of slouching (`nudgeCooldown`, 10 minutes
 /// until 2026-10-12); a head held turned after 10 minutes. Sitting well for 30 s
-/// (or leaving the desk) ends it early: the next slouch is nudged like any other
-/// (2026-10-08).
+/// (or leaving the desk, or a break of over a minute) ends it early: the next slouch
+/// is nudged like any other (2026-10-08).
 ///
 /// ### Hourly Limit
 ///
@@ -167,8 +167,8 @@ final class NudgeEngine: NudgeEngineProtocol {
     private var goodStreak: TimeInterval = 0
     private var lastEvaluationTime: TimeInterval?
 
-    /// Whether a slouch episode has ended (sitting well for `slouchEpisodeEndsAfterGood`) since
-    /// the last nudge. The cooldown only holds back the slouch that was nudged, left uncorrected;
+    /// Whether a slouch episode has ended (sitting well for `slouchEpisodeEndsAfterGood`, leaving
+    /// the desk, or a break between frames) since the last nudge. The cooldown only holds back the slouch that was nudged, left uncorrected;
     /// after sitting up, the next slouch is nudged like any other (2026-10-08). Dave saw the
     /// cooldown hold back slouches that began after he'd sat up.
     private var correctedSinceLastNudge = false
@@ -243,6 +243,10 @@ final class NudgeEngine: NudgeEngineProtocol {
     ///   - silenced: Whether the user has silenced nudges for now. Every nudge waits.
     ///   - slouchSignals: Which slouch signals the posture engine counted this frame
     ///     (`PostureEngine.slouchSignals`). Only those can be the reason; nil compares them all.
+    ///   - recovering: Sitting up from `.bad`, while the posture engine waits out its
+    ///     `recoveryGracePeriod` before calling it good (`PostureEngine.isRecovering`). Counted
+    ///     as sitting well: those frames used to count as slouching, and a repeat could fire up
+    ///     to 5 s after sitting up (2026-10-16).
     /// - Returns: A `NudgeDecision` indicating what the caller should do.
     func evaluate(
         state: PostureState,
@@ -253,10 +257,14 @@ final class NudgeEngine: NudgeEngineProtocol {
         metrics: RawMetrics? = nil,
         headTurnedSince: TimeInterval? = nil,
         silenced: Bool = false,
-        slouchSignals: Set<NudgeReason>? = nil
+        slouchSignals: Set<NudgeReason>? = nil,
+        recovering: Bool = false
     ) -> NudgeDecision {
-        let decision = decide(state: state, trackingQuality: trackingQuality, taskMode: taskMode,
-                              currentTime: currentTime, metrics: metrics,
+        // Sitting up counts only while it can be seen: with a shoulder hidden, it may not last.
+        let sittingUp = recovering && trackingQuality.allowsPostureJudgement
+        let slouched = isSlouched(state) && !sittingUp
+        let decision = decide(state: state, slouched: slouched, trackingQuality: trackingQuality,
+                              taskMode: taskMode, currentTime: currentTime, metrics: metrics,
                               headTurnedSince: headTurnedSince, silenced: silenced,
                               slouchSignals: slouchSignals)
         switch decision {
@@ -264,7 +272,7 @@ final class NudgeEngine: NudgeEngineProtocol {
             nudgeDueIn = 0
             repeatOfLastFire = reason != .headTurned && isFollowingUpASlouch ? repeatsRecorded + 1 : 0
         case .pending, .suppressed(.cooldownActive), .suppressed(.lowTrackingQuality):
-            nudgeDueIn = timeToNudge(at: currentTime, slouched: isSlouched(state),
+            nudgeDueIn = timeToNudge(at: currentTime, slouched: slouched,
                                      headTurnedSince: headTurnedSince)
         case .none, .suppressed:
             nudgeDueIn = nil
@@ -290,6 +298,7 @@ final class NudgeEngine: NudgeEngineProtocol {
 
     private func decide(
         state: PostureState,
+        slouched slouchedNow: Bool,
         trackingQuality: TrackingQuality,
         taskMode: TaskMode,
         currentTime: TimeInterval,
@@ -309,7 +318,6 @@ final class NudgeEngine: NudgeEngineProtocol {
         pruneOldNudges(currentTime: currentTime)
 
         // Add up slouched time, before any early return so it keeps counting through a cooldown.
-        let slouchedNow = isSlouched(state)
         countSlouchedTime(state: state, slouched: slouchedNow, trackingQuality: trackingQuality,
                           currentTime: currentTime)
         if lastNudgeReason == .headTurned, headTurnedSince != nudgedTurnStartedAt {
@@ -405,7 +413,8 @@ final class NudgeEngine: NudgeEngineProtocol {
         // STEP 4: Check if posture is actually bad
         // ──────────────────────────────────────────────
         //
-        // Only a slouch going on now can trigger a slouch nudge: `.drifting` or `.bad`.
+        // Only a slouch going on now can trigger a slouch nudge: `.drifting` or `.bad`, and not
+        // while sitting up from it.
         // `.good`, `.absent` and `.calibrating` leave only the head turn, if any, counting down.
         guard slouchedNow else {
             if let remaining = headTurnRemaining {
@@ -558,9 +567,12 @@ final class NudgeEngine: NudgeEngineProtocol {
             return
         }
         defer { lastEvaluationTime = currentTime }
+        // A break ends the slouch and its follow-up, as sitting well does: the next nudge is a
+        // first (2026-10-16). It used to come after the repeat's minute, as a repeat.
         guard dt <= maxFrameGap else {
             slouchedTime = 0
             goodStreak = 0
+            correctedSinceLastNudge = true
             return
         }
         // Away from the desk ends a slouch like sitting well does, though nothing can be seen.

@@ -497,15 +497,7 @@ class AppModel: ObservableObject {
         // Subscribed before the nudge handler below, so a fire's line comes before its "watch"
         // line.
         pipeline.$nudgeDecision
-            .sink { [weak self] decision in
-                guard let self else { return }
-                let events = self.postureLogRecorder.events(
-                    state: self.pipeline.postureState, decision: decision,
-                    taskMode: self.pipeline.taskMode, metrics: self.pipeline.latestMetrics,
-                    headYaw: self.pipeline.latestSample.map { $0.headYaw - (self.baseline?.headYaw ?? 0) },
-                    now: Date())
-                self.postureLogStore.append(events)
-            }
+            .sink { [weak self] decision in self?.logFrame(decision: decision) }
             .store(in: &cancellables)
 
         // React to nudge fire decisions — deliver feedback and record.
@@ -691,6 +683,20 @@ class AppModel: ObservableObject {
         return freed
     }
 
+    // MARK: - The posture log
+
+    /// A frame's lines in the posture log, if anything changed. Not a replay's (2026-10-16): a
+    /// recording isn't today's posture, and the TODAY card would have drawn it as if it were.
+    func logFrame(decision: NudgeDecision, now: Date = Date()) {
+        guard !isReplaying else { return }
+        let events = postureLogRecorder.events(
+            state: pipeline.postureState, decision: decision,
+            taskMode: pipeline.taskMode, metrics: pipeline.latestMetrics,
+            headYaw: pipeline.latestSample.map { $0.headYaw - (baseline?.headYaw ?? 0) },
+            now: now)
+        postureLogStore.append(events)
+    }
+
     // MARK: - Heat
 
     /// Whether the camera is stopped because the phone is too hot.
@@ -779,8 +785,19 @@ class AppModel: ObservableObject {
 
     /// Your posture as the Watch shows it: slouching or not, since when (2026-10-11), and when
     /// the nudge is due (2026-10-13), from the pipeline's `nudgeDueAt`. Pure.
-    func postureGlance(wallNow: Date = Date(), nudgeDueAt: TimeInterval? = nil) -> PostureGlance {
-        let frameNow = latestMetrics?.timestamp
+    ///
+    /// The times are converted against the latest frame judged, and when it was (2026-10-16):
+    /// with a shoulder hidden there's a frame but no new metrics, and converted against the last
+    /// metrics the countdown climbed. With no frame for `framesStopAfter`, the camera has stopped
+    /// (too hot, interrupted, a replay over) and the Watch is told so, not shown the last posture
+    /// as if it were now.
+    func postureGlance(wallNow: Date = Date(), latestFrame: Pipeline.JudgedFrame?,
+                       nudgeDueAt: TimeInterval? = nil) -> PostureGlance {
+        guard let latestFrame,
+              wallNow.timeIntervalSince(latestFrame.judgedAt) <= PostureGlance.framesStopAfter
+        else { return .paused }
+        let frameNow = latestFrame.time
+        let wallNow = latestFrame.judgedAt
         return PostureGlance(
             state: postureState,
             since: DriftClock.wallClockStart(postureState, frameNow: frameNow, wallNow: wallNow),
@@ -796,7 +813,8 @@ class AppModel: ObservableObject {
     /// forced.
     private func pushPostureGlanceToWatch(force: Bool, now: Date = Date()) {
         guard watchService.isReachable else { return }
-        let glance = postureGlance(wallNow: now, nudgeDueAt: pipeline.nudgeDueAt)
+        let glance = postureGlance(wallNow: now, latestFrame: pipeline.latestFrame,
+                                   nudgeDueAt: pipeline.nudgeDueAt)
             .steadied(against: lastPostureGlanceSent?.glance)
         guard force || PostureGlance.isDue(glance, lastSent: lastPostureGlanceSent?.glance,
                                            sentAt: lastPostureGlanceSent?.at, now: now)
