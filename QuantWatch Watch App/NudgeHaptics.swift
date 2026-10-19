@@ -33,12 +33,22 @@ enum NudgeHaptics {
         }
     }
 
-    /// Plays the taps, `spacing` apart, starting now.
-    static func play(_ pattern: [WKHapticType]) {
-        for (i, tap) in pattern.enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * spacing) {
-                WKInterfaceDevice.current().play(tap)
-            }
+    /// A tap more than this late doesn't play, nor do the rest of its run (2026-10-16 audit).
+    /// The app was suspended with taps still to come, as when a background wake ends, and
+    /// resumed later: taps then would be for a nudge long gone, and a run cut short would
+    /// say a different repeat.
+    static let playsUpTo: TimeInterval = 1
+
+    /// Plays the taps, `spacing` apart, from `start` (when the nudge arrived).
+    static func play(_ pattern: [WKHapticType], from start: Date = Date(),
+                     now: @escaping () -> Date = Date.init,
+                     tap: @escaping (WKHapticType) -> Void = { WKInterfaceDevice.current().play($0) }) {
+        guard let first = pattern.first else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, start.timeIntervalSince(now()))) {
+            let playedAt = now()
+            guard playedAt.timeIntervalSince(start) <= playsUpTo else { return }
+            play(Array(pattern.dropFirst()), from: playedAt.addingTimeInterval(spacing), now: now, tap: tap)
+            tap(first)
         }
     }
 }

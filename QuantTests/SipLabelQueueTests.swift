@@ -157,6 +157,40 @@ final class SipLabelQueueTests: XCTestCase {
         XCTAssertNil(q.activeItem)
     }
 
+    /// The item shown says when it goes, for the sheet's countdown (2026-10-16 audit): the
+    /// sheet counted 15 s on a timer of its own, rebuilt with the screen and never firing.
+    func test_theActiveItem_saysWhenItGoes() throws {
+        let q = makeQueue(timeoutInterval: 15)
+        let before = Date()
+        q.enqueue(makePendingItem())
+        let after = Date()
+
+        let goesAt = try XCTUnwrap(q.activeItem?.expiresAt)
+        XCTAssertGreaterThanOrEqual(goesAt, before.addingTimeInterval(15))
+        XCTAssertLessThanOrEqual(goesAt, after.addingTimeInterval(15))
+    }
+
+    /// The next item's time starts when it's shown, not when it was queued.
+    func test_aPromotedItem_hasItsOwnTime() throws {
+        var shown: [PendingSipLabel] = []
+        let q = makeQueue(timeoutInterval: 15, onActiveItemChanged: { if let i = $0 { shown.append(i) } })
+        let a = makePendingItem(timestamp: 1_000)
+        q.enqueue(a)
+        q.enqueue(makePendingItem(timestamp: 2_000))
+        Thread.sleep(forTimeInterval: 0.05)
+        let promotedAt = Date()
+        q.applyLabel(.confirmed, toID: a.id)
+
+        XCTAssertEqual(shown.count, 2)
+        let goesAt = try XCTUnwrap(shown.last?.expiresAt)
+        XCTAssertGreaterThanOrEqual(goesAt, promotedAt.addingTimeInterval(15))
+    }
+
+    /// Opened from the sip timeline, nothing dismisses the sheet, so it has no countdown.
+    func test_aSipLabelledFromTheTimeline_hasNoDeadline() {
+        XCTAssertNil(makePendingItem().expiresAt)
+    }
+
     func test_applyLabelBeforeTimeout_cancelsTimer() async {
         var labels: [(UUID, SipEvent.Label)] = []
         let q = makeQueue(timeoutInterval: 0.1, onLabel: { labels.append(($0, $1)) })
@@ -233,5 +267,18 @@ final class SipLabelQueueTests: XCTestCase {
         // Only one label from drain, not a second from the timer.
         XCTAssertEqual(labels.count, 1)
         XCTAssertEqual(labels[0].1, .unconfirmed)
+    }
+}
+
+/// The sip sheet's countdown, worked out from when the queue dismisses it (2026-10-16 audit).
+@MainActor
+final class SipLabelSheetCountdownTests: XCTestCase {
+
+    func test_secondsLeft_roundUp_andStopAtZero() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        XCTAssertEqual(SipLabelSheet.secondsLeft(until: now.addingTimeInterval(15), now: now), 15)
+        XCTAssertEqual(SipLabelSheet.secondsLeft(until: now.addingTimeInterval(14.2), now: now), 15)
+        XCTAssertEqual(SipLabelSheet.secondsLeft(until: now.addingTimeInterval(0.4), now: now), 1)
+        XCTAssertEqual(SipLabelSheet.secondsLeft(until: now.addingTimeInterval(-3), now: now), 0)
     }
 }

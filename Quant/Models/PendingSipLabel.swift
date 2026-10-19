@@ -26,6 +26,10 @@ struct PendingSipLabel: Identifiable {
     /// audit logging and potential future display ("5s ago…").
     let enqueuedAt: Date
 
+    /// When the queue dismisses it as unconfirmed, set once it's shown (2026-10-16 audit), for
+    /// the sheet's countdown. Nil when nothing will: a sip labelled from the sip timeline.
+    var expiresAt: Date?
+
     init(event: SipEvent, scores: SipDetector.Scores? = nil, enqueuedAt: Date = Date()) {
         self.id = event.id
         self.event = event

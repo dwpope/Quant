@@ -677,8 +677,8 @@ class AppModel: ObservableObject {
     func deleteStoredData(olderThan days: Int) async -> Int64 {
         let old = StoredData.olderThan(days: days, in: storedData)
         let freed = await Task.detached(priority: .utility) { StoredData.delete(old) }.value
-        jevComparisonStore.reloadEarlierDays()
-        postureLogStore.recount()
+        await jevComparisonStore.reloadEarlierDays()
+        await postureLogStore.recount()
         await scanStoredData()
         return freed
     }

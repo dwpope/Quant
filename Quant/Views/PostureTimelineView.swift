@@ -11,6 +11,8 @@ import SwiftUI
 final class PostureTimelineLoader: ObservableObject {
     @Published private(set) var timeline: PostureTimeline?
     @Published private(set) var dayKeys: [String] = []
+    /// Which day `timeline` is, so it's shown under its own day's name only (2026-10-16 audit).
+    @Published private(set) var dayKey: String?
 
     typealias Read = @Sendable (_ dayKey: String) -> (events: [PostureLogEvent], dayKeys: [String])
     private let read: Read
@@ -22,8 +24,12 @@ final class PostureTimelineLoader: ObservableObject {
     func load(dayKey: String, now: Date = Date()) async {
         let read = self.read
         let (events, keys) = await Task.detached(priority: .utility) { read(dayKey) }.value
+        // Another day was chosen while this one was read (`.task(id:)` cancelled it): its read
+        // finishing later mustn't land over that day's (2026-10-16 audit).
+        guard !Task.isCancelled else { return }
         timeline = PostureTimeline(events: events, now: now)
         dayKeys = keys
+        self.dayKey = dayKey
     }
 
     /// Today's, now and then every `interval` until the task is cancelled (2026-10-16): run from
@@ -154,7 +160,10 @@ struct PostureTimelineView: View {
     var body: some View {
         NavigationStack {
             List {
-                if let timeline = loader.timeline, !timeline.segments.isEmpty {
+                if loader.dayKey != dayKey {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                } else if let timeline = loader.timeline, !timeline.segments.isEmpty {
                     Section {
                         PostureTimelineChart(timeline: timeline, showsAxis: true)
                             .frame(height: 80)

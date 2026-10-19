@@ -167,11 +167,13 @@ final class NudgeEngine: NudgeEngineProtocol {
     private var goodStreak: TimeInterval = 0
     private var lastEvaluationTime: TimeInterval?
 
-    /// Whether a slouch episode has ended (sitting well for `slouchEpisodeEndsAfterGood`, leaving
-    /// the desk, or a break between frames) since the last nudge. The cooldown only holds back the slouch that was nudged, left uncorrected;
-    /// after sitting up, the next slouch is nudged like any other (2026-10-08). Dave saw the
-    /// cooldown hold back slouches that began after he'd sat up.
-    private var correctedSinceLastNudge = false
+    /// Whether the slouch last nudged is still going on: it hasn't ended since (sitting well for
+    /// `slouchEpisodeEndsAfterGood`, leaving the desk, or a break between frames). Its next nudge
+    /// follows the repeat, and the cooldown only holds back that slouch; after sitting up, the
+    /// next slouch is nudged like any other (2026-10-08). Dave saw the cooldown hold back
+    /// slouches that began after he'd sat up. A head-turn nudge leaves it alone (2026-10-16
+    /// audit): the slouch goes on, and so does its count of repeats.
+    private var isFollowingUpASlouch = false
 
     /// The reason of the last fire returned, and of the last nudge recorded. A head-turn nudge's
     /// cooldown is ended by the head turning back, not by sitting well (2026-10-11): sitting well
@@ -486,11 +488,15 @@ final class NudgeEngine: NudgeEngineProtocol {
         nudgeTimestamps.append(currentTime)
         hasBeenAcknowledged = false  // New nudge episode
         slouchedTime = 0  // the next nudge needs its own slouched time
-        goodStreak = 0
-        correctedSinceLastNudge = false
         lastNudgeReason = lastFireReason
         turnEndedSinceLastNudge = false
-        repeatsRecorded = repeatOfLastFire
+        // A head turn's nudge isn't the slouch's: a slouch going on keeps its count of repeats,
+        // and sitting well keeps counting towards ending it.
+        if lastFireReason != .headTurned {
+            goodStreak = 0
+            isFollowingUpASlouch = true
+            repeatsRecorded = repeatOfLastFire
+        }
     }
 
     /// Record that the user corrected their posture after a nudge.
@@ -520,7 +526,7 @@ final class NudgeEngine: NudgeEngineProtocol {
         slouchedTime = 0
         goodStreak = 0
         lastEvaluationTime = nil
-        correctedSinceLastNudge = false
+        isFollowingUpASlouch = false
         lastFireReason = nil
         lastNudgeReason = nil
         nudgedTurnStartedAt = nil
@@ -572,7 +578,7 @@ final class NudgeEngine: NudgeEngineProtocol {
         guard dt <= maxFrameGap else {
             slouchedTime = 0
             goodStreak = 0
-            correctedSinceLastNudge = true
+            isFollowingUpASlouch = false
             return
         }
         // Away from the desk ends a slouch like sitting well does, though nothing can be seen.
@@ -601,7 +607,7 @@ final class NudgeEngine: NudgeEngineProtocol {
         goodStreak += dt
         if goodStreak >= slouchEpisodeEndsAfterGood {
             slouchedTime = 0
-            correctedSinceLastNudge = true
+            isFollowingUpASlouch = false
         }
     }
 
@@ -665,7 +671,7 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// Within the repeat of the last nudge, and what it was for hasn't ended: a slouch ends
     /// with sitting well, a head turn with the head turning back.
     private func isCoolingDown(at currentTime: TimeInterval) -> Bool {
-        let ended = lastNudgeReason == .headTurned ? turnEndedSinceLastNudge : correctedSinceLastNudge
+        let ended = lastNudgeReason == .headTurned ? turnEndedSinceLastNudge : !isFollowingUpASlouch
         guard let lastTime = lastNudgeTime, !ended else { return false }
         return currentTime - lastTime <= cooldown
     }
@@ -674,12 +680,6 @@ final class NudgeEngine: NudgeEngineProtocol {
     /// (2026-10-12).
     private var cooldown: TimeInterval {
         lastNudgeReason == .headTurned ? headTurnThresholds.repeatAfter : thresholds.nudgeCooldown
-    }
-
-    /// Whether the slouch going on is the one last nudged, not yet corrected: its next nudge
-    /// follows the repeat, not the first nudge's duration (2026-10-12).
-    private var isFollowingUpASlouch: Bool {
-        lastNudgeTime != nil && lastNudgeReason != .headTurned && !correctedSinceLastNudge
     }
 
     /// Remove nudge timestamps older than 1 hour from the rolling window.

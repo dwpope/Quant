@@ -214,4 +214,45 @@ final class PostureTimelineLoaderTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(reads.count, after, "stops when the card goes")
     }
+
+    private static let t0: TimeInterval = 1_791_640_000
+    private static var now: Date { Date(timeIntervalSince1970: t0 + 1100) }
+
+    /// A day sat well from its own time: the 15th's from t0 + 900, any other's from t0 + 1000.
+    /// A read of `slowDay` waits for `release`, standing in for a slow day's file.
+    private func loader(holding slowDay: String? = nil, until release: DispatchSemaphore? = nil) -> PostureTimelineLoader {
+        let t0 = Self.t0
+        return PostureTimelineLoader(read: { key in
+            if key == slowDay { release?.wait() }
+            let t = t0 + (key == "2026-10-15" ? 900 : 1000)
+            return ([PostureLogEvent(t: t, kind: "state", value: "good")], [])
+        })
+    }
+
+    /// Switching days quickly (2026-10-16 audit): a slow read for the day left behind doesn't
+    /// land over the day chosen after it. The day sheet showed one day's title over another's
+    /// chart, because a read finishing late wasn't checked for having been cancelled.
+    func test_aDayLeftBehind_doesNotLandOverTheNext() async {
+        let release = DispatchSemaphore(value: 0)
+        let loader = loader(holding: "2026-10-15", until: release)
+        let leftBehind = Task { await loader.load(dayKey: "2026-10-15", now: Self.now) }
+        leftBehind.cancel()  // as `.task(id:)` does when the day changes
+        await loader.load(dayKey: "2026-10-16", now: Self.now)
+        release.signal()
+        await leftBehind.value
+
+        XCTAssertEqual(loader.timeline?.segments.first?.start,
+                       Date(timeIntervalSince1970: Self.t0 + 1000), "the 16th's, not the 15th's")
+    }
+
+    /// The loader says which day it holds, so the sheet shows a day's chart under its own name
+    /// only, and not the last day's while the next is read.
+    func test_theLoader_saysWhichDayItHolds() async {
+        let loader = loader()
+        XCTAssertNil(loader.dayKey)
+        await loader.load(dayKey: "2026-10-16", now: Self.now)
+        XCTAssertEqual(loader.dayKey, "2026-10-16")
+        await loader.load(dayKey: "2026-10-15", now: Self.now)
+        XCTAssertEqual(loader.dayKey, "2026-10-15")
+    }
 }

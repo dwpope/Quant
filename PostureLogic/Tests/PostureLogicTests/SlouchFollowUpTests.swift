@@ -94,6 +94,54 @@ final class SlouchFollowUpTests: XCTestCase {
         XCTAssertEqual(e.repeatOfLastFire, 0)
     }
 
+    /// A head-turn nudge in the middle of a slouch's repeats leaves the slouch's follow-up alone
+    /// (2026-10-16 audit): once the head turns back, the slouch still going on is nudged again
+    /// after a minute, as the next repeat with one more tap. It used to start again as a first
+    /// nudge: the first nudge's wait, and two taps.
+    func test_aHeadTurnNudge_keepsTheSlouchsRepeats() {
+        var t = PostureThresholds()
+        t.slouchDurationBeforeNudge = 120
+        let e = NudgeEngine(thresholds: t)
+        var fires: [TimeInterval] = []
+        var repeats: [Int] = []
+        for now in stride(from: 0.0, to: 370, by: 1) {
+            let turnedSince: TimeInterval? = now < 310 ? 0 : nil
+            let d = e.evaluate(state: .bad(since: 0), trackingQuality: .good, movementLevel: 0.1,
+                               taskMode: .unknown, currentTime: now, headTurnedSince: turnedSince)
+            if case .fire = d {
+                fires.append(now)
+                repeats.append(e.repeatOfLastFire)
+                e.recordNudgeFired(at: now)
+            }
+        }
+        XCTAssertEqual(fires, [120, 181, 242, 303, 363], "slouch, two repeats, the head turn, the next repeat")
+        XCTAssertEqual(repeats, [0, 1, 2, 0, 3])
+    }
+
+    /// Sitting well through a head-turn nudge still ends the slouch after 30 s (review of the
+    /// fix above): the head-turn nudge restarted those 30 s, so a slouch begun 22 s after it,
+    /// 45 s into sitting well, was taken for the old one and nudged as its repeat.
+    func test_aHeadTurnNudge_doesNotRestartTheSitUp() {
+        var t = PostureThresholds()
+        t.slouchDurationBeforeNudge = 120
+        let e = NudgeEngine(thresholds: t)
+        var fires: [TimeInterval] = []
+        var repeats: [Int] = []
+        for now in stride(from: 0.0, to: 450, by: 1) {
+            let turnedSince: TimeInterval? = now < 305 ? 0 : nil
+            let state: PostureState = now < 280 ? .bad(since: 0) : now < 325 ? .good : .drifting(since: 325)
+            let d = e.evaluate(state: state, trackingQuality: .good, movementLevel: 0.1,
+                               taskMode: .unknown, currentTime: now, headTurnedSince: turnedSince)
+            if case .fire = d {
+                fires.append(now)
+                repeats.append(e.repeatOfLastFire)
+                e.recordNudgeFired(at: now)
+            }
+        }
+        XCTAssertEqual(fires, [120, 181, 242, 303, 445], "the new slouch waits its own two minutes")
+        XCTAssertEqual(repeats, [0, 1, 2, 0, 0])
+    }
+
     /// A head held turned keeps its 10-minute repeat: the minute is for slouches.
     func test_aHeadHeldTurned_stillRepeatsEvery10Minutes() {
         XCTAssertEqual(HeadTurnThresholds().repeatAfter, 600)

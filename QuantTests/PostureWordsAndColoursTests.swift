@@ -83,3 +83,35 @@ final class SettingSliderTests: XCTestCase {
         XCTAssertEqual(SettingSlider<Float>.adjusted(0.005, .decrement, step: 0.005, in: 0.01...0.10), 0.005)
     }
 }
+
+/// One range and step for each posture setting that's on both settings screens and the Watch
+/// (2026-10-16 audit). Posture Thresholds and Calibration had forward lean at 0.01–0.10 and
+/// 0.03–0.30, twist at 5–30° and 5–45°, side lean at 0.02–0.20 and 0.03–0.25: a value set on one
+/// could be out of the other's range. Now the wider range with the finer step, everywhere. The
+/// Watch's `WatchSettingLimits` is a golden copy of these numbers.
+@MainActor
+final class PostureSettingLimitsTests: XCTestCase {
+
+    func test_eachSetting_hasTheWiderRange_andTheFinerStep() {
+        XCTAssertEqual(PostureSettingLimits.forwardCreep.range, 0.01...0.30)
+        XCTAssertEqual(PostureSettingLimits.forwardCreep.step, 0.005)
+        XCTAssertEqual(PostureSettingLimits.twist.range, 5...45)
+        XCTAssertEqual(PostureSettingLimits.twist.step, 1)
+        XCTAssertEqual(PostureSettingLimits.sideLean.range, 0.02...0.25)
+        XCTAssertEqual(PostureSettingLimits.sideLean.step, 0.01)
+    }
+
+    /// Each default can be set on the slider: in range, and on a step.
+    func test_eachDefault_isOnTheSlider() {
+        let defaults = PostureThresholds()
+        for (name, limits, value) in [
+            ("forward lean", PostureSettingLimits.forwardCreep, defaults.forwardCreepThreshold),
+            ("twist", PostureSettingLimits.twist, defaults.twistThreshold),
+            ("side lean", PostureSettingLimits.sideLean, defaults.sideLeanThreshold),
+        ] {
+            XCTAssertTrue(limits.range.contains(value), name)
+            let steps = (value - limits.range.lowerBound) / limits.step
+            XCTAssertEqual(steps, steps.rounded(), accuracy: 1e-3, name)
+        }
+    }
+}

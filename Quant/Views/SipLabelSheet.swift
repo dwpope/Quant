@@ -1,4 +1,3 @@
-import Combine
 import PostureLogic
 import SwiftUI
 
@@ -15,7 +14,6 @@ struct SipLabelSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var didLabel = false
-    @State private var secondsRemaining = 15
 
     private static let falsePositiveCategories: [(SipEvent.Label, String, String)] = [
         (.chinRest, "Chin rest", "hand.point.up.left"),
@@ -25,8 +23,6 @@ struct SipLabelSheet: View {
         (.coughYawn, "Cough/yawn", "wind"),
         (.other, "Other", "questionmark.circle"),
     ]
-
-    private let countdown = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         NavigationStack {
@@ -45,9 +41,6 @@ struct SipLabelSheet: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium])
-        .onReceive(countdown) { _ in
-            if secondsRemaining > 0 { secondsRemaining -= 1 }
-        }
         .onDisappear {
             if !didLabel { onSkip() }
         }
@@ -159,11 +152,24 @@ struct SipLabelSheet: View {
         }
     }
 
-    private var footer: some View {
-        Text("Auto-dismisses in \(max(secondsRemaining, 0))s")
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
-            .frame(maxWidth: .infinity, alignment: .center)
+    /// The time left before the queue dismisses it (2026-10-16 audit). Worked out from when it
+    /// goes, each second: the sheet counted down on a timer of its own, which was made again
+    /// whenever the screen behind it redrew, about ten times a second, so it never fired. Opened
+    /// from the sip timeline, nothing dismisses it, and it says nothing.
+    @ViewBuilder private var footer: some View {
+        if let expiresAt = item.expiresAt {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text("Auto-dismisses in \(Self.secondsLeft(until: expiresAt, now: context.date))s")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+    }
+
+    /// Whole seconds until `expiresAt`, rounded up; zero once it's passed.
+    static func secondsLeft(until expiresAt: Date, now: Date) -> Int {
+        max(0, Int(expiresAt.timeIntervalSince(now).rounded(.up)))
     }
 
     // MARK: - Actions

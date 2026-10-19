@@ -295,7 +295,7 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
                 wristSession: WristNudgeSession.shared.isOn), queued: via == "queued")
         }
         DispatchQueue.main.async {
-            self.showNudge(haptic, pattern: pattern, body: body)
+            self.showNudge(haptic, pattern: pattern, body: body, arrivedAt: arrivedAt)
         }
     }
 
@@ -319,11 +319,13 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     }
 
     /// Buzz (only felt while the app is open; closed, the notification buzzes) and show the line.
-    /// The nudge's own taps when the phone said why (`NudgeHaptics`), else the single tap.
+    /// The nudge's own taps when the phone said why (`NudgeHaptics`), else the single tap. Timed
+    /// from when it arrived (2026-10-16 audit): the main queue can get to it much later, after
+    /// the app was suspended, and the taps then don't play.
     func showNudge(_ hapticType: WKHapticType = .notification, pattern: [WKHapticType]? = nil,
-                   body: String) {
-        NudgeHaptics.play(pattern ?? [hapticType])
-        lastNudgeTime = Date()
+                   body: String, arrivedAt: Date = Date()) {
+        NudgeHaptics.play(pattern ?? [hapticType], from: arrivedAt)
+        lastNudgeTime = arrivedAt
         lastNudgeBody = body
         logger.info("⌚ Haptic nudge delivered")
     }

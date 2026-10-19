@@ -43,4 +43,50 @@ struct NudgeHapticsTests {
     @Test func spacing() {
         #expect(NudgeHaptics.spacing >= 0.4)
     }
+
+    // MARK: - Late taps (2026-10-16 audit)
+
+    /// A clock the test moves, standing in for time passing while the app is suspended.
+    final class Clock {
+        var now = Date()
+    }
+
+    /// Taps late by more than `playsUpTo` don't play: the app was suspended with them still to
+    /// come, as when a background wake ends, and was resumed later. A nudge's taps then would
+    /// be for a nudge long gone.
+    @MainActor @Test func lateTaps_dontPlay() async throws {
+        var played: [WKHapticType] = []
+        NudgeHaptics.play([.click, .click], from: Date().addingTimeInterval(-60), tap: { played.append($0) })
+        try await Task.sleep(for: .seconds(1))
+        #expect(played.isEmpty)
+    }
+
+    @MainActor @Test func tapsOnTime_play() async throws {
+        var played: [WKHapticType] = []
+        NudgeHaptics.play([.directionUp, .click], tap: { played.append($0) })
+        try await Task.sleep(for: .seconds(1.5))
+        #expect(played == [.directionUp, .click])
+    }
+
+    /// Suspended partway through, the rest of the run is dropped, not played late.
+    @MainActor @Test func suspendedPartway_theRestIsDropped() async throws {
+        let clock = Clock()
+        var played: [WKHapticType] = []
+        NudgeHaptics.play([.directionUp, .directionUp, .directionUp], from: clock.now,
+                          now: { clock.now }, tap: { tap in
+            played.append(tap)
+            clock.now += 30  // suspended for half a minute after the first tap
+        })
+        try await Task.sleep(for: .seconds(1.5))
+        #expect(played == [.directionUp])
+    }
+
+    /// The screen's "last nudge" time is when it arrived, not when the main queue got to it.
+    @MainActor @Test func theLastNudge_isWhenItArrived() {
+        let delegate = WatchSessionDelegate(activatesSession: false)
+        let arrived = Date().addingTimeInterval(-120)
+        delegate.showNudge(.notification, body: "Sit up — reset your posture", arrivedAt: arrived)
+        #expect(delegate.lastNudgeTime == arrived)
+    }
 }
+

@@ -9,19 +9,19 @@ struct ThresholdsSettingsView: View {
                 SettingSlider(
                     title: "Forward Creep",
                     value: String(format: "%.3f", appModel.forwardCreepThreshold),
-                    amount: $appModel.forwardCreepThreshold, range: 0.01...0.10, step: 0.005,
+                    amount: $appModel.forwardCreepThreshold, limits: PostureSettingLimits.forwardCreep,
                     caption: "Distance threshold for forward lean detection")
 
                 SettingSlider(
                     title: "Twist",
                     value: String(format: "%.0f\u{00B0}", appModel.twistThreshold),
-                    amount: $appModel.twistThreshold, range: 5...30, step: 1,
+                    amount: $appModel.twistThreshold, limits: PostureSettingLimits.twist,
                     caption: "Shoulder rotation angle threshold")
 
                 SettingSlider(
                     title: "Side Lean",
                     value: String(format: "%.2f", appModel.sideLeanThreshold),
-                    amount: $appModel.sideLeanThreshold, range: 0.02...0.20, step: 0.01,
+                    amount: $appModel.sideLeanThreshold, limits: PostureSettingLimits.sideLean,
                     caption: "Lateral lean distance threshold")
 
                 SettingSlider(

@@ -67,6 +67,27 @@ final class JevStartFreshTests: XCTestCase {
 
     // MARK: -
 
+    /// A re-read of earlier days still going when Start fresh is tapped doesn't put them back
+    /// (review of the 2026-10-17 fix that moved the re-read off the main thread): finishing
+    /// later, it set the records just archived as earlier days again, and the next export held
+    /// them.
+    func test_aReadStillGoing_doesNotUndoStartFresh() async throws {
+        let store = JevComparisonStore()
+        let old = makeRecord(at: Date(timeIntervalSince1970: 100))
+        let started = PostureLogTests.Flag()
+        let release = DispatchSemaphore(value: 0)
+        let reading = Task {
+            await store.reloadEarlierDays(reading: { _ in started.set(true); release.wait(); return [old] })
+        }
+        let deadline = Date().addingTimeInterval(5)
+        while started.value == nil && Date() < deadline { try await Task.sleep(for: .milliseconds(5)) }
+
+        try store.startFresh()
+        release.signal()
+        await reading.value
+        XCTAssertEqual(store.exportableCount, 0)
+    }
+
     func test_startFresh_leavesNothingToExport() throws {
         let yesterday = Date().addingTimeInterval(-86_400)
         try JSONSerialization.data(withJSONObject: [

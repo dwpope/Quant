@@ -140,4 +140,16 @@ final class JevComparisonStoreTests: XCTestCase {
         XCTAssertEqual(first.features.lateralLeanInShoulderWidths, 0.25, accuracy: 1e-5)
         XCTAssertEqual(first.thresholdState, .bad(since: 12))
     }
+
+    /// Earlier days are read again off the main thread after older days are deleted
+    /// (2026-10-16 audit): every file was read there, and the screen waited. The export then
+    /// holds what was read.
+    func test_earlierDays_areReadAgainOffTheMainThread() async {
+        let store = JevComparisonStore()
+        let earlier = makeRecord(at: Date(timeIntervalSince1970: 100))
+        let onMain = PostureLogTests.Flag()
+        await store.reloadEarlierDays(reading: { _ in onMain.set(Thread.isMainThread); return [earlier] })
+        XCTAssertEqual(onMain.value, false)
+        XCTAssertEqual(store.exportableRecords.map(\.id), [earlier.id])
+    }
 }

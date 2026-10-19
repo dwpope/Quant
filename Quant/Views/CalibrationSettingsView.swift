@@ -78,22 +78,22 @@ struct CalibrationSettingsView: View {
                 Section {
                     SettingSlider(
                         title: "Forward Lean",
-                        value: String(format: "%.2f", appModel.forwardCreepThreshold),
-                        amount: $appModel.forwardCreepThreshold, range: 0.03...0.30, step: 0.01,
+                        value: String(format: "%.3f", appModel.forwardCreepThreshold),
+                        amount: $appModel.forwardCreepThreshold, limits: PostureSettingLimits.forwardCreep,
                         caption: "How far forward before drifting",
                         onEditingChanged: { editing in if !editing { appModel.syncSettingsToWatch() } })
 
                     SettingSlider(
                         title: "Twist",
                         value: String(format: "%.0f", appModel.twistThreshold) + "\u{00B0}",
-                        amount: $appModel.twistThreshold, range: 5.0...45.0, step: 1.0,
+                        amount: $appModel.twistThreshold, limits: PostureSettingLimits.twist,
                         caption: "Shoulder rotation tolerance",
                         onEditingChanged: { editing in if !editing { appModel.syncSettingsToWatch() } })
 
                     SettingSlider(
                         title: "Side Lean",
                         value: String(format: "%.2f", appModel.sideLeanThreshold),
-                        amount: $appModel.sideLeanThreshold, range: 0.03...0.25, step: 0.01,
+                        amount: $appModel.sideLeanThreshold, limits: PostureSettingLimits.sideLean,
                         caption: "Lateral lean tolerance",
                         onEditingChanged: { editing in if !editing { appModel.syncSettingsToWatch() } })
 

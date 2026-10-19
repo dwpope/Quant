@@ -109,6 +109,8 @@ final class SipLabelQueue {
 
     private func activate(_ item: PendingSipLabel) {
         timeoutTask?.cancel()
+        var item = item
+        item.expiresAt = Date().addingTimeInterval(timeoutInterval)
         activeItem = item
         onActiveItemChanged?(item)
         startTimeout(for: item)

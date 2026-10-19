@@ -53,7 +53,8 @@ struct JevCaptureContext {
 /// adjudicate rather than pretending to a like-for-like comparison.
 // Not `Equatable`: `Baseline` is not, and nothing here needs record equality. Widening a
 // core PostureLogic model to satisfy a convenience would be the wrong trade.
-struct JevComparisonRecord: Codable, Identifiable {
+// `nonisolated` so earlier days can be decoded off the main thread (2026-10-16).
+nonisolated struct JevComparisonRecord: Codable, Identifiable {
 
     /// Who was right, in Dave's judgement. The only ground truth available here — he is present
     /// and in the chair, which no stored signal can substitute for.
@@ -265,6 +266,7 @@ final class JevComparisonStore: ObservableObject {
         comparisons = []
         earlierDays = []
         unreadable = []
+        freshStarts += 1
     }
 
     /// Marks a capture made by mistake. No-op for an unknown id. Any judgement is kept.
@@ -341,7 +343,7 @@ final class JevComparisonStore: ObservableObject {
 
     /// Decodes a day file record by record. Nil if it isn't a JSON array at all. Records that
     /// fail are returned separately, each as its own JSON, so a caller can keep them.
-    private static func decodeDay(_ data: Data) -> (records: [JevComparisonRecord], unreadable: [Data])? {
+    private nonisolated static func decodeDay(_ data: Data) -> (records: [JevComparisonRecord], unreadable: [Data])? {
         guard let elements = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
             return nil
         }
@@ -361,14 +363,31 @@ final class JevComparisonStore: ObservableObject {
         return (records, unreadable)
     }
 
+    /// Reads earlier days again, after older ones were deleted (2026-10-11). Off the main thread
+    /// since the 2026-10-16 audit: every file was read there, and the screen waited.
+    func reloadEarlierDays(
+        reading: @escaping @Sendable (_ todayKey: String) -> [JevComparisonRecord] = JevComparisonStore.readEarlierDays
+    ) async {
+        let today = todayKey
+        let startedAfter = freshStarts
+        let records = await Task.detached(priority: .utility) { reading(today) }.value
+        // Start fresh was tapped while it read: what it read has just been set aside.
+        guard freshStarts == startedAfter else { return }
+        earlierDays = records
+    }
+
+    /// How many times Start fresh has run, so a re-read begun before one is dropped.
+    private var freshStarts = 0
+
+    private func loadEarlierDays() {
+        earlierDays = Self.readEarlierDays(excluding: todayKey)
+    }
+
     /// Reads every earlier day's file, for the export only. A file set aside as unparseable
     /// (`….unreadable-<epoch>.json`) is skipped: it's evidence for a person, not data. An
     /// unreadable record inside a good file costs only itself, as in ``load()``. Read-only:
     /// earlier days' files are never written back.
-    /// Reads earlier days again, after older ones were deleted (2026-10-11).
-    func reloadEarlierDays() { loadEarlierDays() }
-
-    private func loadEarlierDays() {
+    nonisolated static func readEarlierDays(excluding todayKey: String) -> [JevComparisonRecord] {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let names = (try? FileManager.default.contentsOfDirectory(atPath: documents.path)) ?? []
         let today = "jev-comparisons-\(todayKey).json"
@@ -378,9 +397,9 @@ final class JevComparisonStore: ObservableObject {
                 && name.hasSuffix(".json")
                 && !name.contains(".unreadable-")
         }
-        earlierDays = dayFiles.sorted().flatMap { name -> [JevComparisonRecord] in
+        return dayFiles.sorted().flatMap { name -> [JevComparisonRecord] in
             guard let data = try? Data(contentsOf: documents.appendingPathComponent(name)),
-                  let (records, _) = Self.decodeDay(data)
+                  let (records, _) = decodeDay(data)
             else { return [] }
             return records
         }

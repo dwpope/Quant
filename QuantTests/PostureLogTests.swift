@@ -166,6 +166,39 @@ final class PostureLogTests: XCTestCase {
         XCTAssertEqual(PostureLogStore().count, 2)
     }
 
+    nonisolated final class Flag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _value: Bool?
+        func set(_ v: Bool) { lock.lock(); _value = v; lock.unlock() }
+        var value: Bool? { lock.lock(); defer { lock.unlock() }; return _value }
+    }
+
+    /// Counting again after older days are deleted reads the files off the main thread
+    /// (2026-10-16 audit): it read every day's file there, and the screen waited.
+    func test_aRecount_readsOffTheMainThread() async {
+        let store = PostureLogStore()
+        let onMain = Flag()
+        await store.recount(counting: { onMain.set(Thread.isMainThread); return 7 })
+        XCTAssertEqual(store.count, 7)
+        XCTAssertEqual(onMain.value, false)
+    }
+
+    /// Lines added while the files are being counted aren't lost from the count.
+    func test_linesAddedDuringARecount_stayCounted() async throws {
+        let store = PostureLogStore()
+        let counting = Flag()
+        let go = DispatchSemaphore(value: 0)
+        let recount = Task { await store.recount(counting: { counting.set(true); go.wait(); return 7 }) }
+        let deadline = Date().addingTimeInterval(5)
+        while counting.value == nil && Date() < deadline { try await Task.sleep(for: .milliseconds(5)) }
+
+        store.append([PostureLogEvent(t: 1, kind: "state", value: "good"),
+                      PostureLogEvent(t: 2, kind: "state", value: "drifting")])
+        go.signal()
+        await recount.value
+        XCTAssertEqual(store.count, 9)
+    }
+
     func test_theExport_holdsEveryDay_oneLinePerEvent() throws {
         let yesterday = Date().addingTimeInterval(-86_400)
         let c = Calendar.current.dateComponents([.year, .month, .day], from: yesterday)

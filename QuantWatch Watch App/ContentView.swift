@@ -311,11 +311,12 @@ struct WatchCalibrationSettingsView: View {
                         Text("Fwd Lean")
                             .font(.caption)
                         Spacer()
-                        Text(String(format: "%.2f", sessionDelegate.forwardCreepThreshold))
+                        Text(String(format: "%.3f", sessionDelegate.forwardCreepThreshold))
                             .font(.caption2)
                             .monospacedDigit()
                     }
-                    Slider(value: $sessionDelegate.forwardCreepThreshold, in: 0.03...0.30, step: 0.01) {
+                    Slider(value: $sessionDelegate.forwardCreepThreshold, in: WatchSettingLimits.forwardCreep,
+                           step: WatchSettingLimits.forwardCreepStep) {
                         Text("Forward")
                     } onEditingChanged: { editing in
                         if !editing { sessionDelegate.sendSettings() }
@@ -332,7 +333,8 @@ struct WatchCalibrationSettingsView: View {
                             .font(.caption2)
                             .monospacedDigit()
                     }
-                    Slider(value: $sessionDelegate.twistThreshold, in: 5.0...45.0, step: 1.0) {
+                    Slider(value: $sessionDelegate.twistThreshold, in: WatchSettingLimits.twist,
+                           step: WatchSettingLimits.twistStep) {
                         Text("Twist")
                     } onEditingChanged: { editing in
                         if !editing { sessionDelegate.sendSettings() }
@@ -349,7 +351,8 @@ struct WatchCalibrationSettingsView: View {
                             .font(.caption2)
                             .monospacedDigit()
                     }
-                    Slider(value: $sessionDelegate.sideLeanThreshold, in: 0.03...0.25, step: 0.01) {
+                    Slider(value: $sessionDelegate.sideLeanThreshold, in: WatchSettingLimits.sideLean,
+                           step: WatchSettingLimits.sideLeanStep) {
                         Text("Side Lean")
                     } onEditingChanged: { editing in
                         if !editing { sessionDelegate.sendSettings() }

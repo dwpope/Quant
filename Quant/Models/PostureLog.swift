@@ -144,13 +144,28 @@ final class PostureLogStore: ObservableObject {
 
     private let calendar = Calendar.current
 
+    /// Lines appended since launch, so a recount can add the ones that came while it read.
+    private var appended = 0
+
     init() {
-        recount()
+        count = Self.lineCount()
     }
 
-    /// Counts the lines again, after older days were deleted (2026-10-11).
-    func recount() {
-        count = Self.dayFiles().reduce(0) { total, url in
+    /// Counts the lines again, after older days were deleted (2026-10-11). Off the main thread
+    /// since the 2026-10-16 audit: it read every day's file there, and the screen waited. On the
+    /// write queue, so every line already handed to it is on disk first; lines appended while it
+    /// reads are added on.
+    func recount(counting: @escaping @Sendable () -> Int = PostureLogStore.lineCount) async {
+        let appendedBefore = appended
+        let lines = await withCheckedContinuation { done in
+            Self.persistQueue.async { done.resume(returning: counting()) }
+        }
+        count = lines + (appended - appendedBefore)
+    }
+
+    /// Lines across every day's file.
+    nonisolated static func lineCount() -> Int {
+        dayFiles().reduce(0) { total, url in
             total + ((try? String(contentsOf: url, encoding: .utf8))?
                 .split(separator: "\n").count ?? 0)
         }
@@ -159,6 +174,7 @@ final class PostureLogStore: ObservableObject {
     func append(_ events: [PostureLogEvent]) {
         guard !events.isEmpty else { return }
         count += events.count
+        appended += events.count
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let lines = events.compactMap { try? encoder.encode($0) }
