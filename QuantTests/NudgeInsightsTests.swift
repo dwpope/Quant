@@ -397,10 +397,11 @@ final class NudgeInsightsTests: XCTestCase {
         XCTAssertEqual(insights.dominantReasonDescription, "Mostly sustained slouch")
     }
 
+    /// In the nudge's own words, "you're leaning in" (2026-10-19): the screens don't say creep.
     func test_dominantReasonDescription_forwardCreep() {
         let events = [event(hour: 9, reason: .forwardCreep)]
         let insights = NudgeInsights(events: events, calendar: utcCalendar)
-        XCTAssertEqual(insights.dominantReasonDescription, "Mostly forward creep")
+        XCTAssertEqual(insights.dominantReasonDescription, "Mostly leaning in")
     }
 
     func test_dominantReasonDescription_headDrop() {

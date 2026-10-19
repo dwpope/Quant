@@ -60,6 +60,53 @@ final class PostureWordsAndColoursTests: XCTestCase {
                                         "\(name), dark")
         }
     }
+
+    /// A colour as seen over a background: a translucent one (the system's dark-mode greys are)
+    /// mixed with what's behind it.
+    private func seen(_ colour: UIColor, over background: UIColor) -> UIColor {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
+        colour.getRed(&r, green: &g, blue: &b, alpha: &a)
+        background.getRed(&br, green: &bg, blue: &bb, alpha: &ba)
+        return UIColor(red: r * a + br * (1 - a), green: g * a + bg * (1 - a), blue: b * a + bb * (1 - a), alpha: 1)
+    }
+
+    /// The backgrounds settings text sits on: a row, and the grouped background under the
+    /// section headers and footers, in each mode.
+    private var settingsBackgrounds: [(String, UIColor)] {
+        let light = UITraitCollection(userInterfaceStyle: .light)
+        let dark = UITraitCollection(userInterfaceStyle: .dark)
+        return [
+            ("light row", UIColor.secondarySystemGroupedBackground.resolvedColor(with: light)),
+            ("light grouped", UIColor.systemGroupedBackground.resolvedColor(with: light)),
+            ("dark row", UIColor.secondarySystemGroupedBackground.resolvedColor(with: dark)),
+            ("dark grouped", UIColor.systemGroupedBackground.resolvedColor(with: dark)),
+        ]
+    }
+
+    private func style(of name: String) -> UITraitCollection {
+        UITraitCollection(userInterfaceStyle: name.hasPrefix("dark") ? .dark : .light)
+    }
+
+    /// Settings' grey text reads (2026-10-16 audit, fixed 2026-10-19): the system's secondary
+    /// grey is 3.4:1 on a light row and 3.3:1 under it, and Apple's audit failed the captions,
+    /// the values and the section footers.
+    func test_settingsGreyText_reads_inLightAndDarkMode() {
+        for (name, background) in settingsBackgrounds {
+            let text = seen(ReadablePalette.secondary.resolvedColor(with: style(of: name)), over: background)
+            XCTAssertGreaterThanOrEqual(contrast(text, background), 4.5, name)
+        }
+    }
+
+    /// The app's blue reads as text, as on "Reset to Defaults": the system's is 4.0:1 on a light
+    /// row and 3.6:1 under it.
+    func test_theAccentColour_readsAsText_inLightAndDarkMode() throws {
+        let accent = try XCTUnwrap(UIColor(named: "AccentColor"))
+        for (name, background) in settingsBackgrounds {
+            let text = seen(accent.resolvedColor(with: style(of: name)), over: background)
+            XCTAssertGreaterThanOrEqual(contrast(text, background), 4.5, name)
+        }
+    }
 }
 
 /// A setting's slider is one element for VoiceOver (2026-10-16 audit): named, with its value as
@@ -90,28 +137,40 @@ final class SettingSliderTests: XCTestCase {
 /// could be out of the other's range. Now the wider range with the finer step, everywhere. The
 /// Watch's `WatchSettingLimits` is a golden copy of these numbers.
 @MainActor
-final class PostureSettingLimitsTests: XCTestCase {
+final class SharedPostureSettingsTests: XCTestCase {
 
     func test_eachSetting_hasTheWiderRange_andTheFinerStep() {
-        XCTAssertEqual(PostureSettingLimits.forwardCreep.range, 0.01...0.30)
-        XCTAssertEqual(PostureSettingLimits.forwardCreep.step, 0.005)
-        XCTAssertEqual(PostureSettingLimits.twist.range, 5...45)
-        XCTAssertEqual(PostureSettingLimits.twist.step, 1)
-        XCTAssertEqual(PostureSettingLimits.sideLean.range, 0.02...0.25)
-        XCTAssertEqual(PostureSettingLimits.sideLean.step, 0.01)
+        XCTAssertEqual(SharedPostureSettings.forwardCreep.range, 0.01...0.30)
+        XCTAssertEqual(SharedPostureSettings.forwardCreep.step, 0.005)
+        XCTAssertEqual(SharedPostureSettings.twist.range, 5...45)
+        XCTAssertEqual(SharedPostureSettings.twist.step, 1)
+        XCTAssertEqual(SharedPostureSettings.sideLean.range, 0.02...0.25)
+        XCTAssertEqual(SharedPostureSettings.sideLean.step, 0.01)
     }
 
     /// Each default can be set on the slider: in range, and on a step.
     func test_eachDefault_isOnTheSlider() {
         let defaults = PostureThresholds()
-        for (name, limits, value) in [
-            ("forward lean", PostureSettingLimits.forwardCreep, defaults.forwardCreepThreshold),
-            ("twist", PostureSettingLimits.twist, defaults.twistThreshold),
-            ("side lean", PostureSettingLimits.sideLean, defaults.sideLeanThreshold),
+        for (setting, value) in [
+            (SharedPostureSettings.forwardCreep, defaults.forwardCreepThreshold),
+            (SharedPostureSettings.twist, defaults.twistThreshold),
+            (SharedPostureSettings.sideLean, defaults.sideLeanThreshold),
         ] {
-            XCTAssertTrue(limits.range.contains(value), name)
-            let steps = (value - limits.range.lowerBound) / limits.step
-            XCTAssertEqual(steps, steps.rounded(), accuracy: 1e-3, name)
+            XCTAssertTrue(setting.range.contains(value), setting.title)
+            let steps = (value - setting.range.lowerBound) / setting.step
+            XCTAssertEqual(steps, steps.rounded(), accuracy: 1e-3, setting.title)
+        }
+    }
+
+    /// One name and one description for each, on both screens (2026-10-19). Posture Thresholds
+    /// called forward lean "Forward Creep" and Calibration "Forward Lean", and each screen
+    /// described all three in its own words.
+    func test_eachSetting_hasOneName_andSaysWhatItDoes() {
+        XCTAssertEqual(SharedPostureSettings.forwardCreep.title, "Forward Lean")
+        XCTAssertEqual(SharedPostureSettings.twist.title, "Twist")
+        XCTAssertEqual(SharedPostureSettings.sideLean.title, "Side Lean")
+        for setting in [SharedPostureSettings.forwardCreep, SharedPostureSettings.twist, SharedPostureSettings.sideLean] {
+            XCTAssertTrue(setting.caption.hasSuffix("before it counts as slouching"), setting.caption)
         }
     }
 }

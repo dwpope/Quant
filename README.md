@@ -23,7 +23,7 @@ Aware sits on your desk (phone on a stand) and watches your upper body through t
 
 **Training mode** — A sidecar data-collection pipeline captures labeled training data (feature vectors + 3s pose windows) for a future CreateML gesture classifier, with a timed annotation UI and JSONL/JSON export. The entire training path is additive — removing it touches zero production code.
 
-**Thermal adaptation** — Frame rate scales dynamically with device temperature (10 → 5 → 2 FPS), with full pause at critical thermal state (the camera stops too, and starts again once the phone cools), so the phone doesn't overheat during long sessions.
+**Thermal adaptation** — Frame rate scales dynamically with device temperature (10 → 5 → 2 FPS), with full pause at critical thermal state (the camera stops too, and starts again once the phone cools; switching camera in the meantime waits for it), so the phone doesn't overheat during long sessions.
 
 ## Privacy and network
 
@@ -85,7 +85,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~40,000 lines of Swift** across 264 files, tests included. All tests pass: **780** in the `PostureLogic` package (`cd PostureLogic && swift test`), **438** in the app target and **122** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
+**~45,000 lines of Swift** across 266 files, tests included. All tests pass: **789** in the `PostureLogic` package (`cd PostureLogic && swift test`), **453** in the app target and **122** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
 
 ## Technical Decisions
 

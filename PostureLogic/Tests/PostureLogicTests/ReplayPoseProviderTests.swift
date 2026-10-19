@@ -69,6 +69,36 @@ final class ReplayPoseProviderTests: XCTestCase {
         cancellable.cancel()
     }
 
+    /// `start()` returns once playback begins; `finished()` once it has ended (2026-10-19). The
+    /// app took `start()` returning for the end of the replay.
+    func test_finished_returnsOnceEveryFrameIsSent() async throws {
+        let session = GoldenRecordings.goodPosture()
+        let replayService = ReplayService()
+        replayService.playbackSpeed = 100.0
+        replayService.load(session: session)
+        let provider = ReplayPoseProvider(replayService: replayService)
+        var received = 0
+        let cancellable = provider.framePublisher.sink { _ in received += 1 }
+
+        try await provider.start()
+        XCTAssertLessThan(received, session.samples.count, "playing, not played")
+        await provider.finished()
+        cancellable.cancel()
+        XCTAssertEqual(received, session.samples.count)
+    }
+
+    func test_finished_returnsWhenStopped() async throws {
+        let session = GoldenRecordings.goodPosture()
+        let replayService = ReplayService()
+        replayService.playbackSpeed = 0.1
+        replayService.load(session: session)
+        let provider = ReplayPoseProvider(replayService: replayService)
+
+        try await provider.start()
+        provider.stop()
+        await provider.finished()
+    }
+
     func test_framePublisher_isAnyPublisher() {
         let replayService = ReplayService()
         let provider = ReplayPoseProvider(replayService: replayService)

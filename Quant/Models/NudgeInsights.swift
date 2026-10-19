@@ -276,7 +276,7 @@ struct NudgeInsights: Equatable {
         guard let reason = dominantReason else { return nil }
         switch reason {
         case .sustainedSlouch: return "Mostly sustained slouch"
-        case .forwardCreep: return "Mostly forward creep"
+        case .forwardCreep: return "Mostly leaning in"
         case .headDrop: return "Mostly head drop"
         case .headTurned: return "Mostly head turned"
         case .sink: return "Mostly sinking in the chair"

@@ -314,6 +314,14 @@ final class NudgeEngine: NudgeEngineProtocol {
         // STEP 1: Prune old nudge timestamps
         // ──────────────────────────────────────────────
         //
+        // A step back of seconds or more is a new timeline (a replay after live frames): start
+        // afresh, as the pipeline does (2026-10-16 audit). Only the slouched time and the good
+        // streak were reset: the last nudge, in the new timeline's future, held the cooldown on
+        // for the step back and the cooldown together, and the slouch's repeats carried over.
+        if let last = lastEvaluationTime, last - currentTime >= newTimelineAfter {
+            reset()
+        }
+
         // Remove nudges older than 1 hour from our tracking array.
         // This implements the "rolling hour" window — nudges from
         // 61 minutes ago no longer count toward the hourly limit.
@@ -561,17 +569,9 @@ final class NudgeEngine: NudgeEngineProtocol {
         let dt = currentTime - last
         // A frame that finished after a newer one (frames are processed concurrently) adds
         // nothing, and the newer frame stays the reference. Until 2026-10-10 it read as a break
-        // and wiped the slouched time and the good streak.
-        guard dt >= 0 else {
-            // A step back of seconds or more is a new timeline (a replay after live frames):
-            // start counting from it, as after a break.
-            if -dt >= newTimelineAfter {
-                lastEvaluationTime = currentTime
-                slouchedTime = 0
-                goodStreak = 0
-            }
-            return
-        }
+        // and wiped the slouched time and the good streak. (A step back far enough to be a new
+        // timeline has reset the engine before this.)
+        guard dt >= 0 else { return }
         defer { lastEvaluationTime = currentTime }
         // A break ends the slouch and its follow-up, as sitting well does: the next nudge is a
         // first (2026-10-16). It used to come after the repeat's minute, as a repeat.

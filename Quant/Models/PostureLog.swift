@@ -195,14 +195,20 @@ final class PostureLogStore: ObservableObject {
     }
 
     /// Every day's lines, oldest day first, as `posture-log-to-<today>.jsonl` in the caches folder.
-    func exportJSONL() throws -> URL {
-        Self.flushPendingWrites()
-        let joined = Self.dayFiles()
-            .compactMap { try? String(contentsOf: $0, encoding: .utf8) }
-            .joined()
+    /// Written on the write queue, so every line already handed to it is on disk first. Not on
+    /// the main thread since the 2026-10-16 audit: it waited there behind a recount, then read
+    /// every day's file, and the screen waited too.
+    func exportJSONL() async throws -> URL {
         let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("posture-log-to-\(dateKey(for: Date())).jsonl")
-        try Data(joined.utf8).write(to: url, options: .atomic)
+        try await withCheckedThrowingContinuation { (done: CheckedContinuation<Void, Error>) in
+            Self.persistQueue.async {
+                let joined = Self.dayFiles()
+                    .compactMap { try? String(contentsOf: $0, encoding: .utf8) }
+                    .joined()
+                done.resume(with: Result { try Data(joined.utf8).write(to: url, options: .atomic) })
+            }
+        }
         return url
     }
 

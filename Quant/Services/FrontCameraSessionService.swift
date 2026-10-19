@@ -51,10 +51,15 @@ final class FrontCameraSessionService: NSObject, PoseProvider {
     private let outputQueue = DispatchQueue(label: "com.quant.frontCamera.output")
     private let logger = Logger(subsystem: "com.quant.posture", category: "FrontCamera")
     private var isConfigured = false
+    /// Whether a start is still wanted once its awaits are done (2026-10-19 review): a `stop()`
+    /// while it asked for permission, as for heat, was followed by the camera starting.
+    private var runs = CameraRuns()
 
     // MARK: - PoseProvider Lifecycle
 
     func start() async throws {
+        runs.started()
+        let run = runs.current
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         await MainActor.run { permissionStatus = status }
 
@@ -79,6 +84,7 @@ final class FrontCameraSessionService: NSObject, PoseProvider {
             return
         }
 
+        guard runs.isStill(run) else { return }  // stopped meanwhile
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             sessionQueue.async { [self] in
                 do {
@@ -96,6 +102,7 @@ final class FrontCameraSessionService: NSObject, PoseProvider {
     }
 
     func stop() {
+        runs.stopped()
         sessionQueue.async { [self] in
             guard captureSession.isRunning else { return }
             captureSession.stopRunning()

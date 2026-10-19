@@ -14,17 +14,20 @@ struct StoredDataView: View {
             Section {
                 if summary.byKind.isEmpty {
                     Text("Nothing stored yet")
-                        .foregroundStyle(.secondary)
+                        .readableSecondary()
                 }
                 ForEach(summary.byKind, id: \.kind) { line in
                     LabeledContent(line.kind.label) {
                         Text("\(line.count) \(line.count == 1 ? "file" : "files") · \(Self.size(line.bytes))")
+                            .readableSecondary()
                     }
                 }
             } header: {
                 Text("On this iPhone")
+                    .readableSecondary()
             } footer: {
                 Text("Total \(Self.size(summary.totalBytes)).")
+                    .readableSecondary()
             }
 
             Section {
@@ -41,12 +44,14 @@ struct StoredDataView: View {
                 }
                 if let lastFreed {
                     Text("Deleted \(Self.size(lastFreed)).")
-                        .foregroundStyle(.secondary)
+                        .readableSecondary()
                 }
             } header: {
                 Text("Delete older data")
+                    .readableSecondary()
             } footer: {
                 Text("Today's data is never deleted. To keep a copy, export the posture log or the Jev data first.")
+                    .readableSecondary()
             }
         }
         .navigationTitle("Stored Data")

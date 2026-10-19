@@ -5,7 +5,7 @@
 //  The posture sliders' ranges and steps.
 //
 
-/// The posture sliders' ranges and steps, a golden copy of the phone's `PostureSettingLimits`
+/// The posture sliders' ranges and steps, a golden copy of the phone's `SharedPostureSettings`
 /// (2026-10-16 audit): one range and step for each setting, on both of the phone's settings
 /// screens and here. The Watch had the Calibration screen's, which differed from Posture
 /// Thresholds'. `WatchSettingLimitsTests` holds the same numbers as the phone's tests.

@@ -702,15 +702,29 @@ class AppModel: ObservableObject {
     /// Whether the camera is stopped because the phone is too hot.
     private(set) var cameraStoppedForHeat = false
 
-    private func applyHeatPause(_ level: ThermalLevel) {
-        guard !isReplaying else { return }
+    /// Starts a camera. Tests swap it: the simulator has no camera to see start.
+    var startsCamera: @MainActor (any PoseProvider) async throws -> Void = { try await $0.start() }
+
+    /// Starts the chosen camera, unless the phone is too hot: cooling down starts whichever is
+    /// chosen by then (2026-10-16 audit). Switching camera during a heat pause started the new
+    /// one, and so would the launch or "Try again".
+    private func startChosenCamera() async throws {
+        guard !cameraStoppedForHeat else { return }
+        try await startsCamera(activeService)
+    }
+
+    /// Stops the camera at a critical thermal level, and starts it again once the phone cools.
+    /// During a replay too (2026-10-16 audit): the camera runs through one, and a level is only
+    /// sent when it changes, so one reached during a replay was lost. A cool-down then left the
+    /// camera off after the replay.
+    func applyHeatPause(_ level: ThermalLevel) {
         switch HeatPause.action(for: level, cameraStoppedForHeat: cameraStoppedForHeat) {
         case .stopCamera:
             cameraStoppedForHeat = true
             activeService.stop()
         case .startCamera:
             cameraStoppedForHeat = false
-            Task { try? await activeService.start() }
+            Task { try? await startChosenCamera() }
         case .none:
             break
         }
@@ -828,7 +842,7 @@ class AppModel: ObservableObject {
     func startMonitoring() async {
         UIApplication.shared.isIdleTimerDisabled = true
         do {
-            try await activeService.start()
+            try await startChosenCamera()
             print("\(cameraMode) session started successfully")
         } catch {
             print("Failed to start \(cameraMode) service: \(error)")
@@ -887,7 +901,7 @@ class AppModel: ObservableObject {
         // Attach and start new source
         switchableProvider.attach(source: providerForMode(mode))
         do {
-            try await activeService.start()
+            try await startChosenCamera()
             print("Switched to \(mode) — session started")
         } catch {
             print("Failed to start \(mode) service: \(error)")
@@ -920,7 +934,7 @@ class AppModel: ObservableObject {
         guard cameraMode == .rearDepth else { return }
         arService.stop()
         do {
-            try await arService.start()
+            try await startChosenCamera()
         } catch {
             print("Failed to restart rear camera: \(error)")
         }
@@ -930,7 +944,7 @@ class AppModel: ObservableObject {
     func retryFrontCamera() async {
         guard cameraMode == .front2D || cameraMode == .frontFace else { return }
         do {
-            try await (cameraMode == .frontFace ? arFaceService : frontService as any PoseProvider).start()
+            try await startChosenCamera()
         } catch {
             print("Failed to start front camera: \(error)")
         }
@@ -1243,20 +1257,32 @@ class AppModel: ObservableObject {
         replayService.load(session: session)
     }
 
+    /// The replay playing now, so the end of one stopped and replaced can't end the next.
+    private var replayProvider: ReplayPoseProvider?
+
+    /// Plays the loaded recording through the pipeline, in place of the camera, until it ends
+    /// or `stopReplay()`. Until it ends (2026-10-19 review): starting playback returns straight
+    /// away, and `isReplaying` went false on the next turn of the main thread, so a recording
+    /// playing was logged as today's posture. When it ends the camera's frames come back, as
+    /// after `stopReplay()`; they used to stay detached.
     func startReplay() {
         let provider = ReplayPoseProvider(replayService: replayService)
-        pipeline.resetTimeline()  // the recording runs on its own clock
+        // Attached before the timeline is reset (2026-10-19 review): a camera frame handed in
+        // between the two was the first frame of the replay's timeline.
         switchableProvider.attach(source: provider)
+        pipeline.resetTimeline()  // the recording runs on its own clock
         isReplaying = true
+        replayProvider = provider
         Task {
             try? await provider.start()
-            // Playback finished naturally
-            isReplaying = false
+            await provider.finished()
+            if replayProvider === provider { stopReplay() }
         }
     }
 
     func stopReplay() {
         replayService.stop()
+        replayProvider = nil
         switchableProvider.detach()
         switchableProvider.attach(source: providerForMode(cameraMode))
         pipeline.resetTimeline()

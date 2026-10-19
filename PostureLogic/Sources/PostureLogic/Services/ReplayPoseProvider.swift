@@ -39,6 +39,12 @@ public final class ReplayPoseProvider: PoseProvider {
         }
     }
 
+    /// Returns once playback has ended: the recording ran out, or it was stopped. `start()`
+    /// returns as soon as playback begins (2026-10-19): the app took that for the end.
+    public func finished() async {
+        await playbackTask?.value
+    }
+
     public func stop() {
         playbackTask?.cancel()
         playbackTask = nil

@@ -7,22 +7,19 @@ struct ThresholdsSettingsView: View {
         Form {
             Section {
                 SettingSlider(
-                    title: "Forward Creep",
+                    SharedPostureSettings.forwardCreep,
                     value: String(format: "%.3f", appModel.forwardCreepThreshold),
-                    amount: $appModel.forwardCreepThreshold, limits: PostureSettingLimits.forwardCreep,
-                    caption: "Distance threshold for forward lean detection")
+                    amount: $appModel.forwardCreepThreshold)
 
                 SettingSlider(
-                    title: "Twist",
+                    SharedPostureSettings.twist,
                     value: String(format: "%.0f\u{00B0}", appModel.twistThreshold),
-                    amount: $appModel.twistThreshold, limits: PostureSettingLimits.twist,
-                    caption: "Shoulder rotation angle threshold")
+                    amount: $appModel.twistThreshold)
 
                 SettingSlider(
-                    title: "Side Lean",
+                    SharedPostureSettings.sideLean,
                     value: String(format: "%.2f", appModel.sideLeanThreshold),
-                    amount: $appModel.sideLeanThreshold, limits: PostureSettingLimits.sideLean,
-                    caption: "Lateral lean distance threshold")
+                    amount: $appModel.sideLeanThreshold)
 
                 SettingSlider(
                     title: "Head Drop",
@@ -37,8 +34,10 @@ struct ThresholdsSettingsView: View {
                     caption: "Shoulder rounding angle threshold")
             } header: {
                 Text("Posture Thresholds")
+                    .readableSecondary()
             } footer: {
                 Text("Lower values make detection more sensitive.")
+                    .readableSecondary()
             }
 
             Section {
@@ -65,6 +64,7 @@ struct ThresholdsSettingsView: View {
                     caption: "Maximum nudge alerts per hour. 0 is no limit: the cooldown spaces them.")
             } header: {
                 Text("Timing")
+                    .readableSecondary()
             }
 
             Section {

@@ -10,7 +10,7 @@ struct ForwardCreepLineWatchTests {
 }
 
 /// The Watch's sliders have the phone's ranges and steps (2026-10-16 audit), a golden copy of
-/// `PostureSettingLimits` and its tests. They had the Calibration screen's, which differed from
+/// `SharedPostureSettings` and its tests. They had the Calibration screen's, which differed from
 /// Posture Thresholds'.
 struct WatchSettingLimitsTests {
 

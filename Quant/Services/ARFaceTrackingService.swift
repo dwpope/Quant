@@ -139,6 +139,7 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
 
         currentConfig = config
         session.delegate = self
+        runs.started()
         session.run(config)
         Self.diagSessionStarted = true
 
@@ -154,11 +155,16 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
     }
 
     func stop() {
+        runs.stopped()
         frameTimeoutTimer?.invalidate()
         frameTimeoutTimer = nil
         session.pause()
         logger.info("ARFaceTracking session stopped")
     }
+
+    /// The session's own restarts go ahead only while the run they were queued in is still
+    /// going: not after `stop()`, as for heat (2026-10-19 review).
+    private var runs = CameraRuns()
 
     enum ARFaceTrackingError: Error { case unsupported }
 
@@ -192,10 +198,12 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
         recoveryAttempts += 1
         logger.warning("🔄 ARFaceTracking recovery attempt #\(self.recoveryAttempts)")
         session.pause()
+        let run = runs.current
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
-            self.session.run(config, options: [.resetTracking, .removeExistingAnchors])
             self.isRecovering = false
+            guard self.runs.isStill(run) else { return }  // stopped meanwhile
+            self.session.run(config, options: [.resetTracking, .removeExistingAnchors])
         }
     }
 }
@@ -308,7 +316,7 @@ extension ARFaceTrackingService: ARSessionDelegate {
     func sessionInterruptionEnded(_ session: ARSession) {
         isInterrupted = false
         lastFrameTime = Date()
-        guard let config = currentConfig else { return }
+        guard runs.isStill(runs.current), let config = currentConfig else { return }
         logger.info("ARFaceTracking interruption ended — resuming")
         session.run(config, options: [.resetTracking, .removeExistingAnchors])
     }

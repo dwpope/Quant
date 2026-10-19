@@ -16,14 +16,21 @@ struct SettingSlider<Value: BinaryFloatingPoint>: View where Value.Stride: Binar
     /// Also called with `false` after a VoiceOver swipe, which has no drag to end.
     var onEditingChanged: (Bool) -> Void = { _ in }
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
+            // At the accessibility text sizes the value goes under the name (2026-10-19): beside
+            // it, the name wrapped a word to a line.
+            if typeSize.isAccessibilitySize {
                 Text(title)
-                Spacer()
-                Text(value)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+                valueText
+            } else {
+                HStack {
+                    Text(title)
+                    Spacer()
+                    valueText
+                }
             }
             Slider(value: $amount, in: range, step: step) {
                 Text(title)
@@ -32,7 +39,7 @@ struct SettingSlider<Value: BinaryFloatingPoint>: View where Value.Stride: Binar
             }
             Text(caption)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .readableSecondary()
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
@@ -42,6 +49,12 @@ struct SettingSlider<Value: BinaryFloatingPoint>: View where Value.Stride: Binar
             amount = Self.adjusted(amount, direction, step: step, in: range)
             onEditingChanged(false)
         }
+    }
+
+    private var valueText: some View {
+        Text(value)
+            .readableSecondary()
+            .monospacedDigit()
     }
 
     /// A step up or down, kept within the range. A value already past the range's end (another

@@ -156,6 +156,77 @@ final class PostureLogTests: XCTestCase {
         XCTAssertEqual(model.postureLogStore.count, before + 1, "a live one is")
     }
 
+    /// A recording `seconds` long, saved where `loadSession` reads it from.
+    private func recording(seconds: Double) throws -> URL {
+        let samples = stride(from: 0.0, through: seconds, by: 0.1).map { t in
+            PoseSample(timestamp: 1_000 + t, depthMode: .twoDOnly,
+                       headPosition: SIMD3<Float>(0, 1, 0), shoulderMidpoint: .zero,
+                       leftShoulder: SIMD3<Float>(-0.5, 0, 0), rightShoulder: SIMD3<Float>(0.5, 0, 0),
+                       torsoAngle: 5, headForwardOffset: 0.01, shoulderTwist: 2, shoulderWidthRaw: 0.2,
+                       trackingQuality: .good)
+        }
+        let session = RecordedSession(
+            id: UUID(), startTime: Date(timeIntervalSince1970: 1_800_000_000),
+            endTime: Date(timeIntervalSince1970: 1_800_000_000 + seconds), samples: samples, tags: [],
+            metadata: SessionMetadata(deviceModel: "test", depthAvailable: false, thresholds: PostureThresholds()))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("replay-\(UUID()).json")
+        try encoder.encode(session).write(to: url)
+        return url
+    }
+
+    private func waitFor(_ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        while !condition() && Date() < deadline { try await Task.sleep(for: .milliseconds(10)) }
+    }
+
+    /// A replay is one until the recording ends (2026-10-19 review). Starting playback returns
+    /// straight away, and the app took that for the end: `isReplaying` went false on the next
+    /// turn of the main thread, and a playing recording was logged as today's posture after all.
+    func test_aReplay_isAReplay_whileTheRecordingPlays() async throws {
+        let url = try recording(seconds: 10)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let model = AppModel()
+        try model.loadSession(url)
+
+        model.startReplay()
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertTrue(model.isReplaying, "ten seconds of recording, still playing")
+        let before = model.postureLogStore.count
+        model.logFrame(decision: .fire(reason: .sink))
+        XCTAssertEqual(model.postureLogStore.count, before)
+        model.stopReplay()
+    }
+
+    /// It ends when the recording does.
+    func test_aReplay_endsWithTheRecording() async throws {
+        let url = try recording(seconds: 0.3)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let model = AppModel()
+        try model.loadSession(url)
+
+        model.startReplay()
+        try await waitFor { !model.isReplaying }
+        XCTAssertFalse(model.isReplaying)
+    }
+
+    /// A replay stopped and started again stays a replay: the first one ending doesn't end it.
+    func test_aReplayStartedAgain_isNotEndedByTheFirst() async throws {
+        let url = try recording(seconds: 10)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let model = AppModel()
+        try model.loadSession(url)
+
+        model.startReplay()
+        try await Task.sleep(for: .milliseconds(100))
+        model.stopReplay()
+        model.startReplay()
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertTrue(model.isReplaying)
+        model.stopReplay()
+    }
+
     // MARK: - On disk and in the export
 
     func test_linesAreKept_andCountedAfterARelaunch() {
@@ -199,7 +270,32 @@ final class PostureLogTests: XCTestCase {
         XCTAssertEqual(store.count, 9)
     }
 
-    func test_theExport_holdsEveryDay_oneLinePerEvent() throws {
+    /// Preparing the export leaves the screen free while the files are being counted (2026-10-16
+    /// audit): it waited on the main thread for the count to finish, then read every day there.
+    func test_theExport_waitsOffTheMainThread() async throws {
+        let store = PostureLogStore()
+        store.append([PostureLogEvent(t: 1, kind: "state", value: "good")])
+        let counting = Flag()
+        let go = DispatchSemaphore(value: 0)
+        let recount = Task {
+            await store.recount(counting: { counting.set(true); _ = go.wait(timeout: .now() + 2); return 1 })
+        }
+        let deadline = Date().addingTimeInterval(5)
+        while counting.value == nil && Date() < deadline { try await Task.sleep(for: .milliseconds(5)) }
+
+        let asked = Date()
+        let export = Task { try await store.exportJSONL() }
+        try await Task.sleep(for: .milliseconds(50))
+        let heldFor = Date().timeIntervalSince(asked)
+        go.signal()
+        let url = try await export.value
+        await recount.value
+
+        XCTAssertLessThan(heldFor, 1, "the main thread was free while the count went on")
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8).split(separator: "\n").count, 1)
+    }
+
+    func test_theExport_holdsEveryDay_oneLinePerEvent() async throws {
         let yesterday = Date().addingTimeInterval(-86_400)
         let c = Calendar.current.dateComponents([.year, .month, .day], from: yesterday)
         let key = String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
@@ -211,7 +307,7 @@ final class PostureLogTests: XCTestCase {
         store.append([PostureLogEvent(t: 2, kind: "nudge", value: "fire:sink")])
         PostureLogStore.flushPendingWrites()
 
-        let url = try store.exportJSONL()
+        let url = try await store.exportJSONL()
         XCTAssertTrue(url.lastPathComponent.hasPrefix("posture-log-to-"))
         let lines = try String(contentsOf: url, encoding: .utf8).split(separator: "\n")
         XCTAssertEqual(lines.count, 2)

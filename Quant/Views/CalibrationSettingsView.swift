@@ -7,28 +7,25 @@ import SwiftUI
 
 struct CalibrationSettingsView: View {
     @EnvironmentObject var appModel: AppModel
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Camera", selection: Binding(
-                        get: { appModel.cameraMode },
-                        set: { newMode in
-                            Task { await appModel.switchCameraMode(to: newMode) }
-                        }
-                    )) {
-                        Text("Rear (Depth)").tag(CameraMode.rearDepth)
-                        Text("Front (2D)").tag(CameraMode.front2D)
-                        if ARFaceTrackingService.isFaceTrackingSupported {
-                            Text("Front (Face)").tag(CameraMode.frontFace)
-                        }
+                    // A list at the accessibility text sizes (2026-10-19): a segmented control's
+                    // labels don't grow with the text size.
+                    if typeSize.isAccessibilitySize {
+                        cameraPicker.pickerStyle(.inline)
+                    } else {
+                        cameraPicker.pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
                 } header: {
                     Text("Camera")
+                        .readableSecondary()
                 } footer: {
                     Text("Rear uses LiDAR depth when available. Front (2D) uses pose only. Front (Face) uses TrueDepth for an accurate head pose. Switching requires recalibration.")
+                        .readableSecondary()
                 }
 
                 Section {
@@ -45,8 +42,10 @@ struct CalibrationSettingsView: View {
                         caption: "Torso angle tolerance during calibration")
                 } header: {
                     Text("Sensitivity")
+                        .readableSecondary()
                 } footer: {
                     Text("Higher values make calibration easier to pass.")
+                        .readableSecondary()
                 }
 
                 Section {
@@ -67,6 +66,7 @@ struct CalibrationSettingsView: View {
                         caption: "Seconds before sampling begins")
                 } header: {
                     Text("Timing")
+                        .readableSecondary()
                 }
 
                 Section {
@@ -77,24 +77,21 @@ struct CalibrationSettingsView: View {
 
                 Section {
                     SettingSlider(
-                        title: "Forward Lean",
+                        SharedPostureSettings.forwardCreep,
                         value: String(format: "%.3f", appModel.forwardCreepThreshold),
-                        amount: $appModel.forwardCreepThreshold, limits: PostureSettingLimits.forwardCreep,
-                        caption: "How far forward before drifting",
+                        amount: $appModel.forwardCreepThreshold,
                         onEditingChanged: { editing in if !editing { appModel.syncSettingsToWatch() } })
 
                     SettingSlider(
-                        title: "Twist",
+                        SharedPostureSettings.twist,
                         value: String(format: "%.0f", appModel.twistThreshold) + "\u{00B0}",
-                        amount: $appModel.twistThreshold, limits: PostureSettingLimits.twist,
-                        caption: "Shoulder rotation tolerance",
+                        amount: $appModel.twistThreshold,
                         onEditingChanged: { editing in if !editing { appModel.syncSettingsToWatch() } })
 
                     SettingSlider(
-                        title: "Side Lean",
+                        SharedPostureSettings.sideLean,
                         value: String(format: "%.2f", appModel.sideLeanThreshold),
-                        amount: $appModel.sideLeanThreshold, limits: PostureSettingLimits.sideLean,
-                        caption: "Lateral lean tolerance",
+                        amount: $appModel.sideLeanThreshold,
                         onEditingChanged: { editing in if !editing { appModel.syncSettingsToWatch() } })
 
                     SettingSlider(
@@ -105,8 +102,10 @@ struct CalibrationSettingsView: View {
                         onEditingChanged: { editing in if !editing { appModel.syncSettingsToWatch() } })
                 } header: {
                     Text("Posture Detection")
+                        .readableSecondary()
                 } footer: {
                     Text("Higher values make posture detection more lenient.")
+                        .readableSecondary()
                 }
 
                 Section {
@@ -121,8 +120,10 @@ struct CalibrationSettingsView: View {
                     }
                 } header: {
                     Text("Advanced")
+                        .readableSecondary()
                 } footer: {
                     Text("Fine-tune individual posture metrics and nudge timing.")
+                        .readableSecondary()
                 }
 
                 Section {
@@ -131,17 +132,35 @@ struct CalibrationSettingsView: View {
                     }
                 } footer: {
                     Text("What the app keeps on this iPhone, and deleting older data.")
+                        .readableSecondary()
                 }
 
                 Section {
                     Toggle("Training mode", isOn: $appModel.isTrainingModeEnabled)
                 } footer: {
                     Text("Captures labeling data for detector tuning.")
+                        .readableSecondary()
                 }
             }
             .navigationTitle("Calibration Settings")
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+
+    private var cameraPicker: some View {
+        Picker("Camera", selection: Binding(
+            get: { appModel.cameraMode },
+            set: { newMode in
+                Task { await appModel.switchCameraMode(to: newMode) }
+            }
+        )) {
+            Text("Rear (Depth)").tag(CameraMode.rearDepth)
+            Text("Front (2D)").tag(CameraMode.front2D)
+            if ARFaceTrackingService.isFaceTrackingSupported {
+                Text("Front (Face)").tag(CameraMode.frontFace)
+            }
+        }
+        .labelsHidden()  // the section is headed "Camera"; VoiceOver still names it
     }
 }
 

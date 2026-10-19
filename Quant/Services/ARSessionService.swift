@@ -52,6 +52,9 @@ final class ARSessionService: NSObject, PoseProvider {
     /// no frames is expected then, not a resource problem (2026-10-11). The timeout used to
     /// "recover" through the interruption and, on its third try, switched depth off for good.
     private var isInterrupted = false
+    /// The session's own restarts (a frame timeout, a failure, an interruption ending) go ahead
+    /// only while the run they were queued in is still going: not after `stop()`, as for heat.
+    private var runs = CameraRuns()
 
     func start() async throws {
         // Use ARWorldTrackingConfiguration for depth support
@@ -78,6 +81,7 @@ final class ARSessionService: NSObject, PoseProvider {
 
         currentConfig = config
         session.delegate = self
+        runs.started()
         startedAt = Date()
         receivedAnyFrame = false
         loggedNoFrames = false
@@ -93,6 +97,7 @@ final class ARSessionService: NSObject, PoseProvider {
     }
 
     func stop() {
+        runs.stopped()
         frameTimeoutTimer?.invalidate()
         frameTimeoutTimer = nil
         session.pause()
@@ -164,12 +169,14 @@ final class ARSessionService: NSObject, PoseProvider {
 
         session.pause()
 
+        let run = runs.current
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self = self else { return }
+            self.isRecovering = false
+            guard self.runs.isStill(run) else { return }  // stopped meanwhile
 
             self.session.run(config, options: [.resetTracking, .removeExistingAnchors])
             self.logger.info("✓ Session restarted after resource constraint")
-            self.isRecovering = false
         }
     }
 }
@@ -254,6 +261,7 @@ extension ARSessionService: ARSessionDelegate {
         lastFrameTime = Date()  // a fresh 2 s before the timeout looks again
         recoveryAttempts = 0
 
+        guard runs.isStill(runs.current) else { return }  // stopped during the interruption
         guard let config = currentConfig else {
             logger.error("No configuration available for resume")
             return
@@ -270,8 +278,9 @@ extension ARSessionService: ARSessionDelegate {
         }
 
         logger.info("Attempting to restart ARSession")
+        let run = runs.current
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self = self else { return }
+            guard let self = self, self.runs.isStill(run) else { return }
             self.session.run(config, options: [.resetTracking, .removeExistingAnchors])
             self.sessionStateSubject.send(.running)
             self.logger.info("ARSession recovery attempted")

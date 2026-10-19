@@ -317,7 +317,7 @@ struct WatchCalibrationSettingsView: View {
                     }
                     Slider(value: $sessionDelegate.forwardCreepThreshold, in: WatchSettingLimits.forwardCreep,
                            step: WatchSettingLimits.forwardCreepStep) {
-                        Text("Forward")
+                        Text("Forward Lean")
                     } onEditingChanged: { editing in
                         if !editing { sessionDelegate.sendSettings() }
                     }

@@ -142,6 +142,36 @@ final class SlouchFollowUpTests: XCTestCase {
         XCTAssertEqual(repeats, [0, 1, 2, 0, 0])
     }
 
+    /// A step back to a new timeline starts the engine afresh, as the pipeline does (2026-10-16
+    /// audit). Only the slouched time and the good streak were reset: the last nudge, in the new
+    /// timeline's future, held the cooldown on for the step back and the cooldown together, and
+    /// the slouch's follow-up and its repeats carried over.
+    func test_aNewTimeline_startsAfresh() {
+        var t = PostureThresholds()
+        t.slouchDurationBeforeNudge = 120
+        let e = NudgeEngine(thresholds: t)
+        var fires: [TimeInterval] = []
+        var repeats: [Int] = []
+        func run(from start: TimeInterval, to end: TimeInterval) {
+            for now in stride(from: start, to: end, by: 1) {
+                let d = e.evaluate(state: .bad(since: start), trackingQuality: .good, movementLevel: 0.1,
+                                   taskMode: .unknown, currentTime: now)
+                if now == start, start < 5_000 {
+                    XCTAssertEqual(e.nudgeDueIn ?? -1, 120, "the new timeline's first slouch waits its own time")
+                }
+                if case .fire = d {
+                    fires.append(now)
+                    repeats.append(e.repeatOfLastFire)
+                    e.recordNudgeFired(at: now)
+                }
+            }
+        }
+        run(from: 10_000, to: 10_200)   // live frames
+        run(from: 1_000, to: 1_130)     // a recording from earlier
+        XCTAssertEqual(fires, [10_120, 10_181, 1_120])
+        XCTAssertEqual(repeats, [0, 1, 0])
+    }
+
     /// A head held turned keeps its 10-minute repeat: the minute is for slouches.
     func test_aHeadHeldTurned_stillRepeatsEvery10Minutes() {
         XCTAssertEqual(HeadTurnThresholds().repeatAfter, 600)

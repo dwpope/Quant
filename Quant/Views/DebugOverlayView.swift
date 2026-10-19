@@ -86,15 +86,18 @@ struct DebugOverlayView: View {
                 Circle()
                     .fill(trackingColor)
                     .frame(width: 6, height: 6)
+                // Wrapping, not cut to a line (2026-10-16 audit): at larger text sizes both were
+                // cut off, and the hint's grey was too faint to read. The hint is the panel's own
+                // text colour, a little lighter, which stays readable over the camera preview.
                 VStack(alignment: .leading, spacing: 2) {
                     Text(DiagnosticsPanel.calibrationLine(status: appModel.calibrationStatus,
                                                           tracking: appModel.trackingQuality))
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let hint = DiagnosticsPanel.calibrationHint(status: appModel.calibrationStatus,
                                                                    tracking: appModel.trackingQuality) {
                         Text(hint)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            .foregroundStyle(.primary.opacity(0.8))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             } else {
@@ -297,7 +300,7 @@ struct DebugOverlayView: View {
             // real-use hour can be read back (2026-10-07). Written on tap, then shared.
             HStack(spacing: 6) {
                 Button("prepare log (\(appModel.postureLogStore.count))") {
-                    postureLogURL = try? appModel.postureLogStore.exportJSONL()
+                    Task { postureLogURL = try? await appModel.postureLogStore.exportJSONL() }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.mini)

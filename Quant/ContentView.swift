@@ -46,6 +46,7 @@ struct ContentView: View {
                     .clipShape(Circle())
             }
             .accessibilityLabel(until == nil ? "Silence nudges" : "Nudges silenced")
+            .accessibilityShowsLargeContentViewer()
         }
     }
 
@@ -113,6 +114,10 @@ struct ContentView: View {
                 Spacer(minLength: 0)
             }
             .safeAreaInset(edge: .bottom, spacing: 12) {
+                // Five icons, capped at the largest size before the accessibility sizes, as the
+                // system caps its own bars (2026-10-19): at the largest sizes they were wider than
+                // the phone, and pushed the whole screen off both edges. A long press shows a
+                // button's name and icon large instead.
                 HStack(spacing: 12) {
                     Spacer(minLength: 0)
 
@@ -128,6 +133,7 @@ struct ContentView: View {
                             .clipShape(Circle())
                     }
                     .accessibilityLabel("Sip calibration")
+                    .accessibilityShowsLargeContentViewer()
 
                     Button {
                         showVisualization = true
@@ -139,6 +145,7 @@ struct ContentView: View {
                             .clipShape(Circle())
                     }
                     .accessibilityLabel("Posture visualization")
+                    .accessibilityShowsLargeContentViewer()
 
                     Button {
                         showSettings = true
@@ -150,6 +157,7 @@ struct ContentView: View {
                             .clipShape(Circle())
                     }
                     .accessibilityLabel("Settings")
+                    .accessibilityShowsLargeContentViewer()
 
                     Button {
                         appModel.showCameraPreview.toggle()
@@ -161,7 +169,9 @@ struct ContentView: View {
                             .clipShape(Circle())
                     }
                     .accessibilityLabel(appModel.showCameraPreview ? "Hide camera preview" : "Show camera preview")
+                    .accessibilityShowsLargeContentViewer()
                 }
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }
             .padding()
         }

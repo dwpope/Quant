@@ -145,7 +145,7 @@ public class Pipeline {
     private var staleBaselineDetector = StaleBaselineDetector()
     private var recentMetricsBuffer: [RawMetrics] = []
     private let metricsBufferMaxSize = 100
-    private var lastStalenessCheckTime: TimeInterval = 0
+    private var lastStalenessCheckTime: TimeInterval = -.infinity
 
     // Latest pose observation
     private var latestPoseObservation: PoseObservation?
@@ -253,10 +253,12 @@ public class Pipeline {
     // MARK: - Private Methods
 
     private func process(_ frame: InputFrame) {
+        let timeline = currentTimeline
+
         // Precomputed sample path — replay/test bypass.
         // Skips pose detection and fusion; runs metrics, posture, and nudge engines.
         if let sample = frame.precomputedSample {
-            processPrecomputed(sample, timestamp: frame.timestamp)
+            processPrecomputed(sample, timestamp: frame.timestamp, timeline: timeline)
             return
         }
 
@@ -357,7 +359,7 @@ public class Pipeline {
             // Apply temporal smoothing to prevent flickering
             // Update on main thread to ensure thread-safe access to recentQualities
             await MainActor.run {
-                guard self.takesFrame(at: frame.timestamp) else { return }
+                guard self.takesFrame(at: frame.timestamp, of: timeline) else { return }
                 // Add to sliding window
                 self.recentQualities.append(rawQuality)
                 if self.recentQualities.count > self.qualityWindowSize {
@@ -420,7 +422,11 @@ public class Pipeline {
     ///
     /// A new timeline starts the engines afresh (2026-10-11): their clocks were left behind, and
     /// the nudge engine took every replay frame after live frames for a late one.
-    private func takesFrame(at timestamp: TimeInterval) -> Bool {
+    ///
+    /// Not a frame handed in before `resetTimeline()` (2026-10-16 audit): a replay's last frames,
+    /// still queued when it stopped, were taken as the first of the new timeline.
+    private func takesFrame(at timestamp: TimeInterval, of timeline: Int) -> Bool {
+        guard timeline == currentTimeline else { return false }
         let stepBack = lastTakenFrameTime - timestamp
         if stepBack >= Self.newTimelineAfter {
             startNewTimeline()
@@ -435,10 +441,17 @@ public class Pipeline {
     /// frames after a replay. The app calls it when it starts or stops a replay, so a recording
     /// that begins less than `newTimelineAfter` before the last frame isn't dropped as late.
     public func resetTimeline() {
+        timelineLock.lock()
+        timelineCount += 1
+        timelineLock.unlock()
         lastTakenFrameTime = -.infinity
         startNewTimeline()
     }
 
+    /// The posture is the new timeline's too: until its first frame there isn't one (2026-10-16
+    /// audit). The old timeline's was left published, so a slouch in one and sitting well in the
+    /// other read as a sit-up. The staleness check runs on the new timeline's first frame: the
+    /// last check's time was kept, and a replay from earlier than it was never checked.
     private func startNewTimeline() {
         postureEngine.reset()
         nudgeEngine.reset()
@@ -449,10 +462,22 @@ public class Pipeline {
         headTurnedSince = nil
         nudgeDueAt = nil
         latestFrame = nil
+        postureState = .absent
+        lastStalenessCheckTime = -.infinity
     }
 
     private var lastTakenFrameTime: TimeInterval = -.infinity
     private static let newTimelineAfter: TimeInterval = 5
+
+    /// Which timeline a frame was handed in on: `resetTimeline()` starts the next. Read on the
+    /// provider's thread as a frame comes in, counted up on the main thread, hence the lock.
+    private var currentTimeline: Int {
+        timelineLock.lock()
+        defer { timelineLock.unlock() }
+        return timelineCount
+    }
+    private let timelineLock = NSLock()
+    private var timelineCount = 0
 
     /// One frame's pose through every engine, from a camera or a replay (2026-10-11: the two
     /// paths had their own copies of this). A pose that couldn't be built is judged without one.
@@ -655,14 +680,14 @@ public class Pipeline {
         await framesInFlight.settled()
     }
 
-    private func processPrecomputed(_ sample: PoseSample, timestamp: TimeInterval) {
+    private func processPrecomputed(_ sample: PoseSample, timestamp: TimeInterval, timeline: Int) {
         let currentFPS = computeFPS(timestamp: timestamp)
 
         framesInFlight.begin()
         Task { @MainActor [weak self, framesInFlight] in
             defer { framesInFlight.end() }
             guard let self = self else { return }
-            guard self.takesFrame(at: timestamp) else { return }
+            guard self.takesFrame(at: timestamp, of: timeline) else { return }
             self.fps = currentFPS
             self.trackingQuality = sample.trackingQuality
             self.currentTrackingQuality = sample.trackingQuality

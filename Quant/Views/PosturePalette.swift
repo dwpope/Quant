@@ -18,3 +18,26 @@ enum PosturePalette {
         }
     }
 }
+
+/// Grey text that reads on a light background (2026-10-16 audit, fixed 2026-10-19).
+///
+/// The system's secondary grey is 3.4:1 on a light settings row and 3.3:1 on the grouped
+/// background under it, against the 4.5:1 small text needs: Apple's audit failed the sliders'
+/// values and captions and the section footers. In light mode it's a darker grey; in dark mode
+/// the system's own, which reads and follows Increase Contrast. The app's blue is darker in
+/// light mode for the same reason, in the asset catalog's AccentColor.
+enum ReadablePalette {
+    static let secondary = UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor.secondaryLabel.resolvedColor(with: traits)
+            : UIColor(red: 0.39, green: 0.39, blue: 0.40, alpha: 1)
+    }
+}
+
+extension View {
+    /// Secondary text in `ReadablePalette.secondary`, for settings' values, captions, headers
+    /// and footers.
+    func readableSecondary() -> some View {
+        foregroundStyle(Color(ReadablePalette.secondary))
+    }
+}
