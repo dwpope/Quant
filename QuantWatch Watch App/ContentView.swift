@@ -77,6 +77,16 @@ struct ContentView: View {
                         Label("Jev capture", systemImage: "hand.tap")
                     }
 
+                    // The camera's view on the phone, to check you're in frame without reaching
+                    // for it (2026-10-20).
+                    Button {
+                        sessionDelegate.setCameraPreview(show: !sessionDelegate.phoneShowsCamera)
+                    } label: {
+                        Label(CameraPreviewRemote.buttonTitle(phoneShows: sessionDelegate.phoneShowsCamera),
+                              systemImage: sessionDelegate.phoneShowsCamera ? "eye.slash" : "eye")
+                    }
+                    .disabled(!sessionDelegate.isPhoneReachable)
+
                     // Calibrate button
                     Button {
                         sessionDelegate.sendCalibrateRequest()

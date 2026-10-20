@@ -33,6 +33,9 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     /// When the phone says silenced nudges resume, or nil.
     @Published var nudgesSilencedUntil: Date?
 
+    /// Whether the phone says the camera's view is showing (2026-10-20). Hidden until it says.
+    @Published var phoneShowsCamera = false
+
     /// Whether the WCSession is currently activated and reachable.
     @Published var isConnected: Bool = false
 
@@ -234,6 +237,14 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     func resumeNudges() {
         if sendToPhone(NudgeSilence.request(minutes: 0), what: "resume") {
             nudgesSilencedUntil = nil
+        }
+    }
+
+    /// Ask the phone to show or hide the camera's view. Shown straight away; the phone's answer
+    /// corrects it if it differs.
+    func setCameraPreview(show: Bool) {
+        if sendToPhone(CameraPreviewRemote.request(show: show), what: "camera preview") {
+            phoneShowsCamera = show
         }
     }
 
@@ -450,6 +461,11 @@ extension WatchSessionDelegate: WCSessionDelegate {
             let until = NudgeSilence.until(from: message)
             DispatchQueue.main.async {
                 self.nudgesSilencedUntil = until
+            }
+        case "cameraPreview":
+            guard let shown = CameraPreviewRemote.shown(from: message) else { return }
+            DispatchQueue.main.async {
+                self.phoneShowsCamera = shown
             }
         case "jevStatus":
             guard let status = JevRemoteStatus(message: message) else {

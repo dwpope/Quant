@@ -63,6 +63,9 @@ final class WatchConnectivityService: NSObject {
     /// Fires when the Watch asks to silence nudges, with the minutes, 0 to resume.
     let silenceRequested = PassthroughSubject<Int, Never>()
 
+    /// Fires when the Watch asks to show (true) or hide the camera's view on the phone.
+    let cameraPreviewRequested = PassthroughSubject<Bool, Never>()
+
     /// Fires when the Watch reports a nudge arrived, for the posture log.
     let nudgeArrived = PassthroughSubject<NudgeArrival, Never>()
 
@@ -185,6 +188,31 @@ final class WatchConnectivityService: NSObject {
         session.sendMessage(Self.nudgeSilenceMessage(until: until), replyHandler: nil) { [weak self] error in
             Task { @MainActor in
                 self?.logger.error("Nudge silence send failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Whether the Watch asked to show the camera's view (true) or hide it, or nil when the message
+    /// isn't a well-formed request. The Watch's `CameraPreviewRemote.request` writes it (2026-10-20).
+    static func cameraPreviewRequest(from message: [String: Any]) -> Bool? {
+        guard message["type"] as? String == "showCameraPreview" else { return nil }
+        return message["show"] as? Bool
+    }
+
+    /// Tells the Watch whether the camera's view is showing on the phone.
+    static func cameraPreviewMessage(shown: Bool) -> [String: Any] {
+        ["type": "cameraPreview", "shown": shown]
+    }
+
+    /// Send whether the camera's view is showing while the Watch app is open. Like the silence, no
+    /// queued fallback: the phone sends it again when the Watch app next connects.
+    func sendCameraPreview(shown: Bool) {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isReachable else { return }
+        session.sendMessage(Self.cameraPreviewMessage(shown: shown), replyHandler: nil) { [weak self] error in
+            Task { @MainActor in
+                self?.logger.error("Camera preview send failed: \(error.localizedDescription)")
             }
         }
     }
@@ -344,7 +372,8 @@ extension WatchConnectivityService: WCSessionDelegate {
 
     // MARK: - Message Handling
 
-    private func handleReceivedMessage(_ message: [String: Any]) {
+    /// Not private, so tests can hand it a message without a Watch.
+    func handleReceivedMessage(_ message: [String: Any]) {
         guard let type = message["type"] as? String else { return }
 
         switch type {
@@ -359,6 +388,10 @@ extension WatchConnectivityService: WCSessionDelegate {
         case "silenceNudges":
             if let minutes = Self.silenceMinutes(from: message) {
                 silenceRequested.send(minutes)
+            }
+        case "showCameraPreview":
+            if let show = Self.cameraPreviewRequest(from: message) {
+                cameraPreviewRequested.send(show)
             }
         default:
             if let command = JevRemote.Command(message: message) {

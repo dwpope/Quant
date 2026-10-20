@@ -154,7 +154,15 @@ class AppModel: ObservableObject {
 
     // MARK: - Camera Preview
 
-    @Published var showCameraPreview: Bool = false
+    /// Whether the camera's view shows behind the screen. The Watch can show or hide it, to check
+    /// you're in frame without reaching for the phone (2026-10-20), and is told each time it's set.
+    @Published var showCameraPreview: Bool = false {
+        didSet { sendsCameraPreview(watchService, showCameraPreview) }
+    }
+
+    /// Tells the Watch whether the camera's view is showing. Tests swap it: the simulator has no
+    /// Watch to tell.
+    var sendsCameraPreview: @MainActor (WatchConnectivityService, Bool) -> Void = { $0.sendCameraPreview(shown: $1) }
 
     // MARK: - Audio Feedback
 
@@ -762,6 +770,21 @@ class AppModel: ObservableObject {
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.watchService.sendNudgeSilence(until: self.nudgesSilencedUntil)
+            }
+            .store(in: &cancellables)
+
+        // Showing the camera's view from the Watch, to check you're in frame (2026-10-20). Every
+        // request is answered, even one for what's already showing: the Watch's button may be out
+        // of date.
+        watchService.cameraPreviewRequested
+            .sink { [weak self] show in self?.showCameraPreview = show }
+            .store(in: &cancellables)
+
+        watchService.reachabilityChanged
+            .filter { $0 }
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.sendsCameraPreview(self.watchService, self.showCameraPreview)
             }
             .store(in: &cancellables)
 
