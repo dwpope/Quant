@@ -11,9 +11,6 @@ import PostureLogic
 struct DebugOverlayView: View {
     @ObservedObject var appModel: AppModel
 
-    /// Filename of the most recently exported session, shown after a recording stops so it is
-    /// clear something was actually written and retrievable.
-    @State private var lastExport: URL?
 
     /// True while a Jev call is in flight, so the button cannot be double-tapped into two
     /// concurrent requests against a paid API.
@@ -32,6 +29,9 @@ struct DebugOverlayView: View {
     /// Whether the detail rows are shown. Persisted per device as a convenience only: losing it
     /// just reopens the panel expanded, which is how it always used to look.
     @AppStorage(DiagnosticsPanel.expandedKey) private var isExpanded = true
+
+    /// The main screen's style, for the switch to the calm view (2026-10-20).
+    @AppStorage(MainScreenStyle.storageKey) private var screenStyle = MainScreenStyle.initial
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -100,6 +100,10 @@ struct DebugOverlayView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+
+                Spacer(minLength: 8)
+
+                calmSwitch
             } else {
                 Circle()
                     .fill(postureColor)
@@ -123,7 +127,26 @@ struct DebugOverlayView: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel(isExpanded ? "Hide diagnostics" : "Show diagnostics")
+
+                calmSwitch
             }
+        }
+    }
+
+    /// To the calm view, at the end of the top line: the calm view's way back is in the same
+    /// corner. Not a sixth icon in the bottom row, which at large text sizes would be wider than
+    /// the phone (2026-10-19).
+    private var calmSwitch: some View {
+        Button {
+            screenStyle = .calm
+        } label: {
+            Image(systemName: "leaf")
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(MainScreenStyle.debug.switchLabel)
+        .accessibilityShowsLargeContentViewer {
+            Label("Calm view", systemImage: "leaf")
         }
     }
 
@@ -242,9 +265,8 @@ struct DebugOverlayView: View {
             HStack(spacing: 6) {
                 Button(appModel.isRecording ? "Stop rec" : "Record") {
                     if appModel.isRecording {
-                        lastExport = appModel.stopRecording()
+                        _ = appModel.stopRecording()
                     } else {
-                        lastExport = nil
                         appModel.startRecording()
                     }
                 }
@@ -284,7 +306,10 @@ struct DebugOverlayView: View {
                 .menuStyle(.borderlessButton)
             }
 
-            if let lastExport {
+            // The most recently exported session, shown after a recording stops so it is clear
+            // something was actually written and retrievable. Held by the app model, so it
+            // survives a trip to the calm view (2026-10-20).
+            if let lastExport = appModel.lastRecordingExport {
                 Text("saved \(lastExport.lastPathComponent)")
                     .foregroundStyle(.green)
                 // The recording was written when it stopped, so the link only shares that file.

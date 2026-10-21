@@ -55,7 +55,39 @@ struct ContentView: View {
             : minutes == 60 ? "Silence for 1 hour" : "Silence for \(minutes / 60) hours"
     }
 
+    /// Which main screen shows: debug while the measurements are tuned, or the calm view
+    /// (2026-10-20). Switched from the top right of either; kept across launches.
+    @AppStorage(MainScreenStyle.storageKey) private var screenStyle = MainScreenStyle.initial
+
     var body: some View {
+        Group {
+            switch screenStyle {
+            case .debug:
+                debugScreen
+            case .calm:
+                CalmScreen(appModel: appModel,
+                           onSettings: { showSettings = true },
+                           onSwitch: switchScreen)
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            CalibrationSettingsView()
+        }
+        .sheet(isPresented: $showSipCalibration) {
+            SipCalibrationView(appModel: appModel)
+        }
+        .fullScreenCover(isPresented: $showVisualization) {
+            PostureVisualizationView()
+        }
+    }
+
+    /// At once, without a crossfade: with the camera shown, a fade would put both screens'
+    /// previews on the one camera session together.
+    private func switchScreen() {
+        screenStyle = screenStyle.other
+    }
+
+    private var debugScreen: some View {
         ZStack {
             // Thermal warning overlays
             if appModel.thermalLevel == .critical {
@@ -175,15 +207,6 @@ struct ContentView: View {
             }
             .padding()
         }
-        .sheet(isPresented: $showSettings) {
-            CalibrationSettingsView()
-        }
-        .sheet(isPresented: $showSipCalibration) {
-            SipCalibrationView(appModel: appModel)
-        }
-        .fullScreenCover(isPresented: $showVisualization) {
-            PostureVisualizationView()
-        }
     }
 
     @State private var showStoredData = false
@@ -230,24 +253,7 @@ struct ContentView: View {
         .sheet(isPresented: $showSipTimeline) {
             SipTimelineView(appModel: appModel, sipStore: appModel.sipStore)
         }
-        .sheet(item: Binding(
-            get: { appModel.activeSipLabelItem },
-            set: { newValue in
-                if newValue == nil, let id = appModel.activeSipLabelItem?.id {
-                    appModel.dismissLabelAsUnconfirmed(id: id)
-                }
-            }
-        )) { item in
-            SipLabelSheet(
-                item: item,
-                onLabel: { label in
-                    appModel.applyLabel(label, toSipID: item.id)
-                },
-                onSkip: {
-                    appModel.dismissLabelAsUnconfirmed(id: item.id)
-                }
-            )
-        }
+        .sipLabelSheet(appModel: appModel)
     }
 
     private var thermalWarningBanner: some View {
@@ -287,6 +293,30 @@ struct ContentView: View {
                     .tint(.white)
                     .padding(.top, 8)
             }
+        }
+    }
+}
+
+extension View {
+    /// Asks what a detected sip was, on either main screen.
+    func sipLabelSheet(appModel: AppModel) -> some View {
+        sheet(item: Binding(
+            get: { appModel.activeSipLabelItem },
+            set: { newValue in
+                if newValue == nil, let id = appModel.activeSipLabelItem?.id {
+                    appModel.dismissLabelAsUnconfirmed(id: id)
+                }
+            }
+        )) { item in
+            SipLabelSheet(
+                item: item,
+                onLabel: { label in
+                    appModel.applyLabel(label, toSipID: item.id)
+                },
+                onSkip: {
+                    appModel.dismissLabelAsUnconfirmed(id: item.id)
+                }
+            )
         }
     }
 }

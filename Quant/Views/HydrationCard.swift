@@ -52,7 +52,11 @@ struct HydrationCard: View {
         .buttonStyle(.plain)
     }
 
-    private var sipCountLabel: String {
+    private var sipCountLabel: String { Self.countLabel(sipCount) }
+    private var lastSipLabel: String { Self.lastSipLabel(lastSipTimestamp) }
+
+    /// Also the calm view's sip line (2026-10-20).
+    static func countLabel(_ sipCount: Int) -> String {
         switch sipCount {
         case 0:  return "No sips yet"
         case 1:  return "1 sip today"
@@ -60,11 +64,11 @@ struct HydrationCard: View {
         }
     }
 
-    private var lastSipLabel: String {
+    static func lastSipLabel(_ lastSipTimestamp: TimeInterval?, now: Date = Date()) -> String {
         guard let ts = lastSipTimestamp else {
             return "No recent sip"
         }
-        let elapsed = Date().timeIntervalSince1970 - ts
+        let elapsed = now.timeIntervalSince1970 - ts
         if elapsed < 60 {
             return "Just now"
         } else if elapsed < 3600 {

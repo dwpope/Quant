@@ -81,6 +81,9 @@ extension PostureTimeline.Band {
 struct PostureTimelineChart: View {
     let timeline: PostureTimeline
     var showsAxis = false
+    /// How bright each band is drawn, of its colour: the calm view dims sitting well
+    /// (2026-10-20).
+    var brightness: (PostureTimeline.Band) -> Double = { _ in 1 }
 
     var body: some View {
         Chart {
@@ -90,7 +93,7 @@ struct PostureTimelineChart: View {
                     xEnd: .value("End", segment.end),
                     yStart: .value("Bottom", 0),
                     yEnd: .value("Top", segment.band.height))
-                    .foregroundStyle(segment.band.color)
+                    .foregroundStyle(segment.band.color.opacity(brightness(segment.band)))
             }
             ForEach(Array(timeline.nudges.enumerated()), id: \.offset) { _, nudge in
                 RuleMark(x: .value("Nudge", nudge.at))

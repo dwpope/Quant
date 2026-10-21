@@ -811,6 +811,17 @@ class AppModel: ObservableObject {
             .sink { [weak self] _ in
                 self?.pushJevStatusToWatch(force: false)
                 self?.pushPostureGlanceToWatch(force: false)
+                if let self { self.updateCalmGlance(self.livePostureGlance()) }
+            }
+            .store(in: &cancellables)
+
+        // A change of posture reaches the calm view at once, not on the next second. Received
+        // on the next turn of the run loop: `$postureState` fires before the value is stored.
+        $postureState
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                if let self { self.updateCalmGlance(self.livePostureGlance()) }
             }
             .store(in: &cancellables)
     }
@@ -845,6 +856,26 @@ class AppModel: ObservableObject {
                 DriftClock.wallClockAhead(of: $0, frameNow: frameNow, wallNow: wallNow)
             })
     }
+
+    /// Your posture now, as the Watch is sent it, for the calm view (2026-10-20).
+    func livePostureGlance(wallNow: Date = Date()) -> PostureGlance {
+        postureGlance(wallNow: wallNow, latestFrame: pipeline.latestFrame,
+                      nudgeDueAt: pipeline.nudgeDueAt)
+    }
+
+    /// Your posture for the calm view: the Watch's glance, held to its last times within a
+    /// second as the Watch's is, so its timers can't jump between neighbouring seconds
+    /// (2026-10-20 review). Taken each second by the Watch's timer, and when the posture
+    /// changes. Read only by the calm view, so it isn't redrawn for every frame.
+    @Published private(set) var calmGlance: PostureGlance = .paused
+
+    func updateCalmGlance(_ glance: PostureGlance) {
+        let steadied = glance.steadied(against: calmGlance)
+        if steadied != calmGlance { calmGlance = steadied }
+    }
+
+    /// Whether a frame has been judged since the app opened: before one, the camera is starting.
+    var cameraStarted: Bool { pipeline.latestFrame != nil }
 
     /// Sends your posture if the Watch app is open and it changed or is due again, or always if
     /// forced.
@@ -990,6 +1021,7 @@ class AppModel: ObservableObject {
     // MARK: - Recording Controls
 
     func startRecording() {
+        lastRecordingExport = nil
         let metadata = SessionMetadata(
             deviceModel: Self.deviceModelName(),
             depthAvailable: currentMode != .twoDOnly,
@@ -1266,8 +1298,13 @@ class AppModel: ObservableObject {
         pipeline.recorder = nil
         isRecording = false
         guard let session = recorderService.stopRecording() else { return nil }
-        return exportSession(session)
+        lastRecordingExport = exportSession(session)
+        return lastRecordingExport
     }
+
+    /// The last recording's file, offered for sharing until the next one starts. Kept here, not
+    /// in the debug panel, which a switch to the calm view takes off the screen (2026-10-20).
+    @Published private(set) var lastRecordingExport: URL?
 
     // MARK: - Replay Controls
 
