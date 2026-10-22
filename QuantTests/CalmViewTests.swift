@@ -1,4 +1,5 @@
 import CoreGraphics
+import simd
 import XCTest
 import PostureLogic
 @testable import Quant
@@ -231,27 +232,203 @@ final class CalmViewTests: XCTestCase {
         XCTAssertEqual(CalmStatus(glance: .paused, thermalLevel: .critical), .coolingDown)
     }
 
-    /// Brightness says how much it matters: sitting well is the dimmest the column gets, and a
+    /// Brightness says how much it matters: sitting well is the dimmest the figure gets, and a
     /// slouch is brighter the longer it goes on.
-    func test_theColumn_isQuietest_whileSittingWell() {
-        let good = PostureColumn.intensity(of: .good)
-        let slouching = PostureColumn.intensity(of: .drifting)
-        let still = PostureColumn.intensity(of: .bad)
+    func test_theFigure_isQuietest_whileSittingWell() {
+        let good = CalmPalette.intensity(of: .good)
+        let slouching = CalmPalette.intensity(of: .drifting)
+        let still = CalmPalette.intensity(of: .bad)
         XCTAssertLessThan(good, 0.6)
         XCTAssertLessThan(good, slouching)
         XCTAssertLessThanOrEqual(slouching, still)
     }
 
-    /// The column takes what the rest leaves: everything fits on an iPhone SE at the usual text
+    /// The figure takes what the rest leaves: everything fits on an iPhone SE at the usual text
     /// size, and it stops growing on the biggest phones.
-    func test_theColumn_fitsTheSE_andStopsGrowing() {
-        let se = CalmLayout.columnHeight(available: 603)        // 667 less the status bar and top line
-        let pro = CalmLayout.columnHeight(available: 734)       // iPhone 17 Pro
-        let proMax = CalmLayout.columnHeight(available: 816)    // iPhone 17 Pro Max
+    func test_theFigure_fitsTheSE_andStopsGrowing() {
+        let se = CalmLayout.heroHeight(available: 603)        // 667 less the status bar and top line
+        let pro = CalmLayout.heroHeight(available: 734)       // iPhone 17 Pro
+        let proMax = CalmLayout.heroHeight(available: 816)    // iPhone 17 Pro Max
         XCTAssertLessThanOrEqual(se + CalmLayout.portraitFixedHeight, 603)
         XCTAssertGreaterThan(pro, se)
-        XCTAssertEqual(proMax, CalmLayout.columnHeight(available: 2000), "stops growing")
-        XCTAssertGreaterThanOrEqual(CalmLayout.columnHeight(available: 300), 100, "never vanishes")
+        XCTAssertEqual(proMax, CalmLayout.heroHeight(available: 2000), "stops growing")
+        XCTAssertGreaterThanOrEqual(CalmLayout.heroHeight(available: 300), 100, "never vanishes")
+    }
+
+    // MARK: - The figure
+
+    private func metrics(creep: Float = 0, headDrop: Float = 0, sink: Float = 0,
+                         sideLean: Float = 0) -> RawMetrics {
+        RawMetrics(timestamp: 0, forwardCreep: creep, headDrop: headDrop, shoulderRounding: 0,
+                   lateralLean: abs(sideLean), twist: 0, movementLevel: 0, headMovementPattern: .still,
+                   lateralLeanSigned: sideLean, shoulderSink: sink)
+    }
+
+    private let thresholds = PostureThresholds()
+    private var slouching: CalmLook { .slouching(since: nil, sustained: false, nudgeAt: nil) }
+
+    /// Sitting well, the figure stands in its calibrated outline and doesn't move: the metrics'
+    /// small wanderings below the lines aren't drawn, so the screen stays still.
+    func test_sittingWell_standsInTheOutline() {
+        let pose = CalmFigurePose(look: .sittingWell, metrics: metrics(creep: 0.04, headDrop: -0.01, sink: 0.03),
+                                  thresholds: thresholds, headTurnDegrees: 10)
+        XCTAssertEqual(pose, .neutral)
+    }
+
+    /// At a line, each signal shows clearly: about two thirds of its full change.
+    func test_atEachLine_theFigureShowsIt() {
+        let t = thresholds
+        let pose = CalmFigurePose(look: slouching,
+                                  metrics: metrics(creep: t.forwardCreepThreshold, headDrop: -t.headDropThreshold,
+                                                   sink: t.shoulderSinkThreshold, sideLean: t.sideLeanThreshold),
+                                  thresholds: t, headTurnDegrees: nil)
+        for (name, value) in [("lean", pose.lean), ("drop", pose.drop), ("sink", pose.sink), ("tilt", pose.tilt)] {
+            XCTAssertEqual(value, 0.65, accuracy: 0.001, name)
+        }
+        XCTAssertEqual(pose.turn, 0)
+    }
+
+    /// Far past a line it stops growing: the figure never turns grotesque.
+    func test_farPastALine_theFigureStopsGrowing() {
+        let pose = CalmFigurePose(look: slouching, metrics: metrics(creep: 0.5, headDrop: -0.3, sink: 0.4),
+                                  thresholds: thresholds, headTurnDegrees: nil)
+        XCTAssertEqual(pose.lean, 1)
+        XCTAssertEqual(pose.drop, 1)
+        XCTAssertEqual(pose.sink, 1)
+    }
+
+    /// Leaning back draws smaller, measured against the recline line.
+    func test_leaningBack_drawsSmaller() {
+        let pose = CalmFigurePose(look: slouching, metrics: metrics(creep: thresholds.reclineMaxForwardCreep),
+                                  thresholds: thresholds, headTurnDegrees: nil)
+        XCTAssertEqual(pose.lean, -0.65, accuracy: 0.001)
+    }
+
+    /// As in a mirror: a lean to your right, and a head turned to your right, show on the right.
+    func test_sideways_readsAsInAMirror() {
+        let right = CalmFigurePose(look: slouching, metrics: metrics(sideLean: 0.08),
+                                   thresholds: thresholds, headTurnDegrees: nil)
+        let left = CalmFigurePose(look: slouching, metrics: metrics(sideLean: -0.08),
+                                  thresholds: thresholds, headTurnDegrees: nil)
+        XCTAssertGreaterThan(right.tilt, 0)
+        XCTAssertLessThan(left.tilt, 0)
+        let turned = CalmFigurePose(look: .headTurned(since: now, nudgeAt: nil), metrics: metrics(),
+                                    thresholds: thresholds, headTurnDegrees: 45)
+        XCTAssertEqual(turned.turn, 0.65, accuracy: 0.001)
+        XCTAssertEqual(CalmFigurePose(look: .headTurned(since: now, nudgeAt: nil), metrics: metrics(),
+                                      thresholds: thresholds, headTurnDegrees: -45).turn, -0.65, accuracy: 0.001)
+    }
+
+    /// A head turn while sitting well turns only the head.
+    func test_aHeadTurn_turnsOnlyTheHead() {
+        let pose = CalmFigurePose(look: .headTurned(since: now, nudgeAt: nil),
+                                  metrics: metrics(creep: 0.2, headDrop: -0.1),
+                                  thresholds: thresholds, headTurnDegrees: 45)
+        XCTAssertEqual(pose.lean, 0)
+        XCTAssertEqual(pose.drop, 0)
+        XCTAssertNotEqual(pose.turn, 0)
+    }
+
+    /// With no posture to show, the outline stands empty.
+    func test_withNoPosture_theOutlineStandsEmpty() {
+        for look in [CalmLook.away, .cameraPaused, .startingCamera, .coolingDown, .calibrating] {
+            XCTAssertEqual(CalmFigurePose(look: look, metrics: metrics(creep: 0.2), thresholds: thresholds,
+                                          headTurnDegrees: 40), .neutral, "\(look)")
+        }
+    }
+
+    /// In steps of 0.05, so a frame's jitter doesn't redraw the screen ten times a second.
+    func test_thePose_movesInSteps() {
+        let a = CalmFigurePose(look: slouching, metrics: metrics(creep: 0.0601), thresholds: thresholds,
+                               headTurnDegrees: nil)
+        let b = CalmFigurePose(look: slouching, metrics: metrics(creep: 0.0606), thresholds: thresholds,
+                               headTurnDegrees: nil)
+        XCTAssertEqual(a, b)
+        XCTAssertEqual((a.lean * 20).rounded(), a.lean * 20)
+    }
+
+    /// The outline's neck is your own, as calibration measured it, within reason.
+    func test_theOutline_hasYourNeck() {
+        XCTAssertEqual(CalmFigurePose.neckLength(baselineNeckHeight: -0.3), 1, accuracy: 0.001)
+        XCTAssertEqual(CalmFigurePose.neckLength(baselineNeckHeight: -0.36), 1.2, accuracy: 0.001)
+        XCTAssertEqual(CalmFigurePose.neckLength(baselineNeckHeight: nil), 1)
+        XCTAssertEqual(CalmFigurePose.neckLength(baselineNeckHeight: -2), CalmFigurePose.neckLength(baselineNeckHeight: -0.5))
+        XCTAssertEqual(CalmFigurePose.neckLength(baselineNeckHeight: 0), CalmFigurePose.neckLength(baselineNeckHeight: -0.15))
+    }
+
+    // MARK: - Your model
+
+    /// Sitting well, your model stands as you made it.
+    func test_theModel_atRest_isAsMade() {
+        let m = CalmModelPose(.neutral)
+        XCTAssertEqual(m.torso.angle, 0, accuracy: 1e-6)
+        XCTAssertEqual(m.head.angle, 0, accuracy: 1e-6)
+        XCTAssertEqual(m.scale, 1)
+        XCTAssertEqual(m.headLowered, 0)
+        XCTAssertEqual(m.sunk, 0)
+    }
+
+    /// The model's own frame is Z-up, its front at −Y: a nod and leaning in are about +X, a side
+    /// lean about +Y, a turn about +Z (checked in renders, 2026-10-22).
+    func test_eachPart_movesTheModelItsOwnWay() {
+        var pose = CalmFigurePose()
+        pose.drop = 1
+        let dropped = CalmModelPose(pose)
+        XCTAssertGreaterThan(dropped.head.angle, 0)
+        XCTAssertEqual(dropped.head.axis.x, 1, accuracy: 1e-5, "a nod")
+        XCTAssertGreaterThan(dropped.headLowered, 0, "into the shoulders")
+
+        pose = CalmFigurePose(); pose.lean = 1
+        let leaning = CalmModelPose(pose)
+        XCTAssertEqual(leaning.torso.axis.x, 1, accuracy: 1e-5)
+        XCTAssertGreaterThan(leaning.torso.angle, 0, "towards the camera")
+        XCTAssertGreaterThan(leaning.scale, 1)
+        XCTAssertLessThan(leaning.torso.act(SIMD3<Float>(0, 0, 1)).y, 0, "top tipped to the front, −Y")
+
+        pose = CalmFigurePose(); pose.lean = -1
+        let back = CalmModelPose(pose)
+        XCTAssertLessThan(back.scale, 1)
+        XCTAssertGreaterThan(back.torso.act(SIMD3<Float>(0, 0, 1)).y, 0, "top tipped back, away from the camera")
+
+        pose = CalmFigurePose(); pose.tilt = 1
+        XCTAssertGreaterThan(CalmModelPose(pose).torso.act(SIMD3<Float>(0, 0, 1)).x, 0, "top to the right")
+        pose.tilt = -1
+        XCTAssertLessThan(CalmModelPose(pose).torso.act(SIMD3<Float>(0, 0, 1)).x, 0)
+
+        pose = CalmFigurePose(); pose.turn = 1
+        XCTAssertGreaterThan(CalmModelPose(pose).head.act(SIMD3<Float>(0, -1, 0)).x, 0, "face to the right")
+
+        pose = CalmFigurePose(); pose.sink = 1
+        XCTAssertGreaterThan(CalmModelPose(pose).sunk, 0)
+    }
+
+    /// The model renders offscreen, on its own: your figure in the middle, nothing round it.
+    func test_theModel_renders() async throws {
+        let renderer = try await XCTUnwrapAsync(await CalmModelRenderer.make())
+        let image = try await XCTUnwrapAsync(await renderer.render(.neutral, colour: .green))
+        let pixels = try AlphaMap(image)
+        XCTAssertGreaterThan(pixels.alpha(x: 0.5, y: 0.6), 0.9, "the figure")
+        XCTAssertEqual(pixels.alpha(x: 0.02, y: 0.02), 0, "nothing round it")
+    }
+
+    /// A head drop lowers the top of the figure; leaning in widens it.
+    func test_theRenderedModel_movesAsYouDo() async throws {
+        let renderer = try await XCTUnwrapAsync(await CalmModelRenderer.make())
+        let rest = try AlphaMap(try await XCTUnwrapAsync(await renderer.render(.neutral, colour: .green)))
+        var pose = CalmFigurePose(); pose.drop = 1
+        let dropped = try AlphaMap(try await XCTUnwrapAsync(await renderer.render(pose, colour: .green)))
+        XCTAssertGreaterThan(dropped.topRow, rest.topRow + 5)
+        pose = CalmFigurePose(); pose.lean = 1
+        let leaning = try AlphaMap(try await XCTUnwrapAsync(await renderer.render(pose, colour: .green)))
+        XCTAssertGreaterThan(leaning.width(atY: 0.7), rest.width(atY: 0.7) + 5)
+    }
+
+    /// The outline of how you sat: a ring, empty inside.
+    func test_theOutline_isARing() async throws {
+        let renderer = try await XCTUnwrapAsync(await CalmModelRenderer.make())
+        let outline = try AlphaMap(try await XCTUnwrapAsync(await renderer.outline()))
+        XCTAssertEqual(outline.alpha(x: 0.5, y: 0.7), 0, accuracy: 0.05, "empty inside")
+        XCTAssertGreaterThan(outline.opaqueCount, 100, "but there")
     }
 
     // MARK: - Today
@@ -310,3 +487,43 @@ final class CalmViewTests: XCTestCase {
                        CalmLayout.burnInShift(minute: CalmLayout.burnInSteps - 1))
     }
 }
+
+/// Unwraps an optional from an async call, failing the test when it's nil.
+private func XCTUnwrapAsync<T>(_ value: T?, file: StaticString = #filePath, line: UInt = #line) async throws -> T {
+    try XCTUnwrap(value, file: file, line: line)
+}
+
+/// A rendered image's alpha, to test where the figure is.
+private struct AlphaMap {
+    let width: Int, height: Int
+    private let alphas: [UInt8]
+
+    init(_ image: CGImage) throws {
+        width = image.width; height = image.height
+        var data = [UInt8](repeating: 0, count: width * height * 4)
+        let context = try XCTUnwrap(CGContext(data: &data, width: width, height: height, bitsPerComponent: 8,
+                                              bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        alphas = stride(from: 3, to: data.count, by: 4).map { data[$0] }
+    }
+
+    /// 0…1, at a point given as fractions of the width and height from the top left.
+    func alpha(x: Double, y: Double) -> Double {
+        let col = min(width - 1, Int(x * Double(width))), row = min(height - 1, Int(y * Double(height)))
+        return Double(alphas[row * width + col]) / 255
+    }
+
+    /// The first row from the top with anything drawn.
+    var topRow: Int {
+        (0..<height).first { row in (0..<width).contains { alphas[row * width + $0] > 128 } } ?? height
+    }
+
+    func width(atY y: Double) -> Int {
+        let row = min(height - 1, Int(y * Double(height)))
+        return (0..<width).filter { alphas[row * width + $0] > 128 }.count
+    }
+
+    var opaqueCount: Int { alphas.filter { $0 > 128 }.count }
+}
+

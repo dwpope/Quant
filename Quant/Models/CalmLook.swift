@@ -156,14 +156,14 @@ enum CalmStatus: Equatable {
 
 /// Layout rules for the calm view, kept out of the view so they can be tested.
 enum CalmLayout {
-    /// Everything in the portrait view but the column, at the usual text size: the word and its
+    /// Everything in the portrait view but the figure, at the usual text size: the word and its
     /// two lines, today, the sips and the controls, with their gaps.
     static let portraitFixedHeight: CGFloat = 480
 
-    /// How tall the column stands, in portrait, given the height below the top line. It takes
+    /// How tall the figure stands, in portrait, given the height below the top line. It takes
     /// most of what the rest leaves, so an iPhone SE needn't scroll, and stops at 240 pt. Larger
     /// text sizes scroll instead.
-    static func columnHeight(available: CGFloat) -> CGFloat {
+    static func heroHeight(available: CGFloat) -> CGFloat {
         min(240, max(110, (available - portraitFixedHeight) * 0.85))
     }
 

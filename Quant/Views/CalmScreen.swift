@@ -5,10 +5,10 @@ import SwiftUI
 ///
 /// The phone stands below your screen, 50–80 cm away, on for hours, in the corner of your eye;
 /// the Watch does the nudging. So the view answers four things at a glance and is otherwise
-/// still: how you're sitting (a word, and a column as tall as you sit), whether the camera is
-/// watching, how long until a nudge, and how today has gone. Always dark: OLED black is off,
-/// which saves power and heat, and keeps glare out of the corner of your eye. Design notes in
-/// docs/superpowers/specs/2026-10-20-calm-view-design.md.
+/// still: how you're sitting (a word, and a figure of you as the camera sees you), whether the
+/// camera is watching, how long until a nudge, and how today has gone. Always dark: OLED black
+/// is off, which saves power and heat, and keeps glare out of the corner of your eye. Design
+/// notes in docs/superpowers/specs/2026-10-20-calm-view-design.md.
 struct CalmScreen: View {
     @ObservedObject var appModel: AppModel
     let onSettings: () -> Void
@@ -35,13 +35,18 @@ struct CalmScreen: View {
         // glance itself is the app model's, steadied and taken each second.
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let glance = appModel.calmGlance
+            let look = CalmLook(glance: glance, thermalLevel: appModel.thermalLevel,
+                                cameraStarted: appModel.cameraStarted)
             switch phase {
             case .monitoring:
                 // Equatable, so the AppModel's ten updates a second redraw it only when what it
                 // shows has changed.
                 CalmScreenContent(
-                    look: CalmLook(glance: glance, thermalLevel: appModel.thermalLevel,
-                                   cameraStarted: appModel.cameraStarted),
+                    look: look,
+                    pose: CalmFigurePose(look: look, metrics: appModel.latestMetrics,
+                                         thresholds: appModel.postureThresholds,
+                                         headTurnDegrees: headTurnDegrees),
+                    neckLength: CalmFigurePose.neckLength(baselineNeckHeight: appModel.baseline?.neckHeight),
                     status: CalmStatus(glance: glance, thermalLevel: appModel.thermalLevel,
                                        tracking: appModel.trackingQuality,
                                        cameraStarted: appModel.cameraStarted),
@@ -90,6 +95,11 @@ struct CalmScreen: View {
         .sheet(isPresented: $showSips) {
             SipTimelineView(appModel: appModel, sipStore: appModel.sipStore)
         }
+    }
+
+    /// The head's yaw from where it was at calibration, + towards your right.
+    private var headTurnDegrees: Float? {
+        appModel.latestSample.map { $0.headYaw - (appModel.baseline?.headYaw ?? 0) }
     }
 
     private var actions: CalmActions {
@@ -220,7 +230,7 @@ extension CalmStatus {
     }
 }
 
-/// The camera's view, framed: in the column's place when the Camera control is on, and above
+/// The camera's view, framed: in the figure's place when the Camera control is on, and above
 /// the calibration screen.
 struct CalmMirror<Preview: View>: View {
     var cornerRadius: CGFloat = 30
@@ -241,6 +251,8 @@ struct CalmMirror<Preview: View>: View {
 /// The calm view itself, from plain values, so it can be drawn without a camera.
 struct CalmScreenContent<Mirror: View>: View {
     let look: CalmLook
+    var pose: CalmFigurePose = .neutral
+    var neckLength: Double = 1
     let status: CalmStatus
     let silencedUntil: Date?
     let timeline: PostureTimeline?
@@ -285,7 +297,7 @@ struct CalmScreenContent<Mirror: View>: View {
     private func portrait(height: CGFloat) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: 12)
-            hero(columnHeight: CalmLayout.columnHeight(available: height))
+            hero(height: CalmLayout.heroHeight(available: height))
             Spacer(minLength: 20)
             VStack(spacing: 10) {
                 todayCard
@@ -300,7 +312,7 @@ struct CalmScreenContent<Mirror: View>: View {
 
     private func landscape(height: CGFloat) -> some View {
         HStack(alignment: .center, spacing: 32) {
-            hero(columnHeight: min(220, max(120, height * 0.5)))
+            hero(height: min(220, max(120, height * 0.5)))
                 .frame(maxWidth: .infinity)
             VStack(spacing: 10) {
                 todayCard
@@ -314,9 +326,9 @@ struct CalmScreenContent<Mirror: View>: View {
         .padding(.vertical, 12)
     }
 
-    private func hero(columnHeight: CGFloat) -> some View {
-        CalmHero(look: look, silencedUntil: silencedUntil, showsCamera: showsCamera,
-                 holdsPosture: status.holdsPosture, columnHeight: columnHeight, now: now,
+    private func hero(height: CGFloat) -> some View {
+        CalmHero(look: look, pose: pose, neckLength: neckLength, silencedUntil: silencedUntil,
+                 showsCamera: showsCamera, holdsPosture: status.holdsPosture, height: height, now: now,
                  mirror: mirror)
             // From outside, so the hero's scaled sizes are read under the cap.
             .dynamicTypeSize(...DynamicTypeSize.accessibility2)
@@ -352,8 +364,8 @@ struct CalmScreenContent<Mirror: View>: View {
     @ViewBuilder
     private var todayBody: some View {
         if let timeline, !timeline.segments.isEmpty {
-            // Dimmed as the column is, so the slouches stand out on a quiet green.
-            PostureTimelineChart(timeline: timeline, brightness: PostureColumn.intensity(of:))
+            // Dimmed as the figure is, so the slouches stand out on a quiet green.
+            PostureTimelineChart(timeline: timeline, brightness: CalmPalette.intensity(of:))
                 .frame(height: 32)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             todayStats(timeline)
@@ -441,7 +453,7 @@ struct CalmScreenContent<Mirror: View>: View {
 /// left out, as they're the same each time.
 extension CalmScreenContent: Equatable {
     static func == (a: Self, b: Self) -> Bool {
-        a.look == b.look && a.status == b.status && a.silencedUntil == b.silencedUntil
+        a.look == b.look && a.pose == b.pose && a.neckLength == b.neckLength && a.status == b.status && a.silencedUntil == b.silencedUntil
             && a.timeline == b.timeline && a.sipCount == b.sipCount
             && a.lastSipTimestamp == b.lastSipTimestamp && a.showsCamera == b.showsCamera
             && a.recording == b.recording && a.now == b.now
@@ -450,19 +462,21 @@ extension CalmScreenContent: Equatable {
 
 // MARK: - The hero
 
-/// The column (or the camera's view) and the word under it, with what's being counted.
+/// The figure (or the camera's view) and the word under it, with what's being counted.
 struct CalmHero<Mirror: View>: View {
     let look: CalmLook
+    let pose: CalmFigurePose
+    let neckLength: Double
     let silencedUntil: Date?
     let showsCamera: Bool
     /// The camera can't see you clearly: the posture shown is the last one judged.
     let holdsPosture: Bool
-    let columnHeight: CGFloat
+    let height: CGFloat
     let now: Date
     @ViewBuilder let mirror: () -> Mirror
 
     @ScaledMetric(relativeTo: .largeTitle) private var headlineSize: CGFloat = 44
-    /// Room for the two lines under the word, kept whether they show or not, so the column and
+    /// Room for the two lines under the word, kept whether they show or not, so the figure and
     /// the word don't jump each time a slouch starts or ends.
     @ScaledMetric(relativeTo: .title3) private var detailsHeight: CGFloat = 60
 
@@ -471,11 +485,12 @@ struct CalmHero<Mirror: View>: View {
             Group {
                 if showsCamera {
                     CalmMirror(preview: mirror)
-                        .frame(width: columnHeight * 0.75, height: columnHeight)
+                        .frame(width: height * 0.75, height: height)
                         .transition(.opacity)
                 } else {
-                    PostureColumn(band: look.band, symbol: look.columnSymbol)
-                        .frame(width: columnHeight * 0.36, height: columnHeight)
+                    CalmModelFigure(band: look.band, pose: pose, neckLength: neckLength,
+                                    symbol: look.figureSymbol)
+                        .frame(width: height * 0.82, height: height)
                         .transition(.opacity)
                 }
             }
@@ -546,66 +561,155 @@ struct CalmHero<Mirror: View>: View {
     }
 }
 
-// MARK: - The column
+// MARK: - The figure
 
-/// Your posture as a column: full when you sit well, lower while you slouch, a sliver away.
-/// The timeline's band, live and large.
+/// You, as the phone sees you: head, neck and shoulders from the front, standing in a faint
+/// outline of how you sat at calibration. Sitting well, you fill the outline; slouching, you
+/// leave it, the way you moved: bigger leaning in, a shorter neck with the head dropped, lower
+/// sunk in the chair, tilted leaning sideways. Morphs between poses, slowly.
 ///
-/// Brightness says how much it matters: sitting well is a dim green, the quietest the screen
-/// gets, and a slouch lights up in yellow, then red. The eye's edge notices a change in
-/// brightness before a change in colour, so a slouch is seen without looking, and sitting well
-/// isn't a lit panel in the corner of your eye for hours. Eases between heights, slowly.
-struct PostureColumn: View {
+/// Brightness says how much it matters (`CalmPalette`): a dim green sitting well, the quietest
+/// the screen gets, and a bright yellow, then red, with a glow, while slouching.
+struct PostureFigure: View {
     let band: PostureTimeline.Band?
+    let pose: CalmFigurePose
+    /// The outline's neck, from calibration (`CalmFigurePose.neckLength`).
+    var neckLength: Double = 1
     var symbol: String?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// How bright the fill is, of the band's own colour.
-    static func intensity(of band: PostureTimeline.Band) -> Double {
-        switch band {
-        case .good: return 0.45
-        case .drifting: return 0.95
-        case .bad: return 1
-        case .away: return 0.8
-        }
-    }
-
     var body: some View {
-        GeometryReader { geo in
-            // A capsule as tall as the band: a pill standing, a round one sunk, a flat one away.
-            let fillHeight = band.map { geo.size.height * CGFloat($0.height) } ?? 0
-            ZStack(alignment: .bottom) {
-                Capsule(style: .continuous)
-                    .fill(.white.opacity(0.07))
-                if let band {
-                    let colour = band.color.opacity(Self.intensity(of: band))
-                    // On black first, so the dimmed fill doesn't show the track through it.
-                    Capsule(style: .continuous)
-                        .fill(.black)
-                        .overlay(Capsule(style: .continuous)
-                            .fill(LinearGradient(colors: [colour, colour.opacity(0.75)],
-                                                 startPoint: .top, endPoint: .bottom)))
-                        .frame(height: fillHeight)
-                        .shadow(color: band == .drifting || band == .bad ? band.color.opacity(0.4) : .clear,
-                                radius: 30)
-                }
-                if let symbol {
-                    Image(systemName: symbol)
-                        .font(.system(size: geo.size.width * 0.32, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.4))
-                        .frame(maxHeight: .infinity)
+        ZStack {
+            // Away there's no one to draw: the outline stands empty.
+            if let band, band != .away {
+                let colour = band.color.opacity(CalmPalette.intensity(of: band))
+                let slouched = band == .drifting || band == .bad
+                // On black first, so the dimmed fill doesn't show the outline through it.
+                FigureShape(pose: pose, neckLength: neckLength)
+                    .fill(.black)
+                    .overlay(FigureShape(pose: pose, neckLength: neckLength)
+                        .fill(LinearGradient(colors: [colour, colour.opacity(0.75)],
+                                             startPoint: .top, endPoint: .bottom)))
+                    .shadow(color: slouched ? band.color.opacity(0.4) : .clear, radius: 30)
+                if pose.turn != 0 {
+                    FigureFaceLine(pose: pose, neckLength: neckLength)
+                        .stroke(.black.opacity(0.4), style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 }
             }
-            .animation(reduceMotion ? nil : .smooth(duration: 0.8), value: band)
+            // How you sat at calibration: the line to come back to.
+            FigureShape(pose: .neutral, neckLength: neckLength)
+                .stroke(.white.opacity(band == nil || band == .away ? 0.28 : 0.22),
+                        style: StrokeStyle(lineWidth: 1.5, dash: band == nil || band == .away ? [5, 5] : []))
+            if let symbol {
+                GeometryReader { geo in
+                    Image(systemName: symbol)
+                        .font(.system(size: geo.size.width * 0.16, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .position(x: geo.size.width / 2, y: geo.size.height * 0.8)
+                }
+            }
         }
+        // Cut flat along the bottom, like a bust, so sinking goes down out of the frame rather
+        // than onto the words below; open above and to the sides for leaning in and the glow.
+        .mask(Rectangle().padding(.top, -400).padding(.horizontal, -400))
+        .animation(reduceMotion ? nil : .smooth(duration: 0.8), value: pose)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.8), value: band)
         .accessibilityHidden(true)
     }
 }
 
+/// Where the figure's parts sit in its box, posed. Shared by the outline and the face's line.
+private struct FigureGeometry {
+    let head: CGRect
+    let neck: CGRect
+    let torso: CGRect
+    /// Sink, lean (scale) and tilt, about the bottom centre: the chair.
+    let transform: CGAffineTransform
+
+    init(rect: CGRect, pose: CalmFigurePose, neckLength: Double) {
+        let w = rect.width, h = rect.height
+        let shoulderY = rect.minY + h * 0.6
+        // Runs on below the frame, which cuts it, so a tilt or a sink never shows its end.
+        torso = CGRect(x: rect.midX - w * 0.44, y: shoulderY, width: w * 0.88, height: h * 0.8)
+        // The ears' height above the shoulders: yours from calibration, shorter with the head
+        // dropped, until it sinks into the shoulders.
+        let earLift = w * 0.3 * neckLength * (1 - 0.5 * pose.drop)
+        let headW = w * 0.38 * (1 - 0.12 * abs(pose.turn)), headH = w * 0.46
+        let headCentre = CGPoint(x: rect.midX + w * 0.04 * pose.turn, y: shoulderY - earLift)
+        head = CGRect(x: headCentre.x - headW / 2, y: headCentre.y - headH / 2, width: headW, height: headH)
+        let neckW = w * 0.2
+        neck = CGRect(x: rect.midX - neckW / 2, y: headCentre.y, width: neckW,
+                      height: max(0, shoulderY + h * 0.04 - headCentre.y))
+
+        // Bigger leaning in, about the bottom edge; tilted about the hips, below the frame, so
+        // the shoulders swing and the cut edge stays flat; lower when sunk.
+        let scale = pose.lean >= 0 ? 1 + 0.18 * pose.lean : 1 + 0.14 * pose.lean
+        let bottom = CGPoint(x: rect.midX, y: rect.maxY)
+        let hips = CGPoint(x: rect.midX, y: rect.maxY + h * 0.35)
+        let lean = CGAffineTransform(translationX: bottom.x, y: bottom.y)
+            .scaledBy(x: scale, y: scale)
+            .translatedBy(x: -bottom.x, y: -bottom.y)
+        let tilt = CGAffineTransform(translationX: hips.x, y: hips.y)
+            .rotated(by: pose.tilt * 9 * .pi / 180)
+            .translatedBy(x: -hips.x, y: -hips.y)
+        transform = lean.concatenating(tilt)
+            .concatenating(CGAffineTransform(translationX: 0, y: h * 0.16 * pose.sink))
+    }
+}
+
+/// Head, neck and shoulders as one outline, posed.
+struct FigureShape: Shape {
+    var pose: CalmFigurePose
+    var neckLength: Double
+
+    var animatableData: AnimatablePair<AnimatablePair<Double, Double>,
+                                       AnimatablePair<AnimatablePair<Double, Double>, Double>> {
+        get { .init(.init(pose.lean, pose.drop), .init(.init(pose.sink, pose.tilt), pose.turn)) }
+        set {
+            pose.lean = newValue.first.first
+            pose.drop = newValue.first.second
+            pose.sink = newValue.second.first.first
+            pose.tilt = newValue.second.first.second
+            pose.turn = newValue.second.second
+        }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let g = FigureGeometry(rect: rect, pose: pose, neckLength: neckLength)
+        let shoulders = UnevenRoundedRectangle(topLeadingRadius: rect.width * 0.3,
+                                               topTrailingRadius: rect.width * 0.3,
+                                               style: .continuous).path(in: g.torso)
+        let neck = RoundedRectangle(cornerRadius: g.neck.width * 0.3, style: .continuous).path(in: g.neck)
+        return shoulders.union(neck).union(Path(ellipseIn: g.head)).applying(g.transform)
+    }
+}
+
+/// The line down the middle of the face, which shows which way a turned head faces.
+struct FigureFaceLine: Shape {
+    var pose: CalmFigurePose
+    var neckLength: Double
+
+    var animatableData: Double {
+        get { pose.turn }
+        set { pose.turn = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let head = FigureGeometry(rect: rect, pose: pose, neckLength: neckLength)
+        let h = head.head
+        let x = h.midX + h.width * 0.36 * pose.turn
+        var path = Path()
+        path.move(to: CGPoint(x: h.midX + h.width * 0.12 * pose.turn, y: h.minY + h.height * 0.32))
+        path.addQuadCurve(to: CGPoint(x: h.midX + h.width * 0.12 * pose.turn, y: h.maxY - h.height * 0.12),
+                          control: CGPoint(x: x + h.width * 0.1 * pose.turn, y: h.midY + h.height * 0.1))
+        return path.applying(head.transform)
+    }
+}
+
 extension CalmLook {
-    /// Drawn in the empty column when there's no posture to stand at.
-    var columnSymbol: String? {
+    /// Drawn in the empty outline when there's no posture to show.
+    var figureSymbol: String? {
         switch self {
         case .away: return "person.slash"
         case .calibrating: return "scope"
