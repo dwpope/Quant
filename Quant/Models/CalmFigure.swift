@@ -121,7 +121,7 @@ struct CalmModelPose {
 }
 
 /// The calm view's colours.
-enum CalmPalette {
+nonisolated enum CalmPalette {
     /// How bright a posture is drawn, of its own colour. Brightness says how much it matters:
     /// sitting well is the quietest the screen gets, a slouch lights up. The edge of the eye
     /// notices a change in brightness before a change in colour, so a slouch is seen without
