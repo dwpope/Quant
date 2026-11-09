@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import SwiftUI
 import UserNotifications
 @testable import QuantWatch_Watch_App
 
@@ -86,5 +87,70 @@ struct ArrivalReportRouteTests {
     @Test func aNudgeThatCameStraight_isReportedStraight_whenThePhoneCanTakeIt() {
         #expect(NudgeMessage.reportsArrivalStraightAway(nudgeWasQueued: false, phoneReachable: true))
         #expect(!NudgeMessage.reportsArrivalStraightAway(nudgeWasQueued: false, phoneReachable: false))
+    }
+}
+
+/// Where the banner goes (2026-11-09): with the app minimised Dave heard a tone and felt a buzz
+/// but saw no notification. The tone and buzz may be the app's own taps, played from its wrist
+/// session, not the notification. Each nudge now reports the app's state when it arrived, and
+/// what became of its notification. Golden copies of the phone's `NudgeBannerTests`.
+struct NudgeBannerReportTests {
+
+    @Test func theArrival_saysWhetherTheAppWasInFront() {
+        let report = NudgeMessage.arrivalReport(
+            sentAt: Date(timeIntervalSince1970: 1_791_640_000),
+            arrivedAt: Date(timeIntervalSince1970: 1_791_640_000.2),
+            via: "queued", wristSession: true, appState: "background")
+        #expect(report as NSDictionary == [
+            "type": "nudgeArrived", "sentAt": 1_791_640_000.0, "arrivedAt": 1_791_640_000.2,
+            "via": "queued", "wristSession": true, "appState": "background",
+        ] as NSDictionary)
+    }
+
+    @Test func theAppsState_isNamed() {
+        #expect(NudgeMessage.appState(.active) == "active")
+        #expect(NudgeMessage.appState(.inactive) == "inactive")
+        #expect(NudgeMessage.appState(.background) == "background")
+    }
+
+    @Test func theBanner_saysWhetherItWasPosted_andHowNotificationsAreSet() {
+        let report = NudgeMessage.bannerReport(
+            sentAt: Date(timeIntervalSince1970: 1_791_640_000), posted: true, error: nil,
+            authorization: .authorized, alert: .enabled, notificationCenter: .enabled)
+        #expect(report as NSDictionary == [
+            "type": "nudgeBanner", "sentAt": 1_791_640_000.0, "posted": true,
+            "authorization": "authorized", "alert": "enabled", "notificationCenter": "enabled",
+        ] as NSDictionary)
+    }
+
+    @Test func aFailedPost_carriesItsError() {
+        let report = NudgeMessage.bannerReport(
+            sentAt: Date(timeIntervalSince1970: 1_791_640_000), posted: false, error: "not allowed",
+            authorization: .denied, alert: .disabled, notificationCenter: .disabled)
+        #expect(report["posted"] as? Bool == false)
+        #expect(report["error"] as? String == "not allowed")
+        #expect(report["authorization"] as? String == "denied")
+        #expect(report["alert"] as? String == "disabled")
+        #expect(report["notificationCenter"] as? String == "disabled")
+    }
+
+    @Test func everySetting_hasAName() {
+        #expect(NudgeMessage.name(UNAuthorizationStatus.notDetermined) == "notDetermined")
+        #expect(NudgeMessage.name(UNAuthorizationStatus.provisional) == "provisional")
+        #expect(NudgeMessage.name(UNNotificationSetting.notSupported) == "notSupported")
+    }
+}
+
+/// The app's state, kept where WatchConnectivity's queue can read it as a nudge arrives
+/// (2026-11-09).
+struct AppStateTrackingTests {
+
+    @Test func theState_followsTheScenePhase_andStartsInTheBackground() {
+        let delegate = WatchSessionDelegate(activatesSession: false)
+        #expect(delegate.appState == "background", "a background launch, before any scene")
+        delegate.appPhaseChanged(.active)
+        #expect(delegate.appState == "active")
+        delegate.appPhaseChanged(.background)
+        #expect(delegate.appState == "background")
     }
 }

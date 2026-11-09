@@ -24,6 +24,8 @@ struct QuantWatch_Watch_AppApp: App {
         // Opening the app keeps it running for the next hour, so nudges arrive on time
         // (2026-10-10). watchOS only starts that for an app that's open.
         .onChange(of: scenePhase, initial: true) { _, phase in
+            // Each nudge's report says whether the app was in front (2026-11-09).
+            sessionDelegate.appPhaseChanged(phase)
             if phase == .active { WristNudgeSession.shared.appBecameActive() }
         }
         // A nudge queued while the app was closed wakes it: the nudge is posted as a

@@ -30,6 +30,14 @@ nonisolated struct PostureLogEvent: Codable, Equatable {
     var delay: TimeInterval? = nil
     var via: String? = nil
     var wristSession: Bool? = nil
+    /// Where the Watch's banner went (2026-11-09): the app's state as the nudge arrived, then,
+    /// on a "banner" line, whether its notification was posted and how notifications are set.
+    var appState: String? = nil
+    var posted: Bool? = nil
+    var error: String? = nil
+    var authorization: String? = nil
+    var alert: String? = nil
+    var notificationCenter: String? = nil
 }
 
 /// Decides what's worth a line: changes, and a tick a minute while nothing changes. The
@@ -109,7 +117,16 @@ struct PostureLogRecorder {
     static func arrivalEvent(_ arrival: NudgeArrival) -> PostureLogEvent {
         PostureLogEvent(t: arrival.arrivedAt.timeIntervalSince1970, kind: "watch", value: "arrived",
                         delay: arrival.arrivedAt.timeIntervalSince(arrival.sentAt), via: arrival.via,
-                        wristSession: arrival.wristSession)
+                        wristSession: arrival.wristSession, appState: arrival.appState)
+    }
+
+    /// What became of a nudge's notification on the Watch (2026-11-09), at the nudge's sending
+    /// time, beside its "sent" or "queued" line.
+    static func bannerEvent(_ banner: NudgeBanner) -> PostureLogEvent {
+        PostureLogEvent(t: banner.sentAt.timeIntervalSince1970, kind: "watch", value: "banner",
+                        posted: banner.posted, error: banner.error,
+                        authorization: banner.authorization, alert: banner.alert,
+                        notificationCenter: banner.notificationCenter)
     }
 
     static func name(of state: PostureState) -> String {

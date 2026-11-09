@@ -761,6 +761,13 @@ class AppModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // And what became of each nudge's notification there (2026-11-09).
+        watchService.nudgeBannerReported
+            .sink { [weak self] banner in
+                self?.postureLogStore.append([PostureLogRecorder.bannerEvent(banner)])
+            }
+            .store(in: &cancellables)
+
         // Silencing nudges from the Watch, and telling it when a silence ends.
         watchService.silenceRequested
             .sink { [weak self] minutes in self?.handleSilenceRequest(minutes: minutes) }

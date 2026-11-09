@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 import UserNotifications
 
 /// The line a nudge shows. The phone sends its reason's coaching line, such as "Turn your chair
@@ -76,10 +77,69 @@ extension NudgeMessage {
         (message["sentAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
     }
 
-    /// `via` is "message" (straight to the running app) or "queued".
+    /// `via` is "message" (straight to the running app) or "queued". `appState` is the app's
+    /// state when it arrived (2026-11-09), from `appState(_:)`.
     static func arrivalReport(sentAt: Date, arrivedAt: Date, via: String,
-                              wristSession: Bool) -> [String: Any] {
-        ["type": "nudgeArrived", "sentAt": sentAt.timeIntervalSince1970,
-         "arrivedAt": arrivedAt.timeIntervalSince1970, "via": via, "wristSession": wristSession]
+                              wristSession: Bool, appState: String? = nil) -> [String: Any] {
+        var report: [String: Any] = [
+            "type": "nudgeArrived", "sentAt": sentAt.timeIntervalSince1970,
+            "arrivedAt": arrivedAt.timeIntervalSince1970, "via": via, "wristSession": wristSession,
+        ]
+        if let appState { report["appState"] = appState }
+        return report
+    }
+}
+
+// MARK: - Where the banner goes (2026-11-09)
+//
+// With the app minimised Dave heard a tone and felt a buzz but saw no notification. The tone and
+// buzz may be the app's own taps, played from its wrist session in the background, and not the
+// notification at all. So each nudge reports whether the app was in front when it arrived, and
+// what became of its notification: posted or not, and how this app's notifications are set.
+
+extension NudgeMessage {
+    /// "active" (in front), "inactive" or "background".
+    static func appState(_ phase: ScenePhase) -> String {
+        switch phase {
+        case .active: return "active"
+        case .inactive: return "inactive"
+        case .background: return "background"
+        @unknown default: return "unknown"
+        }
+    }
+
+    /// What became of a nudge's notification, for the phone's posture log.
+    /// `alert` is whether banners are allowed; `notificationCenter`, whether the notification
+    /// is kept in Notification Center (watchOS has no alert style).
+    static func bannerReport(sentAt: Date, posted: Bool, error: String?,
+                             authorization: UNAuthorizationStatus, alert: UNNotificationSetting,
+                             notificationCenter: UNNotificationSetting) -> [String: Any] {
+        var report: [String: Any] = [
+            "type": "nudgeBanner", "sentAt": sentAt.timeIntervalSince1970, "posted": posted,
+            "authorization": name(authorization), "alert": name(alert),
+            "notificationCenter": name(notificationCenter),
+        ]
+        if let error { report["error"] = error }
+        return report
+    }
+
+    static func name(_ status: UNAuthorizationStatus) -> String {
+        switch status {
+        case .notDetermined: return "notDetermined"
+        case .denied: return "denied"
+        case .authorized: return "authorized"
+        case .provisional: return "provisional"
+        case .ephemeral: return "ephemeral"
+        @unknown default: return "unknown"
+        }
+    }
+
+    static func name(_ setting: UNNotificationSetting) -> String {
+        switch setting {
+        case .notSupported: return "notSupported"
+        case .disabled: return "disabled"
+        case .enabled: return "enabled"
+        @unknown default: return "unknown"
+        }
     }
 }

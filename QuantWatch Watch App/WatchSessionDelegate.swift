@@ -7,6 +7,7 @@
 //  Receives nudge events from the iPhone and plays a haptic tap.
 //
 
+import SwiftUI
 import WatchConnectivity
 import WatchKit
 import UserNotifications
@@ -97,6 +98,27 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
 
     /// Posted notifications not yet added, so a background wake isn't ended before they are.
     private let notificationsBeingAdded = DispatchGroup()
+
+    // MARK: - The app's state (2026-11-09)
+
+    /// Set from the scene phase on the main queue, read as a nudge arrives on WatchConnectivity's
+    /// queue. "background" until a scene says otherwise: a queued nudge can launch the app in the
+    /// background.
+    private let appStateLock = NSLock()
+    private var currentAppState = "background"
+
+    var appState: String {
+        appStateLock.lock()
+        defer { appStateLock.unlock() }
+        return currentAppState
+    }
+
+    func appPhaseChanged(_ phase: ScenePhase) {
+        let name = NudgeMessage.appState(phase)
+        appStateLock.lock()
+        currentAppState = name
+        appStateLock.unlock()
+    }
 
     /// `activatesSession: false` is for tests: no WCSession, no notification delegate.
     init(activatesSession: Bool = true) {
@@ -295,15 +317,18 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     /// suspended again before the main queue runs.
     private func receiveNudge(_ message: [String: Any], via: String) {
         let arrivedAt = Date()
+        let appStateOnArrival = appState
+        let sentAt = NudgeMessage.sentAt(from: message)
         let haptic = parseHapticType(from: message)
         let pattern = NudgeHaptics.pattern(reason: NudgeMessage.reason(from: message),
                                            repeat: NudgeMessage.repeatCount(from: message))
         let body = NudgeMessage.body(from: message)
-        scheduleNudgeNotification(body: body)
-        if let sentAt = NudgeMessage.sentAt(from: message) {
+        scheduleNudgeNotification(body: body, sentAt: sentAt)
+        if let sentAt {
             reportArrival(NudgeMessage.arrivalReport(
                 sentAt: sentAt, arrivedAt: arrivedAt, via: via,
-                wristSession: WristNudgeSession.shared.isOn), queued: via == "queued")
+                wristSession: WristNudgeSession.shared.isOn, appState: appStateOnArrival),
+                          queued: via == "queued")
         }
         DispatchQueue.main.async {
             self.showNudge(haptic, pattern: pattern, body: body, arrivedAt: arrivedAt)
@@ -341,7 +366,10 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         logger.info("⌚ Haptic nudge delivered")
     }
 
-    private func scheduleNudgeNotification(body: String) {
+    /// Posts the nudge's notification, then tells the phone what became of it and how this app's
+    /// notifications are set (2026-11-09), for the posture log. Held in `notificationsBeingAdded`
+    /// until the report is handed over, so a background wake doesn't end first.
+    private func scheduleNudgeNotification(body: String, sentAt: Date?) {
         let request = UNNotificationRequest(
             identifier: NudgeMessage.notificationIdentifier(),
             content: NudgeMessage.notificationContent(body: body),
@@ -349,12 +377,32 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         )
 
         notificationsBeingAdded.enter()
-        UNUserNotificationCenter.current().add(request) { error in
+        let center = UNUserNotificationCenter.current()
+        center.add(request) { error in
             if let error {
                 self.logger.error("Failed to schedule notification: \(error.localizedDescription)")
             }
-            self.notificationsBeingAdded.leave()
+            guard let sentAt else {
+                self.notificationsBeingAdded.leave()
+                return
+            }
+            center.getNotificationSettings { settings in
+                self.reportBanner(NudgeMessage.bannerReport(
+                    sentAt: sentAt, posted: error == nil, error: error?.localizedDescription,
+                    authorization: settings.authorizationStatus, alert: settings.alertSetting,
+                    notificationCenter: settings.notificationCenterSetting))
+                self.notificationsBeingAdded.leave()
+            }
         }
+    }
+
+    /// Always queued: it comes from a callback that can run after a background wake ends, and a
+    /// queued transfer is handed to the system, which finishes it.
+    private func reportBanner(_ report: [String: Any]) {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        session.transferUserInfo(report)
     }
 
     /// Woken in the background because the phone queued something (a nudge, while the app was

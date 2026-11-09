@@ -68,6 +68,8 @@ final class WatchConnectivityService: NSObject {
 
     /// Fires when the Watch reports a nudge arrived, for the posture log.
     let nudgeArrived = PassthroughSubject<NudgeArrival, Never>()
+    /// What became of each nudge's notification on the Watch (2026-11-09).
+    let nudgeBannerReported = PassthroughSubject<NudgeBanner, Never>()
 
     /// Fires with the new value whenever the Watch app becomes reachable or stops being so.
     let reachabilityChanged = PassthroughSubject<Bool, Never>()
@@ -242,7 +244,22 @@ final class WatchConnectivityService: NSObject {
         else { return nil }
         return NudgeArrival(sentAt: Date(timeIntervalSince1970: sentAt),
                             arrivedAt: Date(timeIntervalSince1970: arrivedAt), via: via,
-                            wristSession: message["wristSession"] as? Bool ?? false)
+                            wristSession: message["wristSession"] as? Bool ?? false,
+                            appState: message["appState"] as? String)
+    }
+
+    /// The Watch's report of what became of a nudge's notification (its
+    /// `NudgeMessage.bannerReport`), or nil.
+    nonisolated static func nudgeBanner(from message: [String: Any]) -> NudgeBanner? {
+        guard message["type"] as? String == "nudgeBanner",
+              let sentAt = (message["sentAt"] as? NSNumber)?.doubleValue,
+              let posted = message["posted"] as? Bool
+        else { return nil }
+        return NudgeBanner(sentAt: Date(timeIntervalSince1970: sentAt), posted: posted,
+                           error: message["error"] as? String,
+                           authorization: message["authorization"] as? String,
+                           alert: message["alert"] as? String,
+                           notificationCenter: message["notificationCenter"] as? String)
     }
 
     /// Send the Jev remote's status to the Watch.
@@ -362,12 +379,22 @@ extension WatchConnectivityService: WCSessionDelegate {
     }
 
     /// Queued from the Watch: its report of a nudge's arrival, when the phone couldn't take a
-    /// message.
+    /// message, and of what became of its notification (always queued).
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        guard let arrival = Self.nudgeArrival(from: userInfo) else { return }
+        let arrival = Self.nudgeArrival(from: userInfo)
+        let banner = Self.nudgeBanner(from: userInfo)
+        guard arrival != nil || banner != nil else { return }
         Task { @MainActor in
-            nudgeArrived.send(arrival)
+            if let arrival { nudgeArrived.send(arrival) }
+            if let banner { nudgeBannerReported.send(banner) }
         }
+    }
+
+    /// What arrives queued (`transferUserInfo`), on the main actor. Not private, so tests can
+    /// hand it a report without a Watch.
+    func handleQueued(_ userInfo: [String: Any]) {
+        if let arrival = Self.nudgeArrival(from: userInfo) { nudgeArrived.send(arrival) }
+        if let banner = Self.nudgeBanner(from: userInfo) { nudgeBannerReported.send(banner) }
     }
 
     // MARK: - Message Handling
@@ -379,6 +406,8 @@ extension WatchConnectivityService: WCSessionDelegate {
         switch type {
         case "nudgeArrived":
             if let arrival = Self.nudgeArrival(from: message) { nudgeArrived.send(arrival) }
+        case "nudgeBanner":
+            if let banner = Self.nudgeBanner(from: message) { nudgeBannerReported.send(banner) }
         case "calibrate":
             logger.info("⌚ Calibration request received from Watch")
             calibrationRequested.send()
@@ -424,4 +453,21 @@ struct NudgeArrival: Equatable {
     let via: String
     /// Whether the Watch app was being kept running (`WristNudgeSession`).
     let wristSession: Bool
+    /// "active" (in front), "inactive" or "background" when it arrived (2026-11-09); nil from
+    /// an older Watch build.
+    var appState: String? = nil
+}
+
+/// What became of a nudge's notification on the Watch (2026-11-09): whether it was posted, and
+/// how the Watch app's notifications are set. With the app minimised Dave saw no banner.
+struct NudgeBanner: Equatable {
+    let sentAt: Date
+    let posted: Bool
+    let error: String?
+    /// "authorized", "denied", "notDetermined", "provisional" or "ephemeral".
+    let authorization: String?
+    /// Whether banners are allowed: "enabled", "disabled" or "notSupported".
+    let alert: String?
+    /// Whether it's kept in Notification Center, the same values.
+    let notificationCenter: String?
 }
