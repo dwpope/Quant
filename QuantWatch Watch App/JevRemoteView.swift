@@ -246,7 +246,7 @@ struct JevRemoteView: View {
             Text("Tracking \(status.tracking)")
                 .font(.caption)
         }
-        // The phone's head-turn timer, so a turn can be seen registering. It nudges at 5 minutes.
+        // The phone's head-turn timer, so a turn can be seen registering. It nudges at 2 minutes.
         if let turned = status.headTurnedSince {
             HStack(spacing: 4) {
                 Image(systemName: "arrow.turn.up.right")

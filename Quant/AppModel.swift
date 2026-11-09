@@ -285,8 +285,9 @@ class AppModel: ObservableObject {
         static let sideLeanThreshold = "com.quant.posture.sideLean"
         static let driftingToBadThreshold = "com.quant.posture.driftingToBad"
         /// `.v2` since 2026-10-05, when head drop started counting the way it reads on the device
-        /// (negative, 0.015 default). A value stored under the old meaning (+0.15) would silence it.
-        static let headDropThreshold = "com.quant.posture.headDrop.v2"
+        /// (negative, 0.020 default since 2026-11-09). A value stored under the old meaning (+0.15) would silence it.
+        // .v3 since the line moved to 0.020 (2026-11-09): a stored 0.015 is ignored.
+        static let headDropThreshold = "com.quant.posture.headDrop.v3"
         static let shoulderRoundingThreshold = "com.quant.posture.shoulderRounding"
         /// `.v2` since 2026-10-08, when the default became a minute of slouching added up. A
         /// value stored before then (300 s unbroken, or 120 from "Reset to defaults") would hold

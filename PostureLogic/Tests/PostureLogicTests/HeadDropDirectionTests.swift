@@ -33,16 +33,24 @@ final class HeadDropDirectionTests: XCTestCase {
         return false
     }
 
-    func test_theTripPoint_isTheJevWordings() {
-        XCTAssertEqual(PostureThresholds().headDropThreshold, 0.015,
-                       "the head 0.015 shoulder widths closer to the shoulders than at calibration")
+    /// 0.020 since 2026-11-09 (was the Jev wording's 0.015): sitting well in real use read up to
+    /// -0.016, so 0.015 flickered in and out of a slouch. No posed slouch is lost at 0.020.
+    func test_theTripPoint_clearsSittingWell() {
+        XCTAssertEqual(PostureThresholds().headDropThreshold, 0.020,
+                       "the head 0.020 shoulder widths closer to the shoulders than at calibration")
     }
 
     /// Every slouch measured on device read at or below -0.013; the weakest two that barely came
     /// forward read -0.020 and -0.040.
     func test_aHeadDroppedTowardsTheShoulders_isASlouch() {
         XCTAssertTrue(isDrifting(state(headDrop: -0.02)))
-        XCTAssertTrue(isDrifting(state(headDrop: -0.015)))
+        XCTAssertTrue(isDrifting(state(headDrop: -0.04)))
+    }
+
+    /// Sitting well in real use read up to -0.016 (2026-11-09): no longer a slouch.
+    func test_theFlickerJustPastTheOldLine_isSittingWell() {
+        XCTAssertEqual(state(headDrop: -0.015), .good)
+        XCTAssertEqual(state(headDrop: -0.016), .good)
     }
 
     /// Every upright read -0.007 or above.

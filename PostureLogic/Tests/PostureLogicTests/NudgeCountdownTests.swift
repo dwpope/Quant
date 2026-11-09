@@ -55,7 +55,7 @@ final class NudgeCountdownTests: XCTestCase {
     func test_aHeadTurn_countsDownToItsNudge() {
         let e = NudgeEngine()
         _ = evaluate(e, .good, at: 100, turnedSince: 0)
-        XCTAssertEqual(try XCTUnwrap(e.nudgeDueIn), 200, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(e.nudgeDueIn), 20, accuracy: 0.001)
     }
 
     /// Silenced, or stretching, nothing is coming.

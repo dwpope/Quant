@@ -105,7 +105,8 @@ final class SlouchFollowUpTests: XCTestCase {
         var fires: [TimeInterval] = []
         var repeats: [Int] = []
         for now in stride(from: 0.0, to: 370, by: 1) {
-            let turnedSince: TimeInterval? = now < 310 ? 0 : nil
+            // Turned at 183, so its two minutes are up at 303, between the slouch's repeats.
+            let turnedSince: TimeInterval? = (183..<310).contains(now) ? 183 : nil
             let d = e.evaluate(state: .bad(since: 0), trackingQuality: .good, movementLevel: 0.1,
                                taskMode: .unknown, currentTime: now, headTurnedSince: turnedSince)
             if case .fire = d {
@@ -128,7 +129,7 @@ final class SlouchFollowUpTests: XCTestCase {
         var fires: [TimeInterval] = []
         var repeats: [Int] = []
         for now in stride(from: 0.0, to: 450, by: 1) {
-            let turnedSince: TimeInterval? = now < 305 ? 0 : nil
+            let turnedSince: TimeInterval? = (183..<305).contains(now) ? 183 : nil   // due at 303
             let state: PostureState = now < 280 ? .bad(since: 0) : now < 325 ? .good : .drifting(since: 325)
             let d = e.evaluate(state: state, trackingQuality: .good, movementLevel: 0.1,
                                taskMode: .unknown, currentTime: now, headTurnedSince: turnedSince)
@@ -178,6 +179,6 @@ final class SlouchFollowUpTests: XCTestCase {
         let e = NudgeEngine()
         var fires: [TimeInterval] = []
         run(e, from: 0, to: 1000, state: { _ in .good }, turnedSince: 0, fires: &fires)
-        XCTAssertEqual(fires, [300, 901])
+        XCTAssertEqual(fires, [120, 721])
     }
 }
