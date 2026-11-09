@@ -116,6 +116,25 @@ final class CalmViewTests: XCTestCase {
         XCTAssertEqual(CalmLook.away.headline, PostureTimeline.Band.away.label)
     }
 
+    /// How to sit up again, in the nudge's words, as on the debug view's posture card
+    /// (2026-11-09: "No helpful text ... on how to correct back to good posture").
+    func test_slouching_saysHowToSitUp() {
+        let slouching = CalmLook.slouching(since: nil, sustained: false, nudgeAt: nil)
+        XCTAssertEqual(slouching.coaching(.forwardCreep), NudgeReason.forwardCreep.coachingMessage)
+        XCTAssertEqual(CalmLook.slouching(since: nil, sustained: true, nudgeAt: nil).coaching(.headDrop),
+                       NudgeReason.headDrop.coachingMessage)
+        XCTAssertEqual(slouching.coaching(nil), NudgeReason.sustainedSlouch.coachingMessage,
+                       "before the reason is known")
+    }
+
+    func test_aHeadTurn_saysWhatToDo_andSittingWell_saysNothing() {
+        XCTAssertEqual(CalmLook.headTurned(since: Date(), nudgeAt: nil).coaching(nil),
+                       NudgeReason.headTurned.coachingMessage)
+        XCTAssertNil(CalmLook.sittingWell.coaching(.headDrop), "the screen stays still")
+        XCTAssertNil(CalmLook.away.coaching(nil))
+        XCTAssertNil(CalmLook.calibrating.coaching(nil))
+    }
+
     func test_theCountdown_isDue_onceItsTimeHasCome() {
         let look = CalmLook.slouching(since: now, sustained: true, nudgeAt: now.addingTimeInterval(-1))
         XCTAssertEqual(look.countdown(now: now), .due)

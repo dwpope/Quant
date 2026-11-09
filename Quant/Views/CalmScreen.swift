@@ -46,6 +46,7 @@ struct CalmScreen: View {
                     pose: CalmFigurePose(look: look, metrics: appModel.latestMetrics,
                                          thresholds: appModel.postureThresholds,
                                          headTurnDegrees: headTurnDegrees),
+                    coaching: look.coaching(appModel.slouchCoaching),
                     neckLength: CalmFigurePose.neckLength(baselineNeckHeight: appModel.baseline?.neckHeight),
                     status: CalmStatus(glance: glance, thermalLevel: appModel.thermalLevel,
                                        tracking: appModel.trackingQuality,
@@ -252,6 +253,8 @@ struct CalmMirror<Preview: View>: View {
 struct CalmScreenContent<Mirror: View>: View {
     let look: CalmLook
     var pose: CalmFigurePose = .neutral
+    /// How to sit up again, or what to do about a turned head (`CalmLook.coaching`).
+    var coaching: String? = nil
     var neckLength: Double = 1
     let status: CalmStatus
     let silencedUntil: Date?
@@ -327,7 +330,7 @@ struct CalmScreenContent<Mirror: View>: View {
     }
 
     private func hero(height: CGFloat) -> some View {
-        CalmHero(look: look, pose: pose, neckLength: neckLength, silencedUntil: silencedUntil,
+        CalmHero(look: look, pose: pose, coaching: coaching, neckLength: neckLength, silencedUntil: silencedUntil,
                  showsCamera: showsCamera, holdsPosture: status.holdsPosture, height: height, now: now,
                  mirror: mirror)
             // From outside, so the hero's scaled sizes are read under the cap.
@@ -453,7 +456,8 @@ struct CalmScreenContent<Mirror: View>: View {
 /// left out, as they're the same each time.
 extension CalmScreenContent: Equatable {
     static func == (a: Self, b: Self) -> Bool {
-        a.look == b.look && a.pose == b.pose && a.neckLength == b.neckLength && a.status == b.status && a.silencedUntil == b.silencedUntil
+        a.look == b.look && a.pose == b.pose && a.coaching == b.coaching && a.neckLength == b.neckLength
+            && a.status == b.status && a.silencedUntil == b.silencedUntil
             && a.timeline == b.timeline && a.sipCount == b.sipCount
             && a.lastSipTimestamp == b.lastSipTimestamp && a.showsCamera == b.showsCamera
             && a.recording == b.recording && a.now == b.now
@@ -466,6 +470,7 @@ extension CalmScreenContent: Equatable {
 struct CalmHero<Mirror: View>: View {
     let look: CalmLook
     let pose: CalmFigurePose
+    let coaching: String?
     let neckLength: Double
     let silencedUntil: Date?
     let showsCamera: Bool
@@ -515,42 +520,56 @@ struct CalmHero<Mirror: View>: View {
         .animation(.easeInOut(duration: 0.6), value: holdsPosture)
     }
 
-    /// What's being counted, and what's coming: shown only while there's something to say, so
-    /// the screen is still while you sit well.
+    /// What to do, then what's being counted and what's coming, on one line (2026-11-09: the
+    /// instruction came first, and two lines fit the room kept for them). Shown only while
+    /// there's something to say, so the screen is still while you sit well.
     @ViewBuilder
     private var details: some View {
-        let detailFont = Font.system(.title3, design: .rounded)
         if holdsPosture {
             // Nothing is counted, and no nudge fires, without a clear view.
             note("Held until the camera sees you clearly")
         } else {
-            if let since = look.since {
-                Text("for \(Text(since, style: .timer))")
-                    .font(detailFont)
+            if let coaching {
+                Text(coaching)
+                    .font(.system(.title3, design: .rounded).weight(.medium))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.4), value: coaching)
+            }
+            if let timing {
+                timing
+                    .font(.system(.callout, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
-            }
-            switch look.countdown(now: now) {
-            case .until(let nudgeAt):
-                Text("nudge in \(Text(timerInterval: now...nudgeAt, countsDown: true))")
-                    .font(detailFont.weight(.medium))
-                    .monospacedDigit()
-                    .foregroundStyle(look.attentionColor)
-            case .due:
-                Text("nudge due")
-                    .font(detailFont.weight(.medium))
-                    .foregroundStyle(look.attentionColor)
-            case nil:
-                if let silencedUntil, look.isPosture {
-                    Label("Nudges silenced until \(silencedUntil.formatted(date: .omitted, time: .shortened))",
-                          systemImage: "bell.slash.fill")
-                        .font(.system(.callout, design: .rounded))
-                        .foregroundStyle(.secondary)
-                } else if let text = look.note {
-                    note(text)
-                }
+                    .multilineTextAlignment(.center)
+            } else if let text = look.note {
+                note(text)
             }
         }
+    }
+
+    /// "for 0:35 · nudge in 0:25", the nudge's part in the attention colour; or silenced.
+    private var timing: Text? {
+        var parts: [Text] = []
+        if let since = look.since {
+            parts.append(Text("for \(Text(since, style: .timer))"))
+        }
+        switch look.countdown(now: now) {
+        case .until(let nudgeAt):
+            parts.append(Text("nudge in \(Text(timerInterval: now...nudgeAt, countsDown: true))")
+                .fontWeight(.medium).foregroundStyle(look.attentionColor))
+        case .due:
+            parts.append(Text("nudge due").fontWeight(.medium).foregroundStyle(look.attentionColor))
+        case nil:
+            if let silencedUntil, look.isPosture {
+                parts.append(Text("\(Image(systemName: "bell.slash.fill")) nudges silenced until \(silencedUntil.formatted(date: .omitted, time: .shortened))"))
+            }
+        }
+        guard let first = parts.first else { return nil }
+        return parts.dropFirst().reduce(first) { $0 + Text(" · ") + $1 }
     }
 
     private func note(_ text: String) -> some View {

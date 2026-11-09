@@ -45,18 +45,25 @@ extension NudgeMessage {
 
     static func notificationIdentifier() -> String { identifierPrefix + UUID().uuidString }
 
-    static func notificationContent(body: String) -> UNMutableNotificationContent {
+    /// `onScreen` when the app shows the nudge itself (2026-11-09), for `presentationOptions`.
+    static func notificationContent(body: String, onScreen: Bool = false) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = notificationTitle
         content.body = body
         content.sound = .default
+        content.userInfo = [onScreenKey: onScreen]
         return content
     }
 
+    private static let onScreenKey = "onScreen"
+
     /// With the app open: a nudge shows as a banner, without a sound because the app has already
-    /// buzzed. The app posts nothing else; anything else stays hidden, as before.
-    static func presentationOptions(forIdentifier identifier: String) -> UNNotificationPresentationOptions {
-        identifier.hasPrefix(identifierPrefix) ? [.banner, .list] : []
+    /// buzzed; only listed when the app is showing it already (2026-11-09). The app posts nothing
+    /// else; anything else stays hidden, as before.
+    static func presentationOptions(forIdentifier identifier: String,
+                                    userInfo: [AnyHashable: Any] = [:]) -> UNNotificationPresentationOptions {
+        guard identifier.hasPrefix(identifierPrefix) else { return [] }
+        return userInfo[onScreenKey] as? Bool == true ? [.list] : [.banner, .list]
     }
 }
 
@@ -141,5 +148,67 @@ extension NudgeMessage {
         case .enabled: return "enabled"
         @unknown default: return "unknown"
         }
+    }
+}
+
+
+// MARK: - On the app's screen (2026-11-09, session 7)
+//
+// "Buzz and tone when viewing watch app, no notification." Each nudge's notification was posted
+// with notifications allowed, and none was seen: the buzz and the tone were the app's own taps.
+// In front, the app shows the nudge itself.
+
+extension NudgeMessage {
+    /// Whether the app shows a nudge itself: when it's in front, wrist down ("inactive") or up.
+    static func showsOnScreen(appState: String) -> Bool {
+        appState == "active" || appState == "inactive"
+    }
+}
+
+// MARK: - What watchOS did with the notification (2026-11-09)
+//
+// Posted, allowed, and not seen with the app minimised. A Watch app with its iPhone app installed
+// may hold a notification about 13 s for the phone's copy of it, and watchOS may list it in
+// Notification Center without alerting. So each nudge's notification is watched for half a
+// minute: when watchOS first offered it to the app (`willPresent`, the app in front) and with
+// what, and when it first appeared in Notification Center, with the date watchOS gave it there.
+// Being listed is not being shown: a banner can't be seen from here.
+
+extension NudgeMessage {
+    static let deliveryWatchWindow: TimeInterval = 30
+    static let deliveryWatchInterval: TimeInterval = 1
+    /// A look this late means the app was paused (a background wake ended), and its times would
+    /// be wrong: the watch stops and reports nothing.
+    static let deliveryWatchLateBy: TimeInterval = 3
+
+    enum DeliveryWatchStep: Equatable { case lookAgain, report, giveUp }
+
+    /// After each look: `elapsed` since posting, `late` past when the look was due.
+    static func deliveryWatchStep(listed: Bool, elapsed: TimeInterval, late: TimeInterval) -> DeliveryWatchStep {
+        if late > deliveryWatchLateBy { return .giveUp }
+        if listed || elapsed >= deliveryWatchWindow { return .report }
+        return .lookAgain
+    }
+
+    /// What `willPresent` answered, for the report: "banner,list", "list" or "none".
+    static func name(_ options: UNNotificationPresentationOptions) -> String {
+        var names: [String] = []
+        if options.contains(.banner) { names.append("banner") }
+        if options.contains(.list) { names.append("list") }
+        return names.isEmpty ? "none" : names.joined(separator: ",")
+    }
+
+    /// Seconds after posting; nil when it didn't happen within the half minute.
+    static func notificationReport(sentAt: Date, onScreen: Bool, offeredAfter: TimeInterval?,
+                                   offeredAs: String?, listedAfter: TimeInterval?,
+                                   datedAfter: TimeInterval?) -> [String: Any] {
+        var report: [String: Any] = [
+            "type": "nudgeNotification", "sentAt": sentAt.timeIntervalSince1970, "onScreen": onScreen,
+        ]
+        if let offeredAfter { report["offeredAfter"] = offeredAfter }
+        if let offeredAs { report["offeredAs"] = offeredAs }
+        if let listedAfter { report["listedAfter"] = listedAfter }
+        if let datedAfter { report["datedAfter"] = datedAfter }
+        return report
     }
 }

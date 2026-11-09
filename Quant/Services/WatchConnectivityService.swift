@@ -70,6 +70,7 @@ final class WatchConnectivityService: NSObject {
     let nudgeArrived = PassthroughSubject<NudgeArrival, Never>()
     /// What became of each nudge's notification on the Watch (2026-11-09).
     let nudgeBannerReported = PassthroughSubject<NudgeBanner, Never>()
+    let nudgeNotificationReported = PassthroughSubject<NudgeNotificationTimes, Never>()
 
     /// Fires with the new value whenever the Watch app becomes reachable or stops being so.
     let reachabilityChanged = PassthroughSubject<Bool, Never>()
@@ -262,6 +263,21 @@ final class WatchConnectivityService: NSObject {
                            notificationCenter: message["notificationCenter"] as? String)
     }
 
+    /// The Watch's report of what watchOS did with a nudge's notification (its
+    /// `NudgeMessage.notificationReport`), or nil.
+    nonisolated static func nudgeNotificationTimes(from message: [String: Any]) -> NudgeNotificationTimes? {
+        guard message["type"] as? String == "nudgeNotification",
+              let sentAt = (message["sentAt"] as? NSNumber)?.doubleValue,
+              let onScreen = message["onScreen"] as? Bool
+        else { return nil }
+        return NudgeNotificationTimes(
+            sentAt: Date(timeIntervalSince1970: sentAt), onScreen: onScreen,
+            offeredAfter: (message["offeredAfter"] as? NSNumber)?.doubleValue,
+            offeredAs: message["offeredAs"] as? String,
+            listedAfter: (message["listedAfter"] as? NSNumber)?.doubleValue,
+            datedAfter: (message["datedAfter"] as? NSNumber)?.doubleValue)
+    }
+
     /// Send the Jev remote's status to the Watch.
     ///
     /// Only while the Watch app is open. Unlike a nudge there is no queued fallback: a status
@@ -383,10 +399,12 @@ extension WatchConnectivityService: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         let arrival = Self.nudgeArrival(from: userInfo)
         let banner = Self.nudgeBanner(from: userInfo)
-        guard arrival != nil || banner != nil else { return }
+        let times = Self.nudgeNotificationTimes(from: userInfo)
+        guard arrival != nil || banner != nil || times != nil else { return }
         Task { @MainActor in
             if let arrival { nudgeArrived.send(arrival) }
             if let banner { nudgeBannerReported.send(banner) }
+            if let times { nudgeNotificationReported.send(times) }
         }
     }
 
@@ -395,6 +413,7 @@ extension WatchConnectivityService: WCSessionDelegate {
     func handleQueued(_ userInfo: [String: Any]) {
         if let arrival = Self.nudgeArrival(from: userInfo) { nudgeArrived.send(arrival) }
         if let banner = Self.nudgeBanner(from: userInfo) { nudgeBannerReported.send(banner) }
+        if let times = Self.nudgeNotificationTimes(from: userInfo) { nudgeNotificationReported.send(times) }
     }
 
     // MARK: - Message Handling
@@ -408,6 +427,8 @@ extension WatchConnectivityService: WCSessionDelegate {
             if let arrival = Self.nudgeArrival(from: message) { nudgeArrived.send(arrival) }
         case "nudgeBanner":
             if let banner = Self.nudgeBanner(from: message) { nudgeBannerReported.send(banner) }
+        case "nudgeNotification":
+            if let times = Self.nudgeNotificationTimes(from: message) { nudgeNotificationReported.send(times) }
         case "calibrate":
             logger.info("⌚ Calibration request received from Watch")
             calibrationRequested.send()
@@ -470,4 +491,18 @@ struct NudgeBanner: Equatable {
     let alert: String?
     /// Whether it's kept in Notification Center, the same values.
     let notificationCenter: String?
+}
+
+/// What watchOS did with a nudge's notification (2026-11-09), watched on the Watch for half a
+/// minute: whether the app showed the nudge itself; seconds after posting until watchOS first
+/// offered the notification to the app, and what the app answered ("banner,list", "list"); and
+/// until it first appeared in Notification Center, with the date watchOS gave it there. Nil when
+/// it didn't happen within the half minute. Listed is not shown: a banner can't be seen from there.
+struct NudgeNotificationTimes: Equatable {
+    let sentAt: Date
+    let onScreen: Bool
+    let offeredAfter: TimeInterval?
+    let offeredAs: String?
+    let listedAfter: TimeInterval?
+    let datedAfter: TimeInterval?
 }

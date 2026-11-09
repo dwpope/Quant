@@ -5,6 +5,7 @@ import SwiftUI
 struct PostureCard: View {
     let postureState: PostureState
     let trackingQuality: TrackingQuality
+    let coaching: NudgeReason?
 
     var body: some View {
         CardContainer {
@@ -15,24 +16,31 @@ struct PostureCard: View {
                     .frame(width: 32)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("POSTURE")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-                        .tracking(1.2)
+                    HStack(spacing: 8) {
+                        Text("POSTURE")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.secondary)
+                            .tracking(1.2)
+                        Spacer(minLength: 0)
+                        signalBadge
+                    }
+                    .lineLimit(1)
 
                     Text(stateLabel)
                         .font(.headline)
                         .foregroundStyle(stateColor)
+                        .lineLimit(1)
 
-                    if trackingQuality != .good {
-                        Text(qualityLabel)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    // As tall as the longest it can say, so the card keeps its height whatever it
+                    // says: each line, hidden, takes its room.
+                    ZStack(alignment: .topLeading) {
+                        ForEach(Self.allDetails, id: \.self) { Text($0).hidden() }
+                        Text(Self.detail(for: postureState, coaching: coaching))
                     }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 }
-
-                Spacer()
             }
             // One element for VoiceOver, "Posture, Sitting well", not "POSTURE" then the state.
             .accessibilityElement(children: .combine)
@@ -50,6 +58,47 @@ struct PostureCard: View {
         case .good:          return "Sitting well"
         case .drifting:      return "Slouching"
         case .bad:           return "Still slouching"
+        }
+    }
+
+    /// What to do (2026-11-09): slouching, how to sit up again, in the words the Watch's nudge
+    /// uses (`SlouchCoaching` picks which); otherwise what to keep, or why there's nothing to judge.
+    static func detail(for postureState: PostureState, coaching: NudgeReason?) -> String {
+        switch postureState {
+        case .drifting, .bad: return (coaching ?? .sustainedSlouch).coachingMessage
+        case .good:           return "Head up, sitting back"
+        case .absent:         return "Out of the camera's view"
+        case .calibrating:    return "Sit as you usually do, and hold still"
+        }
+    }
+
+    /// Every line `detail` can give.
+    static let allDetails: [String] = {
+        let states: [PostureState] = [.good, .absent, .calibrating, .drifting(since: 0)]
+        let reasons: [NudgeReason?] = [nil, .sustainedSlouch, .forwardCreep, .headDrop, .sink]
+        var lines: [String] = []
+        for state in states {
+            for reason in reasons where !lines.contains(detail(for: state, coaching: reason)) {
+                lines.append(detail(for: state, coaching: reason))
+            }
+        }
+        return lines
+    }()
+
+    /// The camera's signal, beside the heading on the same line (2026-11-09). It was a line of its
+    /// own under the posture, and as tracking came and went the card grew and shrank, and every
+    /// card under it jumped. Just the symbol when the words don't fit.
+    @ViewBuilder private var signalBadge: some View {
+        if trackingQuality != .good {
+            let symbol = trackingQuality == .lost ? "video.slash" : "exclamationmark.triangle"
+            ViewThatFits(in: .horizontal) {
+                Label(qualityLabel, systemImage: symbol)
+                Image(systemName: symbol)
+                    .accessibilityLabel(qualityLabel)
+            }
+            .font(.caption2)
+            .imageScale(.small)
+            .foregroundStyle(.secondary)
         }
     }
 
@@ -96,9 +145,9 @@ struct CardContainer<Content: View>: View {
 
 #Preview {
     VStack(spacing: 12) {
-        PostureCard(postureState: .good, trackingQuality: .good)
-        PostureCard(postureState: .bad(since: 0), trackingQuality: .good)
-        PostureCard(postureState: .drifting(since: 0), trackingQuality: .degraded)
+        PostureCard(postureState: .good, trackingQuality: .good, coaching: nil)
+        PostureCard(postureState: .bad(since: 0), trackingQuality: .good, coaching: .headDrop)
+        PostureCard(postureState: .drifting(since: 0), trackingQuality: .degraded, coaching: .forwardCreep)
     }
     .padding()
 }

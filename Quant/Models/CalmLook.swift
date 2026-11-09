@@ -90,6 +90,18 @@ enum CalmLook: Equatable {
         }
     }
 
+    /// What to do (2026-11-09): slouching, how to sit up again in the nudge's words, for the
+    /// reason `SlouchCoaching` holds; a head held turned, its nudge's line. Sitting well,
+    /// nothing, so the screen stays still.
+    func coaching(_ reason: NudgeReason?) -> String? {
+        switch self {
+        case .slouching: return (reason ?? .sustainedSlouch).coachingMessage
+        case .headTurned: return NudgeReason.headTurned.coachingMessage
+        case .sittingWell, .away, .calibrating, .cameraPaused, .startingCamera, .coolingDown:
+            return nil
+        }
+    }
+
     /// The countdown to the nudge, as the Watch shows it.
     enum Countdown: Equatable {
         case until(Date)

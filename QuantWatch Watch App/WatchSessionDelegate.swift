@@ -31,6 +31,10 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     /// The last nudge's line, shown under its time (2026-10-08: the screen only showed the time).
     @Published var lastNudgeBody: String?
 
+    /// The nudge the app is showing on its screen, from one that came with the app in front
+    /// (2026-11-09), until it's dismissed or the next takes its place.
+    @Published var nudgeOnScreen: NudgeOnScreen?
+
     /// When the phone says silenced nudges resume, or nil.
     @Published var nudgesSilencedUntil: Date?
 
@@ -323,7 +327,8 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         let pattern = NudgeHaptics.pattern(reason: NudgeMessage.reason(from: message),
                                            repeat: NudgeMessage.repeatCount(from: message))
         let body = NudgeMessage.body(from: message)
-        scheduleNudgeNotification(body: body, sentAt: sentAt)
+        let onScreen = NudgeMessage.showsOnScreen(appState: appStateOnArrival)
+        scheduleNudgeNotification(body: body, sentAt: sentAt, onScreen: onScreen)
         if let sentAt {
             reportArrival(NudgeMessage.arrivalReport(
                 sentAt: sentAt, arrivedAt: arrivedAt, via: via,
@@ -331,7 +336,7 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
                           queued: via == "queued")
         }
         DispatchQueue.main.async {
-            self.showNudge(haptic, pattern: pattern, body: body, arrivedAt: arrivedAt)
+            self.showNudge(haptic, pattern: pattern, body: body, arrivedAt: arrivedAt, onScreen: onScreen)
         }
     }
 
@@ -357,27 +362,32 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
     /// Buzz (only felt while the app is open; closed, the notification buzzes) and show the line.
     /// The nudge's own taps when the phone said why (`NudgeHaptics`), else the single tap. Timed
     /// from when it arrived (2026-10-16 audit): the main queue can get to it much later, after
-    /// the app was suspended, and the taps then don't play.
+    /// the app was suspended, and the taps then don't play. `onScreen` when the app was in front
+    /// as it arrived: then it's shown on the app's screen too (2026-11-09).
     func showNudge(_ hapticType: WKHapticType = .notification, pattern: [WKHapticType]? = nil,
-                   body: String, arrivedAt: Date = Date()) {
+                   body: String, arrivedAt: Date = Date(), onScreen: Bool = false) {
         NudgeHaptics.play(pattern ?? [hapticType], from: arrivedAt)
         lastNudgeTime = arrivedAt
         lastNudgeBody = body
+        // Minimised, an older one is cleared, so opening the app doesn't show it as if new.
+        nudgeOnScreen = onScreen ? NudgeOnScreen(body: body, arrivedAt: arrivedAt) : nil
         logger.info("⌚ Haptic nudge delivered")
     }
 
     /// Posts the nudge's notification, then tells the phone what became of it and how this app's
     /// notifications are set (2026-11-09), for the posture log. Held in `notificationsBeingAdded`
-    /// until the report is handed over, so a background wake doesn't end first.
-    private func scheduleNudgeNotification(body: String, sentAt: Date?) {
+    /// until the report is handed over, so a background wake doesn't end first. Then watches what
+    /// watchOS does with it (`watchDelivery`).
+    private func scheduleNudgeNotification(body: String, sentAt: Date?, onScreen: Bool) {
         let request = UNNotificationRequest(
             identifier: NudgeMessage.notificationIdentifier(),
-            content: NudgeMessage.notificationContent(body: body),
+            content: NudgeMessage.notificationContent(body: body, onScreen: onScreen),
             trigger: nil  // Deliver immediately
         )
 
         notificationsBeingAdded.enter()
         let center = UNUserNotificationCenter.current()
+        let postedAt = Date()
         center.add(request) { error in
             if let error {
                 self.logger.error("Failed to schedule notification: \(error.localizedDescription)")
@@ -386,8 +396,12 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
                 self.notificationsBeingAdded.leave()
                 return
             }
+            if error == nil {
+                self.watchDelivery(identifier: request.identifier, postedAt: postedAt, sentAt: sentAt,
+                                   onScreen: onScreen)
+            }
             center.getNotificationSettings { settings in
-                self.reportBanner(NudgeMessage.bannerReport(
+                self.reportQueued(NudgeMessage.bannerReport(
                     sentAt: sentAt, posted: error == nil, error: error?.localizedDescription,
                     authorization: settings.authorizationStatus, alert: settings.alertSetting,
                     notificationCenter: settings.notificationCenterSetting))
@@ -396,9 +410,60 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         }
     }
 
+    // MARK: - What watchOS did with the notification (2026-11-09)
+
+    /// When watchOS first offered each nudge's notification to the app, and what the app
+    /// answered, by identifier. Entries over two minutes old go, so ones never watched can't pile up.
+    private let offeredLock = NSLock()
+    private var firstOffered: [String: (at: Date, as: String)] = [:]
+
+    private func noteOffered(_ identifier: String, as options: UNNotificationPresentationOptions) {
+        let now = Date()
+        offeredLock.withLock {
+            firstOffered = firstOffered.filter { now.timeIntervalSince($0.value.at) < 120 }
+            if firstOffered[identifier] == nil {
+                firstOffered[identifier] = (now, NudgeMessage.name(options))
+            }
+        }
+    }
+
+    private func takeOffered(_ identifier: String) -> (at: Date, as: String)? {
+        offeredLock.withLock { firstOffered.removeValue(forKey: identifier) }
+    }
+
+    /// Looks in Notification Center each second for half a minute, then tells the phone when
+    /// this notification first appeared there and when watchOS first offered it to the app.
+    /// Gives up, reporting nothing, if a look comes late: the app was paused, as when a
+    /// background wake ends, and its times would be wrong.
+    private func watchDelivery(identifier: String, postedAt: Date, sentAt: Date, onScreen: Bool) {
+        let due = Date().addingTimeInterval(NudgeMessage.deliveryWatchInterval)
+        DispatchQueue.global().asyncAfter(deadline: .now() + NudgeMessage.deliveryWatchInterval) {
+            UNUserNotificationCenter.current().getDeliveredNotifications { delivered in
+                let now = Date()
+                let listed = delivered.first { $0.request.identifier == identifier }
+                switch NudgeMessage.deliveryWatchStep(listed: listed != nil,
+                                                      elapsed: now.timeIntervalSince(postedAt),
+                                                      late: now.timeIntervalSince(due)) {
+                case .lookAgain:
+                    self.watchDelivery(identifier: identifier, postedAt: postedAt, sentAt: sentAt,
+                                       onScreen: onScreen)
+                case .giveUp:
+                    _ = self.takeOffered(identifier)
+                case .report:
+                    let offered = self.takeOffered(identifier)
+                    self.reportQueued(NudgeMessage.notificationReport(
+                        sentAt: sentAt, onScreen: onScreen,
+                        offeredAfter: offered?.at.timeIntervalSince(postedAt), offeredAs: offered?.as,
+                        listedAfter: listed.map { _ in now.timeIntervalSince(postedAt) },
+                        datedAfter: listed?.date.timeIntervalSince(postedAt)))
+                }
+            }
+        }
+    }
+
     /// Always queued: it comes from a callback that can run after a background wake ends, and a
     /// queued transfer is handed to the system, which finishes it.
-    private func reportBanner(_ report: [String: Any]) {
+    private func reportQueued(_ report: [String: Any]) {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         guard session.activationState == .activated else { return }
@@ -559,6 +624,9 @@ extension WatchSessionDelegate: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler(NudgeMessage.presentationOptions(forIdentifier: notification.request.identifier))
+        let options = NudgeMessage.presentationOptions(forIdentifier: notification.request.identifier,
+                                                       userInfo: notification.request.content.userInfo)
+        if !options.isEmpty { noteOffered(notification.request.identifier, as: options) }
+        completionHandler(options)
     }
 }

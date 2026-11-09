@@ -24,6 +24,8 @@ class AppModel: ObservableObject {
     @Published var latestMetrics: RawMetrics?
     @Published var postureState: PostureState = .absent
     @Published var nudgeDecision: NudgeDecision = .none
+    /// The slouch the posture card says how to fix, held steady, or nil (2026-11-09).
+    @Published private(set) var slouchCoaching: NudgeReason?
     @Published var thermalLevel: ThermalLevel = .nominal
 
     // MARK: - Recording & Replay
@@ -491,6 +493,16 @@ class AppModel: ObservableObject {
         pipeline.$nudgeDecision
             .assign(to: &$nudgeDecision)
 
+        // Which slouch the posture card coaches: the frame's state, and its time, are set
+        // before its decision.
+        pipeline.$nudgeDecision
+            .sink { [weak self] decision in
+                guard let self, let frame = self.pipeline.latestFrame else { return }
+                self.updateSlouchCoaching(state: self.pipeline.postureState, decision: decision,
+                                          now: frame.time)
+            }
+            .store(in: &cancellables)
+
         pipeline.$thermalLevel
             .assign(to: &$thermalLevel)
 
@@ -768,6 +780,13 @@ class AppModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // And what watchOS did with it, watched there for half a minute.
+        watchService.nudgeNotificationReported
+            .sink { [weak self] times in
+                self?.postureLogStore.append([PostureLogRecorder.notificationEvent(times)])
+            }
+            .store(in: &cancellables)
+
         // Silencing nudges from the Watch, and telling it when a silence ends.
         watchService.silenceRequested
             .sink { [weak self] minutes in self?.handleSilenceRequest(minutes: minutes) }
@@ -832,6 +851,15 @@ class AppModel: ObservableObject {
                 if let self { self.updateCalmGlance(self.livePostureGlance()) }
             }
             .store(in: &cancellables)
+    }
+
+    // MARK: - The posture card's coaching
+
+    private var slouchCoachingHold = SlouchCoaching()
+
+    func updateSlouchCoaching(state: PostureState, decision: NudgeDecision, now: TimeInterval) {
+        slouchCoachingHold.update(state: state, decision: decision, now: now)
+        if slouchCoaching != slouchCoachingHold.reason { slouchCoaching = slouchCoachingHold.reason }
     }
 
     // MARK: - Posture on the Watch

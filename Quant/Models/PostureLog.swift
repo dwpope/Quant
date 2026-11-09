@@ -38,6 +38,14 @@ nonisolated struct PostureLogEvent: Codable, Equatable {
     var authorization: String? = nil
     var alert: String? = nil
     var notificationCenter: String? = nil
+    /// On a "notification" line (2026-11-09): whether the Watch app showed the nudge itself, and
+    /// seconds after its notification was posted until watchOS offered it to the app (and what
+    /// the app answered), and until it was listed in Notification Center (and the date it got).
+    var onScreen: Bool? = nil
+    var offeredAfter: TimeInterval? = nil
+    var offeredAs: String? = nil
+    var listedAfter: TimeInterval? = nil
+    var datedAfter: TimeInterval? = nil
 }
 
 /// Decides what's worth a line: changes, and a tick a minute while nothing changes. The
@@ -127,6 +135,15 @@ struct PostureLogRecorder {
                         posted: banner.posted, error: banner.error,
                         authorization: banner.authorization, alert: banner.alert,
                         notificationCenter: banner.notificationCenter)
+    }
+
+    /// What watchOS did with a nudge's notification (2026-11-09), at the nudge's sending time,
+    /// beside its "banner" line.
+    static func notificationEvent(_ times: NudgeNotificationTimes) -> PostureLogEvent {
+        PostureLogEvent(t: times.sentAt.timeIntervalSince1970, kind: "watch", value: "notification",
+                        onScreen: times.onScreen, offeredAfter: times.offeredAfter,
+                        offeredAs: times.offeredAs, listedAfter: times.listedAfter,
+                        datedAfter: times.datedAfter)
     }
 
     static func name(of state: PostureState) -> String {

@@ -106,6 +106,11 @@ struct ContentView: View {
                 .padding()
             }
         }
+        // A nudge that came with the app in front, shown over whatever screen is open
+        // (2026-11-09).
+        .sheet(item: $sessionDelegate.nudgeOnScreen) { nudge in
+            NudgeOnScreenView(nudge: nudge)
+        }
     }
 }
 
