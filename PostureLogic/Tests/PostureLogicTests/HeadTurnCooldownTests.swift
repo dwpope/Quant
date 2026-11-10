@@ -20,23 +20,23 @@ final class HeadTurnCooldownTests: XCTestCase {
         }
     }
 
-    /// The probe: twenty minutes turned, sitting well. Once at two minutes (five until
-    /// 2026-11-09), again after the ten-minute cooldown.
+    /// The probe: twenty minutes turned, sitting well. Once at 30 seconds (two minutes until
+    /// 2026-11-10, five until 2026-11-09), again after the ten-minute cooldown.
     func test_aHeadHeldTurned_isNudgedOncePerCooldown_notEvery30Seconds() {
         let e = NudgeEngine()
         var fires: [TimeInterval] = []
         run(e, from: 0, to: 1201, turnedSince: { _ in 0 }, fires: &fires)
-        XCTAssertEqual(fires, [120, 721])
+        XCTAssertEqual(fires, [30, 631])
     }
 
-    /// Turning back ends it: the next turn gets its own two minutes.
+    /// Turning back ends it: the next turn gets its own 30 seconds.
     func test_turningBack_endsTheCooldown() {
         let e = NudgeEngine()
         var fires: [TimeInterval] = []
         run(e, from: 0, to: 320, turnedSince: { _ in 0 }, fires: &fires)
         run(e, from: 320, to: 330, turnedSince: { _ in nil }, fires: &fires)
         run(e, from: 330, to: 640, turnedSince: { _ in 330 }, fires: &fires)
-        XCTAssertEqual(fires, [120, 450])
+        XCTAssertEqual(fires, [30, 360])
     }
 
     /// A slouch nudge is still ended by sitting well, as before.

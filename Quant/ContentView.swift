@@ -223,7 +223,8 @@ struct ContentView: View {
                 PostureCard(
                     postureState: appModel.postureState,
                     trackingQuality: appModel.trackingQuality,
-                    coaching: appModel.slouchCoaching
+                    coaching: appModel.slouchCoaching,
+                    headTurned: appModel.headTurned
                 )
 
                 // When you sat well and when you slouched, today (2026-10-13).

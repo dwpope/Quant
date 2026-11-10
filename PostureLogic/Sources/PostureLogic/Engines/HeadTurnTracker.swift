@@ -15,10 +15,11 @@ public struct HeadTurnThresholds: Equatable {
     /// -0.048 or lower, and every head turn +0.008 or higher.
     public var swivelMaxForwardCreep: Float = -0.03
 
-    /// How long the head stays turned before a nudge: two minutes since 2026-11-09, at Dave's
-    /// word after a real-use session. Five before, from "it gets uncomfortable after about five
-    /// minutes" (2026-10-04).
-    public var durationBeforeNudge: TimeInterval = 120
+    /// How long the head stays turned before a nudge: 30 seconds since 2026-11-10, at Dave's
+    /// word after a real-use session ("Head tilt trigger should happen at 30 seconds"). Two
+    /// minutes from 2026-11-09, and five before, from "it gets uncomfortable after about five
+    /// minutes" (2026-10-04). A glance at the other screen, a second or two, never gets near it.
+    public var durationBeforeNudge: TimeInterval = 30
 
     /// How long looking back ends an episode. Shorter is a glance at the main screen or a frame
     /// the face tracker dropped, not a rest for the neck.

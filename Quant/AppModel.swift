@@ -26,6 +26,8 @@ class AppModel: ObservableObject {
     @Published var nudgeDecision: NudgeDecision = .none
     /// The slouch the posture card says how to fix, held steady, or nil (2026-11-09).
     @Published private(set) var slouchCoaching: NudgeReason?
+    /// The head held turned to one side, for the posture card (2026-11-10).
+    @Published private(set) var headTurned = false
     @Published var thermalLevel: ThermalLevel = .nominal
 
     // MARK: - Recording & Replay
@@ -502,6 +504,11 @@ class AppModel: ObservableObject {
                                           now: frame.time)
             }
             .store(in: &cancellables)
+
+        pipeline.$headTurnedSince
+            .map { $0 != nil }
+            .removeDuplicates()
+            .assign(to: &$headTurned)
 
         pipeline.$thermalLevel
             .assign(to: &$thermalLevel)

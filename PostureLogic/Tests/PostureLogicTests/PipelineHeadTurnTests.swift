@@ -104,7 +104,7 @@ final class PipelineHeadTurnTests: XCTestCase {
     /// Set after init, as the app would, the limits reach both the tracker and the nudge engine.
     func test_headTurnLimitsSetAfterInit_apply() async throws {
         let provider = MockPoseProvider()
-        let pipeline = Pipeline(provider: provider)   // default: five minutes
+        let pipeline = Pipeline(provider: provider)   // default: 30 seconds
         pipeline.baseline = GoldenRecordings.baselineForGoodPosture()
         pipeline.headTurnThresholds = shortHeadTurn()
         try await provider.start()

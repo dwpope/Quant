@@ -52,15 +52,15 @@ final class NudgeEngineHeadTurnTests: XCTestCase {
         }
     }
 
-    /// The default is the two minutes Dave gave after a real-use session (2026-11-09; five
-    /// before).
-    func test_byDefault_firesAfterTwoMinutes() {
+    /// The default is the 30 seconds Dave gave after a real-use session (2026-11-10; two
+    /// minutes from 2026-11-09, five before).
+    func test_byDefault_firesAfterThirtySeconds() {
         let e = NudgeEngine()
         XCTAssertNil(fired(e.evaluate(state: .good, trackingQuality: .good, movementLevel: 0.1,
-                                      taskMode: .unknown, currentTime: 119, metrics: nil,
+                                      taskMode: .unknown, currentTime: 29, metrics: nil,
                                       headTurnedSince: 0)))
         XCTAssertEqual(fired(e.evaluate(state: .good, trackingQuality: .good, movementLevel: 0.1,
-                                        taskMode: .unknown, currentTime: 120, metrics: nil,
+                                        taskMode: .unknown, currentTime: 30, metrics: nil,
                                         headTurnedSince: 0)), .headTurned)
     }
 

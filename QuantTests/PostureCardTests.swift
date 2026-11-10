@@ -31,6 +31,7 @@ final class PostureCardTests: XCTestCase {
     func test_thePosture_doesNotChangeTheCardsHeight() {
         let cards = [
             PostureCard(postureState: .good, trackingQuality: .good, coaching: nil),
+            PostureCard(postureState: .good, trackingQuality: .good, coaching: nil, headTurned: true),
             PostureCard(postureState: .drifting(since: 0), trackingQuality: .good, coaching: .headDrop),
             PostureCard(postureState: .bad(since: 0), trackingQuality: .degraded, coaching: .sustainedSlouch),
             PostureCard(postureState: .absent, trackingQuality: .lost, coaching: nil),
@@ -64,6 +65,30 @@ final class PostureCardTests: XCTestCase {
                        "a slouch's line is gone once you've sat up")
         XCTAssertEqual(PostureCard.detail(for: .absent, coaching: nil), "Out of the camera's view")
         XCTAssertEqual(PostureCard.detail(for: .calibrating, coaching: nil), "Sit as you usually do, and hold still")
+    }
+
+    // MARK: - A head turned
+
+    /// Dave (2026-11-10): "When i turn my head i would like to see that registered on the device
+    /// as a status in the same location it usually shows slouching". In the words, and by the
+    /// rule, of the Watch and the calm view: from the moment it turns, while sitting well, with
+    /// what its nudge will say.
+    func test_aHeadTurned_whileSittingWell_isShownWhereASlouchIs() {
+        XCTAssertEqual(PostureCard.label(for: .good, headTurned: true), "Head turned")
+        XCTAssertEqual(PostureCard.label(for: .good, headTurned: true),
+                       CalmLook.headTurned(since: Date(), nudgeAt: nil).headline)
+        XCTAssertEqual(PostureCard.detail(for: .good, coaching: nil, headTurned: true),
+                       NudgeReason.headTurned.coachingMessage)
+    }
+
+    /// Slouching as well, the slouch is said: it's the posture to fix, and the Watch and the
+    /// calm view show a turn only while sitting well. Away or calibrating, nothing is judged.
+    func test_otherwise_aHeadTurned_changesNothing() {
+        XCTAssertEqual(PostureCard.label(for: .drifting(since: 0), headTurned: true), "Slouching")
+        XCTAssertEqual(PostureCard.detail(for: .bad(since: 0), coaching: .headDrop, headTurned: true),
+                       NudgeReason.headDrop.coachingMessage)
+        XCTAssertEqual(PostureCard.label(for: .absent, headTurned: true), "Away")
+        XCTAssertEqual(PostureCard.label(for: .calibrating, headTurned: true), "Calibrating…")
     }
 }
 

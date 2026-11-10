@@ -23,9 +23,9 @@ final class HeadTurnTrackerTests: XCTestCase {
 
     // MARK: - The defaults
 
-    func test_defaults_areTwoMinutesPast45Degrees() {
+    func test_defaults_areThirtySecondsPast45Degrees() {
         let thresholds = HeadTurnThresholds()
-        XCTAssertEqual(thresholds.durationBeforeNudge, 120, "Dave's two minutes (2026-11-09)")
+        XCTAssertEqual(thresholds.durationBeforeNudge, 30, "Dave's 30 seconds (2026-11-10)")
         XCTAssertEqual(thresholds.turnedDegrees, 45)
         XCTAssertEqual(thresholds.swivelMaxForwardCreep, -0.03)
     }
