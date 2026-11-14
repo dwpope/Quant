@@ -68,7 +68,7 @@ final class PoseService: PoseServiceProtocol {
                 return .noPose
             }
 
-            let keypoints = try extractKeypoints(from: observation)
+            let keypoints = Self.keypoints(try extractKeypoints(from: observation), in: frame)
             lastKeypointCount = keypoints.count
             lastConfidence = observation.confidence
 
@@ -87,6 +87,17 @@ final class PoseService: PoseServiceProtocol {
             lastKeypointCount = 0
             logger.error("PoseService: Vision request failed: \(error.localizedDescription) (count: \(self.visionErrorCount))")
             return .failed
+        }
+    }
+
+    /// Keypoints as the pipeline measures them: a landscape frame's in the upright frame's units.
+    static func keypoints(_ found: [Keypoint], in frame: InputFrame) -> [Keypoint] {
+        guard frame.orientation == .landscape, let buffer = frame.pixelBuffer else { return found }
+        let width = CVPixelBufferGetWidth(buffer), height = CVPixelBufferGetHeight(buffer)
+        return found.map {
+            Keypoint(joint: $0.joint,
+                     position: FrameOrientation.portraitUnits($0.position, width: width, height: height),
+                     confidence: $0.confidence)
         }
     }
 

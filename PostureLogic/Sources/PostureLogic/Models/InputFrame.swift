@@ -29,7 +29,13 @@ public struct InputFrame {
     /// unchanged). Not serialized (this struct is never `Codable`).
     public let externalHeadOrientation: simd_quatf?
 
-    public init(timestamp: TimeInterval, pixelBuffer: CVPixelBuffer?, depthMap: CVPixelBuffer?, cameraIntrinsics: simd_float3x3?, precomputedSample: PoseSample? = nil, externalHeadAngles: HeadAngles? = nil, externalHeadOrientation: simd_quatf? = nil) {
+    /// Which way round the picture is (2026-11-11). Only the front camera says landscape: its
+    /// frames are turned upright for the phone, so on its side they come wide, and Vision's
+    /// keypoints are put back into the upright frame's units. The ARKit cameras' frames come as
+    /// their sensor gives them and always say portrait, so they're handled as before.
+    public let orientation: FrameOrientation
+
+    public init(timestamp: TimeInterval, pixelBuffer: CVPixelBuffer?, depthMap: CVPixelBuffer?, cameraIntrinsics: simd_float3x3?, precomputedSample: PoseSample? = nil, externalHeadAngles: HeadAngles? = nil, externalHeadOrientation: simd_quatf? = nil, orientation: FrameOrientation = .portrait) {
         self.timestamp = timestamp
         self.pixelBuffer = pixelBuffer
         self.depthMap = depthMap
@@ -37,5 +43,6 @@ public struct InputFrame {
         self.precomputedSample = precomputedSample
         self.externalHeadAngles = externalHeadAngles
         self.externalHeadOrientation = externalHeadOrientation
+        self.orientation = orientation
     }
 }

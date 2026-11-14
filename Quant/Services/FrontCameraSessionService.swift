@@ -54,6 +54,10 @@ final class FrontCameraSessionService: NSObject, PoseProvider {
     /// Whether a start is still wanted once its awaits are done (2026-10-19 review): a `stop()`
     /// while it asked for permission, as for heat, was followed by the camera starting.
     private var runs = CameraRuns()
+    /// Turns the frames upright however the phone is held (2026-11-11). Was a fixed 90°, upright
+    /// only with the phone upright; on its side the frames now come wide and say landscape.
+    private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+    private var rotationObservation: NSKeyValueObservation?
 
     // MARK: - PoseProvider Lifecycle
 
@@ -158,14 +162,26 @@ final class FrontCameraSessionService: NSObject, PoseProvider {
         // existing pipeline expectations.
         if let connection = videoOutput.connection(with: .video) {
             connection.isVideoMirrored = false
-            // Portrait: the sensor's landscape frames turned 90°.
-            if connection.isVideoRotationAngleSupported(90) {
-                connection.videoRotationAngle = 90
+            // Level with the horizon, now and as the phone turns: 90° upright, 0° or 180° on its
+            // side, so the frames are always the right way up.
+            let coordinator = AVCaptureDevice.RotationCoordinator(device: frontCamera, previewLayer: nil)
+            Self.rotate(connection, to: coordinator.videoRotationAngleForHorizonLevelCapture)
+            rotationObservation = coordinator.observe(
+                \.videoRotationAngleForHorizonLevelCapture, options: [.new]
+            ) { @Sendable [sessionQueue] coordinator, _ in  // KVO calls on any thread
+                let angle = coordinator.videoRotationAngleForHorizonLevelCapture
+                sessionQueue.async { Self.rotate(connection, to: angle) }
             }
+            rotationCoordinator = coordinator
         }
 
         isConfigured = true
         logger.info("Front camera session configured (720p, BGRA)")
+    }
+
+    private nonisolated static func rotate(_ connection: AVCaptureConnection, to angle: CGFloat) {
+        guard connection.isVideoRotationAngleSupported(angle) else { return }
+        connection.videoRotationAngle = angle
     }
 }
 
@@ -185,7 +201,10 @@ extension FrontCameraSessionService: AVCaptureVideoDataOutputSampleBufferDelegat
             timestamp: timestamp,
             pixelBuffer: pixelBuffer,
             depthMap: nil,
-            cameraIntrinsics: nil
+            cameraIntrinsics: nil,
+            // Upright either way (see `rotationCoordinator`), so wide is the phone on its side.
+            orientation: FrameOrientation(width: CVPixelBufferGetWidth(pixelBuffer),
+                                          height: CVPixelBufferGetHeight(pixelBuffer))
         )
         frameSubject.send(frame)
     }

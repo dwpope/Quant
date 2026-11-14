@@ -254,7 +254,8 @@ class AppModel: ObservableObject {
     let arService = ARSessionService()
     let frontService = FrontCameraSessionService()
     let arFaceService = ARFaceTrackingService()
-    private let switchableProvider = SwitchablePoseProvider()
+    /// Internal so tests can hand the pipeline frames from a camera of their own.
+    let switchableProvider = SwitchablePoseProvider()
     private let thermalMonitor = ThermalMonitor()
     private lazy var pipeline: Pipeline = {
         Pipeline(provider: switchableProvider, thermalMonitor: thermalMonitor)
@@ -603,6 +604,15 @@ class AppModel: ObservableObject {
                 } else {
                     print("Posture corrected — outside acknowledgement window (\(String(format: "%.0f", elapsed))s after nudge)")
                 }
+            }
+            .store(in: &cancellables)
+
+        // A baseline is for one way round: turning the phone asks for a new one.
+        pipeline.$frameOrientation
+            .compactMap { $0 }
+            .removeDuplicates()
+            .sink { [weak self] orientation in
+                self?.cameraTurned(to: orientation)
             }
             .store(in: &cancellables)
 
@@ -1648,10 +1658,32 @@ class AppModel: ObservableObject {
         calibrationProgress = calibrationEngine.progress
 
         if case .success = status, let newBaseline = calibrationEngine.resultBaseline {
-            baseline = newBaseline
-            pipeline.baseline = newBaseline
-            needsCalibration = false
-            saveBaseline(newBaseline)
+            adoptBaseline(newBaseline)
+        }
+    }
+
+    /// Takes a calibration's baseline as the one to measure from, and saves it, marked with the
+    /// way round the camera's frames are (upright until a frame has said).
+    func adoptBaseline(_ newBaseline: Baseline) {
+        let oriented = newBaseline.oriented(cameraOrientation ?? .portrait)
+        baseline = oriented
+        pipeline.baseline = oriented
+        needsCalibration = false
+        saveBaseline(oriented)
+    }
+
+    /// Which way round the camera's frames are, from the pipeline: nil until a frame has come.
+    private(set) var cameraOrientation: FrameOrientation?
+
+    /// The camera's frames came round the other way (2026-11-11): the phone was turned on its side
+    /// or back upright, or this is the first frame. A baseline taken the other way round doesn't
+    /// fit, as the camera moved and the frame's sides swapped, so it asks for a new calibration;
+    /// so does a calibration still running.
+    func cameraTurned(to orientation: FrameOrientation) {
+        cameraOrientation = orientation
+        postureLogStore.append([PostureLogRecorder.cameraEvent(orientation, now: Date())])
+        if needsCalibration || baseline?.orientation != orientation {
+            recalibrate()
         }
     }
 

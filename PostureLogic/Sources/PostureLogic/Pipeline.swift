@@ -102,6 +102,17 @@ public class Pipeline {
     /// Clear it by calling dismissRecalibrationPrompt().
     @Published public private(set) var showRecalibrationPrompt: Bool = false
 
+    /// Which way round the camera's frames are, once frames with a picture have come that way for
+    /// `turnSettleTime`: nil until then. Published once per turn (2026-11-11), so the app can ask
+    /// for a new calibration when the phone is turned. A replay's frames have no picture and
+    /// don't change it.
+    @Published public private(set) var frameOrientation: FrameOrientation?
+
+    /// How long frames must come the other way round before it's a turn (2026-11-11 review):
+    /// lifting the phone off its stand for a moment, or the first frames as the camera starts,
+    /// isn't one.
+    static let turnSettleTime: TimeInterval = 2
+
     /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
     public var baseline: Baseline?
 
@@ -122,6 +133,10 @@ public class Pipeline {
     // MARK: - Private Properties
 
     private var subscriptions = Set<AnyCancellable>()
+    /// The published orientation, and a different one frames have been coming since, on the
+    /// frames' own queue (`frameOrientation` is the main-thread copy).
+    private var lastFrameOrientation: FrameOrientation?
+    private var turning: (orientation: FrameOrientation, since: TimeInterval)?
     private var poseService = PoseService()
     private var depthService = DepthService()
     private var fusion = PoseDepthFusion()
@@ -252,6 +267,22 @@ public class Pipeline {
 
     // MARK: - Private Methods
 
+    private func noteOrientation(of frame: InputFrame) {
+        guard frame.pixelBuffer != nil else { return }
+        guard frame.orientation != lastFrameOrientation else {
+            turning = nil
+            return
+        }
+        if turning?.orientation != frame.orientation {
+            turning = (frame.orientation, frame.timestamp)
+        }
+        guard let since = turning?.since, frame.timestamp - since >= Self.turnSettleTime else { return }
+        lastFrameOrientation = frame.orientation
+        turning = nil
+        let orientation = frame.orientation
+        DispatchQueue.main.async { [weak self] in self?.frameOrientation = orientation }
+    }
+
     private func process(_ frame: InputFrame) {
         let timeline = currentTimeline
 
@@ -261,6 +292,8 @@ public class Pipeline {
             processPrecomputed(sample, timestamp: frame.timestamp, timeline: timeline)
             return
         }
+
+        noteOrientation(of: frame)
 
         // Single locked snapshot per frame of the thermal-derived throttle
         // state (it is written from the thermal monitor's thread).

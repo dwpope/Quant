@@ -11,8 +11,8 @@ import PostureLogic
 nonisolated struct PostureLogEvent: Codable, Equatable {
     /// Seconds since 1970.
     var t: TimeInterval
-    /// "state", "nudge", "task", "watch", or "tick": the state again, a minute after the last
-    /// line, while nothing changes (2026-10-16).
+    /// "state", "nudge", "task", "watch", "camera" (which way round its frames are), or "tick":
+    /// the state again, a minute after the last line, while nothing changes (2026-10-16).
     var kind: String
     /// "good", "drifting", "bad", "absent", "calibrating"; "none", "pending:<reason>",
     /// "fire:<reason>", "suppressed:<reason>"; a task mode; or how a nudge left for the Watch
@@ -144,6 +144,12 @@ struct PostureLogRecorder {
                         onScreen: times.onScreen, offeredAfter: times.offeredAfter,
                         offeredAs: times.offeredAs, listedAfter: times.listedAfter,
                         datedAfter: times.datedAfter)
+    }
+
+    /// Which way round the camera's frames came (2026-11-11): once at the first frame, and again
+    /// each time the phone is turned. Head drop and sink are measured the same either way.
+    static func cameraEvent(_ orientation: FrameOrientation, now: Date) -> PostureLogEvent {
+        PostureLogEvent(t: now.timeIntervalSince1970, kind: "camera", value: orientation.rawValue)
     }
 
     static func name(of state: PostureState) -> String {

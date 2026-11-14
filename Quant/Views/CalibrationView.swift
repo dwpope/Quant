@@ -4,11 +4,15 @@ import PostureLogic
 struct CalibrationView: View {
     @ObservedObject var appModel: AppModel
 
+    /// The phone on its side (2026-11-11): smaller and closer, to fit above the icons.
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    private var compact: Bool { verticalSizeClass == .compact }
+
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: compact ? 12 : 24) {
             if case .countdown(let seconds) = appModel.calibrationStatus {
                 Text("\(seconds)")
-                    .font(.system(size: 120, weight: .bold, design: .rounded))
+                    .font(.system(size: compact ? 88 : 120, weight: .bold, design: .rounded))
                     .foregroundStyle(.blue)
                     .contentTransition(.numericText())
                     .animation(.default, value: seconds)
@@ -18,7 +22,7 @@ struct CalibrationView: View {
                     .foregroundStyle(.secondary)
             } else {
                 Image(systemName: "figure.stand")
-                    .font(.system(size: 80))
+                    .font(.system(size: compact ? 44 : 80))
                     .foregroundStyle(iconColor)
 
                 Text("Sit up straight")

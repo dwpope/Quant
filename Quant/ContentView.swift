@@ -23,6 +23,20 @@ struct ContentView: View {
     /// covers the cards on purpose. Pushing the cards below it put them under the bottom icons.
     @AppStorage(DiagnosticsPanel.expandedKey) private var panelExpanded = true
 
+    /// The phone on its side (2026-11-11): little room down and plenty across, so the panel takes
+    /// the left half and the cards or the calibration the right, instead of the cards starting
+    /// below the panel.
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    private var sideBySide: Bool { verticalSizeClass == .compact }
+
+    /// Width of the panel's row, measured live; side by side, the panel takes half of it.
+    @State private var panelRowWidth: CGFloat = 0
+    private var sidePanelWidth: CGFloat? {
+        sideBySide && panelRowWidth > 0 ? (panelRowWidth - 16) / 2 : nil
+    }
+    /// How far the right half starts past the left edge of the screen's padding.
+    private var rightHalfInset: CGFloat { sidePanelWidth.map { 16 + $0 } ?? 0 }
+
     /// Silence nudges for a while, or resume them. The bell is struck through while silenced.
     /// Checked every 30 s, so the icon comes back on its own when the silence ends.
     private var silenceMenu: some View {
@@ -115,14 +129,18 @@ struct ContentView: View {
                 CameraPermissionView {
                     Task { await appModel.retryFrontCamera() }
                 }
+                .padding(.leading, rightHalfInset)
             } else if appModel.cameraMode == .rearDepth && appModel.rearCameraStatus != .ok {
                 RearCameraProblemView(status: appModel.rearCameraStatus) {
                     Task { await appModel.retryRearCamera() }
                 }
+                .padding(.leading, rightHalfInset)
             } else if appModel.needsCalibration {
                 CalibrationView(appModel: appModel)
+                    .padding(.leading, rightHalfInset)
             } else {
                 monitoringView
+                    .padding(.leading, rightHalfInset)
             }
 
             // Diagnostics panel, top-leading, with the icon controls pinned below it.
@@ -138,10 +156,14 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 HStack(alignment: .top, spacing: 0) {
                     DebugOverlayView(appModel: appModel)
+                        .frame(maxWidth: sidePanelWidth)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
                             panelHeight = $0
                         }
                     Spacer(minLength: 0)
+                }
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
+                    panelRowWidth = $0
                 }
                 Spacer(minLength: 0)
             }
@@ -244,11 +266,14 @@ struct ContentView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 24)
+            // Side by side, level with the panel's top.
+            .padding(.vertical, sideBySide ? 16 : 24)
         }
         // Clears the collapsed panel: it sits 16pt below the safe area, and the cards keep a
-        // 12pt gap under it after their own 24pt of padding.
-        .contentMargins(.top, panelExpanded ? 0 : panelHeight + 4, for: .scrollContent)
+        // 12pt gap under it after their own 24pt of padding. Side by side it isn't above them.
+        .contentMargins(.top, panelExpanded || sideBySide ? 0 : panelHeight + 4, for: .scrollContent)
+        // Side by side the last card can scroll up clear of the icons.
+        .contentMargins(.bottom, sideBySide ? 60 : 0, for: .scrollContent)
         .sheet(isPresented: $showStoredData) {
             NavigationStack { StoredDataView() }
         }

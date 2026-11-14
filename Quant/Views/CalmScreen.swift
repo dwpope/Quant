@@ -17,6 +17,7 @@ struct CalmScreen: View {
     @StateObject private var today = PostureTimelineLoader()
     @State private var showDay = false
     @State private var showSips = false
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     /// What fills the screen below the top line: the existing screens while the camera or the
     /// calibration needs you, the calm view itself otherwise. The debug screen's order.
@@ -78,12 +79,22 @@ struct CalmScreen: View {
                 // says: "Position yourself in frame" is when you need to see the frame.
                 CalmFrame(status: .calibrating(tracking: appModel.trackingQuality),
                           onSwitch: onSwitch, onSettings: onSettings) {
-                    VStack(spacing: 0) {
-                        CalmMirror(cornerRadius: 24) { cameraPreview }
-                            .aspectRatio(3 / 4, contentMode: .fit)
-                            .frame(maxHeight: 220)
-                            .padding(.top, 12)
-                        CalibrationView(appModel: appModel)
+                    if verticalSizeClass == .compact {
+                        // The phone on its side (2026-11-11): beside it, as there's no room above.
+                        HStack(spacing: 16) {
+                            CalmMirror(cornerRadius: 24) { cameraPreview }
+                                .aspectRatio(4 / 3, contentMode: .fit)
+                                .padding(.vertical, 12)
+                            CalibrationView(appModel: appModel)
+                        }
+                    } else {
+                        VStack(spacing: 0) {
+                            CalmMirror(cornerRadius: 24) { cameraPreview }
+                                .aspectRatio(3 / 4, contentMode: .fit)
+                                .frame(maxHeight: 220)
+                                .padding(.top, 12)
+                            CalibrationView(appModel: appModel)
+                        }
                     }
                 }
             }

@@ -24,7 +24,20 @@ public struct Baseline: Codable {
     /// the old assumption: looking straight at the phone.
     public let headYaw: Float
 
-    public init(timestamp: Date, shoulderMidpoint: SIMD3<Float>, headPosition: SIMD3<Float>, torsoAngle: Float, shoulderTwist: Float = 0, shoulderWidth: Float, depthAvailable: Bool, neckHeight: Float = 0, headYaw: Float = 0) {
+    /// Which way round the camera's frames were while calibrating (2026-11-11). Positions and
+    /// the shoulders' place in the frame differ with the phone on its side, so a baseline is only
+    /// good for frames turned the same way. Default portrait: every older baseline was taken so.
+    public let orientation: FrameOrientation
+
+    /// This baseline, taken with the camera's frames turned `orientation`.
+    public func oriented(_ orientation: FrameOrientation) -> Baseline {
+        Baseline(timestamp: timestamp, shoulderMidpoint: shoulderMidpoint, headPosition: headPosition,
+                 torsoAngle: torsoAngle, shoulderTwist: shoulderTwist, shoulderWidth: shoulderWidth,
+                 depthAvailable: depthAvailable, neckHeight: neckHeight, headYaw: headYaw,
+                 orientation: orientation)
+    }
+
+    public init(timestamp: Date, shoulderMidpoint: SIMD3<Float>, headPosition: SIMD3<Float>, torsoAngle: Float, shoulderTwist: Float = 0, shoulderWidth: Float, depthAvailable: Bool, neckHeight: Float = 0, headYaw: Float = 0, orientation: FrameOrientation = .portrait) {
         self.timestamp = timestamp
         self.shoulderMidpoint = shoulderMidpoint
         self.headPosition = headPosition
@@ -34,6 +47,7 @@ public struct Baseline: Codable {
         self.depthAvailable = depthAvailable
         self.neckHeight = neckHeight
         self.headYaw = headYaw
+        self.orientation = orientation
     }
 
     public func isStale(after interval: TimeInterval = 3600) -> Bool {
@@ -44,13 +58,13 @@ public struct Baseline: Codable {
     //
     // Custom coder so a persisted baseline that predates an additive field still
     // decodes: the synthesized `decode` throws on a missing key even with a default
-    // init value. `shoulderTwist` and `neckHeight` are the additive-default fields,
-    // decoded with `decodeIfPresent` and falling back to their defaults. Mirrors the
+    // init value. `shoulderTwist`, `neckHeight`, `headYaw` and `orientation` are the
+    // additive-default fields, decoded with `decodeIfPresent` and falling back to their defaults. Mirrors the
     // `SipEvent.label` pattern. Encoding stays complete.
 
     private enum CodingKeys: String, CodingKey {
         case timestamp, shoulderMidpoint, headPosition, torsoAngle, shoulderTwist,
-             shoulderWidth, depthAvailable, neckHeight, headYaw
+             shoulderWidth, depthAvailable, neckHeight, headYaw, orientation
     }
 
     public init(from decoder: Decoder) throws {
@@ -64,6 +78,9 @@ public struct Baseline: Codable {
         self.depthAvailable = try container.decode(Bool.self, forKey: .depthAvailable)
         self.neckHeight = try container.decodeIfPresent(Float.self, forKey: .neckHeight) ?? 0
         self.headYaw = try container.decodeIfPresent(Float.self, forKey: .headYaw) ?? 0
+        // One this version doesn't know (saved by a later one) reads as upright rather than
+        // failing the whole baseline, and the Jev record or recording around it.
+        self.orientation = (try? container.decodeIfPresent(FrameOrientation.self, forKey: .orientation)) ?? .portrait
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -77,5 +94,6 @@ public struct Baseline: Codable {
         try container.encode(depthAvailable, forKey: .depthAvailable)
         try container.encode(neckHeight, forKey: .neckHeight)
         try container.encode(headYaw, forKey: .headYaw)
+        try container.encode(orientation, forKey: .orientation)
     }
 }
