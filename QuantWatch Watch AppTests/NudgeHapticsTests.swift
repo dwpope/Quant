@@ -51,6 +51,13 @@ struct NudgeHapticsTests {
         var now = Date()
     }
 
+    /// Waits up to `seconds` for `done`. The taps come on the main queue, which a busy test
+    /// machine can hold up for seconds (CI, 2026-11-14: a 1.5 s wait took 3.8 s).
+    @MainActor private func waitUntil(_ seconds: TimeInterval = 10, _ done: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(seconds)
+        while !done() && Date() < deadline { try await Task.sleep(for: .milliseconds(10)) }
+    }
+
     /// Taps late by more than `playsUpTo` don't play: the app was suspended with them still to
     /// come, as when a background wake ends, and was resumed later. A nudge's taps then would
     /// be for a nudge long gone.
@@ -61,10 +68,17 @@ struct NudgeHapticsTests {
         #expect(played.isEmpty)
     }
 
+    /// On time by the test's clock, which keeps to the schedule: each tap is played when it's
+    /// due, however late the main queue gets to it. On the real clock a busy CI machine made
+    /// them late and they were dropped, as they should be (CI, 2026-11-14).
     @MainActor @Test func tapsOnTime_play() async throws {
+        let clock = Clock()
         var played: [WKHapticType] = []
-        NudgeHaptics.play([.directionUp, .click], tap: { played.append($0) })
-        try await Task.sleep(for: .seconds(1.5))
+        NudgeHaptics.play([.directionUp, .click], from: clock.now, now: { clock.now }, tap: { tap in
+            played.append(tap)
+            clock.now += NudgeHaptics.spacing  // the next tap is due
+        })
+        try await waitUntil { played.count == 2 }
         #expect(played == [.directionUp, .click])
     }
 
