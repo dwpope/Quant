@@ -119,6 +119,8 @@ struct DebugOverlayView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
 
+                recordSwitch
+
                 Button {
                     isExpanded.toggle()
                 } label: {
@@ -130,6 +132,32 @@ struct DebugOverlayView: View {
 
                 calmSwitch
             }
+        }
+    }
+
+    /// Starts and stops a posture session recording (Jev Step 3a). On the top line since
+    /// 2026-11-16: with the phone on its side the panel has half the screen's width and little
+    /// height, and as a row two-thirds of the way down the scrolling details it couldn't be found.
+    /// Not while calibration is pending, like Recalibrate: a session recorded without a baseline
+    /// can never be replayed. All logic lives in AppModel (QuantTests/RecordingWiringTests).
+    private var recordSwitch: some View {
+        let label = appModel.isRecording ? "Stop recording" : "Record"
+        let symbol = appModel.isRecording ? "stop.circle.fill" : "record.circle"
+        return Button {
+            if appModel.isRecording {
+                _ = appModel.stopRecording()
+            } else {
+                appModel.startRecording()
+            }
+        } label: {
+            Image(systemName: symbol)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .tint(appModel.isRecording ? .red : .accentColor)
+        .accessibilityLabel(label)
+        .accessibilityShowsLargeContentViewer {
+            Label(label, systemImage: symbol)
         }
     }
 
@@ -259,30 +287,16 @@ struct DebugOverlayView: View {
             //
             // `AppModel.startRecording()`/`stopRecording()` and `RecorderService.addTag` were
             // written, tested, and then never called from anywhere in the app — so no posture
-            // session had ever been recorded and no posture label had ever been captured. This
-            // is the missing trigger. All logic lives in AppModel, which is unit-tested in
-            // QuantTests/RecordingWiringTests; this view only calls it.
-            HStack(spacing: 6) {
-                Button(appModel.isRecording ? "Stop rec" : "Record") {
-                    if appModel.isRecording {
-                        _ = appModel.stopRecording()
-                    } else {
-                        appModel.startRecording()
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
-                .tint(appModel.isRecording ? .red : .accentColor)
-
-                if appModel.isRecording {
+            // session had ever been recorded and no posture label had ever been captured. The
+            // trigger is `recordSwitch` on the top line; what a running recording needs is here.
+            if appModel.isRecording {
+                HStack(spacing: 6) {
                     Circle()
                         .fill(.red)
                         .frame(width: 6, height: 6)
                     Text("REC")
                 }
-            }
 
-            if appModel.isRecording {
                 // Surfaced while it can still be acted on: a session recorded without a
                 // baseline can never be replayed against the threshold engine, and the
                 // baseline cannot be reconstructed after the fact. If this warns, recalibrate

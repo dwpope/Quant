@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 import PostureLogic
 @testable import Quant
 
@@ -100,5 +101,55 @@ final class DiagnosticsPanelTests: XCTestCase {
                 }
             }
         }
+    }
+
+    // MARK: - Record
+
+    /// Found on 2026-11-16: with the phone on its side the panel has half the screen's width and
+    /// little height, and Record sat two-thirds of the way down its scrolling rows. Dave couldn't
+    /// find it. It belongs on the top line, which shows open or closed.
+    @MainActor
+    func test_record_isOnTheTopLine_withThePanelClosed() throws {
+        let defaults = UserDefaults.standard
+        let wasExpanded = defaults.object(forKey: DiagnosticsPanel.expandedKey)
+        defer { defaults.set(wasExpanded, forKey: DiagnosticsPanel.expandedKey) }
+        defaults.set(false, forKey: DiagnosticsPanel.expandedKey)
+        try accessibility(true)
+        defer { try? accessibility(false) }
+
+        let model = AppModel()
+        model.needsCalibration = false
+        let host = UIHostingController(rootView: DebugOverlayView(appModel: model))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 437, height: 120)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+
+        let labels = accessibilityLabels(in: host.view)
+        XCTAssertTrue(labels.contains("Record"), "top line: \(labels)")
+    }
+
+    /// SwiftUI builds its accessibility elements only while accessibility is on, as with
+    /// VoiceOver running; this turns it on or off for the test process, as AccessibilitySnapshot
+    /// does.
+    private func accessibility(_ on: Bool) throws {
+        let library = try XCTUnwrap(dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW))
+        let setEnabled = try XCTUnwrap(dlsym(library, "_AXSApplicationAccessibilitySetEnabled"))
+        unsafeBitCast(setEnabled, to: (@convention(c) (Int32) -> Void).self)(on ? 1 : 0)
+    }
+
+    /// Every accessibility label under `element`, as VoiceOver would find them.
+    private func accessibilityLabels(in element: NSObject) -> [String] {
+        var children: [Any] = element.accessibilityElements ?? []
+        let count = element.accessibilityElementCount()
+        if children.isEmpty, count != NSNotFound, count > 0 {
+            children = (0..<count).compactMap { element.accessibilityElement(at: $0) }
+        }
+        if let view = element as? UIView { children += view.subviews }
+        return [element.accessibilityLabel].compactMap { $0 }
+            + children.compactMap { $0 as? NSObject }.flatMap(accessibilityLabels(in:))
     }
 }
