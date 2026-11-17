@@ -216,6 +216,7 @@ struct ContentView: View {
 
     @State private var showStoredData = false
     @State private var storedDataNoticeDismissed = false
+    @State private var showDrinks = false
 
     private var olderStoredBytes: Int64 {
         StoredData.olderThan(days: AppModel.storedDataNoticeDays, in: appModel.storedData)
@@ -235,6 +236,9 @@ struct ContentView: View {
                 // When you sat well and when you slouched, today (2026-10-13).
                 PostureTimelineCard()
 
+                // Today's water from Apple Health, over the same span (2026-11-17).
+                HydrationCard(hydration: appModel.hydration, onTap: { showDrinks = true })
+
                 // From the scan at launch: data older than a month, until dismissed.
                 if !storedDataNoticeDismissed, olderStoredBytes > 0 {
                     StoredDataCard(olderBytes: olderStoredBytes,
@@ -253,6 +257,9 @@ struct ContentView: View {
         .contentMargins(.bottom, sideBySide ? 60 : 0, for: .scrollContent)
         .sheet(isPresented: $showStoredData) {
             NavigationStack { StoredDataView() }
+        }
+        .sheet(isPresented: $showDrinks) {
+            DrinksListView(hydration: appModel.hydration)
         }
     }
 
