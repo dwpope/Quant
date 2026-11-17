@@ -16,6 +16,7 @@ struct CalmScreen: View {
 
     @StateObject private var today = PostureTimelineLoader()
     @State private var showDay = false
+    @State private var showDrinks = false
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     /// What fills the screen below the top line: the existing screens while the camera or the
@@ -53,6 +54,10 @@ struct CalmScreen: View {
                                        cameraStarted: appModel.cameraStarted),
                     silencedUntil: appModel.nudgesSilencedUntil.flatMap { $0 > context.date ? $0 : nil },
                     timeline: today.timeline,
+                    // The TimelineView ticks each second, so this keeps up without observing the model.
+                    hydrationLine: HydrationDay.calmRow(day: appModel.hydration.day,
+                                                        access: appModel.hydration.access,
+                                                        now: context.date),
                     showsCamera: appModel.showCameraPreview,
                     recording: appModel.isRecording,
                     now: context.date,
@@ -98,7 +103,13 @@ struct CalmScreen: View {
         // screen like StandBy has none.
         .statusBarHidden(true)
         .task { await today.keepLoadingToday() }
+        // Asks for Health access as soon as the row can show.
+        .task {
+            await appModel.hydration.start()
+            await appModel.hydration.keepRefreshing()
+        }
         .sheet(isPresented: $showDay) { PostureTimelineView() }
+        .sheet(isPresented: $showDrinks) { DrinksListView(hydration: appModel.hydration) }
     }
 
     /// The head's yaw from where it was at calibration, + towards your right.
@@ -114,6 +125,7 @@ struct CalmScreen: View {
             toggleCamera: { appModel.showCameraPreview.toggle() },
             settings: onSettings,
             showDay: { showDay = true },
+            showDrinks: { showDrinks = true },
             switchView: onSwitch)
     }
 
@@ -135,6 +147,7 @@ struct CalmActions {
     var toggleCamera: () -> Void = {}
     var settings: () -> Void = {}
     var showDay: () -> Void = {}
+    var showDrinks: () -> Void = {}
     var switchView: () -> Void = {}
 }
 
@@ -260,6 +273,8 @@ struct CalmScreenContent<Mirror: View>: View {
     let status: CalmStatus
     let silencedUntil: Date?
     let timeline: PostureTimeline?
+    /// Today's water (`HydrationDay.calmRow`); no row when nil.
+    let hydrationLine: String?
     let showsCamera: Bool
     var recording = false
     let now: Date
@@ -303,6 +318,7 @@ struct CalmScreenContent<Mirror: View>: View {
             Spacer(minLength: 20)
             VStack(spacing: 10) {
                 todayCard
+                hydrationRow
             }
             CalmControls(silencedUntil: silencedUntil, showsCamera: showsCamera, actions: actions)
                 .padding(.top, 16)
@@ -317,6 +333,7 @@ struct CalmScreenContent<Mirror: View>: View {
                 .frame(maxWidth: .infinity)
             VStack(spacing: 10) {
                 todayCard
+                hydrationRow
                 CalmControls(silencedUntil: silencedUntil, showsCamera: showsCamera, actions: actions)
                     .padding(.top, 10)
             }
@@ -404,6 +421,34 @@ struct CalmScreenContent<Mirror: View>: View {
         .fixedSize()
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+
+    // MARK: Hydration
+
+    /// Today's water from Apple Health; tap for the drinks list.
+    @ViewBuilder
+    private var hydrationRow: some View {
+        if let hydrationLine {
+            Button(action: actions.showDrinks) {
+                HStack(spacing: 12) {
+                    Image(systemName: "drop.fill")
+                        .foregroundStyle(.blue)
+                    Text(hydrationLine)
+                        .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white.opacity(0.07)))
+                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Shows today's drinks")
+        }
+    }
 }
 
 /// Redrawn only when what it shows changes; what the controls do and the camera's view are
@@ -412,7 +457,7 @@ extension CalmScreenContent: Equatable {
     static func == (a: Self, b: Self) -> Bool {
         a.look == b.look && a.pose == b.pose && a.coaching == b.coaching && a.neckLength == b.neckLength
             && a.status == b.status && a.silencedUntil == b.silencedUntil
-            && a.timeline == b.timeline && a.showsCamera == b.showsCamera
+            && a.timeline == b.timeline && a.hydrationLine == b.hydrationLine && a.showsCamera == b.showsCamera
             && a.recording == b.recording && a.now == b.now
     }
 }
