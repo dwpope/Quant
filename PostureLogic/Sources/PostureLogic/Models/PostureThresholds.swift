@@ -36,7 +36,12 @@ public struct PostureThresholds: Codable {
     /// 514 of 907 slouched seconds were head drop between -0.015 and -0.020, and three of the six
     /// head-drop nudges. Replaying the 190 posed captures, -0.020 loses no slouch (-0.025 loses
     /// one, at -0.020).
-    public var headDropThreshold: Float = 0.020
+    ///
+    /// **0.0175 since 2026-11-17**, between the two. On its side (`posture-log-to-2026-11-17`)
+    /// Dave's head sat at -0.019 to -0.022 from 12:00 to 12:15, and he could feel his neck strain
+    /// while the app stayed green. It crossed -0.020 for a second or two at a time, so each
+    /// head-drop countdown started again and none nudged.
+    public var headDropThreshold: Float = 0.0175
     public var shoulderRoundingThreshold: Float = 10.0
     /// Shoulder sink at or above this, in calibrated shoulder widths, is a slouch: sinking down
     /// in the chair (2026-10-05). Session 8: sinks +0.086 to +0.103, uprights +0.005 to +0.020,

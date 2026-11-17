@@ -33,11 +33,21 @@ final class HeadDropDirectionTests: XCTestCase {
         return false
     }
 
-    /// 0.020 since 2026-11-09 (was the Jev wording's 0.015): sitting well in real use read up to
-    /// -0.016, so 0.015 flickered in and out of a slouch. No posed slouch is lost at 0.020.
-    func test_theTripPoint_clearsSittingWell() {
-        XCTAssertEqual(PostureThresholds().headDropThreshold, 0.020,
-                       "the head 0.020 shoulder widths closer to the shoulders than at calibration")
+    /// 0.0175 since 2026-11-17 (0.020 from 2026-11-09, the Jev wording's 0.015 before that):
+    /// sitting well in real use read up to -0.016, so 0.015 flickered in and out of a slouch, but
+    /// at 0.020 Dave's head sat at -0.019 to -0.022 for a quarter of an hour, his neck strained,
+    /// and the app stayed green.
+    func test_theTripPoint_isBetweenSittingWellAndAStrainedNeck() {
+        XCTAssertEqual(PostureThresholds().headDropThreshold, 0.0175,
+                       "the head 0.0175 shoulder widths closer to the shoulders than at calibration")
+    }
+
+    /// 2026-11-17, the phone on its side: "I can feel my neck strain even though it's still
+    /// displaying as green". Head drop read -0.019 to -0.022 from 12:00 to 12:15, crossing 0.020
+    /// for a second or two at a time, so each head-drop countdown started again and none nudged.
+    func test_aStrainedNeck_isASlouch() {
+        XCTAssertTrue(isDrifting(state(headDrop: -0.018)))
+        XCTAssertTrue(isDrifting(state(headDrop: -0.019)))
     }
 
     /// Every slouch measured on device read at or below -0.013; the weakest two that barely came

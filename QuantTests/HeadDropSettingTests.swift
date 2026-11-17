@@ -9,22 +9,29 @@ import PostureLogic
 @MainActor
 final class HeadDropSettingTests: XCTestCase {
 
-    /// 0.020 since 2026-11-09 (was 0.015): in the real-use session sitting well flickered across
-    /// 0.015, which drove most of its slouched time and three nudges.
-    func test_theDefault_clearsSittingWell() {
-        XCTAssertEqual(AppModel.defaultHeadDropThreshold, 0.020)
+    /// 0.0175 since 2026-11-17: at 0.020 Dave's neck strained and the app stayed green. (0.020
+    /// from 2026-11-09, when sitting well flickered across 0.015.)
+    func test_theDefault_isBetweenSittingWellAndAStrainedNeck() {
+        XCTAssertEqual(AppModel.defaultHeadDropThreshold, 0.0175)
     }
 
     func test_aValueStoredUnderTheOldMeaning_isIgnored() {
         UserDefaults.standard.set(Float(0.15), forKey: "com.quant.posture.headDrop")
         defer { UserDefaults.standard.removeObject(forKey: "com.quant.posture.headDrop") }
-        XCTAssertEqual(AppModel().headDropThreshold, 0.020)
+        XCTAssertEqual(AppModel().headDropThreshold, 0.0175)
     }
 
     /// The old default, stored when the slider was touched, mustn't keep the flicker going.
     func test_aValueStoredBeforeTheNewLine_isIgnored() {
         UserDefaults.standard.set(Float(0.015), forKey: "com.quant.posture.headDrop.v2")
         defer { UserDefaults.standard.removeObject(forKey: "com.quant.posture.headDrop.v2") }
-        XCTAssertEqual(AppModel().headDropThreshold, 0.020)
+        XCTAssertEqual(AppModel().headDropThreshold, 0.0175)
+    }
+
+    /// 0.020, stored when the setting was touched or reset, mustn't keep the strain green.
+    func test_aValueStoredBeforeTheTighterLine_isIgnored() {
+        UserDefaults.standard.set(Float(0.020), forKey: "com.quant.posture.headDrop.v3")
+        defer { UserDefaults.standard.removeObject(forKey: "com.quant.posture.headDrop.v3") }
+        XCTAssertEqual(AppModel().headDropThreshold, 0.0175)
     }
 }

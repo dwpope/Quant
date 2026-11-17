@@ -869,12 +869,13 @@ final class NudgeEngineTests: XCTestCase {
     func test_fireReason_isSustainedSlouch_whenBothMetricsEqualAboveThreshold() {
         let engine = makeEngine(slouchDuration: 10)
 
-        // Both at exactly the same ratio above threshold
-        // forwardCreep = 0.12 / 0.06 = 2.0 (the line is 6% since 2026-10-10)
-        // head drop    = 0.04 / 0.020 = 2.0 (reads -0.04 on the device; the line is 0.020
-        //                since 2026-11-09)
+        // Both at exactly twice their line, whatever the lines are (head drop's moved on
+        // 2026-11-09 and 2026-11-17); doubling is exact in floating point, so the ratios are equal.
+        // Head drop reads negative on the device.
         // Equal → falls back to .sustainedSlouch
-        let metrics = makeMetrics(forwardCreep: 0.12, headDrop: -0.04)
+        let lines = PostureThresholds()
+        let metrics = makeMetrics(forwardCreep: 2 * lines.forwardCreepThreshold,
+                                  headDrop: -2 * lines.headDropThreshold)
 
         let decision = evaluate(
             engine, state: .bad(since: 0), currentTime: 15, metrics: metrics
