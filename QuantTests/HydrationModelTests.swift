@@ -7,6 +7,11 @@ final class FakeWaterStore: WaterHealthStore {
     var currentAccess: HealthAccess = .notAsked
     var accessAfterRequest: HealthAccess = .granted
     var stored: [Drink] = []
+    /// Reads throw, as HealthKit's would with the phone locked.
+    var failReads = false
+    /// Reads wait until `releaseRead` lets them go, each returning what was stored when it began.
+    var holdReads = false
+    private(set) var heldReads: [CheckedContinuation<Void, Never>] = []
     private(set) var requestCount = 0
     private(set) var readRanges: [(Date, Date)] = []
     private(set) var saved: [(millilitres: Double, at: Date, syncIdentifier: String, syncVersion: Int, userEntered: Bool)] = []
@@ -21,10 +26,17 @@ final class FakeWaterStore: WaterHealthStore {
         currentAccess = accessAfterRequest
     }
 
+    struct ReadFailed: Error {}
+
     func drinks(from start: Date, to end: Date) async throws -> [Drink] {
         readRanges.append((start, end))
-        return stored
+        if failReads { throw ReadFailed() }
+        let snapshot = stored
+        if holdReads { await withCheckedContinuation { heldReads.append($0) } }
+        return snapshot
     }
+
+    func releaseRead(_ index: Int) { heldReads[index].resume() }
 
     func saveDrink(millilitres: Double, at: Date, syncIdentifier: String, syncVersion: Int,
                    userEntered: Bool) async throws {
@@ -99,6 +111,39 @@ final class HydrationModelTests: XCTestCase, HydrationFixtures {
         await model.refresh()
         XCTAssertEqual(fake.readRanges.last?.0, at(0, day: 17))
         XCTAssertEqual(model.day.totalMillilitres, 0)
+    }
+
+    func test_aFailedRead_afterMidnight_showsTheNewDayEmpty() async {
+        fake.stored = [drink(14, 0, 300)]
+        await model.start()
+        clock = at(0, 1, day: 17)
+        fake.failReads = true
+        await model.refresh()
+        XCTAssertEqual(model.day.totalMillilitres, 0)
+        XCTAssertEqual(model.day.start, at(0, day: 17))
+    }
+
+    func test_aFailedRead_sameDay_keepsWhatWasShown() async {
+        fake.stored = [drink(14, 0, 300)]
+        await model.start()
+        fake.failReads = true
+        await model.refresh()
+        XCTAssertEqual(model.day.totalMillilitres, 300)
+    }
+
+    /// The observer and the minute's timer can overlap: an older read finishing last mustn't
+    /// put back what the newer one replaced.
+    func test_anOlderRead_finishingLast_isDropped() async {
+        fake.currentAccess = .granted
+        fake.holdReads = true
+        let older = Task { await model.refresh() }
+        await waitUntil { fake.heldReads.count == 1 }
+        fake.stored = [drink(14, 0, 250)]
+        let newer = Task { await model.refresh() }
+        await waitUntil { fake.heldReads.count == 2 }
+        fake.releaseRead(1); await newer.value
+        fake.releaseRead(0); await older.value
+        XCTAssertEqual(model.day.totalMillilitres, 250)
     }
 
     func test_aHealthChange_reloadsTheDay() async {

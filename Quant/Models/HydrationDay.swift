@@ -6,7 +6,8 @@ nonisolated enum HealthAccess: Equatable, Sendable {
     case unavailable
     /// Aware hasn't asked yet.
     case notAsked
-    /// Asked, and writing water was turned off. Health hides whether reading was allowed.
+    /// Asked, and saving water was turned off. Health hides whether reading was allowed, so the
+    /// day's drinks may still show.
     case denied
     case granted
 }
@@ -204,17 +205,18 @@ nonisolated struct HydrationDay: Equatable, Sendable {
     static func accessNote(_ access: HealthAccess) -> String? {
         switch access {
         case .unavailable: return "Apple Health isn't available on this device"
-        case .denied: return "Apple Health is off for Aware. Turn it on in Settings › Health › Data Access & Devices."
+        case .denied: return "Aware can't save to Apple Health. Turn it on in Settings › Health › Data Access & Devices."
         case .notAsked, .granted: return nil
         }
     }
 
-    /// The calm view's row: none without Health, a short note when it's off, else the day.
+    /// The calm view's row: none without Health, else the day. With saving turned off, the day
+    /// shows while Health still lets Aware read it, and "Apple Health is off" when there's nothing.
     static func calmRow(day: HydrationDay, access: HealthAccess, now: Date) -> String? {
         switch access {
         case .unavailable: return nil
-        case .denied: return "Apple Health is off"
-        case .notAsked, .granted: return day.calmLine(now: now)
+        case .denied where day.drinks.isEmpty: return "Apple Health is off"
+        case .denied, .notAsked, .granted: return day.calmLine(now: now)
         }
     }
 }

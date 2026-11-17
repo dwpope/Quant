@@ -74,6 +74,13 @@ final class HydrationDayTests: XCTestCase, HydrationFixtures {
         XCTAssertEqual(mockDay.chartSpan(postureSpan: at(9, 10)...at(14, 30), now: at(14, 30)), at(9, 10)...at(14, 30))
     }
 
+    /// A drink before the posture band starts the chart's span, so it must count at the span's
+    /// first step rather than fall between the first step and the rest.
+    func test_runningTotal_countsADrinkAtTheSpansStart() {
+        let day = HydrationDay(drinks: [drink(8, 15, 200), drink(10, 0, 100)], day: at(14), calendar: cal)
+        XCTAssertEqual(day.runningTotal(from: at(8, 15), to: at(14, 30)).map(\.millilitres), [200, 300, 300])
+    }
+
     func test_chartSpan_stretchesToAnEarlyDrink() {
         let day = HydrationDay(drinks: [drink(8, 15, 200)], day: at(14), calendar: cal)
         XCTAssertEqual(day.chartSpan(postureSpan: at(9, 30)...at(14, 30), now: at(14, 30)), at(8, 15)...at(14, 30))
@@ -111,14 +118,18 @@ final class HydrationDayTests: XCTestCase, HydrationFixtures {
     func test_accessNote() {
         XCTAssertEqual(HydrationDay.accessNote(.unavailable), "Apple Health isn't available on this device")
         XCTAssertEqual(HydrationDay.accessNote(.denied),
-                       "Apple Health is off for Aware. Turn it on in Settings › Health › Data Access & Devices.")
+                       "Aware can't save to Apple Health. Turn it on in Settings › Health › Data Access & Devices.")
         XCTAssertNil(HydrationDay.accessNote(.granted))
         XCTAssertNil(HydrationDay.accessNote(.notAsked))
     }
 
     func test_calmRow() {
         XCTAssertNil(HydrationDay.calmRow(day: mockDay, access: .unavailable, now: at(14, 30)))
-        XCTAssertEqual(HydrationDay.calmRow(day: mockDay, access: .denied, now: at(14, 30)), "Apple Health is off")
+        // Writing is off, but Health still lets Aware read: the day's drinks show.
+        XCTAssertEqual(HydrationDay.calmRow(day: mockDay, access: .denied, now: at(14, 30)), "980 mL · last drink 12 min ago")
+        // Nothing to read either, as far as Aware can tell.
+        XCTAssertEqual(HydrationDay.calmRow(day: .empty(day: at(14), calendar: cal), access: .denied, now: at(14, 30)),
+                       "Apple Health is off")
         XCTAssertEqual(HydrationDay.calmRow(day: mockDay, access: .granted, now: at(14, 30)), "980 mL · last drink 12 min ago")
         XCTAssertEqual(HydrationDay.calmRow(day: mockDay, access: .notAsked, now: at(14, 30)), "980 mL · last drink 12 min ago")
     }
