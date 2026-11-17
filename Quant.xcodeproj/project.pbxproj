@@ -656,6 +656,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Quant/Quant.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = FHC8TY7TG6;
@@ -664,6 +665,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Aware;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Aware uses the camera to see how you're sitting. The video stays on this iPhone and isn't saved.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Aware reads the water you log in Apple Health to show today's total beside your posture.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Aware saves the drinks you add here to Apple Health as water.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -692,6 +695,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Quant/Quant.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = FHC8TY7TG6;
@@ -700,6 +704,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Aware;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Aware uses the camera to see how you're sitting. The video stays on this iPhone and isn't saved.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Aware reads the water you log in Apple Health to show today's total beside your posture.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Aware saves the drinks you add here to Apple Health as water.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

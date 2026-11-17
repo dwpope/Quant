@@ -16,7 +16,7 @@ struct CalmScreen: View {
 
     @StateObject private var today = PostureTimelineLoader()
     @State private var showDay = false
-    @State private var showSips = false
+    @State private var showDrinks = false
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     /// What fills the screen below the top line: the existing screens while the camera or the
@@ -54,16 +54,16 @@ struct CalmScreen: View {
                                        cameraStarted: appModel.cameraStarted),
                     silencedUntil: appModel.nudgesSilencedUntil.flatMap { $0 > context.date ? $0 : nil },
                     timeline: today.timeline,
-                    sipCount: appModel.sipStore.sipCount,
-                    lastSipTimestamp: appModel.sipStore.lastSipTimestamp,
+                    // The TimelineView ticks each second, so this keeps up without observing the model.
+                    hydrationLine: HydrationDay.calmRow(day: appModel.hydration.day,
+                                                        access: appModel.hydration.access,
+                                                        now: context.date),
                     showsCamera: appModel.showCameraPreview,
                     recording: appModel.isRecording,
                     now: context.date,
                     actions: actions,
                     mirror: { cameraPreview })
                     .equatable()
-                    // Here, not round every phase: in debug it waits until calibration is done.
-                    .sipLabelSheet(appModel: appModel)
             case .cameraBlocked:
                 CalmFrame(status: .paused, onSwitch: onSwitch, onSettings: onSettings) {
                     CameraPermissionView { Task { await appModel.retryFrontCamera() } }
@@ -103,10 +103,13 @@ struct CalmScreen: View {
         // screen like StandBy has none.
         .statusBarHidden(true)
         .task { await today.keepLoadingToday() }
-        .sheet(isPresented: $showDay) { PostureTimelineView() }
-        .sheet(isPresented: $showSips) {
-            SipTimelineView(appModel: appModel, sipStore: appModel.sipStore)
+        // Asks for Health access as soon as the row can show.
+        .task {
+            await appModel.hydration.start()
+            await appModel.hydration.keepRefreshing()
         }
+        .sheet(isPresented: $showDay) { PostureTimelineView() }
+        .sheet(isPresented: $showDrinks) { DrinksListView(hydration: appModel.hydration) }
     }
 
     /// The head's yaw from where it was at calibration, + towards your right.
@@ -122,7 +125,7 @@ struct CalmScreen: View {
             toggleCamera: { appModel.showCameraPreview.toggle() },
             settings: onSettings,
             showDay: { showDay = true },
-            showSips: { showSips = true },
+            showDrinks: { showDrinks = true },
             switchView: onSwitch)
     }
 
@@ -144,7 +147,7 @@ struct CalmActions {
     var toggleCamera: () -> Void = {}
     var settings: () -> Void = {}
     var showDay: () -> Void = {}
-    var showSips: () -> Void = {}
+    var showDrinks: () -> Void = {}
     var switchView: () -> Void = {}
 }
 
@@ -270,8 +273,8 @@ struct CalmScreenContent<Mirror: View>: View {
     let status: CalmStatus
     let silencedUntil: Date?
     let timeline: PostureTimeline?
-    let sipCount: Int
-    let lastSipTimestamp: TimeInterval?
+    /// Today's water (`HydrationDay.calmRow`); no row when nil.
+    let hydrationLine: String?
     let showsCamera: Bool
     var recording = false
     let now: Date
@@ -315,7 +318,7 @@ struct CalmScreenContent<Mirror: View>: View {
             Spacer(minLength: 20)
             VStack(spacing: 10) {
                 todayCard
-                sipRow
+                hydrationRow
             }
             CalmControls(silencedUntil: silencedUntil, showsCamera: showsCamera, actions: actions)
                 .padding(.top, 16)
@@ -330,7 +333,7 @@ struct CalmScreenContent<Mirror: View>: View {
                 .frame(maxWidth: .infinity)
             VStack(spacing: 10) {
                 todayCard
-                sipRow
+                hydrationRow
                 CalmControls(silencedUntil: silencedUntil, showsCamera: showsCamera, actions: actions)
                     .padding(.top, 10)
             }
@@ -419,47 +422,32 @@ struct CalmScreenContent<Mirror: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var sipCountText: some View {
-        Text(HydrationCard.countLabel(sipCount))
-            .font(.subheadline.weight(.medium))
-    }
+    // MARK: Hydration
 
-    private var lastSipText: some View {
-        Text(HydrationCard.lastSipLabel(lastSipTimestamp, now: now))
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-    }
-
-    private var sipRow: some View {
-        Button(action: actions.showSips) {
-            HStack(spacing: 12) {
-                Image(systemName: "drop.fill")
-                    .foregroundStyle(.blue)
-                // Side by side, or the time under the count when they don't fit.
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) {
-                        sipCountText.fixedSize()
-                        Spacer(minLength: 8)
-                        lastSipText.fixedSize()
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        sipCountText
-                        lastSipText
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+    /// Today's water from Apple Health; tap for the drinks list.
+    @ViewBuilder
+    private var hydrationRow: some View {
+        if let hydrationLine {
+            Button(action: actions.showDrinks) {
+                HStack(spacing: 12) {
+                    Image(systemName: "drop.fill")
+                        .foregroundStyle(.blue)
+                    Text(hydrationLine)
+                        .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
                 }
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white.opacity(0.07)))
+                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white.opacity(0.07)))
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Shows today's drinks")
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Shows today's sips")
     }
 }
 
@@ -469,8 +457,7 @@ extension CalmScreenContent: Equatable {
     static func == (a: Self, b: Self) -> Bool {
         a.look == b.look && a.pose == b.pose && a.coaching == b.coaching && a.neckLength == b.neckLength
             && a.status == b.status && a.silencedUntil == b.silencedUntil
-            && a.timeline == b.timeline && a.sipCount == b.sipCount
-            && a.lastSipTimestamp == b.lastSipTimestamp && a.showsCamera == b.showsCamera
+            && a.timeline == b.timeline && a.hydrationLine == b.hydrationLine && a.showsCamera == b.showsCamera
             && a.recording == b.recording && a.now == b.now
     }
 }

@@ -59,8 +59,8 @@ public struct Baseline: Codable {
     // Custom coder so a persisted baseline that predates an additive field still
     // decodes: the synthesized `decode` throws on a missing key even with a default
     // init value. `shoulderTwist`, `neckHeight`, `headYaw` and `orientation` are the
-    // additive-default fields, decoded with `decodeIfPresent` and falling back to their defaults. Mirrors the
-    // `SipEvent.label` pattern. Encoding stays complete.
+    // additive-default fields, decoded with `decodeIfPresent` and falling back to their defaults.
+    // Encoding stays complete.
 
     private enum CodingKeys: String, CodingKey {
         case timestamp, shoulderMidpoint, headPosition, torsoAngle, shoulderTwist,

@@ -6,8 +6,8 @@ public class Pipeline {
 
     /// Emits every raw `PoseObservation` produced by the Vision pipeline.
     ///
-    /// Subscribers (e.g., `SipDetector`) can consume observations independently
-    /// without Pipeline knowing they exist. This mirrors the fan-out pattern used
+    /// Any subscriber can consume observations independently without Pipeline
+    /// knowing it exists. This mirrors the fan-out pattern used
     /// throughout the posture system.
     ///
     /// Emitted from the same `@MainActor` task that updates all other published

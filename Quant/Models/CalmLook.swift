@@ -169,7 +169,7 @@ enum CalmStatus: Equatable {
 /// Layout rules for the calm view, kept out of the view so they can be tested.
 enum CalmLayout {
     /// Everything in the portrait view but the figure, at the usual text size: the word and its
-    /// two lines, today, the sips and the controls, with their gaps.
+    /// two lines, today, the hydration row and the controls, with their gaps.
     static let portraitFixedHeight: CGFloat = 480
 
     /// How tall the figure stands, in portrait, given the height below the top line. It takes

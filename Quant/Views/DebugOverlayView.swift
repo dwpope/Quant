@@ -260,29 +260,6 @@ struct DebugOverlayView: View {
 
             Divider()
 
-            // Sip detector state
-            let sipDebug = appModel.sipDetector.debugState
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(sipStateColor(sipDebug["state"] as? String))
-                    .frame(width: 6, height: 6)
-                Text("Sip: \(sipDebug["state"] as? String ?? "?")")
-            }
-            Text("Prox: \(sipDebug["proximityScore"] as? String ?? "?")  Vel: \(sipDebug["velocityScore"] as? String ?? "?")")
-            Text("Sips today: \(appModel.sipStore.sipCount)")
-
-            // Sip thresholds (current, may be calibrated or default)
-            let st = appModel.sipDetector.thresholds
-            Text("Thr prox: \(st.proximityThreshold, specifier: "%.3f")  vel: \(st.velocityThreshold, specifier: "%.4f")")
-            Text("Thr dur: \(st.minDuration, specifier: "%.1f")–\(st.maxDuration, specifier: "%.1f")s  cd: \(st.cooldownDuration, specifier: "%.0f")s")
-
-            if appModel.isTrainingModeEnabled {
-                Text("Training buffer: \(appModel.sipTrainingBuffer.frames.count)f")
-                Text("Pending labels: \(appModel.activeSipLabelItem == nil ? 0 : 1)")
-            }
-
-            Divider()
-
             // MARK: - Posture session recording (Jev Step 3a)
             //
             // `AppModel.startRecording()`/`stopRecording()` and `RecorderService.addTag` were
@@ -870,16 +847,6 @@ struct DebugOverlayView: View {
             .sorted { $0.value > $1.value }
             .prefix(3)
             .map { (key: $0.key, value: $0.value) }
-    }
-
-    private func sipStateColor(_ state: String?) -> Color {
-        switch state {
-        case "idle":      return .secondary
-        case "candidate": return .yellow
-        default:
-            if let s = state, s.hasPrefix("cooldown") { return .blue }
-            return .secondary
-        }
     }
 }
 

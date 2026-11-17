@@ -185,18 +185,6 @@ final class CalmViewTests: XCTestCase {
         if let next = model.stopRecording() { try? FileManager.default.removeItem(at: next) }
     }
 
-    /// The calm view's sip line uses the hydration card's words.
-    func test_theSipWords_areTheCards() {
-        XCTAssertEqual(HydrationCard.countLabel(0), "No sips yet")
-        XCTAssertEqual(HydrationCard.countLabel(1), "1 sip today")
-        XCTAssertEqual(HydrationCard.countLabel(4), "4 sips today")
-        let t = now.timeIntervalSince1970
-        XCTAssertEqual(HydrationCard.lastSipLabel(nil, now: now), "No recent sip")
-        XCTAssertEqual(HydrationCard.lastSipLabel(t - 20, now: now), "Just now")
-        XCTAssertEqual(HydrationCard.lastSipLabel(t - 12 * 60, now: now), "Last sip 12 min ago")
-        XCTAssertEqual(HydrationCard.lastSipLabel(t - 2 * 3600, now: now), "Last sip 2h ago")
-    }
-
     // MARK: - The top line
 
     func test_theTopLine_saysLive_whileFramesArrive() {

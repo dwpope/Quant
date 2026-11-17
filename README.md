@@ -5,7 +5,7 @@
 [![Jev Proxy](https://github.com/dwpope/Quant/actions/workflows/jev-proxy.yml/badge.svg)](https://github.com/dwpope/Quant/actions/workflows/jev-proxy.yml)
 [![Secrets Guard](https://github.com/dwpope/Quant/actions/workflows/secrets-guard.yml/badge.svg)](https://github.com/dwpope/Quant/actions/workflows/secrets-guard.yml)
 
-A real-time posture monitoring iOS app that uses the front camera and Apple's Vision framework to track body positioning, detect drinking gestures for hydration logging, and nudge you when you slouch. **All detection, scoring and nudging runs on-device.** One optional experiment, **off by default**, can send derived posture numbers to a cloud classifier — see [Privacy and network](#privacy-and-network).
+A real-time posture monitoring iOS app that uses the front camera and Apple's Vision framework to track body positioning and nudge you when you slouch. **All detection, scoring and nudging runs on-device.** One optional experiment, **off by default**, can send derived posture numbers to a cloud classifier — see [Privacy and network](#privacy-and-network).
 
 (Codebase is internally named Quant — repo, Xcode project, and source folders still use that name; only the user-facing app brand is "Aware".)
 
@@ -21,9 +21,7 @@ Aware sits on your desk (phone on a stand) and watches your upper body through t
 
 **Head-turn nudge** — Working on a second screen off to the side twists the neck, and holding it gets uncomfortable. A head turned past 45° while the shoulders still face the phone, held for 30 seconds, gets its own nudge: turn the chair to face that screen. From the moment it turns, the phone's posture card says "Head turned" where it says "Slouching", as the Watch and the calm view do (while sitting well; a slouch is shown first). Turning the chair narrows the shoulders in view, which is how the app tells a turned chair from a turned neck. A turned head reads the shoulders wider and a turned chair shifts them sideways, so neither counts as leaning in or leaning sideways while turned. Turns are measured from where you looked while calibrating, and the panel asks you to move the phone if that was more than 20° to one side: every posture rule assumes the phone is in front of you. It shares the slouch nudge's hourly cap; a head still turned after its nudge is nudged again after 10 minutes, and that wait ends when you turn back, since sitting well doesn't untwist a neck. A head-turn nudge in the middle of a slouch leaves the slouch's repeats as they were: once you turn back, the next is a minute later with one more tap. Every nudge shows its own one-line advice on the Apple Watch.
 
-**Sip detection** — A three-signal scoring system (proximity, velocity profile, duration band) detects drinking gestures from upper-body pose data. Proximity is normalised by shoulder width for scale invariance; velocity distinguishes the lift-pause-lower pattern of drinking from static gestures like chin-resting.
-
-**Training mode** — A sidecar data-collection pipeline captures labeled training data (feature vectors + 3s pose windows) for a future CreateML gesture classifier, with a timed annotation UI and JSONL/JSON export. The entire training path is additive — removing it touches zero production code.
+**Hydration** — A card under the posture band shows today's water from Apple Health against a 2 L goal: the total rising over the same span as the posture band, a dashed pace line (0 at 09:00, rising to 1.5 L at 17:00), the away stretches shaded grey, and when you last drank. It asks for Health access the first time it shows, keeps up with drinks logged elsewhere (the Home Screen shortcut, the Health app) without a relaunch, and says plainly when Health is off. Tap it for today's drinks: add one, or change or delete one Aware saved; drinks from Shortcuts or other apps are changed in the Health app. The calm view shows the same in a line. There are no reminders. The camera's sip counting was removed (it couldn't tell how much you drank); a load-cell coaster that weighs your bottle comes next.
 
 **Thermal adaptation** — Frame rate scales dynamically with device temperature (10 → 5 → 2 FPS), with full pause at critical thermal state (the camera stops too, and starts again once the phone cools; switching camera in the meantime waits for it), so the phone doesn't overheat during long sessions.
 
@@ -32,7 +30,8 @@ Aware sits on your desk (phone on a stand) and watches your upper body through t
 **Everything that actually judges your posture runs on your device.** Pose detection, the five
 posture metrics, the state machine and the nudge decisions all execute locally, with no network
 call and no account. That is the app as shipped and as used. The camera's video stays on the
-phone and isn't saved. Both apps carry a privacy manifest (`PrivacyInfo.xcprivacy`) giving the
+phone and isn't saved. Water in Apple Health is read and written on the phone only: today's
+drinks for the hydration card, and the drinks you add or change there. Both apps carry a privacy manifest (`PrivacyInfo.xcprivacy`) giving the
 App Store's required reasons for the APIs they use: settings in UserDefaults, file dates for
 Stored Data, and the uptime clock that times camera frames. It declares no tracking and no data
 collected, which holds while the Jev classifier below is off; an App Store build that keeps the
@@ -71,23 +70,23 @@ section in `Quant/Views/DebugOverlayView.swift`, which is the whole of it.
 ```
 PostureLogic/          ← Pure Swift Package, no UIKit/SwiftUI/ARKit
 ├── Pipeline.swift     ← Central orchestrator: frame → pose → metrics → state → nudge
-├── Engines/           ← PostureEngine, NudgeEngine, SipDetector, MetricsEngine, etc.
-├── Models/            ← Value types: PoseSample, Baseline, SipEvent, PostureState
+├── Engines/           ← PostureEngine, NudgeEngine, MetricsEngine, etc.
+├── Models/            ← Value types: PoseSample, Baseline, PostureState
 ├── Protocols/         ← PoseProvider, DebugDumpable, engine protocols
 ├── Services/          ← PoseService, DepthService, PoseDepthFusion, ThermalMonitor
 └── Testing/           ← MockPoseProvider, TestScenarios (shipped in-package)
 
 Quant/                 ← iOS app target
 ├── AppModel.swift     ← ViewModel hub: wires Pipeline to camera, UI, persistence
-├── Views/             ← CalibrationView, DebugOverlay, SipTimeline, etc.
+├── Views/             ← CalibrationView, DebugOverlay, CalmScreen, etc.
 ├── Views/Visualization/ ← 3D posture visualization (RealityKit figure, ARKit face-tracked head)
 ├── Services/          ← ARSession, FrontCamera, WatchConnectivity, AudioFeedback
-└── Models/            ← SipStore, SipTrainingStore, SipLabelQueue
+└── Models/            ← PostureTimeline, StoredData, JevComparisonStore
 
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~49,500 lines of Swift** across 281 files, tests included. All tests pass: **807** in the `PostureLogic` package (`cd PostureLogic && swift test`), **548** in the app target and **144** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
+**~45,900 lines of Swift** across 267 files, tests included. All tests pass: **760** in the `PostureLogic` package (`cd PostureLogic && swift test`), **508** in the app target and **144** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
 
 ## Technical Decisions
 
@@ -99,17 +98,13 @@ All detection logic lives in `PostureLogic` — a Swift package with zero platfo
 
 Each engine conforms to a protocol (e.g. `PostureEngineProtocol`, `NudgeEngineProtocol`) and implements `DebugDumpable`, which exposes a `debugState: [String: Any]` dictionary for runtime inspection. This enables mock injection in tests and powers the debug overlay without coupling to engine internals.
 
-### Three-signal sip detection with training-mode data collection
-
-Rather than a simple proximity threshold (too many false positives from chin-resting, phone calls, adjusting glasses), the `SipDetector` scores three independent signals and requires a combined score above threshold. The training-mode architecture runs a completely separate data path — `SipTrainingBuffer` captures rolling pose windows, `SipTrainingRecord` stores detector scores at confirmation time, and `SipTrainingStore` persists to separate per-day files. This collects ground-truth data for a future ML classifier without polluting the production model.
-
 ### Traffic-light state machine with hysteresis
 
 The `PostureEngine` transitions through good → drifting → bad states using time accumulation, not instantaneous threshold crossing. The drifting state acts as a buffer (default 60s) so the system doesn't nag on momentary slouches. Accumulated drift time freezes when tracking quality drops, preventing false alarms from camera occlusion.
 
 ### Combine fan-out for observation distribution
 
-`Pipeline` publishes pose observations via a `PassthroughSubject`. Multiple consumers (SipDetector, SipTrainingBuffer, future ML models) subscribe independently — the Pipeline doesn't import or reference any of them. `AppModel` wires the subscriptions, keeping separation of concerns clean.
+`Pipeline` publishes every pose observation via a `PassthroughSubject`, so a new consumer (a future ML model, say) can subscribe without the Pipeline importing or referencing it; `AppModel` would wire the subscription. Nothing subscribes at present: the camera's sip detection, its first consumer, was removed in November 2026.
 
 ### Frame throttling with thermal adaptation
 

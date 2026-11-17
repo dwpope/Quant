@@ -1,90 +1,71 @@
 import SwiftUI
 
-/// Displays today's hydration summary on the functional monitoring screen.
-/// Tap to open the full sip timeline.
+/// Today's water on the main screen, under the posture band: the total against the 2 L goal,
+/// the rising total over the same span as the posture band, and when the last drink was
+/// (hydration design §7.5). Tap for the drinks list.
+///
+/// It asks for Apple Health access the first time it appears, and says so plainly when Health
+/// is off or missing. It never reminds anyone to drink.
 struct HydrationCard: View {
-    let sipCount: Int
-    let lastSipTimestamp: TimeInterval?
+    @ObservedObject var hydration: HydrationModel
     let onTap: () -> Void
 
+    /// Today's posture, for the chart's span and its away shading.
+    @StateObject private var loader = PostureTimelineLoader()
+
     var body: some View {
+        let now = Date()
+        let day = hydration.day
+        let note = HydrationDay.accessNote(hydration.access)
         Button(action: onTap) {
             CardContainer {
-                HStack(spacing: 12) {
-                    Image(systemName: "drop.fill")
-                        .font(.title2)
-                        .foregroundStyle(.blue)
-                        .frame(width: 32)
-
-                    VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
                         Text("HYDRATION")
                             .font(.caption2)
                             .fontWeight(.semibold)
                             .foregroundStyle(.secondary)
                             .tracking(1.2)
-
-                        Text(sipCountLabel)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    if let note, hydration.access == .unavailable {
+                        Text(note)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(day.headline)
                             .font(.headline)
-
-                        HStack(spacing: 4) {
-                            Text(lastSipLabel)
+                        HydrationChart(day: day,
+                                       span: day.chartSpan(postureSpan: loader.timeline?.span, now: now),
+                                       away: HydrationDay.awayStretches(loader.timeline?.segments ?? []))
+                            .frame(height: 40)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                        Text(day.detailLine(now: now))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let note {
+                            Text(note)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-
-                            Text("·")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-
-                            Text("Desk use only")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
                         }
                     }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
                 }
             }
         }
         .buttonStyle(.plain)
-    }
-
-    private var sipCountLabel: String { Self.countLabel(sipCount) }
-    private var lastSipLabel: String { Self.lastSipLabel(lastSipTimestamp) }
-
-    /// Also the calm view's sip line (2026-10-20).
-    static func countLabel(_ sipCount: Int) -> String {
-        switch sipCount {
-        case 0:  return "No sips yet"
-        case 1:  return "1 sip today"
-        default: return "\(sipCount) sips today"
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(hydration.access == .unavailable
+                            ? "Hydration. \(note ?? "")"
+                            : "Hydration. \(day.headline). \(day.detailLine(now: now))")
+        .accessibilityHint("Shows today's drinks")
+        .task { await loader.keepLoadingToday() }
+        // Asks for Health access as soon as the card appears.
+        .task {
+            await hydration.start()
+            await hydration.keepRefreshing()
         }
     }
-
-    static func lastSipLabel(_ lastSipTimestamp: TimeInterval?, now: Date = Date()) -> String {
-        guard let ts = lastSipTimestamp else {
-            return "No recent sip"
-        }
-        let elapsed = now.timeIntervalSince1970 - ts
-        if elapsed < 60 {
-            return "Just now"
-        } else if elapsed < 3600 {
-            let minutes = Int(elapsed / 60)
-            return "Last sip \(minutes) min ago"
-        } else {
-            let hours = Int(elapsed / 3600)
-            return "Last sip \(hours)h ago"
-        }
-    }
-}
-
-#Preview {
-    VStack(spacing: 12) {
-        HydrationCard(sipCount: 0, lastSipTimestamp: nil, onTap: {})
-        HydrationCard(sipCount: 7, lastSipTimestamp: Date().timeIntervalSince1970 - 240, onTap: {})
-    }
-    .padding()
 }

@@ -179,60 +179,8 @@ class AppModel: ObservableObject {
 
     // MARK: - Hydration
 
-    /// The sip detection engine. Subscribes to `poseObservationPublisher`
-    /// independently — Pipeline does not know it exists.
-    let sipDetector = SipDetector()
-
-    /// Persists and exposes today's confirmed sip events.
-    let sipStore = SipStore()
-
-    /// Records raw sip data for personalised threshold calibration.
-    let sipCalibrationCapture = SipCalibrationCapture()
-
-    // MARK: - Training Mode
-
-    /// When true, each confirmed sip:
-    ///   - captures a `SipTrainingRecord` (scores + 3s pose buffer) into `sipTrainingStore`
-    ///   - enqueues a label popup so the user can classify the event
-    ///
-    /// Backed by UserDefaults so the toggle persists across launches.
-    @Published var isTrainingModeEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(isTrainingModeEnabled, forKey: Keys.isTrainingModeEnabled)
-            if !isTrainingModeEnabled {
-                sipTrainingBuffer.reset()
-                labelQueue.drainAsUnconfirmed()
-            }
-        }
-    }
-
-    /// Rolling ~3-second pose buffer fed by the same observation publisher
-    /// as `SipDetector`. Snapshotted at confirmation time to build training records.
-    let sipTrainingBuffer = SipTrainingBuffer()
-
-    /// Sidecar persistence for `SipTrainingRecord`s captured in training mode.
-    let sipTrainingStore = SipTrainingStore()
-
-    /// The label popup currently shown to the user. `nil` when no popup is
-    /// pending. Driven by `labelQueue`.
-    @Published private(set) var activeSipLabelItem: PendingSipLabel?
-
-    private let labelQueue = SipLabelQueue()
-
-    /// True during the 5-second countdown before capture begins.
-    @Published var sipCalibrationCountingDown = false
-
-    /// Seconds remaining in the countdown (5…1).
-    @Published var sipCalibrationCountdown: Int = 0
-
-    /// True while a 10-second sip capture window is active.
-    @Published var sipCalibrationActive = false
-
-    /// Progress (0–1) through the current 10-second capture window.
-    @Published var sipCalibrationProgress: Double = 0
-
-    private var sipCalibrationTimer: Timer?
-    private var sipCalibrationStartTime: Date?
+    /// Today's drinks from Apple Health, for the hydration card and the calm view's row.
+    let hydration = HydrationModel(store: HealthKitWaterStore())
 
     // MARK: - Watch Connectivity
 
@@ -306,7 +254,6 @@ class AppModel: ObservableObject {
         /// the old key was only ever the old default, and would otherwise keep the cap on.
         static let maxNudgesPerHour = "com.quant.posture.maxNudgesPerHour.v2"
         static let nudgesSilencedUntil = "com.quant.nudges.silencedUntil"
-        static let isTrainingModeEnabled = "com.quant.training.enabled"
     }
 
     static let defaultMaxPositionVariance: Float = 0.06
@@ -373,8 +320,6 @@ class AppModel: ObservableObject {
         self.nudgeCooldown = defaults.object(forKey: Keys.nudgeCooldown) as? Double ?? Self.defaultNudgeCooldown
         self.maxNudgesPerHour = defaults.object(forKey: Keys.maxNudgesPerHour) as? Int ?? Self.defaultMaxNudgesPerHour
 
-        self.isTrainingModeEnabled = defaults.bool(forKey: Keys.isTrainingModeEnabled)
-
         let config = CalibrationConfig(
             samplingDuration: sampDur,
             maxPositionVariance: posVar,
@@ -406,10 +351,8 @@ class AppModel: ObservableObject {
         loadBaseline()
         setupPipeline()
         loadNudgeSilence()
-        loadSipThresholds()
         setupWatchSubscriptions()
         updatePipelineThresholds()
-        setupLabelQueue()
     }
 
     // MARK: - Silencing nudges
@@ -621,77 +564,6 @@ class AppModel: ObservableObject {
             .compactMap { $0 }
             .sink { [weak self] sample in
                 self?.feedCalibration(sample)
-            }
-            .store(in: &cancellables)
-
-        // Feed pose observations into SipCalibrationCapture when active.
-        pipeline.poseObservationPublisher
-            .sink { [weak self] observation in
-                guard let self = self, self.sipCalibrationActive else { return }
-                self.sipCalibrationCapture.process(observation)
-            }
-            .store(in: &cancellables)
-
-        // Feed pose observations into SipDetector independently.
-        // Pipeline doesn't know SipDetector exists — it just emits observations
-        // and SipDetector subscribes like any other consumer.
-        pipeline.poseObservationPublisher
-            .sink { [weak self] observation in
-                self?.sipDetector.process(observation)
-            }
-            .store(in: &cancellables)
-
-        // Feed pose observations into SipTrainingBuffer when training mode is on.
-        // The buffer accumulates a ~3s rolling window so the snapshot grabbed
-        // on sip confirmation contains real pre-event pose history.
-        pipeline.poseObservationPublisher
-            .sink { [weak self] observation in
-                guard let self = self, self.isTrainingModeEnabled else { return }
-                self.sipTrainingBuffer.process(observation)
-            }
-            .store(in: &cancellables)
-
-        // When a sip is confirmed: always persist to SipStore, and when
-        // training mode is on also capture a sidecar record + enqueue a label.
-        sipDetector.onSipConfirmed = { [weak self] event in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                self.sipStore.add(event)
-
-                guard self.isTrainingModeEnabled else { return }
-
-                let record = SipTrainingRecord(
-                    id: event.id,
-                    capturedAt: Date().timeIntervalSince1970,
-                    scores: self.sipDetector.scoresSnapshot,
-                    thresholds: self.sipDetector.thresholds,
-                    bufferFrames: self.sipTrainingBuffer.snapshot()
-                )
-                self.sipTrainingStore.save(record)
-                self.labelQueue.enqueue(
-                    PendingSipLabel(event: event, scores: self.sipDetector.scoresSnapshot)
-                )
-            }
-        }
-    }
-
-    // MARK: - Label Queue Setup
-
-    private func setupLabelQueue() {
-        // Mirror queue state onto the published property so SwiftUI can drive the popup.
-        labelQueue.onActiveItemChanged = { [weak self] item in
-            self?.activeSipLabelItem = item
-        }
-        // Forward confirmed labels to SipStore.
-        labelQueue.onLabel = { [weak self] id, label in
-            self?.sipStore.setLabel(id: id, label: label)
-        }
-        // Drain the queue whenever the app enters the background so no event
-        // is left awaiting review while the process is suspended or terminated.
-        NotificationCenter.default
-            .publisher(for: UIApplication.didEnterBackgroundNotification)
-            .sink { [weak self] _ in
-                self?.labelQueue.drainAsUnconfirmed()
             }
             .store(in: &cancellables)
     }
@@ -1057,20 +929,6 @@ class AppModel: ObservableObject {
         }
     }
 
-    // MARK: - Training Mode Actions
-
-    /// Applies a label chosen by the user in the confirmation popup.
-    /// Forwards to `SipLabelQueue`, which fires `onLabel` → `SipStore.setLabel`.
-    func applyLabel(_ label: SipEvent.Label, toSipID id: UUID) {
-        labelQueue.applyLabel(label, toID: id)
-    }
-
-    /// Dismisses the active label popup without a user choice. The event
-    /// is written as `.unconfirmed` so it doesn't block the queue.
-    func dismissLabelAsUnconfirmed(id: UUID) {
-        labelQueue.applyLabel(.unconfirmed, toID: id)
-    }
-
     // MARK: - Recording Controls
 
     func startRecording() {
@@ -1400,93 +1258,6 @@ class AppModel: ObservableObject {
         switchableProvider.attach(source: providerForMode(cameraMode))
         pipeline.resetTimeline()
         isReplaying = false
-    }
-
-    // MARK: - Sip Calibration
-
-    /// Starts a 5-second countdown, then a 10-second sip capture window.
-    func beginSipCalibrationCapture() {
-        sipCalibrationCountingDown = true
-        sipCalibrationCountdown = 5
-
-        sipCalibrationTimer?.invalidate()
-        let countdownStart = Date()
-        sipCalibrationTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
-            // A timer scheduled here fires on the main run loop.
-            MainActor.assumeIsolated {
-                guard let self = self else { timer.invalidate(); return }
-                let elapsed = Date().timeIntervalSince(countdownStart)
-                let remaining = 5.0 - elapsed
-                if remaining > 0 {
-                    self.sipCalibrationCountdown = Int(ceil(remaining))
-                } else {
-                    // Countdown finished — start actual capture
-                    timer.invalidate()
-                    self.sipCalibrationCountingDown = false
-                    self.sipCalibrationCountdown = 0
-                    self.startSipCapture()
-                }
-            }
-        }
-    }
-
-    /// Begins the 10-second recording phase after the countdown completes.
-    private func startSipCapture() {
-        let now = Date()
-        // The capture times itself on frame timestamps. `now` only drives the progress bar.
-        sipCalibrationCapture.beginCapture()
-        sipCalibrationActive = true
-        sipCalibrationProgress = 0
-        sipCalibrationStartTime = now
-
-        sipCalibrationTimer?.invalidate()
-        sipCalibrationTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
-            MainActor.assumeIsolated {
-                guard let self = self, let start = self.sipCalibrationStartTime else {
-                    timer.invalidate()
-                    return
-                }
-                let elapsed = Date().timeIntervalSince(start)
-                self.sipCalibrationProgress = min(elapsed / 10.0, 1.0)
-                if elapsed >= 10.0 {
-                    timer.invalidate()
-                    self.sipCalibrationTimer = nil
-                    self.sipCalibrationCapture.endCapture()
-                    self.sipCalibrationActive = false
-                    self.sipCalibrationProgress = 1.0
-                }
-            }
-        }
-    }
-
-    /// Applies derived thresholds from completed calibration to the SipDetector
-    /// and persists them to disk so they survive app restarts.
-    func applySipCalibration() {
-        guard let thresholds = sipCalibrationCapture.derivedThresholds else { return }
-        sipDetector.thresholds = thresholds
-        saveSipThresholds(thresholds)
-    }
-
-    // MARK: - Sip Threshold Persistence
-
-    private static let sipThresholdsFile = "sip-thresholds.json"
-
-    private var sipThresholdsURL: URL {
-        FileManager.default
-            .urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(Self.sipThresholdsFile)
-    }
-
-    private func loadSipThresholds() {
-        guard let data = try? Data(contentsOf: sipThresholdsURL),
-              let saved = try? JSONDecoder().decode(SipThresholds.self, from: data)
-        else { return }
-        sipDetector.thresholds = saved
-    }
-
-    private func saveSipThresholds(_ thresholds: SipThresholds) {
-        guard let data = try? JSONEncoder().encode(thresholds) else { return }
-        try? data.write(to: sipThresholdsURL, options: .atomic)
     }
 
     func resetCalibrationSettings() {

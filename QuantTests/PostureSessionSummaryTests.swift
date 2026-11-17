@@ -5,8 +5,7 @@ import PostureLogic
 
 /// Tests for `PostureSessionSummary` — pure computation over PoseSample arrays.
 ///
-/// Follows the same pattern as `SipInsightsTests`: deterministic inputs,
-/// no side effects, no file system or clock dependencies.
+/// Deterministic inputs, no side effects, no file system or clock dependencies.
 @MainActor
 final class PostureSessionSummaryTests: XCTestCase {
 
