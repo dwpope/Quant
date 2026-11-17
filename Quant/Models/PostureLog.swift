@@ -11,12 +11,13 @@ import PostureLogic
 nonisolated struct PostureLogEvent: Codable, Equatable {
     /// Seconds since 1970.
     var t: TimeInterval
-    /// "state", "nudge", "task", "watch", "camera" (which way round its frames are), or "tick":
-    /// the state again, a minute after the last line, while nothing changes (2026-10-16).
+    /// "state", "nudge", "task", "watch", "camera" (which way round its frames are), "tick":
+    /// the state again, a minute after the last line, while nothing changes (2026-10-16), or
+    /// "tracking": the debug panel's tracking numbers over 10 seconds it wasn't good (2026-11-17).
     var kind: String
     /// "good", "drifting", "bad", "absent", "calibrating"; "none", "pending:<reason>",
-    /// "fire:<reason>", "suppressed:<reason>"; a task mode; or how a nudge left for the Watch
-    /// (`NudgeDelivery`).
+    /// "fire:<reason>", "suppressed:<reason>"; a task mode; how a nudge left for the Watch
+    /// (`NudgeDelivery`); or the tracking most frames had ("good", "degraded", "lost").
     var value: String
     var forwardCreep: Float? = nil
     var headDrop: Float? = nil
@@ -46,6 +47,19 @@ nonisolated struct PostureLogEvent: Codable, Equatable {
     var offeredAs: String? = nil
     var listedAfter: TimeInterval? = nil
     var datedAfter: TimeInterval? = nil
+    /// On a "tracking" line (2026-11-17), the camera frames in the `over` seconds up to `t`: how
+    /// many had each tracking; Vision's confidence in the whole pose (lowest, median, highest)
+    /// and the median keypoint count, over those with a pose; and how many lacked each critical
+    /// joint, or had no pose and why, as the panel's Missing names them ("LShldr:12,Head:3").
+    var over: TimeInterval? = nil
+    var framesGood: Int? = nil
+    var framesDegraded: Int? = nil
+    var framesLost: Int? = nil
+    var poseConfLow: Float? = nil
+    var poseConfMedian: Float? = nil
+    var poseConfHigh: Float? = nil
+    var keypoints: Int? = nil
+    var missing: String? = nil
 }
 
 /// Decides what's worth a line: changes, and a tick a minute while nothing changes. The
@@ -112,6 +126,81 @@ struct PostureLogRecorder {
                 headYaw: headYaw))
         }
         return out
+    }
+
+    /// One camera frame's tracking, as the debug panel shows it.
+    struct TrackingFrame {
+        var quality: TrackingQuality
+        /// Vision's confidence in the whole pose; 0 with no pose.
+        var poseConfidence: Float
+        /// 0 with no pose.
+        var keypoints: Int
+        /// "none", the critical joints missing ("LShldr,Head"), or why there was no pose.
+        var missing: String
+    }
+
+    /// How many seconds of frames a "tracking" line sums up.
+    static let trackingEvery: TimeInterval = 10
+
+    private var trackingWindow: [(t: TimeInterval, frame: TrackingFrame)] = []
+
+    /// A "tracking" line for the last `trackingEvery` seconds of frames, when they weren't all
+    /// good (2026-11-17). With the phone on its side, tracking was mostly degraded, which holds
+    /// off judging, and Dave was Away 73% of the time with nothing in the log to say why: the
+    /// whole pose's confidence too low, or a joint missing. The panel shows it, but reading the
+    /// panel means moving. Separate from `events` so these lines don't put off a tick: they
+    /// don't say the state.
+    mutating func trackingEvents(_ frame: TrackingFrame, now: Date) -> [PostureLogEvent] {
+        let t = now.timeIntervalSince1970
+        var out: [PostureLogEvent] = []
+        if let start = trackingWindow.first?.t, t - start >= Self.trackingEvery {
+            if let line = Self.trackingLine(trackingWindow) { out.append(line) }
+            trackingWindow = []
+        }
+        trackingWindow.append((t, frame))
+        return out
+    }
+
+    /// Ends at the window's last frame, so a window cut off by the app going to the background
+    /// covers only the frames it had. It's written when frames come again: if the app is closed
+    /// first, its last few seconds go unlogged. Medians are the upper middle value for an even
+    /// count.
+    private static func trackingLine(_ window: [(t: TimeInterval, frame: TrackingFrame)]) -> PostureLogEvent? {
+        let frames = window.map(\.frame)
+        guard let first = window.first, let last = window.last,
+              frames.contains(where: { $0.quality != .good }) else { return nil }
+
+        func count(_ quality: TrackingQuality) -> Int { frames.filter { $0.quality == quality }.count }
+        // Worst first: `max` keeps the first of equal counts, so a tie says the worse.
+        let counts: [(TrackingQuality, Int)] = [(.lost, count(.lost)), (.degraded, count(.degraded)),
+                                                (.good, count(.good))]
+        let most = counts.max { $0.1 < $1.1 }?.0 ?? .lost
+
+        let posed = frames.filter { $0.keypoints > 0 }
+        let confidences = posed.map(\.poseConfidence).sorted()
+        let keypoints = posed.map(\.keypoints).sorted()
+        func hundredths(_ x: Float?) -> Float? { x.map { ($0 * 100).rounded() / 100 } }
+
+        var missingCounts: [String: Int] = [:]
+        for f in frames where f.missing != "none" && !f.missing.isEmpty {
+            for joint in f.missing.split(separator: ",") { missingCounts[String(joint), default: 0] += 1 }
+        }
+        let missing = missingCounts
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+            .map { "\($0.key):\($0.value)" }
+            .joined(separator: ",")
+
+        var line = PostureLogEvent(t: last.t, kind: "tracking", value: most.rawValue)
+        line.over = ((last.t - first.t) * 10).rounded() / 10
+        line.framesGood = count(.good)
+        line.framesDegraded = count(.degraded)
+        line.framesLost = count(.lost)
+        line.poseConfLow = hundredths(confidences.first)
+        line.poseConfMedian = hundredths(confidences.isEmpty ? nil : confidences[confidences.count / 2])
+        line.poseConfHigh = hundredths(confidences.last)
+        line.keypoints = keypoints.isEmpty ? nil : keypoints[keypoints.count / 2]
+        line.missing = missing.isEmpty ? nil : missing
+        return line
     }
 
     /// How a fired nudge left for the Watch (2026-10-08): the phone fired twice in Dave's second

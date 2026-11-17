@@ -135,6 +135,143 @@ final class PostureLogTests: XCTestCase {
         XCTAssertEqual(newDay.map(\.value), ["good", "none", "reading"])
     }
 
+    // MARK: - Tracking (2026-11-17)
+
+    private func frame(_ quality: TrackingQuality, conf: Float = 0.7, keypoints: Int = 17,
+                       missing: String = "none") -> PostureLogRecorder.TrackingFrame {
+        PostureLogRecorder.TrackingFrame(quality: quality, poseConfidence: conf, keypoints: keypoints,
+                                         missing: missing)
+    }
+
+    /// Tracking good throughout says nothing: a well-tracked day's log is as it was.
+    func test_trackingGoodThroughout_writesNoTrackingLine() {
+        var recorder = PostureLogRecorder()
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        for second in 0...25 {
+            XCTAssertEqual(recorder.trackingEvents(frame(.good, conf: 0.9),
+                                                   now: t0.addingTimeInterval(Double(second))), [])
+        }
+    }
+
+    /// On its side (2026-11-16) tracking was mostly degraded, and the log couldn't say why. Each
+    /// 10 seconds it isn't good throughout, a line sums up the debug panel's numbers over them.
+    func test_trackingNotGood_writesALineEach10Seconds_withThePanelsNumbers() throws {
+        var recorder = PostureLogRecorder()
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        let frames = [frame(.good, conf: 0.80),
+                      frame(.degraded, conf: 0.62),
+                      frame(.degraded, conf: 0.60, missing: "LShldr"),
+                      frame(.degraded, conf: 0.70, keypoints: 15),
+                      frame(.degraded, conf: 0.64, keypoints: 13, missing: "LShldr,Head")]
+        for (i, f) in frames.enumerated() {
+            XCTAssertEqual(recorder.trackingEvents(f, now: t0.addingTimeInterval(Double(i) * 2)), [])
+        }
+
+        let lines = recorder.trackingEvents(frame(.good), now: t0.addingTimeInterval(10))
+        XCTAssertEqual(lines.count, 1)
+        let line = try XCTUnwrap(lines.first)
+        XCTAssertEqual(line.kind, "tracking")
+        XCTAssertEqual(line.value, "degraded", "what most frames had")
+        XCTAssertEqual(line.t, 1_800_000_008, "at the last frame it sums up")
+        XCTAssertEqual(line.over, 8)
+        XCTAssertEqual(line.framesGood, 1)
+        XCTAssertEqual(line.framesDegraded, 4)
+        XCTAssertEqual(line.framesLost, 0)
+        XCTAssertEqual(try XCTUnwrap(line.poseConfLow), 0.60, accuracy: 1e-6)
+        XCTAssertEqual(try XCTUnwrap(line.poseConfMedian), 0.64, accuracy: 1e-6)
+        XCTAssertEqual(try XCTUnwrap(line.poseConfHigh), 0.80, accuracy: 1e-6)
+        XCTAssertEqual(line.keypoints, 17)
+        XCTAssertEqual(line.missing, "LShldr:2,Head:1", "frames without each joint, most first")
+    }
+
+    /// A frame without a pose is lost and has no confidence to sum up. Why there was no pose
+    /// counts like a missing joint.
+    func test_framesWithoutAPose_areLost_andLeftOutOfTheConfidence() throws {
+        var recorder = PostureLogRecorder()
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        let noPose = frame(.lost, conf: 0, keypoints: 0, missing: "no pose")
+        _ = recorder.trackingEvents(noPose, now: t0)
+        _ = recorder.trackingEvents(noPose, now: t0.addingTimeInterval(1))
+        _ = recorder.trackingEvents(frame(.degraded, conf: 0.5, keypoints: 9, missing: "Head"),
+                                    now: t0.addingTimeInterval(2))
+
+        let line = try XCTUnwrap(recorder.trackingEvents(noPose, now: t0.addingTimeInterval(10)).first)
+        XCTAssertEqual(line.value, "lost")
+        XCTAssertEqual(line.framesLost, 2)
+        XCTAssertEqual(line.framesDegraded, 1)
+        XCTAssertEqual(try XCTUnwrap(line.poseConfLow), 0.5, accuracy: 1e-6)
+        XCTAssertEqual(try XCTUnwrap(line.poseConfMedian), 0.5, accuracy: 1e-6)
+        XCTAssertEqual(try XCTUnwrap(line.poseConfHigh), 0.5, accuracy: 1e-6)
+        XCTAssertEqual(line.keypoints, 9)
+        XCTAssertEqual(line.missing, "no pose:2,Head:1")
+
+        let noneSeen = try XCTUnwrap(recorder.trackingEvents(noPose, now: t0.addingTimeInterval(20)).first)
+        XCTAssertNil(noneSeen.poseConfMedian, "no pose in 10 seconds, no confidence")
+        XCTAssertNil(noneSeen.keypoints)
+    }
+
+    /// With as many frames good as not, the line says the worse.
+    func test_aTie_isTheWorse() throws {
+        var recorder = PostureLogRecorder()
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        _ = recorder.trackingEvents(frame(.good), now: t0)
+        _ = recorder.trackingEvents(frame(.degraded), now: t0.addingTimeInterval(1))
+        let line = try XCTUnwrap(recorder.trackingEvents(frame(.good), now: t0.addingTimeInterval(10)).first)
+        XCTAssertEqual(line.value, "degraded")
+    }
+
+    /// With the app in the background, frames stop. The line ends at the last frame before,
+    /// not when frames come again.
+    func test_aGapInFrames_endsTheLineAtItsLastFrame() throws {
+        var recorder = PostureLogRecorder()
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        _ = recorder.trackingEvents(frame(.degraded), now: t0)
+        _ = recorder.trackingEvents(frame(.degraded), now: t0.addingTimeInterval(3))
+        let line = try XCTUnwrap(recorder.trackingEvents(frame(.good), now: t0.addingTimeInterval(600)).first)
+        XCTAssertEqual(line.t, 1_800_000_003)
+        XCTAssertEqual(line.over, 3)
+    }
+
+    /// A tracking line doesn't say the state, so it doesn't put off the minute's tick.
+    func test_trackingLines_dontPutOffTheTick() {
+        var recorder = PostureLogRecorder()
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        _ = recorder.events(state: .good, decision: .none, taskMode: .reading, metrics: metrics(),
+                            headYaw: 0, now: t0)
+        for second in stride(from: 0, through: 60, by: 5) {
+            _ = recorder.trackingEvents(frame(.degraded), now: t0.addingTimeInterval(Double(second)))
+        }
+        let tick = recorder.events(state: .good, decision: .none, taskMode: .reading, metrics: metrics(),
+                                   headYaw: 0, now: t0.addingTimeInterval(60))
+        XCTAssertEqual(tick.map(\.kind), ["tick"])
+    }
+
+    private func trackingLines() -> [PostureLogEvent] {
+        PostureLogStore.events(dayKey: PostureLogStore.dayKey(for: Date())).filter { $0.kind == "tracking" }
+    }
+
+    /// The numbers are the debug panel's, from the first camera frame on. Before it the panel's
+    /// Missing is empty, and there's nothing to sum up.
+    func test_theTrackingLine_isTheDebugPanelsNumbers() throws {
+        let model = AppModel()
+        let t0 = Date()
+        model.trackingQuality = .degraded
+        model.logFrame(decision: .none, now: t0)
+        model.logFrame(decision: .none, now: t0.addingTimeInterval(10))
+        XCTAssertEqual(trackingLines(), [], "no camera frame yet")
+
+        model.poseConfidence = 0.61
+        model.poseKeypointCount = 17
+        model.missingCriticalJoints = "none"
+        model.logFrame(decision: .none, now: t0.addingTimeInterval(20))
+        model.logFrame(decision: .none, now: t0.addingTimeInterval(30))
+        let line = try XCTUnwrap(trackingLines().first)
+        XCTAssertEqual(line.value, "degraded")
+        XCTAssertEqual(try XCTUnwrap(line.poseConfMedian), 0.61, accuracy: 1e-6)
+        XCTAssertEqual(line.keypoints, 17)
+        XCTAssertNil(line.missing, "no joint missing")
+    }
+
     // MARK: - Replays (2026-10-16)
 
     /// A replayed recording isn't your posture today: its frames aren't logged, or the TODAY

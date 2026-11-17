@@ -599,7 +599,15 @@ class AppModel: ObservableObject {
     /// recording isn't today's posture, and the TODAY card would have drawn it as if it were.
     func logFrame(decision: NudgeDecision, now: Date = Date()) {
         guard !isReplaying else { return }
-        let events = postureLogRecorder.events(
+        // The debug panel's numbers (2026-11-17). Missing is empty until the first camera frame.
+        // First, as their line is dated at an earlier frame, so the file stays in time order.
+        var events: [PostureLogEvent] = []
+        if !missingCriticalJoints.isEmpty {
+            events = postureLogRecorder.trackingEvents(PostureLogRecorder.TrackingFrame(
+                quality: trackingQuality, poseConfidence: poseConfidence,
+                keypoints: poseKeypointCount, missing: missingCriticalJoints), now: now)
+        }
+        events += postureLogRecorder.events(
             state: pipeline.postureState, decision: decision,
             taskMode: pipeline.taskMode, metrics: pipeline.latestMetrics,
             headYaw: pipeline.latestSample.map { $0.headYaw - (baseline?.headYaw ?? 0) },
