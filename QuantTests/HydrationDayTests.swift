@@ -122,4 +122,11 @@ final class HydrationDayTests: XCTestCase, HydrationFixtures {
         XCTAssertEqual(HydrationDay.calmRow(day: mockDay, access: .granted, now: at(14, 30)), "980 mL · last drink 12 min ago")
         XCTAssertEqual(HydrationDay.calmRow(day: mockDay, access: .notAsked, now: at(14, 30)), "980 mL · last drink 12 min ago")
     }
+
+    func test_drinksList_footnote_onlyWhenSomeAreReadOnly() {
+        XCTAssertEqual(DrinksListView.footnote(for: mockDay.drinks), "Drinks from Shortcuts and other apps are changed in the Health app.")
+        let mine = Drink(id: UUID(), at: at(11), millilitres: 250, source: .addedInAware, syncIdentifier: "aware-manual-Z", syncVersion: 1)
+        XCTAssertNil(DrinksListView.footnote(for: [mine]))
+        XCTAssertNil(DrinksListView.footnote(for: []))
+    }
 }
