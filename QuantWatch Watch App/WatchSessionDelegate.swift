@@ -316,6 +316,11 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
 
     // MARK: - Private Methods
 
+    /// The nudges shown, so one sent and then queued shows once (2026-11-17). A straight message
+    /// and a queued transfer can arrive on different threads.
+    private let repeatsLock = NSLock()
+    private var shownNudges = NudgeRepeats()
+
     /// A nudge from the phone, on WatchConnectivity's queue. The notification is posted here,
     /// not on the main queue: woken in the background for a queued nudge, the app can be
     /// suspended again before the main queue runs.
@@ -323,6 +328,10 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         let arrivedAt = Date()
         let appStateOnArrival = appState
         let sentAt = NudgeMessage.sentAt(from: message)
+        guard repeatsLock.withLock({ shownNudges.isNew(sentAt: sentAt) }) else {
+            logger.info("⌚ Nudge came again (\(via)), already shown")
+            return
+        }
         let haptic = parseHapticType(from: message)
         let pattern = NudgeHaptics.pattern(reason: NudgeMessage.reason(from: message),
                                            repeat: NudgeMessage.repeatCount(from: message))
