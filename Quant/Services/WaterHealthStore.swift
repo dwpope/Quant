@@ -21,6 +21,10 @@ protocol WaterHealthStore: AnyObject {
 
 /// `WaterHealthStore` on HealthKit: `dietaryWater` in millilitres.
 final class HealthKitWaterStore: WaterHealthStore {
+    // Teardown only releases stored properties. `nonisolated`, as on every main-actor class
+    // AppModel owns: the isolated-deinit shim corrupts the heap in XCTest's dealloc path.
+    nonisolated deinit {}
+
     private let store: HKHealthStore
     private let awareBundleIdentifier: String
     private let water = HKQuantityType(.dietaryWater)

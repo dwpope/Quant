@@ -20,6 +20,10 @@ nonisolated enum HydrationError: Error, Equatable {
 /// own drinks can be changed or deleted. It never reminds anyone to drink.
 @MainActor
 final class HydrationModel: ObservableObject {
+    // Teardown only releases stored properties. `nonisolated`, as on every main-actor class
+    // AppModel owns: the isolated-deinit shim corrupts the heap in XCTest's dealloc path.
+    nonisolated deinit {}
+
     @Published private(set) var day: HydrationDay
     @Published private(set) var access: HealthAccess
 
