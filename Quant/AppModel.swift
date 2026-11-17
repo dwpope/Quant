@@ -177,6 +177,11 @@ class AppModel: ObservableObject {
     /// AppModel can trigger playback.
     private(set) var audioService = AudioFeedbackService()
 
+    // MARK: - Hydration
+
+    /// Today's drinks from Apple Health, for the hydration card and the calm view's row.
+    let hydration = HydrationModel(store: HealthKitWaterStore())
+
     // MARK: - Watch Connectivity
 
     /// The Watch connectivity service that sends nudge events to the Apple Watch.
