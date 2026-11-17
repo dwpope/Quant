@@ -21,7 +21,7 @@ Aware sits on your desk (phone on a stand) and watches your upper body through t
 
 **Head-turn nudge** — Working on a second screen off to the side twists the neck, and holding it gets uncomfortable. A head turned past 45° while the shoulders still face the phone, held for 30 seconds, gets its own nudge: turn the chair to face that screen. From the moment it turns, the phone's posture card says "Head turned" where it says "Slouching", as the Watch and the calm view do (while sitting well; a slouch is shown first). Turning the chair narrows the shoulders in view, which is how the app tells a turned chair from a turned neck. A turned head reads the shoulders wider and a turned chair shifts them sideways, so neither counts as leaning in or leaning sideways while turned. Turns are measured from where you looked while calibrating, and the panel asks you to move the phone if that was more than 20° to one side: every posture rule assumes the phone is in front of you. It shares the slouch nudge's hourly cap; a head still turned after its nudge is nudged again after 10 minutes, and that wait ends when you turn back, since sitting well doesn't untwist a neck. A head-turn nudge in the middle of a slouch leaves the slouch's repeats as they were: once you turn back, the next is a minute later with one more tap. Every nudge shows its own one-line advice on the Apple Watch.
 
-**Hydration** — Moving to a load-cell coaster that weighs your bottle, with Apple Health as the record of what you drink. The camera's sip counting has been removed: it couldn't tell how much you drank.
+**Hydration** — A card under the posture band shows today's water from Apple Health against a 2 L goal: the total rising over the same span as the posture band, a dashed pace line (0 at 09:00, rising to 1.5 L at 17:00), the away stretches shaded grey, and when you last drank. It asks for Health access the first time it shows, keeps up with drinks logged elsewhere (the Home Screen shortcut, the Health app) without a relaunch, and says plainly when Health is off. Tap it for today's drinks: add one, or change or delete one Aware saved; drinks from Shortcuts or other apps are changed in the Health app. The calm view shows the same in a line. There are no reminders. The camera's sip counting was removed (it couldn't tell how much you drank); a load-cell coaster that weighs your bottle comes next.
 
 **Thermal adaptation** — Frame rate scales dynamically with device temperature (10 → 5 → 2 FPS), with full pause at critical thermal state (the camera stops too, and starts again once the phone cools; switching camera in the meantime waits for it), so the phone doesn't overheat during long sessions.
 
@@ -30,7 +30,8 @@ Aware sits on your desk (phone on a stand) and watches your upper body through t
 **Everything that actually judges your posture runs on your device.** Pose detection, the five
 posture metrics, the state machine and the nudge decisions all execute locally, with no network
 call and no account. That is the app as shipped and as used. The camera's video stays on the
-phone and isn't saved. Both apps carry a privacy manifest (`PrivacyInfo.xcprivacy`) giving the
+phone and isn't saved. Water in Apple Health is read and written on the phone only: today's
+drinks for the hydration card, and the drinks you add or change there. Both apps carry a privacy manifest (`PrivacyInfo.xcprivacy`) giving the
 App Store's required reasons for the APIs they use: settings in UserDefaults, file dates for
 Stored Data, and the uptime clock that times camera frames. It declares no tracking and no data
 collected, which holds while the Jev classifier below is off; an App Store build that keeps the
@@ -85,7 +86,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~44,700 lines of Swift** across 257 files, tests included. All tests pass: **760** in the `PostureLogic` package (`cd PostureLogic && swift test`), **475** in the app target and **144** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
+**~45,900 lines of Swift** across 267 files, tests included. All tests pass: **760** in the `PostureLogic` package (`cd PostureLogic && swift test`), **504** in the app target and **144** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
 
 ## Technical Decisions
 
