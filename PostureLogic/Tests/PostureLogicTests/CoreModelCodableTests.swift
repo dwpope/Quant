@@ -5,55 +5,13 @@ import XCTest
 /// Codable round-trip and default-value tests for model types that previously
 /// only had indirect coverage through engine / service tests.
 ///
-/// Covers: SipThresholds, PostureThresholds, PoseSample, RawMetrics,
+/// Covers: PostureThresholds, PoseSample, RawMetrics,
 /// MovementPattern, DepthMode, TaskMode, RecordedSession, Tag, TagLabel,
 /// TagSource, SessionMetadata, ThermalLevel, Joint.
 final class CoreModelCodableTests: XCTestCase {
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
-
-    // MARK: - SipThresholds
-
-    func testSipThresholds_defaultValues() {
-        let t = SipThresholds()
-        XCTAssertEqual(t.proximityThreshold, 0.35)
-        XCTAssertEqual(t.velocityThreshold, 0.008)
-        XCTAssertEqual(t.minDuration, 1.0)
-        XCTAssertEqual(t.maxDuration, 8.0)
-        XCTAssertEqual(t.candidateScoreRequired, 2.0)
-        XCTAssertEqual(t.cooldownDuration, 30.0)
-    }
-
-    func testSipThresholds_codableRoundTrip_defaults() throws {
-        let original = SipThresholds()
-        let data = try encoder.encode(original)
-        let decoded = try decoder.decode(SipThresholds.self, from: data)
-        XCTAssertEqual(decoded.proximityThreshold, original.proximityThreshold)
-        XCTAssertEqual(decoded.velocityThreshold, original.velocityThreshold)
-        XCTAssertEqual(decoded.minDuration, original.minDuration)
-        XCTAssertEqual(decoded.maxDuration, original.maxDuration)
-        XCTAssertEqual(decoded.candidateScoreRequired, original.candidateScoreRequired)
-        XCTAssertEqual(decoded.cooldownDuration, original.cooldownDuration)
-    }
-
-    func testSipThresholds_codableRoundTrip_customValues() throws {
-        var original = SipThresholds()
-        original.proximityThreshold = 0.5
-        original.velocityThreshold = 0.02
-        original.minDuration = 0.5
-        original.maxDuration = 12.0
-        original.candidateScoreRequired = 3.0
-        original.cooldownDuration = 60.0
-        let data = try encoder.encode(original)
-        let decoded = try decoder.decode(SipThresholds.self, from: data)
-        XCTAssertEqual(decoded.proximityThreshold, 0.5)
-        XCTAssertEqual(decoded.velocityThreshold, 0.02)
-        XCTAssertEqual(decoded.minDuration, 0.5)
-        XCTAssertEqual(decoded.maxDuration, 12.0)
-        XCTAssertEqual(decoded.candidateScoreRequired, 3.0)
-        XCTAssertEqual(decoded.cooldownDuration, 60.0)
-    }
 
     // MARK: - PostureThresholds
 

@@ -83,7 +83,7 @@ public struct PoseSample: Codable {
     // recording that predates an additive field would fail to load. To keep those
     // recordings decoding (the documented additive-default contract), the
     // back-compat fields are decoded with `decodeIfPresent` and fall back to their
-    // defaults. Same pattern the codebase already uses for `SipEvent.label`.
+    // defaults.
     // `neckHeight` is the field added for the ear-based `headDrop`; `headPitch/
     // Yaw/Roll` predate it but carry the same additive-default promise, made real
     // here. `headOrientation` is optional, so `decodeIfPresent` matches what the

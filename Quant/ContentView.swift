@@ -11,12 +11,10 @@ import PostureLogic
 struct ContentView: View {
     @EnvironmentObject var appModel: AppModel
     @State private var showSettings = false
-    @State private var showSipTimeline = false
-    @State private var showSipCalibration = false
     @State private var showVisualization = false
 
-    /// Height of the diagnostics panel, measured live. While the panel is collapsed, the posture
-    /// and hydration cards start below it instead of under its top line.
+    /// Height of the diagnostics panel, measured live. While the panel is collapsed, the cards
+    /// start below it instead of under its top line.
     @State private var panelHeight: CGFloat = 0
 
     /// Mirrors the panel's own expanded state. Expanded, the panel is a diagnostics view that
@@ -86,9 +84,6 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showSettings) {
             CalibrationSettingsView()
-        }
-        .sheet(isPresented: $showSipCalibration) {
-            SipCalibrationView(appModel: appModel)
         }
         .fullScreenCover(isPresented: $showVisualization) {
             PostureVisualizationView()
@@ -168,7 +163,7 @@ struct ContentView: View {
                 Spacer(minLength: 0)
             }
             .safeAreaInset(edge: .bottom, spacing: 12) {
-                // Five icons, capped at the largest size before the accessibility sizes, as the
+                // Four icons, capped at the largest size before the accessibility sizes, as the
                 // system caps its own bars (2026-10-19): at the largest sizes they were wider than
                 // the phone, and pushed the whole screen off both edges. A long press shows a
                 // button's name and icon large instead.
@@ -176,18 +171,6 @@ struct ContentView: View {
                     Spacer(minLength: 0)
 
                     silenceMenu
-
-                    Button {
-                        showSipCalibration = true
-                    } label: {
-                        Image(systemName: "drop.circle")
-                            .font(.title2)
-                            .padding(10)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                    }
-                    .accessibilityLabel("Sip calibration")
-                    .accessibilityShowsLargeContentViewer()
 
                     Button {
                         showVisualization = true
@@ -252,12 +235,6 @@ struct ContentView: View {
                 // When you sat well and when you slouched, today (2026-10-13).
                 PostureTimelineCard()
 
-                HydrationCard(
-                    sipCount: appModel.sipStore.sipCount,
-                    lastSipTimestamp: appModel.sipStore.lastSipTimestamp,
-                    onTap: { showSipTimeline = true }
-                )
-
                 // From the scan at launch: data older than a month, until dismissed.
                 if !storedDataNoticeDismissed, olderStoredBytes > 0 {
                     StoredDataCard(olderBytes: olderStoredBytes,
@@ -277,10 +254,6 @@ struct ContentView: View {
         .sheet(isPresented: $showStoredData) {
             NavigationStack { StoredDataView() }
         }
-        .sheet(isPresented: $showSipTimeline) {
-            SipTimelineView(appModel: appModel, sipStore: appModel.sipStore)
-        }
-        .sipLabelSheet(appModel: appModel)
     }
 
     private var thermalWarningBanner: some View {
@@ -320,30 +293,6 @@ struct ContentView: View {
                     .tint(.white)
                     .padding(.top, 8)
             }
-        }
-    }
-}
-
-extension View {
-    /// Asks what a detected sip was, on either main screen.
-    func sipLabelSheet(appModel: AppModel) -> some View {
-        sheet(item: Binding(
-            get: { appModel.activeSipLabelItem },
-            set: { newValue in
-                if newValue == nil, let id = appModel.activeSipLabelItem?.id {
-                    appModel.dismissLabelAsUnconfirmed(id: id)
-                }
-            }
-        )) { item in
-            SipLabelSheet(
-                item: item,
-                onLabel: { label in
-                    appModel.applyLabel(label, toSipID: item.id)
-                },
-                onSkip: {
-                    appModel.dismissLabelAsUnconfirmed(id: item.id)
-                }
-            )
         }
     }
 }

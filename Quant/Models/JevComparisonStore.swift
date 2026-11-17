@@ -162,9 +162,8 @@ nonisolated struct JevComparisonRecord: Codable, Identifiable {
 
 /// Persists and exposes today's Jev-vs-thresholds comparisons.
 ///
-/// Stored per-day in Documents as `jev-comparisons-YYYY-MM-DD.json`, following `SipStore`
-/// exactly — same per-day key, same best-effort load, same static serial write queue, same
-/// `flushPendingWrites` test hook. Deliberately not a new pattern.
+/// Stored per-day in Documents as `jev-comparisons-YYYY-MM-DD.json`: a per-day key, a
+/// best-effort load, a static serial write queue and a `flushPendingWrites` test hook.
 @MainActor
 final class JevComparisonStore: ObservableObject {
 
@@ -292,8 +291,8 @@ final class JevComparisonStore: ObservableObject {
     ///
     /// Exists because remote testing is otherwise write-only: the records live in the app's
     /// private container, and without this the dataset cannot leave the phone without a Mac and
-    /// Xcode's container download. Follows `SipTrainingStore.exportJSONL` — caches directory,
-    /// `.sortedKeys` for stable diffs, one self-contained JSON object per line.
+    /// Xcode's container download. Writes to the caches directory, with `.sortedKeys` for stable
+    /// diffs, one self-contained JSON object per line.
     ///
     /// **Every record is exported, adjudicated or not.** One without a user verdict has no
     /// ground truth, but it still records what both sides answered at the same moment, which

@@ -2,7 +2,7 @@ import XCTest
 @testable import PostureLogic
 
 /// Dedicated tests for configuration and decision model types:
-/// `NudgeDecision`, `PostureThresholds`, `SipThresholds`, and `CalibrationStatus`.
+/// `NudgeDecision`, `PostureThresholds`, and `CalibrationStatus`.
 ///
 /// These types are used throughout the pipeline but previously had no dedicated
 /// unit tests — only indirect exercise through engine and service tests.
@@ -137,42 +137,6 @@ final class ConfigAndDecisionModelTests: XCTestCase {
         XCTAssertEqual(t.nudgeCooldown, 300)
         t.absentThreshold = 2.0
         XCTAssertEqual(t.absentThreshold, 2.0)
-    }
-
-    // MARK: - SipThresholds: defaults
-
-    func testSipThresholds_defaultValues() {
-        let t = SipThresholds()
-
-        XCTAssertEqual(t.proximityThreshold, 0.35)
-        XCTAssertEqual(t.velocityThreshold, 0.008)
-        XCTAssertEqual(t.minDuration, 1.0)
-        XCTAssertEqual(t.maxDuration, 8.0)
-        XCTAssertEqual(t.candidateScoreRequired, 2.0)
-        XCTAssertEqual(t.cooldownDuration, 30.0)
-    }
-
-    func testSipThresholds_codableRoundTrip() throws {
-        var original = SipThresholds()
-        original.proximityThreshold = 0.25
-        original.cooldownDuration = 15.0
-
-        let data = try JSONEncoder().encode(original)
-        let decoded = try JSONDecoder().decode(SipThresholds.self, from: data)
-
-        XCTAssertEqual(decoded.proximityThreshold, 0.25)
-        XCTAssertEqual(decoded.cooldownDuration, 15.0)
-        // Untouched fields keep defaults
-        XCTAssertEqual(decoded.velocityThreshold, 0.008)
-        XCTAssertEqual(decoded.minDuration, 1.0)
-    }
-
-    func testSipThresholds_durationBandInvariant() {
-        let t = SipThresholds()
-        XCTAssertLessThan(
-            t.minDuration, t.maxDuration,
-            "minDuration must be less than maxDuration for a valid detection window"
-        )
     }
 
     // MARK: - CalibrationStatus: Equatable
