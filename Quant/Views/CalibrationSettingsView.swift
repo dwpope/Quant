@@ -126,6 +126,8 @@ struct CalibrationSettingsView: View {
                         .readableSecondary()
                 }
 
+                PostureLogFolderSection(folder: appModel.postureLogFolder)
+
                 Section {
                     NavigationLink("Stored Data") {
                         StoredDataView()

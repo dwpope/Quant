@@ -473,6 +473,12 @@ class AppModel: ObservableObject {
             .sink { [weak self] decision in self?.logFrame(decision: decision) }
             .store(in: &cancellables)
 
+        // The posture log's folder gets the day so far as the app goes to the background
+        // (2026-11-17), so it's there as Dave leaves his desk.
+        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
+            .sink { [weak self] _ in self?.copyPostureLogBeforeSuspending() }
+            .store(in: &cancellables)
+
         // React to nudge fire decisions — deliver feedback and record.
         //
         // When the NudgeEngine decides to fire, we:
@@ -614,6 +620,17 @@ class AppModel: ObservableObject {
             headYaw: pipeline.latestSample.map { $0.headYaw - (baseline?.headYaw ?? 0) },
             now: now)
         postureLogStore.append(events)
+        postureLogFolder.saveIfDue(now: now)
+    }
+
+    /// Copies the posture log to its folder in the time iOS gives a task it's told of.
+    private func copyPostureLogBeforeSuspending() {
+        guard postureLogFolder.name != nil else { return }
+        let task = UIApplication.shared.beginBackgroundTask(withName: "Copy the posture log")
+        Task {
+            await postureLogFolder.save()
+            if task != .invalid { UIApplication.shared.endBackgroundTask(task) }
+        }
     }
 
     // MARK: - Heat
@@ -1011,6 +1028,8 @@ class AppModel: ObservableObject {
     /// One line per change in posture state, nudge decision and task mode, for reading back a
     /// real-use hour (2026-10-07). Local; it leaves the phone only through its export.
     let postureLogStore = PostureLogStore()
+    /// The folder the posture log is copied into as it's written (2026-11-17).
+    lazy var postureLogFolder = PostureLogFolder(store: postureLogStore)
     private var postureLogRecorder = PostureLogRecorder()
 
     /// Minimum seconds between calls. Never per frame: 130ms p50 near the provider, 475ms p50

@@ -341,6 +341,43 @@ final class PostureLogStore: ObservableObject {
         return url
     }
 
+    /// Copies each day's file into `folder` where the copy there is a different size (2026-11-17),
+    /// for `PostureLogFolder`. Lines are only ever added, so a day the same size hasn't changed.
+    /// On the write queue, so every line already handed to it is in. Returns the names copied.
+    func copy(to folder: URL) async throws -> [String] {
+        try await withCheckedThrowingContinuation { (done: CheckedContinuation<[String], Error>) in
+            Self.persistQueue.async {
+                done.resume(with: Result { try Self.copyDays(to: folder) })
+            }
+        }
+    }
+
+    /// A folder chosen in Files is only open to the app while it says it's using it, and iCloud
+    /// Drive wants each write coordinated, so its own sync doesn't read a half-written file.
+    private nonisolated static func copyDays(to folder: URL) throws -> [String] {
+        let opened = folder.startAccessingSecurityScopedResource()
+        defer { if opened { folder.stopAccessingSecurityScopedResource() } }
+        func size(_ url: URL) -> Int? { (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize }
+
+        var copied: [String] = []
+        for key in dayKeys().reversed() {
+            let name = "posture-log-\(key).jsonl"
+            let source = documents.appendingPathComponent(name)
+            let copy = folder.appendingPathComponent(name)
+            guard size(source) != size(copy) else { continue }
+            let data = try Data(contentsOf: source)
+            var coordinationError: NSError?
+            var writeError: Error?
+            NSFileCoordinator().coordinate(writingItemAt: copy, options: .forReplacing,
+                                           error: &coordinationError) { url in
+                do { try data.write(to: url, options: .atomic) } catch { writeError = error }
+            }
+            if let error = coordinationError ?? writeError { throw error }
+            copied.append(name)
+        }
+        return copied
+    }
+
     /// Blocks until queued writes complete.
     nonisolated static func flushPendingWrites() {
         persistQueue.sync {}

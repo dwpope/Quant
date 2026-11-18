@@ -31,7 +31,9 @@ Aware sits on your desk (phone on a stand) and watches your upper body through t
 posture metrics, the state machine and the nudge decisions all execute locally, with no network
 call and no account. That is the app as shipped and as used. The camera's video stays on the
 phone and isn't saved. Water in Apple Health is read and written on the phone only: today's
-drinks for the hydration card, and the drinks you add or change there. Both apps carry a privacy manifest (`PrivacyInfo.xcprivacy`) giving the
+drinks for the hydration card, and the drinks you add or change there. The posture log stays
+on the phone unless you choose a folder for it (Settings, Posture Log): each day's file is then
+copied there as it's written, to your own iCloud Drive for example. Off until you choose one. Both apps carry a privacy manifest (`PrivacyInfo.xcprivacy`) giving the
 App Store's required reasons for the APIs they use: settings in UserDefaults, file dates for
 Stored Data, and the uptime clock that times camera frames. It declares no tracking and no data
 collected, which holds while the Jev classifier below is off; an App Store build that keeps the
@@ -86,7 +88,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~46,300 lines of Swift** across 269 files, tests included. All tests pass: **761** in the `PostureLogic` package (`cd PostureLogic && swift test`), **516** in the app target and **148** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
+**~46,700 lines of Swift** across 272 files, tests included. All tests pass: **761** in the `PostureLogic` package (`cd PostureLogic && swift test`), **526** in the app target and **148** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
 
 ## Technical Decisions
 
