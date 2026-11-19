@@ -382,9 +382,17 @@ struct CalmScreenContent<Mirror: View>: View {
     private var todayBody: some View {
         if let timeline, !timeline.segments.isEmpty {
             // Dimmed as the figure is, so the slouches stand out on a quiet green.
-            PostureTimelineChart(timeline: timeline, brightness: CalmPalette.intensity(of:))
-                .frame(height: 32)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            // The last hour, so each slouch is wide enough to see (2026-11-19); the stats are
+            // the day's, and a tap shows the whole day.
+            VStack(alignment: .leading, spacing: 4) {
+                PostureTimelineChart(timeline: timeline, range: timeline.lastHour,
+                                     brightness: CalmPalette.intensity(of:))
+                    .frame(height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                Text("Last hour: sat well \(PostureTimeline.percent(timeline.lastHour.flatMap(timeline.goodShare(in:))))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             todayStats(timeline)
         } else {
             Text("Your posture today will show here")
@@ -397,7 +405,7 @@ struct CalmScreenContent<Mirror: View>: View {
     private func todayStats(_ timeline: PostureTimeline) -> some View {
         let nudges = timeline.nudges.count
         let stats = Group {
-            stat(CalmLayout.percent(timeline.goodShare), "sat well")
+            stat(CalmLayout.percent(timeline.goodShare), "sat well today")
             stat(CalmLayout.duration(timeline.slouched), "slouched")
             stat("\(nudges)", nudges == 1 ? "nudge" : "nudges")
         }

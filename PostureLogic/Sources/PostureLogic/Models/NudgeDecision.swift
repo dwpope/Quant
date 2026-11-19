@@ -17,6 +17,10 @@ public enum NudgeReason: String, Codable {
     /// Sinking down in the chair: the shoulders lower in the frame than at calibration
     /// (`RawMetrics.shoulderSink`), 2026-10-05.
     case sink
+    /// Leaning to one side: the shoulders' midpoint off to one side of where it was at
+    /// calibration (`RawMetrics.lateralLean`), 2026-11-19. It was a slouch with no reason of its
+    /// own, so its nudge said the general "Sit up".
+    case sideLean
 }
 
 public enum SuppressionReason: String, Codable {

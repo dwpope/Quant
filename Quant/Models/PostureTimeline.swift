@@ -124,6 +124,79 @@ nonisolated struct PostureTimeline: Equatable {
         return first.start...last.end
     }
 
+    // MARK: - Zoomed in (2026-11-19)
+
+    /// The last hour of the band, up to its last stretch, or all of it when shorter: what the
+    /// cards show, so a slouch is wide enough to see by evening (on 11-18, 437 of the day's 439
+    /// were under a point wide across the whole day).
+    var lastHour: ClosedRange<Date>? {
+        guard let span = judgedSpan ?? span else { return nil }
+        return max(span.lowerBound, span.upperBound.addingTimeInterval(-3600))...span.upperBound
+    }
+
+    /// From the first stretch judged to the last: a moment away at either end, as when the app
+    /// was opened at 09:49 on 11-18 to choose the log's folder, doesn't stretch the zoomed views
+    /// over hours with nothing in them. Nil with nothing judged.
+    var judgedSpan: ClosedRange<Date>? {
+        let judged = segments.filter { $0.band != .away }
+        guard let first = judged.first, let last = judged.last else { return nil }
+        return first.start...last.end
+    }
+
+    /// The stretches within `range`, cut at its ends.
+    func segments(in range: ClosedRange<Date>) -> [Segment] {
+        segments.compactMap { segment in
+            let start = max(segment.start, range.lowerBound), end = min(segment.end, range.upperBound)
+            return start < end ? Segment(start: start, end: end, band: segment.band) : nil
+        }
+    }
+
+    /// The share of the judged time within `range` spent sitting well, or nil with none judged.
+    /// Away doesn't count against you, so a short sitting isn't a bad hour.
+    func goodShare(in range: ClosedRange<Date>) -> Double? {
+        var good: TimeInterval = 0, judged: TimeInterval = 0
+        for segment in segments(in: range) where segment.band != .away {
+            let seconds = segment.end.timeIntervalSince(segment.start)
+            judged += seconds
+            if segment.band == .good { good += seconds }
+        }
+        return judged > 0 ? good / judged : nil
+    }
+
+    /// One of the day's hours, and its share sitting well (nil when away all of it).
+    struct Hour: Equatable {
+        let start: Date
+        let share: Double?
+    }
+
+    /// Each clock hour from the first stretch judged to the last, for the whole day's
+    /// percentages.
+    func hours(calendar: Calendar = .current) -> [Hour] {
+        guard let span = judgedSpan ?? span, let first = calendar.dateInterval(of: .hour, for: span.lowerBound)?.start
+        else { return [] }
+        var hours: [Hour] = []
+        var start = first
+        while start < span.upperBound {
+            let end = start.addingTimeInterval(3600)
+            hours.append(Hour(start: start, share: goodShare(in: start...end)))
+            start = end
+        }
+        return hours
+    }
+
+    /// A share as a whole percentage, or a dash with nothing judged.
+    static func percent(_ share: Double?) -> String {
+        share.map { "\(Int(($0 * 100).rounded()))%" } ?? "—"
+    }
+
+    /// The card's line under the last hour: "Last hour: sat well 84% · today 88% · 3 nudges".
+    var lastHourSummary: String? {
+        guard let lastHour, goodShare != nil else { return nil }
+        let nudgeWord = nudges.count == 1 ? "nudge" : "nudges"
+        return "Last hour: sat well \(Self.percent(goodShare(in: lastHour))) · "
+            + "today \(Self.percent(goodShare)) · \(nudges.count) \(nudgeWord)"
+    }
+
     /// One line for the card: "Sat well 88% · slouched 7 min · 3 nudges", or nil with nothing
     /// judged yet.
     var summary: String? {
@@ -145,6 +218,7 @@ nonisolated struct PostureTimeline: Equatable {
         case .forwardCreep: return "Leaning in"
         case .headDrop: return "Head dropped"
         case .sink: return "Sinking in the chair"
+        case .sideLean: return "Leaning to one side"
         case .sustainedSlouch: return "Slouching"
         case .headTurned: return "Head turned"
         }

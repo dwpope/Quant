@@ -47,7 +47,7 @@ final class PostureCardTests: XCTestCase {
 
     /// The same words the Watch shows for the nudge.
     func test_slouching_saysHowToSitUp() {
-        for reason in [NudgeReason.forwardCreep, .headDrop, .sink, .sustainedSlouch] {
+        for reason in [NudgeReason.forwardCreep, .headDrop, .sink, .sideLean, .sustainedSlouch] {
             XCTAssertEqual(PostureCard.detail(for: .drifting(since: 0), coaching: reason), reason.coachingMessage)
             XCTAssertEqual(PostureCard.detail(for: .bad(since: 0), coaching: reason), reason.coachingMessage)
         }

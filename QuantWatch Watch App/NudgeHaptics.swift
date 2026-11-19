@@ -24,7 +24,7 @@ enum NudgeHaptics {
     /// the single tap it names plays, as before.
     static func pattern(reason: String?, repeat repeatCount: Int) -> [WKHapticType]? {
         switch reason {
-        case "forwardCreep", "headDrop", "sink", "sustainedSlouch":
+        case "forwardCreep", "headDrop", "sink", "sideLean", "sustainedSlouch":
             return Array(repeating: .directionUp, count: min(2 + max(0, repeatCount), 4))
         case "headTurned":
             return [.click, .click, .click]

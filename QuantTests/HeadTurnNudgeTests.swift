@@ -79,3 +79,35 @@ final class SinkNudgeInsightsTests: XCTestCase {
         XCTAssertEqual(message["body"] as? String, "Sit up — slide back in your chair")
     }
 }
+
+/// Leaning to one side is its own nudge reason (2026-11-19): its words on the Watch, the card
+/// and under the timeline, counted with the others.
+@MainActor
+final class SideLeanNudgeAppTests: XCTestCase {
+    func test_insights_countSideLeans() {
+        let events = [
+            NudgeEvent(timestamp: 1_000, reason: .sideLean),
+            NudgeEvent(timestamp: 2_000, reason: .sideLean),
+            NudgeEvent(timestamp: 3_000, reason: .forwardCreep),
+        ]
+        let insights = NudgeInsights(events: events)
+        XCTAssertEqual(insights.sideLeanCount, 2)
+        XCTAssertEqual(insights.dominantReasonDescription, "Mostly leaning to one side")
+    }
+
+    func test_aSideLeanNudge_tellsTheWatch() {
+        let message = WatchConnectivityService.nudgeMessage(hapticType: "failure",
+                                                            body: NudgeReason.sideLean.coachingMessage)
+        XCTAssertEqual(message["body"] as? String, "Sit up straight — you're leaning to one side")
+    }
+
+    func test_theTimelineNamesIt() {
+        XCTAssertEqual(PostureTimeline.label(for: .sideLean), "Leaning to one side")
+    }
+
+    func test_theCardSaysIt() {
+        XCTAssertEqual(PostureCard.detail(for: .bad(since: 0), coaching: .sideLean),
+                       "Sit up straight — you're leaning to one side")
+        XCTAssertTrue(PostureCard.allDetails.contains("Sit up straight — you're leaning to one side"))
+    }
+}

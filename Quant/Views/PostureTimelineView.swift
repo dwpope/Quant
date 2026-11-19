@@ -78,16 +78,41 @@ extension PostureTimeline.Band {
 
 /// The band across the day: full height and green when you sat well, lower and yellow then red
 /// while slouched, a grey sliver while away, with a mark at each nudge.
+///
+/// Zoomed in (2026-11-19): `range` draws only that stretch, as the cards' last hour; `visible`
+/// draws the whole day but shows that many seconds of it at a time, scrolled to the end, to
+/// swipe back through; `hours` puts each hour's share sitting well under the whole day.
 struct PostureTimelineChart: View {
     let timeline: PostureTimeline
     var showsAxis = false
+    /// Only this stretch of the day.
+    var range: ClosedRange<Date>? = nil
+    /// Seconds shown at a time, scrolling through the day; nil shows it all.
+    var visible: TimeInterval? = nil
+    /// Each hour's share, as the whole day's axis labels.
+    var hours: [PostureTimeline.Hour]? = nil
     /// How bright each band is drawn, of its colour: the calm view dims sitting well
     /// (2026-10-20).
     var brightness: (PostureTimeline.Band) -> Double = { _ in 1 }
 
+    private var domain: ClosedRange<Date> {
+        // Whole hours under the hours' shares, so each label sits under its hour.
+        if let hours, let first = hours.first, let last = hours.last {
+            return first.start...last.start.addingTimeInterval(3600)
+        }
+        return range ?? timeline.span ?? Date()...Date()
+    }
+    private var segments: [PostureTimeline.Segment] {
+        range.map { timeline.segments(in: $0) } ?? timeline.segments
+    }
+    private var nudges: [PostureTimeline.Nudge] {
+        guard let range else { return timeline.nudges }
+        return timeline.nudges.filter { range.contains($0.at) }
+    }
+
     var body: some View {
-        Chart {
-            ForEach(Array(timeline.segments.enumerated()), id: \.offset) { _, segment in
+        let chart = Chart {
+            ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
                 RectangleMark(
                     xStart: .value("Start", segment.start),
                     xEnd: .value("End", segment.end),
@@ -95,7 +120,7 @@ struct PostureTimelineChart: View {
                     yEnd: .value("Top", segment.band.height))
                     .foregroundStyle(segment.band.color.opacity(brightness(segment.band)))
             }
-            ForEach(Array(timeline.nudges.enumerated()), id: \.offset) { _, nudge in
+            ForEach(Array(nudges.enumerated()), id: \.offset) { _, nudge in
                 RuleMark(x: .value("Nudge", nudge.at))
                     .foregroundStyle(Color.primary)
                     .lineStyle(StrokeStyle(lineWidth: 1.5))
@@ -103,10 +128,38 @@ struct PostureTimelineChart: View {
         }
         .chartYAxis(.hidden)
         .chartYScale(domain: 0...1)
-        .chartXAxis(showsAxis ? .automatic : .hidden)
-        .chartXScale(domain: timeline.span ?? Date()...Date())
+        .chartXScale(domain: domain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(timeline.summary ?? "No posture recorded")
+
+        if let hours {
+            chart.chartXAxis {
+                // Under the middle of each hour: its time, and its share sitting well.
+                AxisMarks(values: hours.map { $0.start.addingTimeInterval(1800) }) { value in
+                    AxisValueLabel(centered: true) {
+                        if let mid = value.as(Date.self),
+                           let hour = hours.first(where: { abs($0.start.addingTimeInterval(1800).timeIntervalSince(mid)) < 1 }) {
+                            VStack(spacing: 1) {
+                                Text(hour.start, format: .dateTime.hour())
+                                Text(PostureTimeline.percent(hour.share))
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(hour.share == nil ? .secondary : .primary)
+                            }
+                            .font(.caption2)
+                            .monospacedDigit()
+                        }
+                    }
+                }
+            }
+        } else if let visible, let span = timeline.span, span.upperBound.timeIntervalSince(span.lowerBound) > visible {
+            chart
+                .chartXAxis(showsAxis ? .automatic : .hidden)
+                .chartScrollableAxes(.horizontal)
+                .chartXVisibleDomain(length: visible)
+                .chartScrollPosition(initialX: span.upperBound.addingTimeInterval(-visible))
+        } else {
+            chart.chartXAxis(showsAxis ? .automatic : .hidden)
+        }
     }
 }
 
@@ -131,10 +184,11 @@ struct PostureTimelineCard: View {
                             .foregroundStyle(.tertiary)
                     }
                     if let timeline = loader.timeline, !timeline.segments.isEmpty {
-                        PostureTimelineChart(timeline: timeline)
+                        // The last hour, so each slouch is wide enough to see (2026-11-19).
+                        PostureTimelineChart(timeline: timeline, range: timeline.lastHour)
                             .frame(height: 24)
                             .clipShape(RoundedRectangle(cornerRadius: 4))
-                        Text(timeline.summary ?? "Not judged yet")
+                        Text(timeline.lastHourSummary ?? "Not judged yet")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
@@ -158,6 +212,9 @@ struct PostureTimelineCard: View {
 struct PostureTimelineView: View {
     @StateObject private var loader = PostureTimelineLoader()
     @State private var dayKey = PostureLogStore.dayKey(for: Date())
+    /// The whole day at once, with each hour's share; otherwise an hour at a time, to swipe
+    /// back through (2026-11-19).
+    @State private var wholeDay = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -168,9 +225,21 @@ struct PostureTimelineView: View {
                         .frame(maxWidth: .infinity)
                 } else if let timeline = loader.timeline, !timeline.segments.isEmpty {
                     Section {
-                        PostureTimelineChart(timeline: timeline, showsAxis: true)
-                            .frame(height: 80)
-                            .padding(.vertical, 8)
+                        Picker("Show", selection: $wholeDay) {
+                            Text("Hour by hour").tag(false)
+                            Text("Whole day").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        if wholeDay {
+                            PostureTimelineChart(timeline: timeline, showsAxis: true,
+                                                 hours: timeline.hours())
+                                .frame(height: 100)
+                                .padding(.vertical, 8)
+                        } else {
+                            PostureTimelineChart(timeline: timeline, showsAxis: true, visible: 3600)
+                                .frame(height: 80)
+                                .padding(.vertical, 8)
+                        }
                         if let summary = timeline.summary {
                             Text(summary).font(.subheadline)
                         }

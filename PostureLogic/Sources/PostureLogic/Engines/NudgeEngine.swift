@@ -647,8 +647,13 @@ final class NudgeEngine: NudgeEngineProtocol {
         // A tie, or nothing past its line, falls back to the general reason.
         // Only a signal the posture engine counted can be the reason (2026-10-11): it applies
         // exceptions (reclined, chair turned, the reading line) that a plain comparison doesn't.
+        let sideLeanRatio: Float = thresholds.sideLeanThreshold > 0
+            ? metrics.lateralLean / thresholds.sideLeanThreshold
+            : 0
+
         let ratios: [(NudgeReason, Float)] = [
             (.forwardCreep, forwardCreepRatio), (.headDrop, headDropRatio), (.sink, sinkRatio),
+            (.sideLean, sideLeanRatio),
         ].filter { signals?.contains($0.0) ?? true }
         guard let top = ratios.map(\.1).max(), top > 1.0,
               ratios.filter({ $0.1 == top }).count == 1,
@@ -714,6 +719,7 @@ extension NudgeReason {
         case .headDrop:        return "Lift your head — ease your neck back"
         case .headTurned:      return "Turn your chair to face that screen"
         case .sink:            return "Sit up — slide back in your chair"
+        case .sideLean:        return "Sit up straight — you're leaning to one side"
         }
     }
 }

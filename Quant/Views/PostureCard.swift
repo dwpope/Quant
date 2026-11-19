@@ -91,7 +91,7 @@ struct PostureCard: View {
     /// Every line `detail` can give.
     static let allDetails: [String] = {
         let states: [PostureState] = [.good, .absent, .calibrating, .drifting(since: 0)]
-        let reasons: [NudgeReason?] = [nil, .sustainedSlouch, .forwardCreep, .headDrop, .sink]
+        let reasons: [NudgeReason?] = [nil, .sustainedSlouch, .forwardCreep, .headDrop, .sink, .sideLean]
         var lines = [detail(for: .good, coaching: nil, headTurned: true)]
         for state in states {
             for reason in reasons where !lines.contains(detail(for: state, coaching: reason)) {

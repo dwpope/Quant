@@ -438,12 +438,14 @@ final class PostureEngine: PostureEngineProtocol {
         // lowers them too, so while reclined only a slumped recline's much bigger sink counts.
         let sinking = metrics.shoulderSink >= (reclined ? thresholds.reclinedSinkThreshold
                                                         : thresholds.shoulderSinkThreshold)
+        let leaningSideways = !chairTurned && metrics.lateralLean > sideLeanThreshold
         slouchSignals = Set([
             leaningIn ? NudgeReason.forwardCreep : nil, headDropped ? .headDrop : nil, sinking ? .sink : nil,
+            leaningSideways ? .sideLean : nil,
         ].compactMap { $0 })
         return leaningIn
             || metrics.twist > twistThreshold
-            || (!chairTurned && metrics.lateralLean > sideLeanThreshold)
+            || leaningSideways
             || headDropped
             || sinking
             || metrics.shoulderRounding > shoulderRoundingThreshold

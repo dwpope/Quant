@@ -70,6 +70,9 @@ struct NudgeInsights: Equatable {
     /// Number of nudges fired for sinking down in the chair.
     let sinkCount: Int
 
+    /// Number of nudges fired for leaning to one side (2026-11-19).
+    let sideLeanCount: Int
+
     /// The most common nudge reason, or `nil` if no events.
     let dominantReason: NudgeReason?
 
@@ -163,7 +166,7 @@ struct NudgeInsights: Equatable {
         }
 
         // Reason breakdown
-        var slouch = 0, creep = 0, drop = 0, turned = 0, sank = 0
+        var slouch = 0, creep = 0, drop = 0, turned = 0, sank = 0, leaned = 0
         for event in sorted {
             switch event.reason {
             case .sustainedSlouch: slouch += 1
@@ -171,6 +174,7 @@ struct NudgeInsights: Equatable {
             case .headDrop: drop += 1
             case .headTurned: turned += 1
             case .sink: sank += 1
+            case .sideLean: leaned += 1
             }
         }
         self.sustainedSlouchCount = slouch
@@ -178,6 +182,7 @@ struct NudgeInsights: Equatable {
         self.headDropCount = drop
         self.headTurnedCount = turned
         self.sinkCount = sank
+        self.sideLeanCount = leaned
 
         // Dominant reason — the one with the highest count
         if sorted.isEmpty {
@@ -189,6 +194,7 @@ struct NudgeInsights: Equatable {
                 (.headDrop, drop),
                 (.headTurned, turned),
                 (.sink, sank),
+                (.sideLean, leaned),
             ]
             self.dominantReason = counts.max(by: { $0.1 < $1.1 })?.0
         }
@@ -280,6 +286,7 @@ struct NudgeInsights: Equatable {
         case .headDrop: return "Mostly head drop"
         case .headTurned: return "Mostly head turned"
         case .sink: return "Mostly sinking in the chair"
+        case .sideLean: return "Mostly leaning to one side"
         }
     }
 }

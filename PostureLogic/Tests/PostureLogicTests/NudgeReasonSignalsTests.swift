@@ -33,7 +33,7 @@ final class NudgeReasonSignalsTests: XCTestCase {
         XCTAssertEqual(fire(reclinedSinkAndCreep, signals: [.forwardCreep]), .forwardCreep)
     }
 
-    /// A slouch counted by something with no advice of its own (rounding, twist, lean).
+    /// A slouch counted by something with no advice of its own (rounding, twist).
     func test_noSlouchSignal_isTheGeneralReason() {
         XCTAssertEqual(fire(reclinedSinkAndCreep, signals: []), .sustainedSlouch)
     }

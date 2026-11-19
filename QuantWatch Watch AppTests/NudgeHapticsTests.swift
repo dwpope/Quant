@@ -16,6 +16,7 @@ struct NudgeHapticsTests {
         #expect(NudgeHaptics.pattern(reason: "forwardCreep", repeat: 1)
                 == [.directionUp, .directionUp, .directionUp])
         #expect(NudgeHaptics.pattern(reason: "sink", repeat: 2)?.count == 4)
+        #expect(NudgeHaptics.pattern(reason: "sideLean", repeat: 0) == [.directionUp, .directionUp])
         #expect(NudgeHaptics.pattern(reason: "sustainedSlouch", repeat: 9)?.count == 4, "capped")
     }
 
