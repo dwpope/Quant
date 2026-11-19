@@ -238,10 +238,11 @@ class AppModel: ObservableObject {
         static let sideLeanThreshold = "com.quant.posture.sideLean"
         static let driftingToBadThreshold = "com.quant.posture.driftingToBad"
         /// `.v2` since 2026-10-05, when head drop started counting the way it reads on the device
-        /// (negative, 0.0175 default since 2026-11-17). A value stored under the old meaning (+0.15) would silence it.
+        /// (negative, 0.01875 default since 2026-11-18). A value stored under the old meaning (+0.15) would silence it.
         // .v3 since the line moved to 0.020 (2026-11-09): a stored 0.015 is ignored. .v4 since it
-        // moved to 0.0175 (2026-11-17): a stored 0.020 is ignored.
-        static let headDropThreshold = "com.quant.posture.headDrop.v4"
+        // moved to 0.0175 (2026-11-17): a stored 0.020 is ignored. .v5 since it moved to 0.01875
+        // (2026-11-18): a stored 0.0175 is ignored.
+        static let headDropThreshold = "com.quant.posture.headDrop.v5"
         static let shoulderRoundingThreshold = "com.quant.posture.shoulderRounding"
         /// `.v2` since 2026-10-08, when the default became a minute of slouching added up. A
         /// value stored before then (300 s unbroken, or 120 from "Reset to defaults") would hold
@@ -614,14 +615,35 @@ class AppModel: ObservableObject {
                 quality: trackingQuality, poseConfidence: poseConfidence,
                 keypoints: poseKeypointCount, missing: missingCriticalJoints), now: now)
         }
+        // For tuning (2026-11-19): the judged frames' numbers each 10 seconds, the build and the
+        // lines in force, and the baseline. Calibrating is logged as calibrating: with no
+        // baseline every number is 0, and it read as sitting well.
+        let thresholds = pipeline.thresholds
+        if let baseline, !needsCalibration, let metrics = pipeline.latestMetrics {
+            events += postureLogRecorder.metricsEvents(
+                state: pipeline.postureState, metrics: metrics, baselineTakenAt: baseline.timestamp,
+                headDropLine: thresholds.headDropThreshold,
+                forwardCreepLine: thresholds.forwardCreepThreshold, now: now)
+        }
+        events += postureLogRecorder.settingsEvents(PostureLogRecorder.lines(of: thresholds),
+                                                    build: Self.build, now: now)
+        events += postureLogRecorder.calibrationEvents(needsCalibration ? nil : baseline, now: now)
         events += postureLogRecorder.events(
-            state: pipeline.postureState, decision: decision,
+            state: needsCalibration ? .calibrating : pipeline.postureState, decision: decision,
             taskMode: pipeline.taskMode, metrics: pipeline.latestMetrics,
             headYaw: pipeline.latestSample.map { $0.headYaw - (baseline?.headYaw ?? 0) },
-            now: now)
+            nudgeRepeat: pipeline.nudgeRepeat, now: now)
         postureLogStore.append(events)
         postureLogFolder.saveIfDue(now: now)
     }
+
+    /// This build, as the "settings" line names it: "1.0 (61)".
+    static let build: String = {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let number = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(number))"
+    }()
 
     /// Copies the posture log to its folder in the time iOS gives a task it's told of.
     private func copyPostureLogBeforeSuspending() {

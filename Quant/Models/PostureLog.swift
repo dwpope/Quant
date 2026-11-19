@@ -13,7 +13,9 @@ nonisolated struct PostureLogEvent: Codable, Equatable {
     var t: TimeInterval
     /// "state", "nudge", "task", "watch", "camera" (which way round its frames are), "tick":
     /// the state again, a minute after the last line, while nothing changes (2026-10-16), or
-    /// "tracking": the debug panel's tracking numbers over 10 seconds it wasn't good (2026-11-17).
+    /// "tracking": the debug panel's tracking numbers over 10 seconds it wasn't good (2026-11-17);
+    /// "metrics": the judged frames' numbers over 10 seconds; "settings": the build and the lines
+    /// in force; "calibration": the baseline measured from (all 2026-11-19).
     var kind: String
     /// "good", "drifting", "bad", "absent", "calibrating"; "none", "pending:<reason>",
     /// "fire:<reason>", "suppressed:<reason>"; a task mode; how a nudge left for the Watch
@@ -60,6 +62,32 @@ nonisolated struct PostureLogEvent: Codable, Equatable {
     var poseConfHigh: Float? = nil
     var keypoints: Int? = nil
     var missing: String? = nil
+    /// On a fired nudge's line (2026-11-19), which repeat it was, as the Watch was told: 0 for a
+    /// slouch's first nudge. The fire line also carries the numbers it fired on.
+    var nudgeRepeat: Int? = nil
+    /// On a "metrics" line (2026-11-19), the judged frames in the `over` seconds up to `t`: how
+    /// many, head drop and forward lean at their lowest, median and highest (head drop's lowest
+    /// is the deepest dip), the highest of the rest, seconds slouched, seconds past each line
+    /// tried so far and the one in force (keyed "0.01875"), and the baseline's age in seconds.
+    var frames: Int? = nil
+    var headDropLow: Float? = nil
+    var headDropMedian: Float? = nil
+    var headDropHigh: Float? = nil
+    var forwardCreepLow: Float? = nil
+    var forwardCreepMedian: Float? = nil
+    var forwardCreepHigh: Float? = nil
+    var shoulderSinkHigh: Float? = nil
+    var sideLeanHigh: Float? = nil
+    var twistHigh: Float? = nil
+    var roundingHigh: Float? = nil
+    var slouched: Float? = nil
+    var headDropPast: [String: Float]? = nil
+    var forwardCreepPast: [String: Float]? = nil
+    var baselineAge: TimeInterval? = nil
+    /// On a "settings" line (2026-11-19): every line the engines decide by, by name.
+    var lines: [String: Float]? = nil
+    /// On a "calibration" line (2026-11-19): the baseline's numbers, by name.
+    var baseline: [String: Float]? = nil
 }
 
 /// Decides what's worth a line: changes, and a tick a minute while nothing changes. The
@@ -81,7 +109,8 @@ struct PostureLogRecorder {
     static let tickEvery: TimeInterval = 60
 
     mutating func events(state: PostureState, decision: NudgeDecision, taskMode: TaskMode,
-                         metrics: RawMetrics?, headYaw: Float?, now: Date) -> [PostureLogEvent] {
+                         metrics: RawMetrics?, headYaw: Float?, nudgeRepeat: Int? = nil,
+                         now: Date) -> [PostureLogEvent] {
         let t = now.timeIntervalSince1970
         var out: [PostureLogEvent] = []
         defer { if !out.isEmpty { lastLineAt = t } }
@@ -109,6 +138,14 @@ struct PostureLogRecorder {
             lastNudge = nudgeName
             var event = PostureLogEvent(t: t, kind: "nudge", value: nudgeName)
             if case .pending(_, let remaining) = decision { event.remaining = remaining.rounded() }
+            if case .fire = decision {
+                event.forwardCreep = metrics?.forwardCreep
+                event.headDrop = metrics?.headDrop
+                event.shoulderSink = metrics?.shoulderSink
+                event.lateralShift = metrics?.lateralLeanSigned
+                event.headYaw = headYaw
+                event.nudgeRepeat = nudgeRepeat
+            }
             out.append(event)
         }
 
@@ -201,6 +238,163 @@ struct PostureLogRecorder {
         line.keypoints = keypoints.isEmpty ? nil : keypoints[keypoints.count / 2]
         line.missing = missing.isEmpty ? nil : missing
         return line
+    }
+
+    // MARK: - For tuning (2026-11-19)
+
+    /// Head drop lines tried so far and either side, summed up on every "metrics" line with the
+    /// one in force, so a line can be tried again on a past session.
+    static let headDropLines: [Float] = [0.015, 0.0175, 0.01875, 0.02, 0.0225, 0.025]
+    /// Forward lean's, with 0.078: 0.06 in reading mode, which is most of the time.
+    static let forwardCreepLines: [Float] = [0.06, 0.07, 0.078, 0.09, 0.1]
+    /// How many seconds of judged frames a "metrics" line sums up.
+    static let metricsEvery: TimeInterval = 10
+
+    private struct JudgedFrame {
+        var t: TimeInterval
+        var state: String
+        var metrics: RawMetrics
+    }
+    private var metricsWindow: [JudgedFrame] = []
+    private var metricsBaselineTakenAt: Date?
+    private var lastSettings: [String: Float]?
+    private var settingsDay: String?
+    private var lastBaselineTakenAt: Date?
+    private var calibrationDay: String?
+
+    /// A "metrics" line for the last `metricsEvery` seconds of judged frames (2026-11-19). The
+    /// state and tick lines carry the numbers only as a line is crossed, so they all sit by the
+    /// line: on 11-18, 885 of them for about 64,200 frames. Separate from `events`, like the
+    /// tracking line, so it doesn't put off a tick.
+    mutating func metricsEvents(state: PostureState, metrics: RawMetrics, baselineTakenAt: Date,
+                                headDropLine: Float, forwardCreepLine: Float, now: Date) -> [PostureLogEvent] {
+        let t = now.timeIntervalSince1970
+        var out: [PostureLogEvent] = []
+        if let start = metricsWindow.first?.t, t - start >= Self.metricsEvery {
+            if let line = Self.metricsLine(metricsWindow, baselineTakenAt: metricsBaselineTakenAt,
+                                           headDropLines: Self.headDropLines + [headDropLine],
+                                           forwardCreepLines: Self.forwardCreepLines + [forwardCreepLine]) {
+                out.append(line)
+            }
+            metricsWindow = []
+        }
+        metricsWindow.append(JudgedFrame(t: t, state: Self.name(of: state), metrics: metrics))
+        metricsBaselineTakenAt = baselineTakenAt
+        return out
+    }
+
+    /// Ends at the window's last frame, as the tracking line does. Seconds are the share of
+    /// frames times the window, to a tenth: frames come about 10 a second. Past a line means as
+    /// the posture engine has it: head drop at or past it, forward lean over it.
+    private static func metricsLine(_ window: [JudgedFrame], baselineTakenAt: Date?,
+                                    headDropLines: [Float], forwardCreepLines: [Float]) -> PostureLogEvent? {
+        guard let first = window.first, let last = window.last else { return nil }
+        let over = ((last.t - first.t) * 10).rounded() / 10
+        let n = Float(window.count)
+        func seconds(_ count: Int) -> Float { (Float(count) / n * Float(over) * 10).rounded() / 10 }
+        func fine(_ x: Float) -> Float { (x * 100_000).rounded() / 100_000 }
+        func spread(_ values: [Float]) -> (low: Float, median: Float, high: Float) {
+            let sorted = values.sorted()
+            return (fine(sorted[0]), fine(sorted[sorted.count / 2]), fine(sorted[sorted.count - 1]))
+        }
+
+        let states = window.map(\.state)
+        // Most frames' state; a tie says the worse, as the tracking line does.
+        let most = ["bad", "drifting", "good"].max { a, b in
+            states.filter { $0 == a }.count < states.filter { $0 == b }.count
+        } ?? "good"
+
+        let drops = window.map(\.metrics.headDrop)
+        let creeps = window.map(\.metrics.forwardCreep)
+        var headDropPast: [String: Float] = [:]
+        for line in headDropLines {
+            headDropPast[key(line)] = seconds(drops.filter { -$0 >= line }.count)
+        }
+        var forwardCreepPast: [String: Float] = [:]
+        for line in forwardCreepLines {
+            forwardCreepPast[key(line)] = seconds(creeps.filter { $0 > line }.count)
+        }
+
+        var event = PostureLogEvent(t: last.t, kind: "metrics", value: most)
+        event.over = over
+        event.frames = window.count
+        (event.headDropLow, event.headDropMedian, event.headDropHigh) = spread(drops)
+        (event.forwardCreepLow, event.forwardCreepMedian, event.forwardCreepHigh) = spread(creeps)
+        event.shoulderSinkHigh = fine(window.map(\.metrics.shoulderSink).max() ?? 0)
+        event.sideLeanHigh = fine(window.map(\.metrics.lateralLean).max() ?? 0)
+        event.twistHigh = fine(window.map(\.metrics.twist).max() ?? 0)
+        event.roundingHigh = fine(window.map(\.metrics.shoulderRounding).max() ?? 0)
+        event.slouched = seconds(states.filter { $0 == "drifting" || $0 == "bad" }.count)
+        event.headDropPast = headDropPast
+        event.forwardCreepPast = forwardCreepPast
+        event.baselineAge = baselineTakenAt.map { (last.t - $0.timeIntervalSince1970).rounded() }
+        return event
+    }
+
+    /// A line's key: to 5 places without trailing zeros, "0.01875", "0.06".
+    static func key(_ line: Float) -> String {
+        var text = String(format: "%.5f", line)
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text
+    }
+
+    /// A "settings" line with the build and every line in force (2026-11-19): at the first frame,
+    /// when one changes, and at the start of each day. The log said neither, so which line a
+    /// session ran on had to be worked out from where its crossings sat.
+    mutating func settingsEvents(_ lines: [String: Float], build: String, now: Date) -> [PostureLogEvent] {
+        let day = PostureLogStore.dayKey(for: now, calendar: calendar)
+        guard lines != lastSettings || day != settingsDay else { return [] }
+        lastSettings = lines
+        settingsDay = day
+        var event = PostureLogEvent(t: now.timeIntervalSince1970, kind: "settings", value: build)
+        event.lines = lines
+        return [event]
+    }
+
+    /// Every line the posture and nudge engines decide by, by name. Forward lean's is before
+    /// the task mode's allowance (1.3 times it while reading); the task line says the mode.
+    static func lines(of thresholds: PostureThresholds) -> [String: Float] {
+        [
+            "headDrop": thresholds.headDropThreshold,
+            "headDropMinForwardCreep": thresholds.headDropMinForwardCreep,
+            "forwardCreep": thresholds.forwardCreepThreshold,
+            "sideLean": thresholds.sideLeanThreshold,
+            "twist": thresholds.twistThreshold,
+            "shoulderRounding": thresholds.shoulderRoundingThreshold,
+            "shoulderSink": thresholds.shoulderSinkThreshold,
+            "reclinedSink": thresholds.reclinedSinkThreshold,
+            "reclineMaxForwardCreep": thresholds.reclineMaxForwardCreep,
+            "slouchSeconds": Float(thresholds.slouchDurationBeforeNudge),
+            "driftGrace": Float(thresholds.driftingToBadThreshold),
+            "nudgeCooldown": Float(thresholds.nudgeCooldown),
+            "maxNudgesPerHour": Float(thresholds.maxNudgesPerHour),
+        ]
+    }
+
+    /// A "calibration" line with the baseline measured from (2026-11-19): when one is taken or
+    /// loaded, and at the start of each day, with its age. Readings from two calibrations sat on
+    /// one scale, and nothing said whether 0.001 apart was the body or the calibration pose.
+    mutating func calibrationEvents(_ baseline: Baseline?, now: Date) -> [PostureLogEvent] {
+        guard let baseline else { return [] }
+        let day = PostureLogStore.dayKey(for: now, calendar: calendar)
+        guard baseline.timestamp != lastBaselineTakenAt || day != calibrationDay else { return [] }
+        lastBaselineTakenAt = baseline.timestamp
+        calibrationDay = day
+        func fine(_ x: Float) -> Float { (x * 100_000).rounded() / 100_000 }
+        var event = PostureLogEvent(t: now.timeIntervalSince1970, kind: "calibration",
+                                    value: baseline.orientation.rawValue)
+        event.baselineAge = now.timeIntervalSince(baseline.timestamp).rounded()
+        event.baseline = [
+            "shoulderWidth": fine(baseline.shoulderWidth),
+            "neckHeight": fine(baseline.neckHeight),
+            "headYaw": fine(baseline.headYaw),
+            "torsoAngle": fine(baseline.torsoAngle),
+            "shoulderTwist": fine(baseline.shoulderTwist),
+            "shoulderX": fine(baseline.shoulderMidpoint.x),
+            "shoulderY": fine(baseline.shoulderMidpoint.y),
+        ]
+        return [event]
     }
 
     /// How a fired nudge left for the Watch (2026-10-08): the phone fired twice in Dave's second

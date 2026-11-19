@@ -33,21 +33,31 @@ final class HeadDropDirectionTests: XCTestCase {
         return false
     }
 
-    /// 0.0175 since 2026-11-17 (0.020 from 2026-11-09, the Jev wording's 0.015 before that):
-    /// sitting well in real use read up to -0.016, so 0.015 flickered in and out of a slouch, but
-    /// at 0.020 Dave's head sat at -0.019 to -0.022 for a quarter of an hour, his neck strained,
-    /// and the app stayed green.
-    func test_theTripPoint_isBetweenSittingWellAndAStrainedNeck() {
-        XCTAssertEqual(PostureThresholds().headDropThreshold, 0.0175,
-                       "the head 0.0175 shoulder widths closer to the shoulders than at calibration")
+    /// 0.01875 since 2026-11-18, halfway between the last two lines. At 0.020 (from 2026-11-09)
+    /// Dave's head sat at -0.019 to -0.022 for a quarter of an hour, his neck strained, and the app
+    /// stayed green. At 0.0175 (2026-11-17) his head sat on the line, and he was nudged "for
+    /// dipping my head a little more than i would have liked". (The Jev wording's 0.015 before
+    /// 2026-11-09: sitting well read up to -0.016.)
+    func test_theTripPoint_isBetweenASmallDipAndAStrainedNeck() {
+        XCTAssertEqual(PostureThresholds().headDropThreshold, 0.01875,
+                       "the head 0.01875 shoulder widths closer to the shoulders than at calibration")
     }
 
     /// 2026-11-17, the phone on its side: "I can feel my neck strain even though it's still
     /// displaying as green". Head drop read -0.019 to -0.022 from 12:00 to 12:15, crossing 0.020
     /// for a second or two at a time, so each head-drop countdown started again and none nudged.
     func test_aStrainedNeck_isASlouch() {
-        XCTAssertTrue(isDrifting(state(headDrop: -0.018)))
         XCTAssertTrue(isDrifting(state(headDrop: -0.019)))
+        XCTAssertTrue(isDrifting(state(headDrop: -0.022)))
+    }
+
+    /// 2026-11-18, upright: head drop sat on the 0.0175 line for most of 14:14-16:00, crossing it
+    /// up to 142 times in 10 minutes; 8 of the 11 head-drop nudges followed a crossing at -0.0175
+    /// to -0.0181.
+    /// Dave: nudged "for dipping my head a little more than i would have liked".
+    func test_aSmallDip_isSittingWell() {
+        XCTAssertEqual(state(headDrop: -0.0175), .good)
+        XCTAssertEqual(state(headDrop: -0.018), .good)
     }
 
     /// Every slouch measured on device read at or below -0.013; the weakest two that barely came

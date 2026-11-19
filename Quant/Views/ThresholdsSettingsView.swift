@@ -23,8 +23,8 @@ struct ThresholdsSettingsView: View {
 
                 SettingSlider(
                     title: "Head Drop",
-                    value: String(format: "%.3f", appModel.headDropThreshold),
-                    amount: $appModel.headDropThreshold, range: 0.005...0.05, step: 0.0025,
+                    value: HeadDrop.label(appModel.headDropThreshold),
+                    amount: $appModel.headDropThreshold, range: HeadDrop.range, step: HeadDrop.step,
                     caption: "How far your head can drop towards your shoulders, in shoulder widths, before it counts.")
 
                 SettingSlider(
@@ -82,5 +82,22 @@ struct ThresholdsSettingsView: View {
     NavigationStack {
         ThresholdsSettingsView()
             .environmentObject(AppModel())
+    }
+}
+
+extension ThresholdsSettingsView {
+    /// The head drop slider. Steps of 0.00125 since 2026-11-18: at 0.0025 it could only jump
+    /// between 0.0175 and 0.020, and the line went to 0.01875, halfway.
+    enum HeadDrop {
+        static let range: ClosedRange<Float> = 0.005...0.05
+        static let step: Float = 0.00125
+
+        /// To 5 places, without trailing zeros past the third: "0.01875", "0.0175", "0.020".
+        /// Three places showed 0.0175 as "0.018".
+        static func label(_ value: Float) -> String {
+            var text = String(format: "%.5f", value)
+            while text.hasSuffix("0"), text.count > "0.000".count { text.removeLast() }
+            return text
+        }
     }
 }
