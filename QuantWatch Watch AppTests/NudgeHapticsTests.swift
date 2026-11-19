@@ -46,53 +46,69 @@ struct NudgeHapticsTests {
 
     // MARK: - Late taps (2026-10-16 audit)
 
-    /// A clock the test moves, standing in for time passing while the app is suspended.
+    /// The test's own clock: it holds the taps the player schedules and runs them in order,
+    /// moving its time to each one's due time. Nothing waits on real time, so a slow test
+    /// machine can't make a tap late (CI, 2026-11-19: `tapsOnTime_play` timed out on one).
     final class Clock {
-        var now = Date()
+        var now = Date(timeIntervalSince1970: 1_800_000_000)
+        private var jobs: [(due: Date, job: () -> Void)] = []
+
+        func after(_ delay: TimeInterval, _ job: @escaping () -> Void) {
+            jobs.append((now.addingTimeInterval(delay), job))
+        }
+
+        /// Runs every scheduled job, earliest first, including those the jobs schedule.
+        func run() {
+            while let next = jobs.indices.min(by: { jobs[$0].due < jobs[$1].due }) {
+                let (due, job) = jobs.remove(at: next)
+                now = max(now, due)
+                job()
+            }
+        }
     }
 
-    /// Waits up to `seconds` for `done`. The taps come on the main queue, which a busy test
-    /// machine can hold up for seconds (CI, 2026-11-14: a 1.5 s wait took 3.8 s).
-    @MainActor private func waitUntil(_ seconds: TimeInterval = 10, _ done: () -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(seconds)
-        while !done() && Date() < deadline { try await Task.sleep(for: .milliseconds(10)) }
+    /// Plays `pattern` from `start` on the test's clock and returns the taps that played.
+    /// `afterTap` runs after each tap, to move the clock as a suspension would.
+    private func played(_ pattern: [WKHapticType], from start: Date? = nil, clock: Clock = Clock(),
+                        afterTap: @escaping (Clock) -> Void = { _ in }) -> [WKHapticType] {
+        var played: [WKHapticType] = []
+        NudgeHaptics.play(pattern, from: start ?? clock.now, now: { clock.now }, after: clock.after,
+                          tap: { played.append($0); afterTap(clock) })
+        clock.run()
+        return played
     }
 
     /// Taps late by more than `playsUpTo` don't play: the app was suspended with them still to
     /// come, as when a background wake ends, and was resumed later. A nudge's taps then would
     /// be for a nudge long gone.
-    @MainActor @Test func lateTaps_dontPlay() async throws {
-        var played: [WKHapticType] = []
-        NudgeHaptics.play([.click, .click], from: Date().addingTimeInterval(-60), tap: { played.append($0) })
-        try await Task.sleep(for: .seconds(1))
-        #expect(played.isEmpty)
+    @Test func lateTaps_dontPlay() {
+        let clock = Clock()
+        #expect(played([.click, .click], from: clock.now.addingTimeInterval(-60), clock: clock).isEmpty)
     }
 
-    /// On time by the test's clock, which keeps to the schedule: each tap is played when it's
-    /// due, however late the main queue gets to it. On the real clock a busy CI machine made
-    /// them late and they were dropped, as they should be (CI, 2026-11-14).
-    @MainActor @Test func tapsOnTime_play() async throws {
+    /// A tap just inside `playsUpTo` still plays.
+    @Test func slightlyLateTaps_play() {
         let clock = Clock()
-        var played: [WKHapticType] = []
-        NudgeHaptics.play([.directionUp, .click], from: clock.now, now: { clock.now }, tap: { tap in
-            played.append(tap)
-            clock.now += NudgeHaptics.spacing  // the next tap is due
-        })
-        try await waitUntil { played.count == 2 }
-        #expect(played == [.directionUp, .click])
+        let start = clock.now.addingTimeInterval(-NudgeHaptics.playsUpTo)
+        #expect(played([.click], from: start, clock: clock) == [.click])
+    }
+
+    /// On time, each tap plays when it's due, `spacing` apart.
+    @Test func tapsOnTime_play() {
+        let clock = Clock()
+        let start = clock.now
+        var times: [TimeInterval] = []
+        let taps = played([.directionUp, .click], clock: clock) { times.append($0.now.timeIntervalSince(start)) }
+        #expect(taps == [.directionUp, .click])
+        #expect(times == [0, NudgeHaptics.spacing])
     }
 
     /// Suspended partway through, the rest of the run is dropped, not played late.
-    @MainActor @Test func suspendedPartway_theRestIsDropped() async throws {
-        let clock = Clock()
-        var played: [WKHapticType] = []
-        NudgeHaptics.play([.directionUp, .directionUp, .directionUp], from: clock.now,
-                          now: { clock.now }, tap: { tap in
-            played.append(tap)
+    @Test func suspendedPartway_theRestIsDropped() {
+        let taps = played([.directionUp, .directionUp, .directionUp]) { clock in
             clock.now += 30  // suspended for half a minute after the first tap
-        })
-        try await Task.sleep(for: .seconds(1.5))
-        #expect(played == [.directionUp])
+        }
+        #expect(taps == [.directionUp])
     }
 
     /// The screen's "last nudge" time is when it arrived, not when the main queue got to it.

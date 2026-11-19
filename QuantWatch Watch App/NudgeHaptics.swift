@@ -39,15 +39,19 @@ enum NudgeHaptics {
     /// say a different repeat.
     static let playsUpTo: TimeInterval = 1
 
+    /// Runs `job` after `delay` seconds: on the main queue, unless a test passes its own clock.
+    typealias Schedule = (_ delay: TimeInterval, _ job: @escaping () -> Void) -> Void
+
     /// Plays the taps, `spacing` apart, from `start` (when the nudge arrived).
     static func play(_ pattern: [WKHapticType], from start: Date = Date(),
                      now: @escaping () -> Date = Date.init,
+                     after: @escaping Schedule = { DispatchQueue.main.asyncAfter(deadline: .now() + $0, execute: $1) },
                      tap: @escaping (WKHapticType) -> Void = { WKInterfaceDevice.current().play($0) }) {
         guard let first = pattern.first else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, start.timeIntervalSince(now()))) {
+        after(max(0, start.timeIntervalSince(now()))) {
             let playedAt = now()
             guard playedAt.timeIntervalSince(start) <= playsUpTo else { return }
-            play(Array(pattern.dropFirst()), from: playedAt.addingTimeInterval(spacing), now: now, tap: tap)
+            play(Array(pattern.dropFirst()), from: playedAt.addingTimeInterval(spacing), now: now, after: after, tap: tap)
             tap(first)
         }
     }
