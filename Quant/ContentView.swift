@@ -113,6 +113,13 @@ struct ContentView: View {
                 case .front2D:
                     FrontCameraPreviewView(session: appModel.frontService.captureSession)
                         .ignoresSafeArea()
+                    // The points it tracks, and what's measured from them (2026-11-22).
+                    if let tracked = appModel.trackedPoints {
+                        PoseOverlayView(keypoints: tracked.keypoints, orientation: tracked.orientation,
+                                        baseline: appModel.needsCalibration ? nil : appModel.baseline,
+                                        reading: tracked.reading)
+                            .ignoresSafeArea()
+                    }
                 case .frontFace:
                     CameraPreviewView(session: appModel.arFaceService.session)
                         .ignoresSafeArea()

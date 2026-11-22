@@ -161,8 +161,16 @@ class AppModel: ObservableObject {
     /// Whether the camera's view shows behind the screen. The Watch can show or hide it, to check
     /// you're in frame without reaching for the phone (2026-10-20), and is told each time it's set.
     @Published var showCameraPreview: Bool = false {
-        didSet { sendsCameraPreview(watchService, showCameraPreview) }
+        didSet {
+            sendsCameraPreview(watchService, showCameraPreview)
+            if !showCameraPreview { trackedPoints = nil }
+        }
     }
+
+    /// The points the camera is tracking, which way round its frames are, and the posture reading
+    /// that colours the lines drawn from them, kept only while the picture shows (2026-11-22).
+    /// Nil when nothing's found.
+    @Published private(set) var trackedPoints: TrackedPose?
 
     /// Tells the Watch whether the camera's view is showing. Tests swap it: the simulator has no
     /// Watch to tell.
@@ -431,6 +439,26 @@ class AppModel: ObservableObject {
 
         pipeline.$poseKeypointCount
             .assign(to: &$poseKeypointCount)
+
+        pipeline.poseObservationPublisher
+            .sink { [weak self] observation in
+                guard let self, self.showCameraPreview else { return }
+                // The pipeline's reading is the previous frame's, a tenth of a second old.
+                let now = observation.timestamp
+                let reading = PoseReading(
+                    state: self.pipeline.postureState, pastLines: self.pipeline.slouchSignals,
+                    headTurned: self.headTurned,
+                    stateChangeIn: self.pipeline.stateChangeDueAt.map { $0 - now },
+                    nudgeIn: self.pipeline.nudgeDueAt.map { $0 - now })
+                self.trackedPoints = TrackedPose(keypoints: observation.keypoints,
+                                                 orientation: self.pipeline.frameOrientation ?? .portrait,
+                                                 reading: reading)
+            }
+            .store(in: &cancellables)
+        pipeline.$poseKeypointCount
+            .filter { $0 == 0 }
+            .sink { [weak self] _ in self?.trackedPoints = nil }
+            .store(in: &cancellables)
 
         pipeline.$missingCriticalJoints
             .assign(to: &$missingCriticalJoints)

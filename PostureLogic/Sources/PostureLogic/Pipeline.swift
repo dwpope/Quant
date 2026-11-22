@@ -48,6 +48,14 @@ public class Pipeline {
     /// this frame's.
     public private(set) var nudgeDueAt: TimeInterval?
 
+    /// When the posture state will change by itself if the posture holds, on the frame clock
+    /// (2026-11-22): drifting to bad, or bad back to good. See `PostureEngine.stateChangeDueAt`.
+    public var stateChangeDueAt: TimeInterval? { postureEngine.stateChangeDueAt }
+
+    /// Which measurements are past their lines on the latest frame (2026-11-22). Twist and
+    /// shoulder rounding count towards a slouch without being named here.
+    public var slouchSignals: Set<NudgeReason> { postureEngine.slouchSignals }
+
     /// The latest frame judged, with a pose or without, and when on the calendar clock
     /// (2026-10-16). `nudgeDueAt`, `headTurnedSince` and a slouch's start are on this frame's
     /// clock, so it's what they're converted against. `latestMetrics` stops at the last frame

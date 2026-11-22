@@ -100,6 +100,22 @@ final class PostureEngine: PostureEngineProtocol {
     /// (2026-10-16). The nudge engine counts it as sitting well.
     var isRecovering: Bool { recoveryStartTime != nil }
 
+    /// When the state will change by itself if the posture holds, on the frame clock, or nil
+    /// (2026-11-22): drifting turns bad once `driftingToBadThreshold` of drift has gathered, and
+    /// bad turns good after `recoveryGracePeriod` of sitting well. Nil while tracking is paused,
+    /// since the timers are too. For the countdown over the camera's picture.
+    var stateChangeDueAt: TimeInterval? {
+        guard let now = lastGoodUpdateTimestamp else { return nil }
+        switch currentState {
+        case .drifting:
+            return now + max(0, thresholds.driftingToBadThreshold - accumulatedDriftTime)
+        case .bad:
+            return recoveryStartTime.map { $0 + thresholds.recoveryGracePeriod }
+        case .absent, .calibrating, .good:
+            return nil
+        }
+    }
+
     // MARK: - Absence Tracking (internal)
 
     /// Timestamp when `.lost` quality was first observed in the current run.

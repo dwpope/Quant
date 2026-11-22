@@ -26,4 +26,13 @@ public enum FrameOrientation: String, Codable, Equatable, Sendable {
         return CGPoint(x: 0.5 + (point.x - 0.5) * stretch,
                        y: 0.5 + (point.y - 0.5) / stretch)
     }
+
+    /// The other way: a point in the upright frame's units, back on the frame it came from, 0…1
+    /// across each side, as Vision found it. For drawing keypoints over the picture (2026-11-22).
+    public static func frameUnits(_ point: CGPoint, width: Int, height: Int) -> CGPoint {
+        guard width > height, height > 0 else { return point }
+        let stretch = CGFloat(width) / CGFloat(height)
+        return CGPoint(x: 0.5 + (point.x - 0.5) / stretch,
+                       y: 0.5 + (point.y - 0.5) * stretch)
+    }
 }

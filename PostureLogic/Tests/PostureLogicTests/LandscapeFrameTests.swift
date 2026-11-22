@@ -45,6 +45,18 @@ final class LandscapeFrameTests: XCTestCase {
     /// Head drop is the ears' height over the shoulders in shoulder widths. Unmapped, a wide frame
     /// reads it (1280/720)² ≈ 3.2 times larger, so a head drop line of 0.020 would fire at a third
     /// of the drop.
+    /// Drawing keypoints over the picture undoes `portraitUnits`.
+    func test_frameUnits_undoPortraitUnits() {
+        for point in [CGPoint(x: 0.1, y: 0.9), CGPoint(x: 0.5, y: 0.5), CGPoint(x: 0.83, y: 0.27)] {
+            let there = FrameOrientation.portraitUnits(point, width: 1280, height: 720)
+            let back = FrameOrientation.frameUnits(there, width: 1280, height: 720)
+            XCTAssertEqual(back.x, point.x, accuracy: 1e-9)
+            XCTAssertEqual(back.y, point.y, accuracy: 1e-9)
+        }
+        let upright = CGPoint(x: 0.2, y: 0.7)
+        XCTAssertEqual(FrameOrientation.frameUnits(upright, width: 720, height: 1280), upright)
+    }
+
     func test_neckHeightInShoulderWidths_isTheSameEitherWay() {
         // Ears 260 px above the shoulders, which are 300 px apart, in both frames.
         func neckHeight(ears: CGPoint, left: CGPoint, right: CGPoint) -> CGFloat {
