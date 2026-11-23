@@ -150,31 +150,6 @@ final class PipelineTimelineTests: XCTestCase {
             shoulderWidthRaw: shoulderWidth, trackingQuality: .good, headYaw: 0)
     }
 
-    /// The check that the calibration still fits runs on a new timeline too (2026-10-16 audit).
-    /// It runs once a minute on the frame clock, and the time of the last check was kept across
-    /// a new timeline: a replay of a recording from earlier than it was never checked.
-    @MainActor
-    func test_theStalenessCheck_runsOnANewTimeline() {
-        let pipeline = Pipeline(provider: MockPoseProvider())
-        pipeline.baseline = GoldenRecordings.baselineForGoodPosture()   // shoulder width 0.2
-        let live: TimeInterval = 1_791_640_000
-        for i in 0..<10 {
-            let t = live + Double(i) * 0.1
-            pipeline.ingest(sample(at: t, shoulderWidth: 0.2), quality: .good, at: t)
-        }
-        XCTAssertEqual(pipeline.baselineStaleness, .fresh)
-
-        pipeline.resetTimeline()
-        let replay = live - 3600
-        for i in 0..<10 {
-            let t = replay + Double(i) * 0.1
-            pipeline.ingest(sample(at: t, shoulderWidth: 0.3), quality: .good, at: t)
-        }
-        guard case .positionShifted = pipeline.baselineStaleness else {
-            return XCTFail("the replay sits 50% wider than the calibration, got \(pipeline.baselineStaleness)")
-        }
-    }
-
     /// A new timeline says it has no posture yet (2026-10-16 audit). The state published was the
     /// old timeline's until the new one's first frame, so the app could read a slouch in one and
     /// sitting well in the other as a sit-up after a nudge.

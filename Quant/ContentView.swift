@@ -82,6 +82,15 @@ struct ContentView: View {
                            onSwitch: switchScreen)
             }
         }
+        // On both screens, above whichever shows (2026-11-23).
+        .overlay(alignment: .top) {
+            if appModel.seatChangeQuestion != nil {
+                SeatChangePrompt(onRecalibrate: { appModel.answerSeatChange(.recalibrate) },
+                                 onDismiss: { appModel.answerSeatChange(.dismiss) })
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.default, value: appModel.seatChangeQuestion != nil)
         .sheet(isPresented: $showSettings) {
             CalibrationSettingsView()
         }

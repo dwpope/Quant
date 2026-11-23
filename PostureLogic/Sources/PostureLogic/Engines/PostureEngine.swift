@@ -138,10 +138,6 @@ final class PostureEngine: PostureEngineProtocol {
     /// after a real absence). Nil when not in a validation window.
     private var returnValidationStart: TimeInterval?
 
-    /// Set to true when a long-absence return commits. Pipeline reads and clears
-    /// this via consumeRecalibrationPrompt() to show a dismissible prompt.
-    var pendingRecalibrationPrompt: Bool = false
-
     // MARK: - Initialization
 
     /// Creates a new PostureEngine with the given thresholds.
@@ -351,7 +347,6 @@ final class PostureEngine: PostureEngineProtocol {
         savedDriftTime = 0
         absenceDeclaredAt = nil
         returnValidationStart = nil
-        pendingRecalibrationPrompt = false
     }
 
     // MARK: - Threshold Checking
@@ -536,8 +531,7 @@ final class PostureEngine: PostureEngineProtocol {
     /// Commits the return from a real absence after the validation window passes.
     ///
     /// Short absence (< absentResumeThreshold): restores the saved state.
-    /// Long absence (≥ absentResumeThreshold): resets to `.good` and sets
-    /// `pendingRecalibrationPrompt` so Pipeline can show the dismissible prompt.
+    /// Long absence (≥ absentResumeThreshold): resets to `.good`.
     private func commitReturnFromAbsence(absenceDuration: TimeInterval) {
         defer {
             savedPostureState = nil
@@ -555,20 +549,7 @@ final class PostureEngine: PostureEngineProtocol {
             currentState = .absent
             accumulatedDriftTime = 0
             recoveryStartTime = nil
-            if absenceDuration >= thresholds.absentResumeThreshold {
-                pendingRecalibrationPrompt = true
-            }
         }
-    }
-
-    /// Returns true and clears the flag if a recalibration prompt is pending.
-    ///
-    /// Called by Pipeline after each `update` to check whether to show the
-    /// "Welcome back — tap to recalibrate" dismissible prompt.
-    func consumeRecalibrationPrompt() -> Bool {
-        guard pendingRecalibrationPrompt else { return false }
-        pendingRecalibrationPrompt = false
-        return true
     }
 
     // MARK: - Helpers

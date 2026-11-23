@@ -361,8 +361,8 @@ final class PipelineIntegrationTests: XCTestCase {
         XCTAssertFalse(pipeline.absenceSegments.isEmpty, "Should have at least one absence segment after going absent")
     }
 
-    /// Recalibration prompt fires after a long absence.
-    func test_longAbsence_triggersRecalibrationPrompt() async throws {
+    /// Posture is judged again after a long absence.
+    func test_longAbsence_returnsToJudging() async throws {
         let mock = MockPoseProvider()
         var thresholds = PostureThresholds()
         thresholds.absentThreshold = 0.3
@@ -384,31 +384,7 @@ final class PipelineIntegrationTests: XCTestCase {
             await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t + 5.0 + Double(i) * 0.1))
         }
 
-        XCTAssertTrue(pipeline.showRecalibrationPrompt, "Long absence should trigger recalibration prompt")
-    }
-
-    /// dismissRecalibrationPrompt clears the prompt flag.
-    func test_dismissRecalibrationPrompt_clearsFlag() async throws {
-        let mock = MockPoseProvider()
-        var thresholds = PostureThresholds()
-        thresholds.absentThreshold = 0.3
-        thresholds.absentResumeThreshold = 2.0
-        thresholds.returnValidationWindow = 0.2
-        let pipeline = Pipeline(provider: mock, thresholds: thresholds)
-        pipeline.baseline = Self.makeBaseline()
-        try await mock.start()
-
-        let t = Date().timeIntervalSince1970
-        await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t))
-        for i in 1...5 {
-            await emitAndWait(mock, pipeline, sample: Self.lostSample(at: t + Double(i) * 0.1))
-        }
-        for i in 0...5 {
-            await emitAndWait(mock, pipeline, sample: Self.goodSample(at: t + 5.0 + Double(i) * 0.1))
-        }
-
-        pipeline.dismissRecalibrationPrompt()
-        XCTAssertFalse(pipeline.showRecalibrationPrompt, "Prompt should be cleared after dismiss")
+        XCTAssertNotEqual(pipeline.postureState, .absent, "Back after a long absence, posture is judged again")
     }
 }
 

@@ -76,7 +76,9 @@ nonisolated struct PostureLogEvent: Codable, Equatable {
     var forwardCreepLow: Float? = nil
     var forwardCreepMedian: Float? = nil
     var forwardCreepHigh: Float? = nil
+    var shoulderSinkMedian: Float? = nil
     var shoulderSinkHigh: Float? = nil
+    var sideLeanMedian: Float? = nil
     var sideLeanHigh: Float? = nil
     var twistHigh: Float? = nil
     var roundingHigh: Float? = nil
@@ -84,6 +86,14 @@ nonisolated struct PostureLogEvent: Codable, Equatable {
     var headDropPast: [String: Float]? = nil
     var forwardCreepPast: [String: Float]? = nil
     var baselineAge: TimeInterval? = nil
+    /// On a "seat" line (2026-11-23): what raised the seat question ("nearMisses" or "onReturn"),
+    /// the readings behind it (a comma list, sorted) and, for near-misses, how many.
+    var trigger: String? = nil
+    var reason: String? = nil
+    var count: Int? = nil
+    /// On a "seat" line: the values that raised the question, by reading. Near-misses: each counted
+    /// near-miss's peak. On return: the two window medians. Five decimals.
+    var evidence: [String: [Float]]? = nil
     /// On a "settings" line (2026-11-19): every line the engines decide by, by name.
     var lines: [String: Float]? = nil
     /// On a "calibration" line (2026-11-19): the baseline's numbers, by name.
@@ -320,8 +330,10 @@ struct PostureLogRecorder {
         event.frames = window.count
         (event.headDropLow, event.headDropMedian, event.headDropHigh) = spread(drops)
         (event.forwardCreepLow, event.forwardCreepMedian, event.forwardCreepHigh) = spread(creeps)
-        event.shoulderSinkHigh = fine(window.map(\.metrics.shoulderSink).max() ?? 0)
-        event.sideLeanHigh = fine(window.map(\.metrics.lateralLean).max() ?? 0)
+        let sinks = window.map(\.metrics.shoulderSink)
+        let leans = window.map(\.metrics.lateralLean)
+        (_, event.shoulderSinkMedian, event.shoulderSinkHigh) = spread(sinks)
+        (_, event.sideLeanMedian, event.sideLeanHigh) = spread(leans)
         event.twistHigh = fine(window.map(\.metrics.twist).max() ?? 0)
         event.roundingHigh = fine(window.map(\.metrics.shoulderRounding).max() ?? 0)
         event.slouched = seconds(states.filter { $0 == "drifting" || $0 == "bad" }.count)
@@ -627,5 +639,34 @@ final class PostureLogStore: ObservableObject {
     private func dateKey(for date: Date) -> String {
         let c = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+}
+
+extension PostureLogEvent {
+    /// A seat-change suggestion: "would-ask" while only logging, "asked" when the question is put
+    /// (`via` says how the Watch was told).
+    static func seatEvent(_ suggestion: SeatChangeSuggestion, mode: SeatChangeMode,
+                          via: String? = nil) -> PostureLogEvent {
+        var event = PostureLogEvent(t: suggestion.at, kind: "seat",
+                                    value: mode == .ask ? "asked" : "would-ask")
+        event.via = via
+        if !suggestion.evidence.isEmpty {
+            event.evidence = suggestion.evidence.mapValues { $0.map { ($0 * 100_000).rounded() / 100_000 } }
+        }
+        switch suggestion.trigger {
+        case let .nearMisses(reason, count):
+            event.trigger = "nearMisses"
+            event.reason = reason.rawValue
+            event.count = count
+        case let .onReturn(reasons):
+            event.trigger = "onReturn"
+            event.reason = reasons.map(\.rawValue).sorted().joined(separator: ",")
+        }
+        return event
+    }
+
+    /// How an open seat-change question ended.
+    static func seatEvent(closed outcome: SeatChangeOutcome, at t: TimeInterval) -> PostureLogEvent {
+        PostureLogEvent(t: t, kind: "seat", value: "closed:\(outcome.rawValue)")
     }
 }

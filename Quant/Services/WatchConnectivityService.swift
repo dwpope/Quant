@@ -72,6 +72,10 @@ final class WatchConnectivityService: NSObject {
     let nudgeBannerReported = PassthroughSubject<NudgeBanner, Never>()
     let nudgeNotificationReported = PassthroughSubject<NudgeNotificationTimes, Never>()
 
+    /// Called with the Watch's answer to the seat-change question and the id of the question it
+    /// answers (2026-11-23). The phone decides whether it's still the open one.
+    var onSeatAnswer: ((SeatChangeOutcome, TimeInterval) -> Void)?
+
     /// Fires with the new value whenever the Watch app becomes reachable or stops being so.
     let reachabilityChanged = PassthroughSubject<Bool, Never>()
 
@@ -218,6 +222,58 @@ final class WatchConnectivityService: NSObject {
                 self?.logger.error("Camera preview send failed: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Tells the Watch the "Moved your seat?" question is open or closed. `id` is the suggestion's
+    /// `at`, which identifies the question. The Watch's `SeatChangeRemote.question` reads it.
+    static func seatQuestionMessage(open: Bool, id: TimeInterval) -> [String: Any] {
+        ["type": "seatQuestion", "open": open, "id": id]
+    }
+
+    /// How the question reaches the Watch: straight when its app is open, queued when it isn't,
+    /// not at all without a paired Watch.
+    static func seatQuestionRoute(isSupported: Bool, isPaired: Bool, isReachable: Bool) -> SeatQuestionDelivery {
+        guard isSupported, isPaired else { return .notPaired }
+        return isReachable ? .message : .queued
+    }
+
+    /// Send the question's state: straight to the open Watch app, or queued with
+    /// `transferUserInfo` as nudges are (open and close both), so a closed Watch app is woken to
+    /// show or clear it. A late copy is harmless: the Watch ignores an open whose close it saw,
+    /// and a question that timed out is closed by the phone either way. Returns how it left, for
+    /// the posture log.
+    @discardableResult
+    func sendSeatQuestion(open: Bool, id: TimeInterval) -> SeatQuestionDelivery {
+        let supported = WCSession.isSupported()
+        let session: WCSession? = supported ? WCSession.default : nil
+        let route = Self.seatQuestionRoute(isSupported: supported, isPaired: session?.isPaired ?? false,
+                                           isReachable: session?.isReachable ?? false)
+        guard let session, route != .notPaired else { return .notPaired }
+        let message = Self.seatQuestionMessage(open: open, id: id)
+        if route == .message {
+            session.sendMessage(message, replyHandler: nil) { [weak self] error in
+                // The Watch app closed between the check and the send: queue it instead.
+                session.transferUserInfo(message)
+                Task { @MainActor in
+                    self?.logger.error("Seat question send failed, queued: \(error.localizedDescription)")
+                }
+            }
+        } else {
+            session.transferUserInfo(message)
+        }
+        return route
+    }
+
+    /// The Watch's answer to the question, with the question's id, or nil when the message isn't a
+    /// well-formed answer. Only the two answers the Watch offers count. The Watch's
+    /// `SeatChangeRemote.answerMessage` writes it.
+    static func seatAnswer(from message: [String: Any]) -> (answer: SeatChangeOutcome, id: TimeInterval)? {
+        guard message["type"] as? String == "seatAnswer",
+              let name = message["answer"] as? String,
+              let answer = SeatChangeOutcome(rawValue: name), answer == .recalibrate || answer == .dismiss,
+              let id = (message["id"] as? NSNumber)?.doubleValue
+        else { return nil }
+        return (answer, id)
     }
 
     /// The nudge message, `body` only when there is one. The Watch's `NudgeMessage` reads it.
@@ -443,6 +499,8 @@ extension WatchConnectivityService: WCSessionDelegate {
             if let show = Self.cameraPreviewRequest(from: message) {
                 cameraPreviewRequested.send(show)
             }
+        case "seatAnswer":
+            if let reply = Self.seatAnswer(from: message) { onSeatAnswer?(reply.answer, reply.id) }
         default:
             if let command = JevRemote.Command(message: message) {
                 jevRemoteCommand.send(command)
@@ -505,4 +563,14 @@ struct NudgeNotificationTimes: Equatable {
     let offeredAs: String?
     let listedAfter: TimeInterval?
     let datedAfter: TimeInterval?
+}
+
+/// How the seat question left for the Watch; the raw value goes in the posture log's `via`.
+enum SeatQuestionDelivery: String {
+    /// Straight to the Watch app, which was open.
+    case message
+    /// Queued: the Watch app was closed, and is woken to show it.
+    case queued
+    /// No paired Watch.
+    case notPaired
 }

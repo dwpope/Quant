@@ -130,6 +130,8 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         guard activatesSession else { return }
         // Before launch finishes, so a nudge arriving with the app open shows as a banner.
         UNUserNotificationCenter.current().delegate = self
+        // The seat question's buttons. This replaces the whole set; the nudge has no category.
+        UNUserNotificationCenter.current().setNotificationCategories([SeatChangeRemote.category])
         guard WCSession.isSupported() else {
             logger.info("WCSession not supported on this device")
             return
@@ -250,6 +252,38 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
             self?.logger.error("Failed to send \(what): \(error.localizedDescription)")
         }
         return true
+    }
+
+    /// The phone opened or closed the "Moved your seat?" question (2026-11-23). Opened: the nudge
+    /// buzz and a notification with Recalibrate and Dismiss, replacing any earlier one. Closed
+    /// (answered on the phone, or timed out): the notification goes.
+    /// Questions the phone closed. The question can arrive by message or queued; an open that
+    /// comes after its close (queued copies are late) must not post. Main thread only.
+    private var closedSeatQuestions = SeatChangeRemote.ClosedQuestions()
+
+    func receiveSeatQuestion(open: Bool, id: TimeInterval) {
+        let center = UNUserNotificationCenter.current()
+        let identifier = SeatChangeRemote.notificationIdentifier
+        if !open { closedSeatQuestions.noteClosed(id) }
+        guard open else {
+            center.removePendingNotificationRequests(withIdentifiers: [identifier])
+            center.removeDeliveredNotifications(withIdentifiers: [identifier])
+            return
+        }
+        guard !closedSeatQuestions.isClosed(id) else { return }
+        NudgeHaptics.play([.notification], from: Date())
+        center.add(UNNotificationRequest(identifier: identifier,
+                                         content: NudgeMessage.seatQuestionContent(id: id),
+                                         trigger: nil)) { error in
+            if let error {
+                self.logger.error("Failed to post the seat question: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Answer the question on the phone.
+    func answerSeatQuestion(_ answer: String, id: TimeInterval) {
+        sendToPhone(SeatChangeRemote.answerMessage(answer, id: id), what: "seat answer")
     }
 
     /// Ask the phone to silence nudges for `minutes`. Shown straight away; the phone's answer
@@ -589,6 +623,11 @@ extension WatchSessionDelegate: WCSessionDelegate {
             DispatchQueue.main.async {
                 self.phoneShowsCamera = shown
             }
+        case "seatQuestion":
+            guard let question = SeatChangeRemote.question(from: message) else { return }
+            DispatchQueue.main.async {
+                self.receiveSeatQuestion(open: question.open, id: question.id)
+            }
         case "jevStatus":
             guard let status = JevRemoteStatus(message: message) else {
                 logger.error("Malformed jevStatus from iPhone")
@@ -611,8 +650,18 @@ extension WatchSessionDelegate: WCSessionDelegate {
     }
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        guard userInfo["type"] as? String == "nudge" else { return }
-        receiveNudge(userInfo, via: "queued")
+        switch userInfo["type"] as? String {
+        case "nudge":
+            receiveNudge(userInfo, via: "queued")
+        case "seatQuestion":
+            // The same as the live message: the phone queues it when the Watch app is closed.
+            guard let question = SeatChangeRemote.question(from: userInfo) else { return }
+            DispatchQueue.main.async {
+                self.receiveSeatQuestion(open: question.open, id: question.id)
+            }
+        default:
+            return
+        }
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
@@ -637,5 +686,19 @@ extension WatchSessionDelegate: UNUserNotificationCenterDelegate {
                                                        userInfo: notification.request.content.userInfo)
         if !options.isEmpty { noteOffered(notification.request.identifier, as: options) }
         completionHandler(options)
+    }
+
+    /// A button on the seat question. The default tap sends nothing.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if response.notification.request.content.categoryIdentifier == SeatChangeRemote.categoryIdentifier,
+           let answer = SeatChangeRemote.seatAnswer(forAction: response.actionIdentifier),
+           let id = (response.notification.request.content.userInfo["id"] as? NSNumber)?.doubleValue {
+            answerSeatQuestion(answer, id: id)
+        }
+        completionHandler()
     }
 }

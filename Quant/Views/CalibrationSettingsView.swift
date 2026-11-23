@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import PostureLogic
 
 struct CalibrationSettingsView: View {
     @EnvironmentObject var appModel: AppModel
@@ -123,6 +124,17 @@ struct CalibrationSettingsView: View {
                         .readableSecondary()
                 } footer: {
                     Text("Fine-tune individual posture metrics and nudge timing.")
+                        .readableSecondary()
+                }
+
+                Section {
+                    Picker("Seat-change question", selection: $appModel.seatChangeMode) {
+                        Text("Off").tag(SeatChangeMode.off)
+                        Text("Log only").tag(SeatChangeMode.logOnly)
+                        Text("Ask").tag(SeatChangeMode.ask)
+                    }
+                } footer: {
+                    Text("When your readings suggest you've moved your seat since calibrating, Ask offers a new calibration and holds nudges until you answer. Log only just notes it in the posture log.")
                         .readableSecondary()
                 }
 

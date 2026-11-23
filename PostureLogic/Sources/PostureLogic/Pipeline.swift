@@ -93,10 +93,6 @@ public class Pipeline {
     /// Updated each frame after smoothing using a rolling window of metrics.
     @Published public var taskMode: TaskMode = .unknown
 
-    /// Whether the calibration baseline is stale (position shifted or expired).
-    /// Checked periodically (every 60s) rather than every frame.
-    @Published var baselineStaleness: StaleBaselineResult = .fresh
-
     /// Current device thermal level. Updated by ThermalMonitor when provided.
     @Published public var thermalLevel: ThermalLevel = .nominal
 
@@ -104,11 +100,6 @@ public class Pipeline {
     /// Each entry is opened when `.absent` is entered and closed when it exits.
     /// Internal telemetry only — not surfaced in posture score or analytics.
     @Published public private(set) var absenceSegments: [(start: TimeInterval, end: TimeInterval?)] = []
-
-    /// Set to true when the user returns from a long absence (≥ absentResumeThreshold).
-    /// The UI should show a dismissible recalibration prompt when this is true.
-    /// Clear it by calling dismissRecalibrationPrompt().
-    @Published public private(set) var showRecalibrationPrompt: Bool = false
 
     /// Which way round the camera's frames are, once frames with a picture have come that way for
     /// `turnSettleTime`: nil until then. Published once per turn (2026-11-11), so the app can ask
@@ -122,7 +113,89 @@ public class Pipeline {
     static let turnSettleTime: TimeInterval = 2
 
     /// The calibration baseline. Set this after a successful calibration to enable posture metrics.
-    public var baseline: Baseline?
+    ///
+    /// A new baseline (a recalibration) answers any open seat-change question and starts the
+    /// seat-change detector afresh.
+    public var baseline: Baseline? {
+        didSet {
+            if seatChangeQuestion != nil {
+                closeSeatChangeQuestion(.recalibrate)
+            } else {
+                seatChangeDetector.reset()
+            }
+        }
+    }
+
+    // MARK: - Seat change
+
+    /// What to do when the seat seems to have moved. Switching to anything but `.ask` closes an
+    /// open question (`.modeChanged`); switching to `.off` stops the detector.
+    public var seatChangeMode: SeatChangeMode = .logOnly {
+        didSet {
+            guard seatChangeMode != oldValue else { return }
+            if seatChangeMode != .ask { closeSeatChangeQuestion(.modeChanged) }
+            if seatChangeMode == .off { seatChangeDetector.reset() }
+            // Closing went quiet; log-only keeps counting every burst.
+            if seatChangeMode == .logOnly { seatChangeDetector.forgetNearMisses() }
+        }
+    }
+
+    /// Every suggestion the detector made, in `.logOnly` and `.ask`.
+    @Published public private(set) var seatChangeSuggestion: SeatChangeSuggestion?
+
+    /// The open question. Only in `.ask`; nudges are held back while it's open.
+    @Published public private(set) var seatChangeQuestion: SeatChangeQuestion?
+
+    /// How the last question closed. Set each time one does.
+    @Published public private(set) var seatChangeClosed: SeatChangeOutcome?
+
+    /// How long a question stays open, on the frame clock.
+    static let seatChangeQuestionTimeout: TimeInterval = 120
+
+    /// The user's answer, `.recalibrate` or `.dismiss`. Ignored with no question open.
+    public func answerSeatChange(_ outcome: SeatChangeOutcome) {
+        guard outcome == .recalibrate || outcome == .dismiss else { return }
+        closeSeatChangeQuestion(outcome)
+    }
+
+    /// Closes the open question, if any: forgets the slouch time that was held back, and the
+    /// detector goes quiet until the next return, or starts afresh after a recalibration.
+    private func closeSeatChangeQuestion(_ outcome: SeatChangeOutcome) {
+        guard seatChangeQuestion != nil else { return }
+        seatChangeQuestion = nil
+        seatChangeClosed = outcome
+        nudgeEngine.forgetSlouch()
+        if outcome == .recalibrate {
+            seatChangeDetector.reset()
+        } else {
+            seatChangeDetector.quietUntilNextReturn()
+        }
+    }
+
+    /// One judged frame, with or without a pose: closes the question when away or timed out, then
+    /// lets the detector look. Before the nudge engine, which is held while a question is open.
+    private func judgeSeatChange(state: PostureState, signals: Set<NudgeReason>, metrics: RawMetrics?,
+                                 at timestamp: TimeInterval) {
+        guard seatChangeMode != .off else { return }
+        if let question = seatChangeQuestion {
+            if state == .absent {
+                closeSeatChangeQuestion(.away)
+            } else if timestamp - question.suggestion.at >= Self.seatChangeQuestionTimeout {
+                closeSeatChangeQuestion(.timeout)
+            }
+        }
+        guard let suggestion = seatChangeDetector.observe(state: state, signals: signals, metrics: metrics,
+                                                          thresholds: thresholds, at: timestamp) else { return }
+        // One question at a time: a suggestion while one is open adds nothing.
+        guard seatChangeQuestion == nil else { return }
+        seatChangeSuggestion = suggestion
+        if seatChangeMode == .ask {
+            seatChangeQuestion = SeatChangeQuestion(suggestion: suggestion)
+        } else {
+            // Log-only: nothing is held, and every burst is counted.
+            seatChangeDetector.forgetNearMisses()
+        }
+    }
 
     /// Optional recorder that captures every PoseSample produced by the pipeline.
     /// Set this to a ``RecorderService`` instance to start recording.
@@ -165,10 +238,9 @@ public class Pipeline {
     private let headTurnTracker: HeadTurnTracker
 
     private var taskModeEngine = TaskModeEngine()
-    private var staleBaselineDetector = StaleBaselineDetector()
+    private var seatChangeDetector = SeatChangeDetector()
     private var recentMetricsBuffer: [RawMetrics] = []
     private let metricsBufferMaxSize = 100
-    private var lastStalenessCheckTime: TimeInterval = -.infinity
 
     // Latest pose observation
     private var latestPoseObservation: PoseObservation?
@@ -491,8 +563,7 @@ public class Pipeline {
 
     /// The posture is the new timeline's too: until its first frame there isn't one (2026-10-16
     /// audit). The old timeline's was left published, so a slouch in one and sitting well in the
-    /// other read as a sit-up. The staleness check runs on the new timeline's first frame: the
-    /// last check's time was kept, and a replay from earlier than it was never checked.
+    /// other read as a sit-up.
     private func startNewTimeline() {
         postureEngine.reset()
         nudgeEngine.reset()
@@ -504,7 +575,9 @@ public class Pipeline {
         nudgeDueAt = nil
         latestFrame = nil
         postureState = .absent
-        lastStalenessCheckTime = -.infinity
+        // Frame time jumps on a new timeline: a question open on the old one would never time out.
+        closeSeatChangeQuestion(.newTimeline)
+        seatChangeDetector.reset()
     }
 
     private var lastTakenFrameTime: TimeInterval = -.infinity
@@ -569,10 +642,8 @@ public class Pipeline {
             }
         }
 
-        // Forward recalibration prompt from engine to UI.
-        if postureEngine.consumeRecalibrationPrompt() {
-            showRecalibrationPrompt = true
-        }
+        judgeSeatChange(state: newPostureState, signals: postureEngine.slouchSignals,
+                        metrics: smoothedMetrics, at: smoothedMetrics.timestamp)
 
         // Evaluate nudge decision based on the updated posture state.
         // The NudgeEngine checks: Is posture bad long enough?
@@ -589,22 +660,12 @@ public class Pipeline {
             currentTime: smoothedMetrics.timestamp,
             metrics: smoothedMetrics,
             headTurnedSince: turnedSince,
-            silenced: nudgesSilenced,
+            silenced: nudgesSilenced || seatChangeQuestion != nil,
             slouchSignals: postureEngine.slouchSignals,
             recovering: postureEngine.isRecovering
         )
         nudgeDueAt = nudgeEngine.nudgeDueIn.map { smoothedMetrics.timestamp + $0 }
         nudgeDecision = decision
-
-        // Periodic staleness check (every 60s, not every frame)
-        if let baseline, smoothedMetrics.timestamp - lastStalenessCheckTime >= 60 {
-            lastStalenessCheckTime = smoothedMetrics.timestamp
-            baselineStaleness = staleBaselineDetector.check(
-                current: sample,
-                baseline: baseline,
-                baselineAge: Date().timeIntervalSince(baseline.timestamp)
-            )
-        }
     }
 
     /// Opens an absence segment, keeping only the most recent `maxAbsenceSegments`: nothing
@@ -639,6 +700,8 @@ public class Pipeline {
             recordAbsenceStart(at: timestamp)
         }
 
+        judgeSeatChange(state: newPostureState, signals: [], metrics: nil, at: timestamp)
+
         // No head to be judged turned: the head-turn timer winds down through its grace period.
         let turnedSince: TimeInterval?
         if baseline != nil {
@@ -658,7 +721,7 @@ public class Pipeline {
             currentTime: timestamp,
             metrics: nil,
             headTurnedSince: turnedSince,
-            silenced: nudgesSilenced,
+            silenced: nudgesSilenced || seatChangeQuestion != nil,
             recovering: postureEngine.isRecovering
         )
         nudgeDueAt = nudgeEngine.nudgeDueIn.map { timestamp + $0 }
@@ -804,17 +867,6 @@ public class Pipeline {
 
         let quality: TrackingQuality = keypointCount >= keypointThreshold ? .degraded : .lost
         return TrackingQualityResult(quality: quality, missingJoints: missingStr)
-    }
-
-    // MARK: - Recalibration Prompt Control
-
-    /// Dismisses the recalibration prompt shown after a long absence.
-    ///
-    /// Call this when the user taps "Dismiss" or "Not now" on the prompt.
-    /// The old baseline stays in effect; StaleBaselineDetector will catch
-    /// any drift that accumulated during the absence.
-    public func dismissRecalibrationPrompt() {
-        showRecalibrationPrompt = false
     }
 
     // MARK: - Nudge Control Methods

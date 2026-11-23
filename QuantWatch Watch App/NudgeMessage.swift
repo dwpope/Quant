@@ -57,11 +57,23 @@ extension NudgeMessage {
 
     private static let onScreenKey = "onScreen"
 
+    /// The "Moved your seat?" question (2026-11-23): its buttons come from the category, and `id`
+    /// says which of the phone's questions an answer is for.
+    static func seatQuestionContent(id: TimeInterval) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = SeatChangeRemote.title
+        content.sound = .default
+        content.categoryIdentifier = SeatChangeRemote.categoryIdentifier
+        content.userInfo = ["id": id]
+        return content
+    }
+
     /// With the app open: a nudge shows as a banner, without a sound because the app has already
     /// buzzed; only listed when the app is showing it already (2026-11-09). The app posts nothing
     /// else; anything else stays hidden, as before.
     static func presentationOptions(forIdentifier identifier: String,
                                     userInfo: [AnyHashable: Any] = [:]) -> UNNotificationPresentationOptions {
+        if identifier == SeatChangeRemote.notificationIdentifier { return [.banner, .list] }
         guard identifier.hasPrefix(identifierPrefix) else { return [] }
         return userInfo[onScreenKey] as? Bool == true ? [.list] : [.banner, .list]
     }

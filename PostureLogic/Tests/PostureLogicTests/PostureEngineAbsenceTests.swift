@@ -180,10 +180,10 @@ final class PostureEngineAbsenceTests: XCTestCase {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - 5: Long absence return → .good + recalibration prompt
+    // MARK: - 5: Long absence return → .good
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    func test_longAbsence_resetsToGood_andSetsRecalibrationPrompt() {
+    func test_longAbsence_resetsToGood() {
         let engine = PostureEngine()
         driveToGood(engine, at: 0.0)
 
@@ -197,8 +197,6 @@ final class PostureEngineAbsenceTests: XCTestCase {
         let afterValidation = engine.update(metrics: goodMetrics(timestamp: 64.0), taskMode: .unknown, trackingQuality: .good)
 
         XCTAssertEqual(afterValidation, .good, "Long absence should reset to .good")
-        XCTAssertTrue(engine.consumeRecalibrationPrompt(), "Long absence should set recalibration prompt")
-        XCTAssertFalse(engine.consumeRecalibrationPrompt(), "consumeRecalibrationPrompt is one-shot — false on second call")
     }
 
     func test_longAbsence_fromDrifting_resetsToGood_notDrifting() {
@@ -321,7 +319,6 @@ final class PostureEngineAbsenceTests: XCTestCase {
             trackingQuality: .good
         )
         XCTAssertEqual(state, .good, "After reset(), first .good frame should immediately produce .good (cold start)")
-        XCTAssertFalse(engine.consumeRecalibrationPrompt(), "reset() should clear pendingRecalibrationPrompt")
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

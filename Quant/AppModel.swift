@@ -144,6 +144,69 @@ class AppModel: ObservableObject {
         }
     }
 
+    /// What to do when the seat may have moved since calibration (2026-11-23). Log only by
+    /// default: the question is asked only once Dave chooses Ask.
+    @Published var seatChangeMode: SeatChangeMode {
+        didSet {
+            UserDefaults.standard.set(seatChangeMode.rawValue, forKey: Keys.seatChangeMode)
+            // During a replay the pipeline only logs; the new setting waits for `stopReplay`.
+            if seatModeBeforeReplay != nil { seatModeBeforeReplay = seatChangeMode } else { pipeline.seatChangeMode = seatChangeMode }
+        }
+    }
+
+    /// The open "Moved your seat?" question, mirrored from the pipeline.
+    @Published private(set) var seatChangeQuestion: SeatChangeQuestion?
+
+    /// The answer to the question. Recalibrating clears the baseline, which closes the question
+    /// through the pipeline; dismissing closes it directly.
+    func answerSeatChange(_ outcome: SeatChangeOutcome) {
+        // Nothing open, nothing to answer: Recalibrate would delete a baseline for no reason.
+        guard seatChangeQuestion != nil else { return }
+        switch outcome {
+        case .recalibrate: recalibrate()
+        case .dismiss: pipeline.answerSeatChange(.dismiss)
+        default: break
+        }
+    }
+
+    /// The Watch's answer to the question. Only the question it was asked about counts: one that
+    /// arrives late, after the question closed or another opened, is ignored.
+    func receiveWatchSeatAnswer(_ answer: SeatChangeOutcome, id: TimeInterval) {
+        guard let question = seatChangeQuestion, question.suggestion.at == id else { return }
+        answerSeatChange(answer)
+    }
+
+    /// The id of the question the Watch was last told is open, nil once it's told it closed.
+    private var seatQuestionToldToWatch: TimeInterval?
+
+    /// Tells the Watch the question opened or closed. Tests swap it: the simulator has no Watch.
+    var sendsSeatQuestion: @MainActor (WatchConnectivityService, Bool, TimeInterval) -> SeatQuestionDelivery =
+        { $0.sendSeatQuestion(open: $1, id: $2) }
+
+    /// The last "seat" line written, for tests.
+    private(set) var lastSeatLine: PostureLogEvent?
+
+    /// Only while asking does the Watch hear of it; in log-only mode it gets nothing. A close is
+    /// sent for the question the Watch was told of, whatever the mode is by then.
+    /// Returns how it left when it told the Watch of a newly opened question, for the "asked" line.
+    @discardableResult
+    private func tellWatchSeatQuestion(_ question: SeatChangeQuestion?) -> SeatQuestionDelivery? {
+        if let question, seatChangeMode == .ask {
+            guard seatQuestionToldToWatch != question.suggestion.at else { return nil }
+            seatQuestionToldToWatch = question.suggestion.at
+            return sendsSeatQuestion(watchService, true, question.suggestion.at)
+        } else if question == nil, let id = seatQuestionToldToWatch {
+            seatQuestionToldToWatch = nil
+            _ = sendsSeatQuestion(watchService, false, id)
+        }
+        return nil
+    }
+
+    private func logSeat(_ event: PostureLogEvent) {
+        lastSeatLine = event
+        postureLogStore.append([event])
+    }
+
     // MARK: - Camera Mode
 
     @Published var cameraMode: CameraMode
@@ -213,7 +276,8 @@ class AppModel: ObservableObject {
     /// Internal so tests can hand the pipeline frames from a camera of their own.
     let switchableProvider = SwitchablePoseProvider()
     private let thermalMonitor = ThermalMonitor()
-    private lazy var pipeline: Pipeline = {
+    /// Internal so tests can hand the pipeline frames and read what it decided.
+    lazy var pipeline: Pipeline = {
         Pipeline(provider: switchableProvider, thermalMonitor: thermalMonitor)
     }()
     private var cancellables = Set<AnyCancellable>()
@@ -263,6 +327,7 @@ class AppModel: ObservableObject {
         /// `.v2` since 2026-10-05, when the default became 0 (no hourly cap): a 2 stored under
         /// the old key was only ever the old default, and would otherwise keep the cap on.
         static let maxNudgesPerHour = "com.quant.posture.maxNudgesPerHour.v2"
+        static let seatChangeMode = "com.quant.seatChangeMode"
         static let nudgesSilencedUntil = "com.quant.nudges.silencedUntil"
     }
 
@@ -329,6 +394,7 @@ class AppModel: ObservableObject {
         self.slouchDurationBeforeNudge = defaults.object(forKey: Keys.slouchDurationBeforeNudge) as? Double ?? Self.defaultSlouchDurationBeforeNudge
         self.nudgeCooldown = defaults.object(forKey: Keys.nudgeCooldown) as? Double ?? Self.defaultNudgeCooldown
         self.maxNudgesPerHour = defaults.object(forKey: Keys.maxNudgesPerHour) as? Int ?? Self.defaultMaxNudgesPerHour
+        self.seatChangeMode = defaults.string(forKey: Keys.seatChangeMode).flatMap(SeatChangeMode.init(rawValue:)) ?? .logOnly
 
         let config = CalibrationConfig(
             samplingDuration: sampDur,
@@ -500,6 +566,45 @@ class AppModel: ObservableObject {
         // line.
         pipeline.$nudgeDecision
             .sink { [weak self] decision in self?.logFrame(decision: decision) }
+            .store(in: &cancellables)
+
+        // The seat-change question in the posture log (2026-11-23): each suggestion, with the mode
+        // it arrived in, and how each question closed. The publishers start nil: only real values
+        // are logged. A close has no time of its own, so it takes the last frame's.
+        // The setting reaches the pipeline at launch (didSet doesn't run in init), and the open
+        // question is mirrored for the screens.
+        pipeline.seatChangeMode = seatChangeMode
+        // A replay's frames never raise a question here: the pipeline only logs during one, and this
+        // mirrors nil and tells the Watch nothing, so no Recalibrate can follow a recording.
+        // The "asked" line is written here, once the Watch has been told, so it can say how.
+        pipeline.$seatChangeQuestion
+            .sink { [weak self] question in
+                guard let self else { return }
+                let shown = self.isReplaying ? nil : question
+                self.seatChangeQuestion = shown
+                let delivery = self.tellWatchSeatQuestion(shown)
+                if let shown, self.seatChangeMode == .ask {
+                    self.logSeat(.seatEvent(shown.suggestion, mode: .ask,
+                                            via: delivery?.rawValue))
+                }
+            }
+            .store(in: &cancellables)
+        watchService.onSeatAnswer = { [weak self] answer, id in self?.receiveWatchSeatAnswer(answer, id: id) }
+        pipeline.$seatChangeSuggestion
+            .compactMap { $0 }
+            .sink { [weak self] suggestion in
+                // In `.ask` the question's own sink writes the line, with how the Watch was told.
+                guard let self, !self.isReplaying, self.pipeline.seatChangeMode != .ask else { return }
+                self.logSeat(.seatEvent(suggestion, mode: self.pipeline.seatChangeMode))
+            }
+            .store(in: &cancellables)
+        pipeline.$seatChangeClosed
+            .compactMap { $0 }
+            .sink { [weak self] outcome in
+                guard let self, !self.isReplaying else { return }
+                let t = self.pipeline.latestFrame?.time ?? Date().timeIntervalSince1970
+                self.logSeat(.seatEvent(closed: outcome, at: t))
+            }
             .store(in: &cancellables)
 
         // The posture log's folder gets the day so far as the app goes to the background
@@ -792,6 +897,10 @@ class AppModel: ObservableObject {
             .sink { [weak self] _ in
                 self?.pushJevStatusToWatch(force: true)
                 self?.pushPostureGlanceToWatch(force: true)
+                // A question open as the Watch connects is put to it again.
+                if let self, let id = self.seatQuestionToldToWatch {
+                    _ = self.sendsSeatQuestion(self.watchService, true, id)
+                }
             }
             .store(in: &cancellables)
 
@@ -1319,6 +1428,10 @@ class AppModel: ObservableObject {
         // Attached before the timeline is reset (2026-10-19 review): a camera frame handed in
         // between the two was the first frame of the replay's timeline.
         switchableProvider.attach(source: provider)
+        // A recording's frames must not ask a question: Recalibrate would delete the real baseline.
+        // Log only for its length (restored in `stopReplay`); that closes any real open question.
+        if seatModeBeforeReplay == nil { seatModeBeforeReplay = pipeline.seatChangeMode }
+        pipeline.seatChangeMode = .logOnly
         pipeline.resetTimeline()  // the recording runs on its own clock
         isReplaying = true
         replayProvider = provider
@@ -1336,7 +1449,14 @@ class AppModel: ObservableObject {
         switchableProvider.attach(source: providerForMode(cameraMode))
         pipeline.resetTimeline()
         isReplaying = false
+        if let mode = seatModeBeforeReplay {
+            pipeline.seatChangeMode = mode
+            seatModeBeforeReplay = nil
+        }
     }
+
+    /// The pipeline's seat mode before a replay made it log-only.
+    private var seatModeBeforeReplay: SeatChangeMode?
 
     func resetCalibrationSettings() {
         maxPositionVariance = Self.defaultMaxPositionVariance

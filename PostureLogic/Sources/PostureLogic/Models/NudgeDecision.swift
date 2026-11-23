@@ -7,7 +7,7 @@ public enum NudgeDecision: Codable {
     case suppressed(reason: SuppressionReason)
 }
 
-public enum NudgeReason: String, Codable {
+public enum NudgeReason: String, Codable, Sendable {
     case sustainedSlouch
     case forwardCreep
     case headDrop

@@ -519,6 +519,15 @@ final class NudgeEngine: NudgeEngineProtocol {
         hasBeenAcknowledged = true
     }
 
+    /// Forgets the slouch time held back while a seat-change question was open, so closing it
+    /// doesn't fire a nudge for slouching that was never nudged for (the question asked first).
+    /// Leaves the cooldown, the hourly count and the head-turn state alone.
+    func forgetSlouch() {
+        slouchedTime = 0
+        goodStreak = 0
+        nudgeDueIn = nil
+    }
+
     /// Reset all internal state back to initial values.
     ///
     /// Call this when:
