@@ -50,6 +50,10 @@ struct SeatChangeDetector {
 
     private var absentSince: TimeInterval?
     private var returnStart: TimeInterval?
+    /// When tracking dropped out during the return check. A dropout shorter than a long absence
+    /// pauses the check rather than cancelling it (2026-11-26, 16:06: lost for 2 s, 5 s after
+    /// Dave sat back down in a moved seat, and the check never ran).
+    private var returnPausedAt: TimeInterval?
     private var firstWindow: [NudgeReason: [Float]] = [:]
     private var secondWindow: [NudgeReason: [Float]] = [:]
 
@@ -69,6 +73,7 @@ struct SeatChangeDetector {
     /// After Recalibrate, Dismiss, timeout or away: forget near-misses, stay quiet until the next return.
     mutating func quietUntilNextReturn() {
         returnStart = nil
+        returnPausedAt = nil
         firstWindow = [:]
         secondWindow = [:]
         nearMissTimes = [:]
@@ -98,7 +103,6 @@ struct SeatChangeDetector {
                                                 at t: TimeInterval) {
         if state == .absent {
             if absentSince == nil { absentSince = t }
-            returnStart = nil
             return
         }
         guard let since = absentSince else { return }
@@ -109,6 +113,7 @@ struct SeatChangeDetector {
         // The pipeline never emits `.calibrating`; the real protection is the reset on a baseline change.
         guard state != .calibrating else { return }
         returnStart = t
+        returnPausedAt = nil
         firstWindow = [:]
         secondWindow = [:]
         quiet = false
@@ -117,12 +122,24 @@ struct SeatChangeDetector {
     private mutating func collectReturn(state: PostureState, metrics: RawMetrics?,
                                         thresholds: PostureThresholds,
                                         at t: TimeInterval) -> SeatChangeSuggestion? {
-        guard let start = returnStart else { return nil }
+        guard let begun = returnStart else { return nil }
         // The pipeline never emits `.calibrating`; the real protection is the reset on a baseline change.
-        if state == .absent || state == .calibrating {
+        if state == .calibrating {
             returnStart = nil
+            returnPausedAt = nil
             return nil
         }
+        if state == .absent {
+            if returnPausedAt == nil { returnPausedAt = t }
+            return nil
+        }
+        // Back from a short dropout: the time away doesn't count towards the windows. (A long
+        // one already started a fresh check in `trackAbsenceAndReturn`.)
+        if let paused = returnPausedAt {
+            returnPausedAt = nil
+            returnStart = begun + (t - paused)
+        }
+        guard let start = returnStart else { return nil }
         let elapsed = t - start
         if let m = metrics, elapsed >= Self.settle, elapsed <= Self.secondWindowEnd {
             for reason in Self.readings {

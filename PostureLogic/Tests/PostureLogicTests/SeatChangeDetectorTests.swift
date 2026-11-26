@@ -239,4 +239,50 @@ final class SeatChangeDetectorTests: XCTestCase {
         XCTAssertEqual(suggestion?.evidence["headDrop"], [0.012, 0.012])
         XCTAssertNil(suggestion?.evidence["forwardCreep"])
     }
+
+    // MARK: Short dropouts after a return (2026-11-26, 16:06)
+
+    /// Away 46 s, back for 5 s, tracking lost for 2 s, then sitting on: the shape of 11-26 at 16:06,
+    /// when Dave had moved his seat. Frames at 10 fps; returns every suggestion with its time.
+    private func returnWithDropout(_ d: inout SeatChangeDetector, creep: Float,
+                                  dropout: TimeInterval = 2) -> [SeatChangeSuggestion] {
+        var found: [SeatChangeSuggestion] = []
+        for s in 0...46 { _ = frame(.absent, t: 1000 + Double(s), detector: &d) }
+        let back: TimeInterval = 1047
+        for k in 0..<50 {
+            if let r = frame(.good, creep: creep, t: back + Double(k) / 10, detector: &d) { found.append(r) }
+        }
+        var k = 0
+        while Double(k) / 10 < dropout {
+            if let r = frame(.absent, t: back + 5 + Double(k) / 10, detector: &d) { found.append(r) }
+            k += 1
+        }
+        for k in 0...400 {
+            if let r = frame(.good, creep: creep, t: back + 5 + dropout + Double(k) / 10, detector: &d) {
+                found.append(r)
+            }
+        }
+        return found
+    }
+
+    func test_shortDropoutAfterReturn_pausesTheCheck_ratherThanCancelling() throws {
+        var d = SeatChangeDetector()
+        let found = returnWithDropout(&d, creep: 0.077)
+        XCTAssertEqual(found.count, 1)
+        let s = try XCTUnwrap(found.first)
+        XCTAssertEqual(s.trigger, .onReturn(reasons: [.forwardCreep]))
+        XCTAssertEqual(s.at, 1047 + 25 + 2, accuracy: 0.11, "the 2 s away don't count towards the 25 s")
+    }
+
+    func test_shortDropoutAfterReturn_withinTolerance_staysSilent() {
+        var d = SeatChangeDetector()
+        XCTAssertTrue(returnWithDropout(&d, creep: 0.02).isEmpty)
+    }
+
+    func test_longDropoutAfterReturn_startsAFreshCheck() throws {
+        var d = SeatChangeDetector()
+        let found = returnWithDropout(&d, creep: 0.077, dropout: 31)
+        let s = try XCTUnwrap(found.first)
+        XCTAssertEqual(s.at, 1047 + 5 + 31 + 25, accuracy: 0.11, "judged from the second return")
+    }
 }
