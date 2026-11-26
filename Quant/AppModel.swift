@@ -754,7 +754,11 @@ class AppModel: ObservableObject {
         let thresholds = pipeline.thresholds
         if let baseline, !needsCalibration, let metrics = pipeline.latestMetrics {
             events += postureLogRecorder.metricsEvents(
-                state: pipeline.postureState, metrics: metrics, baselineTakenAt: baseline.timestamp,
+                state: pipeline.postureState, metrics: metrics,
+                head: pipeline.latestSample.map {
+                    PostureLogRecorder.HeadShape(keypoints: pipeline.latestKeypoints, pitch: $0.headPitch)
+                },
+                baselineTakenAt: baseline.timestamp,
                 headDropLine: thresholds.headDropThreshold,
                 forwardCreepLine: thresholds.forwardCreepThreshold, now: now)
         }

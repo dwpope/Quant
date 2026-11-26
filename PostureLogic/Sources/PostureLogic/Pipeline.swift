@@ -245,6 +245,9 @@ public class Pipeline {
     // Latest pose observation
     private var latestPoseObservation: PoseObservation?
 
+    /// The last frame's points, for the posture log's head shape (2026-11-26).
+    public var latestKeypoints: [Keypoint] { latestPoseObservation?.keypoints ?? [] }
+
     // FPS calculation
     private var lastFrameTime: TimeInterval = 0
     private var frameTimestamps: [TimeInterval] = []

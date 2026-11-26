@@ -82,6 +82,16 @@ nonisolated struct PostureLogEvent: Codable, Equatable {
     var sideLeanHigh: Float? = nil
     var twistHigh: Float? = nil
     var roundingHigh: Float? = nil
+    /// On a "metrics" line (2026-11-26), logged only, nothing judged by them yet: the head's pitch
+    /// in degrees (the nose below the ear line, so looking down reads higher) and its size (the
+    /// ear span over the shoulder span, so craning towards the screen reads larger). Raw, not
+    /// against the calibration: the first lines after a "calibration" line are its reference.
+    var headPitchLow: Float? = nil
+    var headPitchMedian: Float? = nil
+    var headPitchHigh: Float? = nil
+    var headSizeLow: Float? = nil
+    var headSizeMedian: Float? = nil
+    var headSizeHigh: Float? = nil
     var slouched: Float? = nil
     var headDropPast: [String: Float]? = nil
     var forwardCreepPast: [String: Float]? = nil
@@ -260,10 +270,40 @@ struct PostureLogRecorder {
     /// How many seconds of judged frames a "metrics" line sums up.
     static let metricsEvery: TimeInterval = 10
 
+    /// The head's shape on one frame, for the metrics line (2026-11-26): what head drop can't see.
+    struct HeadShape: Equatable {
+        /// Degrees, the nose below the ear line (`PoseSample.headPitch`): looking down reads higher.
+        var pitch: Float
+        /// The ear span over the shoulder span, from points the measurements would use (confidence
+        /// at least 0.3): craning towards the screen reads larger. Nil without both ears and both
+        /// shoulders.
+        var size: Float?
+
+        init(pitch: Float, size: Float?) {
+            self.pitch = pitch
+            self.size = size
+        }
+
+        init(keypoints: [Keypoint], pitch: Float) {
+            func sure(_ joint: Joint) -> CGPoint? {
+                keypoints.first { $0.joint == joint && $0.confidence >= 0.3 }?.position
+            }
+            self.pitch = pitch
+            if let le = sure(.leftEar), let re = sure(.rightEar),
+               let ls = sure(.leftShoulder), let rs = sure(.rightShoulder) {
+                let shoulders = hypot(rs.x - ls.x, rs.y - ls.y)
+                size = shoulders > 0 ? Float(hypot(re.x - le.x, re.y - le.y) / shoulders) : nil
+            } else {
+                size = nil
+            }
+        }
+    }
+
     private struct JudgedFrame {
         var t: TimeInterval
         var state: String
         var metrics: RawMetrics
+        var head: HeadShape?
     }
     private var metricsWindow: [JudgedFrame] = []
     private var metricsBaselineTakenAt: Date?
@@ -276,7 +316,8 @@ struct PostureLogRecorder {
     /// state and tick lines carry the numbers only as a line is crossed, so they all sit by the
     /// line: on 11-18, 885 of them for about 64,200 frames. Separate from `events`, like the
     /// tracking line, so it doesn't put off a tick.
-    mutating func metricsEvents(state: PostureState, metrics: RawMetrics, baselineTakenAt: Date,
+    mutating func metricsEvents(state: PostureState, metrics: RawMetrics, head: HeadShape? = nil,
+                                baselineTakenAt: Date,
                                 headDropLine: Float, forwardCreepLine: Float, now: Date) -> [PostureLogEvent] {
         let t = now.timeIntervalSince1970
         var out: [PostureLogEvent] = []
@@ -288,7 +329,7 @@ struct PostureLogRecorder {
             }
             metricsWindow = []
         }
-        metricsWindow.append(JudgedFrame(t: t, state: Self.name(of: state), metrics: metrics))
+        metricsWindow.append(JudgedFrame(t: t, state: Self.name(of: state), metrics: metrics, head: head))
         metricsBaselineTakenAt = baselineTakenAt
         return out
     }
@@ -336,6 +377,14 @@ struct PostureLogRecorder {
         (_, event.sideLeanMedian, event.sideLeanHigh) = spread(leans)
         event.twistHigh = fine(window.map(\.metrics.twist).max() ?? 0)
         event.roundingHigh = fine(window.map(\.metrics.shoulderRounding).max() ?? 0)
+        let pitches = window.compactMap(\.head?.pitch)
+        if !pitches.isEmpty {
+            (event.headPitchLow, event.headPitchMedian, event.headPitchHigh) = spread(pitches)
+        }
+        let sizes = window.compactMap(\.head?.size)
+        if !sizes.isEmpty {
+            (event.headSizeLow, event.headSizeMedian, event.headSizeHigh) = spread(sizes)
+        }
         event.slouched = seconds(states.filter { $0 == "drifting" || $0 == "bad" }.count)
         event.headDropPast = headDropPast
         event.forwardCreepPast = forwardCreepPast

@@ -88,7 +88,7 @@ Quant/                 ← iOS app target
 QuantWatch Watch App/  ← watchOS companion
 ```
 
-**~49,900 lines of Swift** across 289 files, tests included. All tests pass: **803** in the `PostureLogic` package (`cd PostureLogic && swift test`), **601** in the app target and **157** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
+**~49,900 lines of Swift** across 289 files, tests included. All tests pass: **803** in the `PostureLogic` package (`cd PostureLogic && swift test`), **607** in the app target and **157** in the Watch app (commands below), plus **69** for the Jev Worker (`cd jev-proxy && npm test`).
 
 ## Technical Decisions
 
