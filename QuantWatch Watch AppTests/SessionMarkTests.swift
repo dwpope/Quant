@@ -19,7 +19,7 @@ struct SessionMarkTests {
     }
 
     @Test func eachTileHasAShortWord_andAnIcon() {
-        #expect(SessionMark.allCases.map(\.title) == ["Down", "Crane", "Seat", "Yawn", "Tired", "Good"])
+        #expect(SessionMark.allCases.map(\.title) == ["Down", "Crane", "Moved", "Yawn", "Tired", "Good"])
         #expect(Set(SessionMark.allCases.map(\.symbol)).count == 6)
     }
 }

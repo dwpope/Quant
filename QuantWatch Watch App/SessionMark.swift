@@ -21,7 +21,7 @@ enum SessionMark: String, CaseIterable, Identifiable {
         switch self {
         case .lookingDown: return "Down"
         case .craning: return "Crane"
-        case .movedSeat: return "Seat"
+        case .movedSeat: return "Moved"
         case .yawning: return "Yawn"
         case .sluggish: return "Tired"
         case .sittingWell: return "Good"
