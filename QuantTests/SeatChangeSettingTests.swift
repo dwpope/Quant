@@ -57,6 +57,8 @@ final class SeatChangeSettingTests: XCTestCase {
         pipeline.baseline = Baseline(
             timestamp: Date(), shoulderMidpoint: SIMD3<Float>(0, 0, 0), headPosition: SIMD3<Float>(0, 1.0, 0),
             torsoAngle: 5, shoulderTwist: 2, shoulderWidth: 0.2, depthAvailable: false)
+        // Near-misses don't count for ten minutes after a calibration (2026-11-27).
+        _ = run(pipeline, from: start - 601, for: 0.1)
         var t = run(pipeline, from: start, for: 3)
         for _ in 0..<5 {
             t = run(pipeline, from: t, for: 4, neck: 0.024)

@@ -26,6 +26,9 @@ final class PipelineSeatChangeTests: XCTestCase {
         let pipeline = Pipeline(provider: MockPoseProvider())
         pipeline.baseline = GoldenRecordings.baselineForGoodPosture()
         pipeline.seatChangeMode = mode
+        // The calibration's ten minutes without near-misses start at the first frame; the tests
+        // start after them.
+        pipeline.ingest(sample(at: start - 601), quality: .good, at: start - 601)
         return pipeline
     }
 
@@ -177,8 +180,13 @@ final class PipelineSeatChangeTests: XCTestCase {
         XCTAssertEqual(pipeline.seatChangeClosed, .recalibrate)
         XCTAssertNil(pipeline.seatChangeQuestion)
 
-        // Four near-misses don't make five: the count started again.
+        // For ten minutes after the new baseline, near-misses don't count.
         let before = pipeline.seatChangeSuggestion
+        t = nearMisses(pipeline, from: t)
+        XCTAssertNil(pipeline.seatChangeQuestion)
+        XCTAssertEqual(pipeline.seatChangeSuggestion, before, "no new suggestion")
+        t = run(pipeline, from: t, for: 600)
+        // Four near-misses don't make five: the count started again.
         t = nearMisses(pipeline, count: 4, from: t)
         XCTAssertNil(pipeline.seatChangeQuestion)
         XCTAssertEqual(pipeline.seatChangeSuggestion, before, "no new suggestion")

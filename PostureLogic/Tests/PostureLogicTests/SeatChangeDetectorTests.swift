@@ -60,6 +60,66 @@ final class SeatChangeDetectorTests: XCTestCase {
         return (found, found?.at)
     }
 
+    // MARK: After a calibration, and while forward lean builds (2026-11-27)
+
+    /// Session 15 asked at 09:08:55 and 09:09:46, 3 and 4 minutes after Dave calibrated: a fresh
+    /// calibration is how he sits now, so the seat can't have moved yet.
+    func test_afterACalibration_nearMissesInTheFirstTenMinutes_dontCount() {
+        var d = SeatChangeDetector()
+        d.reset()
+        _ = frame(.good, t: 1000, detector: &d)
+        for i in 0..<6 { XCTAssertNil(nearMiss(&d, at: 1100 + Double(i) * 40)) }
+        var later: SeatChangeSuggestion?
+        for i in 0..<5 { later = nearMiss(&d, at: 1600 + Double(i) * 40) ?? later }
+        XCTAssertEqual(later?.trigger, .nearMisses(reason: .headDrop, count: 5),
+                       "only the near-misses after the ten minutes count")
+    }
+
+    /// The calibration's ten minutes outlast Log only's restart of the count.
+    func test_theCalibrationGrace_survivesForgettingNearMisses() {
+        var d = SeatChangeDetector()
+        d.reset()
+        _ = frame(.good, t: 1000, detector: &d)
+        d.forgetNearMisses()
+        for i in 0..<5 { XCTAssertNil(nearMiss(&d, at: 1100 + Double(i) * 40)) }
+    }
+
+    /// Five head-drop near-misses, 40 s apart, in the last three minutes of an 8-minute stretch of
+    /// good frames whose forward lean runs from `creepFrom` to `creepTo`. Returns every suggestion.
+    private func nearMissesWhileCreeping(from creepFrom: Float, to creepTo: Float) -> [SeatChangeSuggestion] {
+        var d = SeatChangeDetector()
+        var found: [SeatChangeSuggestion] = []
+        let start: TimeInterval = 100, length: TimeInterval = 500
+        var s = start
+        while s <= start + length {
+            let creep = creepFrom + (creepTo - creepFrom) * Float((s - start) / length)
+            let drifting = (320...480).contains(s - start) && Int(s - start) % 40 == 0
+            let state: PostureState = drifting ? .drifting(since: s) : .good
+            if let r = frame(state, signals: drifting ? [.headDrop] : [], headDrop: drifting ? -0.02 : 0,
+                             creep: creep, t: s, detector: &d) { found.append(r) }
+            s += 1
+        }
+        return found
+    }
+
+    /// 09:23–09:29 on 11-27: head drop kept brushing its line while forward lean climbed to
+    /// bad. That is a slouch building, not a moved seat, which shifts readings once.
+    func test_nearMisses_whileForwardLeanBuilds_dontAsk() {
+        XCTAssertEqual(nearMissesWhileCreeping(from: -0.06, to: 0.0), [])
+    }
+
+    /// 11-23's real seat change: forward lean steady through the near-misses.
+    func test_nearMisses_withForwardLeanSteady_stillAsk() {
+        let found = nearMissesWhileCreeping(from: -0.02, to: -0.02)
+        XCTAssertEqual(found.first?.trigger, .nearMisses(reason: .headDrop, count: 5))
+    }
+
+    /// Forward lean easing back towards upright is no slouch building.
+    func test_nearMisses_withForwardLeanEasing_stillAsk() {
+        let found = nearMissesWhileCreeping(from: 0.0, to: -0.06)
+        XCTAssertEqual(found.first?.trigger, .nearMisses(reason: .headDrop, count: 5))
+    }
+
     func test_fiveHeadDropNearMisses_inFiveMinutes_suggest() {
         var d = SeatChangeDetector()
         var results: [SeatChangeSuggestion?] = []

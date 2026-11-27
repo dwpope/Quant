@@ -428,13 +428,33 @@ struct PostureLogRecorder {
         }
 
         let states = window.map(\.state)
-        // Most frames' state; a tie says the worse, as the tracking line does.
-        let most = ["bad", "drifting", "good"].max { a, b in
-            states.filter { $0 == a }.count < states.filter { $0 == b }.count
-        } ?? "good"
+        // Numbers only from the frames Dave was judged in: an away frame carries the last metrics
+        // seen, so session 15's 3½ minutes out of the room logged the same numbers each line
+        // (2026-11-27).
+        let judgedNames: Set<String> = ["good", "drifting", "bad"]
+        let judged = window.filter { judgedNames.contains($0.state) }
+        let most: String
+        if judged.count * 2 < window.count {
+            // Away for most of it: say so, rather than let a three-way tie at nothing say "bad".
+            let calibrating = states.filter { $0 == "calibrating" }.count
+            most = calibrating > states.filter { $0 == "absent" }.count ? "calibrating" : "absent"
+        } else {
+            // Most judged frames' state; a tie says the worse, as the tracking line does.
+            let judgedStates = judged.map(\.state)
+            most = ["bad", "drifting", "good"].max { a, b in
+                judgedStates.filter { $0 == a }.count < judgedStates.filter { $0 == b }.count
+            } ?? "good"
+        }
 
-        let drops = window.map(\.metrics.headDrop)
-        let creeps = window.map(\.metrics.forwardCreep)
+        var event = PostureLogEvent(t: last.t, kind: "metrics", value: most)
+        event.over = over
+        event.frames = window.count
+        event.slouched = seconds(states.filter { $0 == "drifting" || $0 == "bad" }.count)
+        event.baselineAge = baselineTakenAt.map { (last.t - $0.timeIntervalSince1970).rounded() }
+        guard !judged.isEmpty else { return event }
+
+        let drops = judged.map(\.metrics.headDrop)
+        let creeps = judged.map(\.metrics.forwardCreep)
         var headDropPast: [String: Float] = [:]
         for line in headDropLines {
             headDropPast[key(line)] = seconds(drops.filter { -$0 >= line }.count)
@@ -444,30 +464,25 @@ struct PostureLogRecorder {
             forwardCreepPast[key(line)] = seconds(creeps.filter { $0 > line }.count)
         }
 
-        var event = PostureLogEvent(t: last.t, kind: "metrics", value: most)
-        event.over = over
-        event.frames = window.count
         (event.headDropLow, event.headDropMedian, event.headDropHigh) = spread(drops)
         (event.forwardCreepLow, event.forwardCreepMedian, event.forwardCreepHigh) = spread(creeps)
-        let sinks = window.map(\.metrics.shoulderSink)
-        let leans = window.map(\.metrics.lateralLean)
+        let sinks = judged.map(\.metrics.shoulderSink)
+        let leans = judged.map(\.metrics.lateralLean)
         (_, event.shoulderSinkMedian, event.shoulderSinkHigh) = spread(sinks)
         (_, event.sideLeanMedian, event.sideLeanHigh) = spread(leans)
-        event.twistHigh = fine(window.map(\.metrics.twist).max() ?? 0)
-        event.roundingHigh = fine(window.map(\.metrics.shoulderRounding).max() ?? 0)
-        let pitches = window.compactMap(\.head?.pitch)
+        event.twistHigh = fine(judged.map(\.metrics.twist).max() ?? 0)
+        event.roundingHigh = fine(judged.map(\.metrics.shoulderRounding).max() ?? 0)
+        let pitches = judged.compactMap(\.head?.pitch)
         if !pitches.isEmpty {
             (event.headPitchLow, event.headPitchMedian, event.headPitchHigh) = spread(pitches)
         }
-        let sizes = window.compactMap(\.head?.size)
+        let sizes = judged.compactMap(\.head?.size)
         if !sizes.isEmpty {
             (event.headSizeLow, event.headSizeMedian, event.headSizeHigh) = spread(sizes)
         }
-        event.movementMedian = spread(window.map(\.metrics.movementLevel)).median
-        event.slouched = seconds(states.filter { $0 == "drifting" || $0 == "bad" }.count)
+        event.movementMedian = spread(judged.map(\.metrics.movementLevel)).median
         event.headDropPast = headDropPast
         event.forwardCreepPast = forwardCreepPast
-        event.baselineAge = baselineTakenAt.map { (last.t - $0.timeIntervalSince1970).rounded() }
         return event
     }
 

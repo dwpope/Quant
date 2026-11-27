@@ -38,6 +38,14 @@ struct SeatChangeDetector {
     private static let settle: TimeInterval = 5
     private static let firstWindowEnd: TimeInterval = 15
     private static let secondWindowEnd: TimeInterval = 25
+    /// After a calibration, near-misses don't count for this long: the calibration is how Dave
+    /// sits now (2026-11-27, session 15 asked 3 minutes after he calibrated).
+    private static let calibrationGrace: TimeInterval = 600
+    /// Forward lean rising by this many lines across the near-misses' five minutes is a slouch
+    /// building, not a moved seat, which shifts readings once (2026-11-27, 09:23–09:29).
+    private static let creepBuildingLines: Float = 0.25
+    /// The stretch at each end of the five minutes whose forward lean is compared.
+    private static let creepEnds: TimeInterval = 60
 
     /// The drift episode now open: its reasons and each reading's peak in the slouch direction.
     private var episodeReasons: Set<NudgeReason>?
@@ -47,6 +55,12 @@ struct SeatChangeDetector {
 
     private var nearMissTimes: [NudgeReason: [(t: TimeInterval, peak: Float)]] = [:]
     private var quiet = false
+
+    /// Set by `reset()`, a new baseline: the next frame starts the calibration's grace.
+    private var graceFromNextFrame = false
+    private var graceUntil: TimeInterval?
+    /// Forward lean of every frame with metrics over the last five minutes.
+    private var creepHistory: [(t: TimeInterval, creep: Float)] = []
 
     private var absentSince: TimeInterval?
     private var returnStart: TimeInterval?
@@ -62,6 +76,16 @@ struct SeatChangeDetector {
     /// One judged frame. Returns a suggestion at most once until `reset()` or the next return.
     mutating func observe(state: PostureState, signals: Set<NudgeReason>, metrics: RawMetrics?,
                           thresholds: PostureThresholds, at t: TimeInterval) -> SeatChangeSuggestion? {
+        if graceFromNextFrame {
+            graceFromNextFrame = false
+            graceUntil = t + Self.calibrationGrace
+        }
+        if let m = metrics {
+            creepHistory.append((t, m.forwardCreep))
+            if let first = creepHistory.first, t - first.t > Self.nearMissWindow + 1 {
+                creepHistory.removeAll { t - $0.t > Self.nearMissWindow }
+            }
+        }
         trackAbsenceAndReturn(state: state, thresholds: thresholds, at: t)
         let onReturn = collectReturn(state: state, metrics: metrics, thresholds: thresholds, at: t)
         let nearMiss = trackEpisode(state: state, signals: signals, metrics: metrics,
@@ -83,9 +107,10 @@ struct SeatChangeDetector {
         quiet = true
     }
 
-    /// New baseline: forget everything, not quiet.
+    /// New baseline: forget everything, not quiet, and no near-misses for the first ten minutes.
     mutating func reset() {
         self = SeatChangeDetector()
+        graceFromNextFrame = true
     }
 
     /// Log-only: start the count again, stay listening.
@@ -189,13 +214,14 @@ struct SeatChangeDetector {
         case .good:
             defer { episodeReasons = nil; episodePeaks = [:]; episodeHadMetrics = false }
             guard let reasons = episodeReasons, episodeHadMetrics else { return nil }
+            if let graceUntil, t < graceUntil { return nil }
             for reason in reasons {
                 let peak = episodePeaks[reason] ?? 0
                 if peak <= Self.nearMissPeakLines * Self.line(reason, thresholds) {
                     nearMissTimes[reason, default: []].append((t, peak))
                 }
             }
-            return suggestFromNearMisses(at: t)
+            return suggestFromNearMisses(at: t, thresholds: thresholds)
         case .bad, .absent, .calibrating:
             episodeReasons = nil
             episodePeaks = [:]
@@ -204,20 +230,32 @@ struct SeatChangeDetector {
         }
     }
 
-    private mutating func suggestFromNearMisses(at t: TimeInterval) -> SeatChangeSuggestion? {
+    private mutating func suggestFromNearMisses(at t: TimeInterval,
+                                               thresholds: PostureThresholds) -> SeatChangeSuggestion? {
         for reason in Self.readings {
             nearMissTimes[reason] = nearMissTimes[reason]?.filter { t - $0.t <= Self.nearMissWindow }
         }
         guard !quiet else { return nil }
         for reason in Self.readings {
             let counted = nearMissTimes[reason] ?? []
-            if counted.count >= Self.nearMissesNeeded {
+            if counted.count >= Self.nearMissesNeeded,
+               reason == .forwardCreep || !forwardLeanBuilding(at: t, line: thresholds.forwardCreepThreshold) {
                 quiet = true
                 return SeatChangeSuggestion(trigger: .nearMisses(reason: reason, count: counted.count), at: t,
                                             evidence: [reason.rawValue: counted.map(\.peak)])
             }
         }
         return nil
+    }
+
+    /// Whether forward lean in the last minute sits past where it was five minutes ago by a
+    /// quarter of its line, towards the slouch. Unknown (either end without frames) is no.
+    private func forwardLeanBuilding(at t: TimeInterval, line: Float) -> Bool {
+        let start = t - Self.nearMissWindow
+        let early = Self.median(creepHistory.filter { $0.t >= start && $0.t <= start + Self.creepEnds }.map(\.creep))
+        let late = Self.median(creepHistory.filter { $0.t >= t - Self.creepEnds }.map(\.creep))
+        guard let early, let late else { return false }
+        return late - early >= Self.creepBuildingLines * line
     }
 
     // MARK: Readings

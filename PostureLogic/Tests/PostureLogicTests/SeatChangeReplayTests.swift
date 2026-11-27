@@ -135,4 +135,67 @@ final class SeatChangeReplayTests: XCTestCase {
         }
         print(report)
     }
+
+    /// Runs only with `SEAT_REPLAY_FULL=<jsonl>`. Closer to the live check than the frequency
+    /// report: a calibration line resets the detector (starting its ten minutes), and each
+    /// metrics line's medians are a frame while the state is good, so forward lean has a history.
+    /// Counts as Log only does (the count starts again after each suggestion). Asserts nothing.
+    func test_fullReplayReport() throws {
+        guard let path = ProcessInfo.processInfo.environment["SEAT_REPLAY_FULL"] else {
+            throw XCTSkip("SEAT_REPLAY_FULL not set")
+        }
+        let text = try String(contentsOfFile: (path as NSString).expandingTildeInPath, encoding: .utf8)
+        var lines: [[String: Any]] = []
+        for raw in text.split(separator: "\n") {
+            if let obj = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any],
+               obj["t"] is Double { lines.append(obj) }
+        }
+        lines.sort { ($0["t"] as! Double) < ($1["t"] as! Double) }
+        let clock = DateFormatter()
+        clock.timeZone = TimeZone(identifier: "Europe/London")
+        clock.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        var detector = SeatChangeDetector()
+        var current: PostureState = .calibrating
+        // Every pending line first: one can be written just after the state line it explains.
+        let pendingAt: [(t: TimeInterval, reason: String)] = lines.compactMap { obj in
+            guard obj["kind"] as? String == "nudge", let v = obj["value"] as? String, v.hasPrefix("pending:") else { return nil }
+            return (obj["t"] as! Double, String(v.dropFirst("pending:".count)))
+        }
+        var report = "SEAT FULL REPLAY\n"
+        for obj in lines {
+            let t = obj["t"] as! Double, kind = obj["kind"] as? String ?? "", value = obj["value"] as? String ?? ""
+            func f(_ key: String) -> Float { (obj[key] as? Double).map(Float.init) ?? 0 }
+            var observed: (PostureState, Set<NudgeReason>, RawMetrics)?
+            switch kind {
+            case "calibration":
+                detector.reset()
+                report += "  \(clock.string(from: Date(timeIntervalSince1970: t)))  calibration\n"
+            case "state":
+                guard let s = state(value, at: t) else { continue }
+                current = s
+                var signals: Set<NudgeReason> = []
+                if case .drifting = s {
+                    for p in pendingAt where abs(p.t - t) <= 0.5 { if let r = NudgeReason(rawValue: p.reason) { signals.insert(r) } }
+                }
+                observed = (s, signals, RawMetrics(timestamp: t, forwardCreep: f("forwardCreep"), headDrop: f("headDrop"),
+                                                   shoulderRounding: 0, lateralLean: abs(f("lateralShift")), twist: 0,
+                                                   movementLevel: 0, headMovementPattern: .still,
+                                                   shoulderSink: f("shoulderSink")))
+            case "metrics" where current == .good && obj["forwardCreepMedian"] != nil:
+                observed = (.good, [], RawMetrics(timestamp: t, forwardCreep: f("forwardCreepMedian"),
+                                                  headDrop: f("headDropMedian"), shoulderRounding: 0,
+                                                  lateralLean: abs(f("sideLeanMedian")), twist: 0, movementLevel: 0,
+                                                  headMovementPattern: .still, shoulderSink: f("shoulderSinkMedian")))
+            case "seat":
+                report += "  \(clock.string(from: Date(timeIntervalSince1970: t)))  logged \(value)\n"
+            default: break
+            }
+            guard let (s, signals, m) = observed else { continue }
+            if let found = detector.observe(state: s, signals: signals, metrics: m, thresholds: thresholds, at: t) {
+                report += "  \(clock.string(from: Date(timeIntervalSince1970: found.at)))  REPLAY \(found.trigger)\n"
+                detector.forgetNearMisses()
+            }
+        }
+        print(report)
+    }
 }
