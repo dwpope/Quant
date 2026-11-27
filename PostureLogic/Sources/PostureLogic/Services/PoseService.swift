@@ -1,4 +1,5 @@
 import Vision
+import ImageIO
 import CoreGraphics
 import Foundation
 import os.log
@@ -57,7 +58,7 @@ final class PoseService: PoseServiceProtocol {
         }
 
         let request = VNDetectHumanBodyPoseRequest()
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: frame.visionOrientation, options: [:])
 
         do {
             try handler.perform([request])
@@ -90,14 +91,32 @@ final class PoseService: PoseServiceProtocol {
         }
     }
 
-    /// Keypoints as the pipeline measures them: a landscape frame's in the upright frame's units.
+    /// Keypoints as the pipeline measures them: a turned frame's (Front Face) in the 720 × 1280
+    /// frame's units, a landscape frame's in the upright frame's units.
     static func keypoints(_ found: [Keypoint], in frame: InputFrame) -> [Keypoint] {
-        guard frame.orientation == .landscape, let buffer = frame.pixelBuffer else { return found }
+        guard let buffer = frame.pixelBuffer else { return found }
         let width = CVPixelBufferGetWidth(buffer), height = CVPixelBufferGetHeight(buffer)
+        if frame.visionOrientation != .up {
+            let size = orientedSize(width: width, height: height, orientation: frame.visionOrientation)
+            return found.map {
+                Keypoint(joint: $0.joint,
+                         position: FrameOrientation.referenceUnits($0.position, width: size.width, height: size.height),
+                         confidence: $0.confidence)
+            }
+        }
+        guard frame.orientation == .landscape else { return found }
         return found.map {
             Keypoint(joint: $0.joint,
                      position: FrameOrientation.portraitUnits($0.position, width: width, height: height),
                      confidence: $0.confidence)
+        }
+    }
+
+    /// The picture's size once Vision has turned it: the sides swap for quarter turns.
+    static func orientedSize(width: Int, height: Int, orientation: CGImagePropertyOrientation) -> (width: Int, height: Int) {
+        switch orientation {
+        case .left, .right, .leftMirrored, .rightMirrored: return (height, width)
+        default: return (width, height)
         }
     }
 

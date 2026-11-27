@@ -35,4 +35,14 @@ public enum FrameOrientation: String, Codable, Equatable, Sendable {
         return CGPoint(x: 0.5 + (point.x - 0.5) / stretch,
                        y: 0.5 + (point.y - 0.5) * stretch)
     }
+
+    /// A keypoint from an upright frame of any aspect, in the units of a 720 × 1280 frame (Front
+    /// Face, 2026-11-27). ARKit's frames are 4:3 where the posture lines were set on 9:16. A point
+    /// keeps its pixels from the centre, measured in the reference frame scaled to the same
+    /// width: x is unchanged, y shrinks by height/width against the reference's 1280/720.
+    public static func referenceUnits(_ point: CGPoint, width: Int, height: Int) -> CGPoint {
+        guard width > 0, height > 0 else { return point }
+        let scale = (CGFloat(height) / CGFloat(width)) * (720.0 / 1280.0)
+        return CGPoint(x: point.x, y: 0.5 + (point.y - 0.5) * scale)
+    }
 }

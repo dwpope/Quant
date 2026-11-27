@@ -1,4 +1,5 @@
 import CoreVideo
+import ImageIO
 import simd
 import Foundation
 
@@ -35,7 +36,13 @@ public struct InputFrame {
     /// their sensor gives them and always say portrait, so they're handled as before.
     public let orientation: FrameOrientation
 
-    public init(timestamp: TimeInterval, pixelBuffer: CVPixelBuffer?, depthMap: CVPixelBuffer?, cameraIntrinsics: simd_float3x3?, precomputedSample: PoseSample? = nil, externalHeadAngles: HeadAngles? = nil, externalHeadOrientation: simd_quatf? = nil, orientation: FrameOrientation = .portrait) {
+    /// How Vision should turn the picture before it looks for a body (Front Face, 2026-11-27).
+    /// ARKit's face frames come in the sensor's landscape and are never rotated, so with the phone
+    /// upright Vision would see a sideways person; that source says `.right`. Every other source
+    /// hands over frames already as they should be read: `.up`, the default.
+    public let visionOrientation: CGImagePropertyOrientation
+
+    public init(timestamp: TimeInterval, pixelBuffer: CVPixelBuffer?, depthMap: CVPixelBuffer?, cameraIntrinsics: simd_float3x3?, precomputedSample: PoseSample? = nil, externalHeadAngles: HeadAngles? = nil, externalHeadOrientation: simd_quatf? = nil, orientation: FrameOrientation = .portrait, visionOrientation: CGImagePropertyOrientation = .up) {
         self.timestamp = timestamp
         self.pixelBuffer = pixelBuffer
         self.depthMap = depthMap
@@ -44,5 +51,6 @@ public struct InputFrame {
         self.externalHeadAngles = externalHeadAngles
         self.externalHeadOrientation = externalHeadOrientation
         self.orientation = orientation
+        self.visionOrientation = visionOrientation
     }
 }

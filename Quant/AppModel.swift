@@ -752,18 +752,30 @@ class AppModel: ObservableObject {
         // lines in force, and the baseline. Calibrating is logged as calibrating: with no
         // baseline every number is 0, and it read as sitting well.
         let thresholds = pipeline.thresholds
+        // Every frame, judged or not: a break is an absence, and absent frames aren't judged.
+        postureLogRecorder.notePresence(pipeline.postureState, now: now)
+        if cameraMode == .frontFace, let frame = pipeline.latestFrame,
+           let line = mirrorCheck.consider(
+               keypoints: pipeline.latestKeypoints, projected: arFaceService.latestProjectedFace,
+               frameTime: frame.time, orientation: (cameraOrientation ?? .portrait).rawValue, now: now) {
+            events.append(line)
+        }
+        let faceService = arFaceService
         if let baseline, !needsCalibration, let metrics = pipeline.latestMetrics {
             events += postureLogRecorder.metricsEvents(
                 state: pipeline.postureState, metrics: metrics,
                 head: pipeline.latestSample.map {
                     PostureLogRecorder.HeadShape(keypoints: pipeline.latestKeypoints, pitch: $0.headPitch)
                 },
+                face: cameraMode == .frontFace
+                    ? { faceService.faceSamples.summary(from: $0, to: $1) }
+                    : { _, _ in nil },
                 baselineTakenAt: baseline.timestamp,
                 headDropLine: thresholds.headDropThreshold,
                 forwardCreepLine: thresholds.forwardCreepThreshold, now: now)
         }
         events += postureLogRecorder.settingsEvents(PostureLogRecorder.lines(of: thresholds),
-                                                    build: Self.build, now: now)
+                                                    build: Self.build, camera: cameraMode.rawValue, now: now)
         events += postureLogRecorder.calibrationEvents(needsCalibration ? nil : baseline, now: now)
         events += postureLogRecorder.events(
             state: needsCalibration ? .calibrating : pipeline.postureState, decision: decision,
@@ -805,6 +817,7 @@ class AppModel: ObservableObject {
     /// one, and so would the launch or "Try again".
     private func startChosenCamera() async throws {
         guard !cameraStoppedForHeat else { return }
+        mirrorCheck.reset()
         try await startsCamera(activeService)
     }
 
@@ -1201,6 +1214,8 @@ class AppModel: ObservableObject {
     /// The folder the posture log is copied into as it's written (2026-11-17).
     lazy var postureLogFolder = PostureLogFolder(store: postureLogStore)
     private var postureLogRecorder = PostureLogRecorder()
+    /// The Front Face mirror check, once a session: reset when the camera starts.
+    private var mirrorCheck = MirrorCheckSession()
 
     /// Minimum seconds between calls. Never per frame: 130ms p50 near the provider, 475ms p50
     /// and 715ms p99 from Europe via a gateway.

@@ -1,7 +1,9 @@
 import ARKit
 import AVFoundation
 import Combine
+import ImageIO
 import PostureLogic
+import os
 import os.log
 import simd
 
@@ -68,6 +70,20 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
     /// session to display).
     let session = ARSession()
 
+    /// Where the tracked face sits across the upright picture, 0…1, with its frame's time (Front
+    /// Face, 2026-11-27). The pipeline compares it with where Vision puts the nose, to check the
+    /// frames are turned the right way round: Vision is told `.right` on the assumption that gives
+    /// an upright, unmirrored picture, and that check (and Dave's side-lean sign check on device)
+    /// verifies it. Written from ARKit's delegate callbacks (no delegate queue is set, so on the main queue); the lock is kept, it is cheap.
+    var latestProjectedFace: (t: TimeInterval, x: CGFloat)? {
+        projectedFace.withLock { $0 }
+    }
+    private let projectedFace = OSAllocatedUnfairLock<(t: TimeInterval, x: CGFloat)?>(initialState: nil)
+
+    /// Face readings at ARKit's full rate (~60 fps), taken before the pipeline's ~10 fps gate so
+    /// blinks and yawns are not missed. Written from ARKit's delegate callbacks (the main queue, as no delegate queue is set); the posture log reads it.
+    let faceSamples = FaceSampleBuffer()
+
     private let frameSubject = PassthroughSubject<InputFrame, Never>()
     private let logger = Logger(subsystem: "com.quant.posture", category: "ARFaceTracking")
 
@@ -132,6 +148,7 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
             return
         }
         blockedSubject.send(false)
+        faceSamples.clear()
 
         let config = ARFaceTrackingConfiguration()
         config.maximumNumberOfTrackedFaces = 1
@@ -151,6 +168,7 @@ final class ARFaceTrackingService: NSObject, PoseProvider {
         Self.diagFramesSinceTracked = 0
         Self.diagMaxSinceTracked = 0
         Self.diagHeadDistanceMeters = .nan
+        projectedFace.withLock { $0 = nil }
         startFrameTimeoutMonitoring()
     }
 
@@ -279,13 +297,39 @@ extension ARFaceTrackingService: ARSessionDelegate {
             Self.diagMaxSinceTracked = framesSinceTrackedFace
         }
 
+        let frameTime = FrameClock.shared.calendarSeconds(fromUptime: frame.timestamp)  // one clock: see FrameClock
+        if let face = trackedFace {
+            let shapes = face.blendShapes
+            let headDistance = Self.diagHeadDistanceMeters
+            faceSamples.append(FaceSample(
+                t: frameTime, tracked: true,
+                eyeBlinkLeft: shapes[.eyeBlinkLeft]?.floatValue ?? 0,
+                eyeBlinkRight: shapes[.eyeBlinkRight]?.floatValue ?? 0,
+                jawOpen: shapes[.jawOpen]?.floatValue ?? 0,
+                distance: headDistance))
+        } else {
+            faceSamples.append(FaceSample(t: frameTime, tracked: false, eyeBlinkLeft: 0,
+                                          eyeBlinkRight: 0, jawOpen: 0, distance: nil))
+        }
+        if let face = trackedFace {
+            // The face's place across the upright picture, as Vision will see it turned `.right`.
+            let width = CVPixelBufferGetWidth(frame.capturedImage), height = CVPixelBufferGetHeight(frame.capturedImage)
+            let size = CGSize(width: height, height: width)  // sides swapped by the quarter turn
+            let at = frame.camera.projectPoint(SIMD3<Float>(face.transform.columns.3.x, face.transform.columns.3.y, face.transform.columns.3.z),
+                                               orientation: .portrait, viewportSize: size)
+            if size.width > 0 {
+                projectedFace.withLock { $0 = (frameTime, at.x / size.width) }
+            }
+        }
+
         let inputFrame = InputFrame(
-            timestamp: FrameClock.shared.calendarSeconds(fromUptime: frame.timestamp),  // one clock: see FrameClock
+            timestamp: frameTime,
             pixelBuffer: frame.capturedImage,
             depthMap: nil,  // ARFaceTracking has no sceneDepth map; shoulders stay 2D, head is ARKit
             cameraIntrinsics: frame.camera.intrinsics,
             externalHeadAngles: headAngles,
-            externalHeadOrientation: headOrientation
+            externalHeadOrientation: headOrientation,
+            visionOrientation: .right  // ARKit's frames are sensor-landscape; Vision reads them turned upright, unmirrored like Front (2D)
         )
         frameSubject.send(inputFrame)
     }

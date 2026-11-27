@@ -11,7 +11,8 @@ import PostureLogic
 nonisolated struct PostureLogEvent: Codable, Equatable {
     /// Seconds since 1970.
     var t: TimeInterval
-    /// "state", "nudge", "task", "watch", "camera" (which way round its frames are), "tick":
+    /// "state", "nudge", "task", "watch", "camera" (which way round its frames are; from Front
+    /// Face once a session it also carries mirrorCheck and the raw readings behind it), "tick":
     /// the state again, a minute after the last line, while nothing changes (2026-10-16), or
     /// "tracking": the debug panel's tracking numbers over 10 seconds it wasn't good (2026-11-17);
     /// "metrics": the judged frames' numbers over 10 seconds; "settings": the build and the lines
@@ -96,6 +97,32 @@ nonisolated struct PostureLogEvent: Codable, Equatable {
     var headDropPast: [String: Float]? = nil
     var forwardCreepPast: [String: Float]? = nil
     var baselineAge: TimeInterval? = nil
+    /// On a "metrics" line from Front Face (2026-11-27), what the face did in the window: the
+    /// share of tracked time with both eyes closed, closures of 0.3 s or more and the longest
+    /// closure (ms), yawns, the share of the window the face was tracked, and its distance from
+    /// the camera in metres. Left out in the other modes.
+    var eyesClosedShare: Float? = nil
+    var longBlinks: Int? = nil
+    var longestClosureMs: Int? = nil
+    var yawns: Int? = nil
+    var faceTrackedShare: Float? = nil
+    var faceDistanceLow: Float? = nil
+    var faceDistanceMedian: Float? = nil
+    var faceDistanceHigh: Float? = nil
+    /// On a "metrics" line in every mode: the window's median movement level, and minutes since
+    /// the last break (an absence of 2 minutes or more), or since the first frame judged.
+    var movementMedian: Float? = nil
+    var sinceBreakMinutes: Float? = nil
+    /// On a "settings" line: the camera in use, a `CameraMode` raw value.
+    var camera: String? = nil
+    /// On a "camera" line from Front Face, once per session: whether Vision's nose and ARKit's
+    /// face sit the same way across the frame ("matches", "mirrored" or "unclear").
+    var mirrorCheck: String? = nil
+    /// On that line only: the readings the check decided on, Vision's nose (x, y) and ARKit's
+    /// projected face x, each 0...1 across the frame.
+    var noseX: Float? = nil
+    var noseY: Float? = nil
+    var faceX: Float? = nil
     /// On a "seat" line (2026-11-23): what raised the seat question ("nearMisses" or "onReturn"),
     /// the readings behind it (a comma list, sorted) and, for near-misses, how many.
     var trigger: String? = nil
@@ -307,6 +334,36 @@ struct PostureLogRecorder {
     }
     private var metricsWindow: [JudgedFrame] = []
     private var metricsBaselineTakenAt: Date?
+    private var lastCamera: String?
+    /// Where the last face window ended: the next starts there, so lines tile.
+    private var lastFaceTo: TimeInterval?
+    /// The start of the stretch since the last break, and when the current absence began.
+    private var stretchStart: TimeInterval?
+    private var absentSince: TimeInterval?
+    /// The time of the last frame noted, of any state.
+    private var lastFrameAt: TimeInterval?
+    /// An absence this long is a break.
+    static let breakAfter: TimeInterval = 120
+
+    /// Notes whether the person is there, from every frame the app logs (2026-11-27), so a break
+    /// is seen though the frames absent aren't judged ones. Time with no frames at all (the
+    /// camera stopped, the phone locked or backgrounded, a heat pause) counts as away too: it
+    /// joins an absence that follows it, and is a break by itself if it lasts long enough.
+    mutating func notePresence(_ state: PostureState, now: Date) {
+        let t = now.timeIntervalSince1970
+        defer { lastFrameAt = t }
+        if case .absent = state {
+            if absentSince == nil { absentSince = lastFrameAt ?? t }
+            return
+        }
+        if absentSince == nil, let last = lastFrameAt, t - last >= Self.breakAfter {
+            absentSince = last
+        }
+        if let since = absentSince, t - since >= Self.breakAfter { stretchStart = t }
+        absentSince = nil
+        if stretchStart == nil { stretchStart = t }
+    }
+
     private var lastSettings: [String: Float]?
     private var settingsDay: String?
     private var lastBaselineTakenAt: Date?
@@ -316,17 +373,38 @@ struct PostureLogRecorder {
     /// state and tick lines carry the numbers only as a line is crossed, so they all sit by the
     /// line: on 11-18, 885 of them for about 64,200 frames. Separate from `events`, like the
     /// tracking line, so it doesn't put off a tick.
+    ///
+    /// `face` (Front Face only) is asked for the window's face summary as a line is built, over
+    /// (from, to] with `to` the time of this call, and `from` where the last window ended (or the
+    /// window's first frame), so consecutive lines tile.
     mutating func metricsEvents(state: PostureState, metrics: RawMetrics, head: HeadShape? = nil,
+                                face: (_ from: TimeInterval, _ to: TimeInterval) -> FaceSignalSummary? = { _, _ in nil },
                                 baselineTakenAt: Date,
                                 headDropLine: Float, forwardCreepLine: Float, now: Date) -> [PostureLogEvent] {
         let t = now.timeIntervalSince1970
+        notePresence(state, now: now)
         var out: [PostureLogEvent] = []
         if let start = metricsWindow.first?.t, t - start >= Self.metricsEvery {
-            if let line = Self.metricsLine(metricsWindow, baselineTakenAt: metricsBaselineTakenAt,
+            if var line = Self.metricsLine(metricsWindow, baselineTakenAt: metricsBaselineTakenAt,
                                            headDropLines: Self.headDropLines + [headDropLine],
                                            forwardCreepLines: Self.forwardCreepLines + [forwardCreepLine]) {
+                let from = max(lastFaceTo ?? start, start)
+                if let summary = face(from, t) {
+                    line.eyesClosedShare = summary.eyesClosedShare
+                    line.longBlinks = summary.longBlinks
+                    line.longestClosureMs = summary.longestClosureMs
+                    line.yawns = summary.yawns
+                    line.faceTrackedShare = summary.trackedShare
+                    line.faceDistanceLow = summary.distanceLow
+                    line.faceDistanceMedian = summary.distanceMedian
+                    line.faceDistanceHigh = summary.distanceHigh
+                }
+                var minutes = ((t - (stretchStart ?? t)) / 60 * 10).rounded() / 10
+                if let since = absentSince, t - since >= Self.breakAfter { minutes = 0 }
+                line.sinceBreakMinutes = Float(minutes)
                 out.append(line)
             }
+            lastFaceTo = t
             metricsWindow = []
         }
         metricsWindow.append(JudgedFrame(t: t, state: Self.name(of: state), metrics: metrics, head: head))
@@ -385,6 +463,7 @@ struct PostureLogRecorder {
         if !sizes.isEmpty {
             (event.headSizeLow, event.headSizeMedian, event.headSizeHigh) = spread(sizes)
         }
+        event.movementMedian = spread(window.map(\.metrics.movementLevel)).median
         event.slouched = seconds(states.filter { $0 == "drifting" || $0 == "bad" }.count)
         event.headDropPast = headDropPast
         event.forwardCreepPast = forwardCreepPast
@@ -403,13 +482,16 @@ struct PostureLogRecorder {
     /// A "settings" line with the build and every line in force (2026-11-19): at the first frame,
     /// when one changes, and at the start of each day. The log said neither, so which line a
     /// session ran on had to be worked out from where its crossings sat.
-    mutating func settingsEvents(_ lines: [String: Float], build: String, now: Date) -> [PostureLogEvent] {
+    mutating func settingsEvents(_ lines: [String: Float], build: String, camera: String? = nil,
+                                 now: Date) -> [PostureLogEvent] {
         let day = PostureLogStore.dayKey(for: now, calendar: calendar)
-        guard lines != lastSettings || day != settingsDay else { return [] }
+        guard lines != lastSettings || day != settingsDay || camera != lastCamera else { return [] }
         lastSettings = lines
         settingsDay = day
+        lastCamera = camera
         var event = PostureLogEvent(t: now.timeIntervalSince1970, kind: "settings", value: build)
         event.lines = lines
+        event.camera = camera
         return [event]
     }
 
@@ -500,6 +582,22 @@ struct PostureLogRecorder {
     /// each time the phone is turned. Head drop and sink are measured the same either way.
     static func cameraEvent(_ orientation: FrameOrientation, now: Date) -> PostureLogEvent {
         PostureLogEvent(t: now.timeIntervalSince1970, kind: "camera", value: orientation.rawValue)
+    }
+
+    /// The once-a-session mirror check's line (2026-11-27): a "camera" line with the orientation
+    /// and the check's result.
+    static func mirrorCheckEvent(_ result: FrontFaceMirrorCheck.Result, orientation: String,
+                                 noseX: Float, noseY: Float, faceX: Float, now: Date) -> PostureLogEvent {
+        var event = PostureLogEvent(t: now.timeIntervalSince1970, kind: "camera", value: orientation)
+        switch result {
+        case .matches: event.mirrorCheck = "matches"
+        case .mirrored: event.mirrorCheck = "mirrored"
+        case .unclear: event.mirrorCheck = "unclear"
+        }
+        event.noseX = noseX
+        event.noseY = noseY
+        event.faceX = faceX
+        return event
     }
 
     static func name(of state: PostureState) -> String {
@@ -723,5 +821,42 @@ extension PostureLogEvent {
     /// How an open seat-change question ended.
     static func seatEvent(closed outcome: SeatChangeOutcome, at t: TimeInterval) -> PostureLogEvent {
         PostureLogEvent(t: t, kind: "seat", value: "closed:\(outcome.rawValue)")
+    }
+}
+
+/// Decides, frame by frame, when the Front Face mirror check is written: once a session, from a
+/// frame with a sure nose and a face ARKit projected within 0.2 s of it. An unclear result tries
+/// again on later frames (someone sitting centred reads unclear until they lean), and is written
+/// as "unclear" only once `giveUpAfter` seconds have passed since the first eligible frame.
+struct MirrorCheckSession {
+    static let giveUpAfter: TimeInterval = 600
+    static let minNoseConfidence: Float = 0.5
+    static let freshWithin: TimeInterval = 0.2
+
+    private var firstEligibleAt: Date?
+    private(set) var done = false
+
+    /// For a new session: the camera started or its mode changed.
+    mutating func reset() {
+        firstEligibleAt = nil
+        done = false
+    }
+
+    mutating func consider(keypoints: [Keypoint], projected: (t: TimeInterval, x: CGFloat)?,
+                           frameTime: TimeInterval, orientation: String, now: Date) -> PostureLogEvent? {
+        guard !done, let projected,
+              let nose = keypoints.first(where: { $0.joint == .nose && $0.confidence >= Self.minNoseConfidence }),
+              abs(projected.t - frameTime) <= Self.freshWithin + 1e-9
+        else { return nil }
+        let result = FrontFaceMirrorCheck.classify(visionNoseX: nose.position.x, projectedFaceX: projected.x)
+        let start = firstEligibleAt ?? now
+        firstEligibleAt = start
+        if result == .unclear {
+            guard now.timeIntervalSince(start) >= Self.giveUpAfter else { return nil }
+        }
+        done = true
+        return PostureLogRecorder.mirrorCheckEvent(
+            result, orientation: orientation, noseX: Float(nose.position.x),
+            noseY: Float(nose.position.y), faceX: Float(projected.x), now: now)
     }
 }
