@@ -13,103 +13,114 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 12) {
-                    // Slouching or not. Re-read every few seconds, so a phone that has gone
-                    // quiet stops showing its last word as now.
-                    TimelineView(.periodic(from: .now, by: 5)) { context in
-                        PostureGlanceView(look: PostureLook(
-                            sessionDelegate.postureGlance,
-                            receivedAt: sessionDelegate.postureGlanceReceivedAt,
-                            now: context.date), now: context.date)
-                    }
-
-                    Divider()
-
-                    // Connection status
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(sessionDelegate.isConnected ? .green : .red)
-                            .frame(width: 8, height: 8)
-                        Text(sessionDelegate.isConnected ? "Connected" : "Disconnected")
-                            .font(.caption)
-                    }
-
-                    // Whether nudges arrive on time: the app kept running an hour at a time.
-                    Text(WristNudgeSession.statusLine(for: wristSession.state))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    switch wristSession.state {
-                    case .off, .unavailable:
-                        Button("Keep nudges on time") { wristSession.appBecameActive() }
-                            .font(.caption)
-                    case .starting, .on:
-                        EmptyView()
-                    }
-
-                    // Last nudge received
-                    if let lastNudge = sessionDelegate.lastNudgeTime {
-                        Text("Last nudge:")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text(lastNudge, style: .time)
-                            .font(.caption)
-                        if let line = sessionDelegate.lastNudgeBody {
-                            Text(line)
-                                .font(.caption)
-                                .multilineTextAlignment(.center)
-                        }
-                    } else {
-                        Text("No nudges received")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    silenceSection
-
-                    Divider()
-
-                    // Remote for Jev captures, so tapping never moves the posture being captured.
-                    NavigationLink {
-                        JevRemoteView(session: sessionDelegate)
-                    } label: {
-                        Label("Jev capture", systemImage: "hand.tap")
-                    }
-
-                    // The camera's view on the phone, to check you're in frame without reaching
-                    // for it (2026-10-20).
-                    Button {
-                        sessionDelegate.setCameraPreview(show: !sessionDelegate.phoneShowsCamera)
-                    } label: {
-                        Label(CameraPreviewRemote.buttonTitle(phoneShows: sessionDelegate.phoneShowsCamera),
-                              systemImage: sessionDelegate.phoneShowsCamera ? "eye.slash" : "eye")
-                    }
-                    .disabled(!sessionDelegate.isPhoneReachable)
-
-                    // Calibrate button
-                    Button {
-                        sessionDelegate.sendCalibrateRequest()
-                    } label: {
-                        Label("Calibrate", systemImage: "scope")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!sessionDelegate.isConnected)
-
-                    // Settings link
-                    NavigationLink {
-                        WatchCalibrationSettingsView(sessionDelegate: sessionDelegate)
-                    } label: {
-                        Label("Settings", systemImage: "gearshape")
-                    }
-                }
-                .padding()
+            // The marks first (2026-11-27), so a raised wrist mid-session lands on them; the
+            // rest is one swipe down, as it was.
+            TabView {
+                MarkGridView(sessionDelegate: sessionDelegate)
+                statusPage
             }
+            .tabViewStyle(.verticalPage)
         }
         // A nudge that came with the app in front, shown over whatever screen is open
         // (2026-11-09).
         .sheet(item: $sessionDelegate.nudgeOnScreen) { nudge in
             NudgeOnScreenView(nudge: nudge)
+        }
+    }
+
+    /// Posture, connection, nudges and the controls, as the only screen was before 2026-11-27.
+    private var statusPage: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                // Slouching or not. Re-read every few seconds, so a phone that has gone
+                // quiet stops showing its last word as now.
+                TimelineView(.periodic(from: .now, by: 5)) { context in
+                    PostureGlanceView(look: PostureLook(
+                        sessionDelegate.postureGlance,
+                        receivedAt: sessionDelegate.postureGlanceReceivedAt,
+                        now: context.date), now: context.date)
+                }
+
+                Divider()
+
+                // Connection status
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(sessionDelegate.isConnected ? .green : .red)
+                        .frame(width: 8, height: 8)
+                    Text(sessionDelegate.isConnected ? "Connected" : "Disconnected")
+                        .font(.caption)
+                }
+
+                // Whether nudges arrive on time: the app kept running an hour at a time.
+                Text(WristNudgeSession.statusLine(for: wristSession.state))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                switch wristSession.state {
+                case .off, .unavailable:
+                    Button("Keep nudges on time") { wristSession.appBecameActive() }
+                        .font(.caption)
+                case .starting, .on:
+                    EmptyView()
+                }
+
+                // Last nudge received
+                if let lastNudge = sessionDelegate.lastNudgeTime {
+                    Text("Last nudge:")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(lastNudge, style: .time)
+                        .font(.caption)
+                    if let line = sessionDelegate.lastNudgeBody {
+                        Text(line)
+                            .font(.caption)
+                            .multilineTextAlignment(.center)
+                    }
+                } else {
+                    Text("No nudges received")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                silenceSection
+
+                Divider()
+
+                // Remote for Jev captures, so tapping never moves the posture being captured.
+                NavigationLink {
+                    JevRemoteView(session: sessionDelegate)
+                } label: {
+                    Label("Jev capture", systemImage: "hand.tap")
+                }
+
+                // The camera's view on the phone, to check you're in frame without reaching
+                // for it (2026-10-20).
+                Button {
+                    sessionDelegate.setCameraPreview(show: !sessionDelegate.phoneShowsCamera)
+                } label: {
+                    Label(CameraPreviewRemote.buttonTitle(phoneShows: sessionDelegate.phoneShowsCamera),
+                          systemImage: sessionDelegate.phoneShowsCamera ? "eye.slash" : "eye")
+                }
+                .disabled(!sessionDelegate.isPhoneReachable)
+
+                // Calibrate button
+                Button {
+                    sessionDelegate.sendCalibrateRequest()
+                } label: {
+                    Label("Calibrate", systemImage: "scope")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!sessionDelegate.isConnected)
+
+                // Settings link
+                NavigationLink {
+                    WatchCalibrationSettingsView(sessionDelegate: sessionDelegate)
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+            }
+            .padding()
         }
     }
 }

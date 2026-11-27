@@ -854,6 +854,13 @@ class AppModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Moments Dave marks on the Watch during a session (2026-11-27), at the time he tapped.
+        watchService.markReceived
+            .sink { [weak self] mark in
+                self?.postureLogStore.append([PostureLogRecorder.markEvent(mark)])
+            }
+            .store(in: &cancellables)
+
         // And what watchOS did with it, watched there for half a minute.
         watchService.nudgeNotificationReported
             .sink { [weak self] times in

@@ -464,6 +464,12 @@ struct PostureLogRecorder {
         PostureLogEvent(t: now.timeIntervalSince1970, kind: "watch", value: delivery.rawValue)
     }
 
+    /// A moment Dave marked on the Watch (2026-11-27), dated when he tapped: what he was doing,
+    /// so a session's readings can be read against it.
+    static func markEvent(_ mark: SessionMarkReport) -> PostureLogEvent {
+        PostureLogEvent(t: mark.at.timeIntervalSince1970, kind: "mark", value: mark.what)
+    }
+
     /// When a nudge reached the Watch, as the Watch reported it (2026-10-10): session 3's nudges
     /// arrived late, and nothing said how late.
     static func arrivalEvent(_ arrival: NudgeArrival) -> PostureLogEvent {

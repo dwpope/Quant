@@ -281,6 +281,27 @@ final class WatchSessionDelegate: NSObject, ObservableObject {
         }
     }
 
+    /// Mark a moment of the session (2026-11-27): straight to the phone when it can take a
+    /// message, else queued, which arrives later but keeps the tap's time. A click says it went.
+    func sendMark(_ mark: SessionMark, at: Date = Date()) {
+        WKInterfaceDevice.current().play(.click)
+        let message = SessionMark.message(mark, at: at)
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            logger.warning("WCSession not activated — cannot send mark")
+            return
+        }
+        if session.isReachable {
+            session.sendMessage(message, replyHandler: nil) { [weak self] error in
+                self?.logger.error("Mark not sent, queued: \(error.localizedDescription)")
+                session.transferUserInfo(message)
+            }
+        } else {
+            session.transferUserInfo(message)
+        }
+    }
+
     /// Answer the question on the phone.
     func answerSeatQuestion(_ answer: String, id: TimeInterval) {
         sendToPhone(SeatChangeRemote.answerMessage(answer, id: id), what: "seat answer")

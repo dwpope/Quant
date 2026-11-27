@@ -71,6 +71,8 @@ final class WatchConnectivityService: NSObject {
     /// What became of each nudge's notification on the Watch (2026-11-09).
     let nudgeBannerReported = PassthroughSubject<NudgeBanner, Never>()
     let nudgeNotificationReported = PassthroughSubject<NudgeNotificationTimes, Never>()
+    /// A moment Dave marked on the Watch during a session (2026-11-27), at the time he tapped.
+    let markReceived = PassthroughSubject<SessionMarkReport, Never>()
 
     /// Called with the Watch's answer to the seat-change question and the id of the question it
     /// answers (2026-11-23). The phone decides whether it's still the open one.
@@ -276,6 +278,20 @@ final class WatchConnectivityService: NSObject {
         return (answer, id)
     }
 
+    /// The marks the Watch offers (2026-11-27); its `SessionMark` writes them.
+    nonisolated static let sessionMarks: Set<String> = ["lookingDown", "craning", "movedSeat", "yawning", "sluggish",
+                                            "sittingWell"]
+
+    /// A mark from the Watch, dated when Dave tapped it, or nil when the message isn't a
+    /// well-formed mark. A queued mark can arrive minutes late; its time is the tap's.
+    nonisolated static func sessionMark(from message: [String: Any]) -> SessionMarkReport? {
+        guard message["type"] as? String == "mark",
+              let what = message["what"] as? String, sessionMarks.contains(what),
+              let at = (message["at"] as? NSNumber)?.doubleValue
+        else { return nil }
+        return SessionMarkReport(what: what, at: Date(timeIntervalSince1970: at))
+    }
+
     /// The nudge message, `body` only when there is one. The Watch's `NudgeMessage` reads it.
     /// `sentAt` lets the Watch report how late it arrived (2026-10-10). `reason` and `repeat`
     /// let it play its own taps, firmer as a slouch goes on uncorrected (2026-10-13); a Watch on
@@ -456,11 +472,13 @@ extension WatchConnectivityService: WCSessionDelegate {
         let arrival = Self.nudgeArrival(from: userInfo)
         let banner = Self.nudgeBanner(from: userInfo)
         let times = Self.nudgeNotificationTimes(from: userInfo)
-        guard arrival != nil || banner != nil || times != nil else { return }
+        let mark = Self.sessionMark(from: userInfo)
+        guard arrival != nil || banner != nil || times != nil || mark != nil else { return }
         Task { @MainActor in
             if let arrival { nudgeArrived.send(arrival) }
             if let banner { nudgeBannerReported.send(banner) }
             if let times { nudgeNotificationReported.send(times) }
+            if let mark { markReceived.send(mark) }
         }
     }
 
@@ -470,6 +488,7 @@ extension WatchConnectivityService: WCSessionDelegate {
         if let arrival = Self.nudgeArrival(from: userInfo) { nudgeArrived.send(arrival) }
         if let banner = Self.nudgeBanner(from: userInfo) { nudgeBannerReported.send(banner) }
         if let times = Self.nudgeNotificationTimes(from: userInfo) { nudgeNotificationReported.send(times) }
+        if let mark = Self.sessionMark(from: userInfo) { markReceived.send(mark) }
     }
 
     // MARK: - Message Handling
@@ -501,6 +520,8 @@ extension WatchConnectivityService: WCSessionDelegate {
             }
         case "seatAnswer":
             if let reply = Self.seatAnswer(from: message) { onSeatAnswer?(reply.answer, reply.id) }
+        case "mark":
+            if let mark = Self.sessionMark(from: message) { markReceived.send(mark) }
         default:
             if let command = JevRemote.Command(message: message) {
                 jevRemoteCommand.send(command)
@@ -522,6 +543,12 @@ enum NudgeDelivery: String {
     case queuedAfterFailedSend
     /// No paired Watch.
     case noWatch
+}
+
+/// A moment marked on the Watch (2026-11-27): what, and when Dave tapped.
+struct SessionMarkReport: Equatable, Sendable {
+    let what: String
+    let at: Date
 }
 
 /// When a nudge reached the Watch, as the Watch reported it (2026-10-10).
